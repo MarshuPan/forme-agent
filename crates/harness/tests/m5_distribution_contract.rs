@@ -2154,7 +2154,7 @@ fn s98_three_process_registry_authority_executor_golden_is_governed_end_to_end()
                     .iter()
                     .map(|event| event.stream_seq)
                     .collect(),
-                event_taxonomy: p::EventKind::ALL.to_vec(),
+                event_taxonomy: p::EventKind::ALL[..p::M5_EVENT_KIND_COUNT].to_vec(),
                 registry_fetches,
                 authority_driver_calls: action_started_count,
                 executor_installs: package_ledger.record_count().unwrap() as u64,
