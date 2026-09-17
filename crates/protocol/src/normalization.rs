@@ -88,7 +88,7 @@ pub fn normalized_action_digest(intent: &ActionIntent) -> Result<SchemaDigest> {
     normalize_json_objects(&mut value);
     if let Value::Object(object) = &mut value {
         if let Some(Value::Array(permissions)) = object.get_mut("requested_permissions") {
-            permissions.sort_by(|left, right| left.to_string().cmp(&right.to_string()));
+            permissions.sort_by_key(|permission| permission.to_string());
             permissions.dedup();
         }
     }

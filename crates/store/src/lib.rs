@@ -30,6 +30,8 @@ pub use replica::ReplicaSqliteStore;
 pub use schema::{PayloadType, SchemaSnapshot, Upcaster};
 pub use sqlite::{SqliteEventStore, StoreOptions};
 
+pub const APPROVAL_CONSUMPTION_SCHEMA_VERSION: p::SchemaVersion = p::SchemaVersion(1);
+
 pub trait Projection {
     type State;
 
@@ -56,6 +58,85 @@ pub trait EventStore {
     fn read_run(&self, run: p::RunId) -> EventCursor;
     fn project<P: Projection>(&self, scope: ProjectionScope) -> p::Result<P::State>;
     fn replay(&self, run: p::RunId, at: SchemaSnapshot) -> p::Result<ReplayReport>;
+}
+
+/// Durable one-shot approval consumption fact.  This is authority companion
+/// metadata: it prevents a granted nonce from being reused across process
+/// restarts without adding another business event kind.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApprovalConsumptionClaim {
+    pub schema_version: p::SchemaVersion,
+    pub approval_id: p::ApprovalId,
+    pub approver: p::VerifiedPrincipal,
+    pub nonce: p::Nonce,
+    pub plan_digest: p::PlanDigest,
+    pub normalized_action_digest: p::SchemaDigest,
+    pub affected_resources: Vec<p::ResourceRef>,
+    pub policy_version: p::Version,
+    pub tool_schema_version: p::Version,
+    pub now: p::Timestamp,
+}
+
+impl ApprovalConsumptionClaim {
+    pub fn validate(&self) -> p::Result<()> {
+        if self.schema_version != APPROVAL_CONSUMPTION_SCHEMA_VERSION {
+            return Err(p::Error(format!(
+                "approval consumption schema version {} is unsupported",
+                self.schema_version.0
+            )));
+        }
+        if self.approval_id.0.trim().is_empty()
+            || self.approver.0.trim().is_empty()
+            || self.nonce.0.trim().is_empty()
+            || self.plan_digest.0.trim().is_empty()
+            || self.normalized_action_digest.0.trim().is_empty()
+        {
+            return Err(p::Error(
+                "approval consumption binding is incomplete".into(),
+            ));
+        }
+        if self.nonce.0.len() > 256 {
+            return Err(p::Error(
+                "approval consumption nonce exceeds its bound".into(),
+            ));
+        }
+        p::sha256_digest_bytes(&p::SchemaDigest(self.plan_digest.0.clone()))
+            .map_err(|_| p::Error("approval consumption plan digest is not canonical".into()))?;
+        p::sha256_digest_bytes(&self.normalized_action_digest)
+            .map_err(|_| p::Error("approval consumption action digest is not canonical".into()))?;
+        if self.policy_version.0 == 0 || self.tool_schema_version.0 == 0 {
+            return Err(p::Error(
+                "approval consumption versions must be non-zero".into(),
+            ));
+        }
+        if self.now < 0 {
+            return Err(p::Error(
+                "approval consumption claim time cannot be negative".into(),
+            ));
+        }
+        if self
+            .affected_resources
+            .iter()
+            .any(|resource| resource.0.trim().is_empty())
+        {
+            return Err(p::Error(
+                "approval consumption resources cannot be empty".into(),
+            ));
+        }
+        if p::normalize_resource_set(&self.affected_resources) != self.affected_resources {
+            return Err(p::Error(
+                "approval consumption resources are not canonical".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// The durable one-shot gate used immediately before an approved driver call.
+pub trait ApprovalConsumptionLedger {
+    /// `true` means this nonce was claimed for the first time; `false` means
+    /// an exactly equivalent retry observed the already-consumed claim.
+    fn claim_approval(&self, claim: &ApprovalConsumptionClaim) -> p::Result<bool>;
 }
 
 pub trait VersionedEventStore: EventStore {

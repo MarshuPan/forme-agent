@@ -17,14 +17,15 @@ use crate::{
     projection::searchable_text,
     replay::projection_diff,
     schema::UpcasterGraph,
-    AuthorityLeaseGuard, AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding,
-    BrainAuthorityClaim, BrainAuthorityMetadata, BrainAuthorityStore, EcosystemEventStore,
-    EcosystemPackageArchive, EcosystemProjection, EcosystemRuntimeLedger, EventStore,
-    EvolutionEventStore, EvolutionHistoryEntry, EvolutionProjection, FederationEventStore,
-    FederationProjection, FederationRuntimeLedger, PayloadType, Projection, ProjectionScope,
-    RemoteDispatchLedger, ReplayReport, SchemaSnapshot, SearchHit, SessionState,
-    SessionStateProjection, StableStrategyRecord, SyncCursorState, Transcript,
-    TranscriptProjection, Upcaster, VersionedEventStore, BRAIN_AUTHORITY_SCHEMA_VERSION,
+    ApprovalConsumptionClaim, ApprovalConsumptionLedger, AuthorityLeaseGuard, AuthorityWriterLease,
+    BrainAggregateKind, BrainAuthorityBinding, BrainAuthorityClaim, BrainAuthorityMetadata,
+    BrainAuthorityStore, EcosystemEventStore, EcosystemPackageArchive, EcosystemProjection,
+    EcosystemRuntimeLedger, EventStore, EvolutionEventStore, EvolutionHistoryEntry,
+    EvolutionProjection, FederationEventStore, FederationProjection, FederationRuntimeLedger,
+    PayloadType, Projection, ProjectionScope, RemoteDispatchLedger, ReplayReport, SchemaSnapshot,
+    SearchHit, SessionState, SessionStateProjection, StableStrategyRecord, SyncCursorState,
+    Transcript, TranscriptProjection, Upcaster, VersionedEventStore,
+    BRAIN_AUTHORITY_SCHEMA_VERSION,
 };
 
 const SCHEMA: &str = r#"
@@ -372,6 +373,17 @@ CREATE TABLE IF NOT EXISTS authority_writer_lease (
     FOREIGN KEY(store_identity) REFERENCES brain_authority(store_identity)
 );
 
+CREATE TABLE IF NOT EXISTS approval_consumptions (
+    nonce                    TEXT PRIMARY KEY,
+    owner_digest             TEXT NOT NULL,
+    store_identity           TEXT NOT NULL,
+    approval_id              TEXT NOT NULL,
+    plan_digest              TEXT NOT NULL,
+    semantic_digest          TEXT NOT NULL,
+    claimed_at               INTEGER NOT NULL,
+    FOREIGN KEY(store_identity) REFERENCES brain_authority(store_identity)
+);
+
 CREATE TRIGGER IF NOT EXISTS events_immutable_update
 BEFORE UPDATE ON events
 BEGIN
@@ -387,7 +399,7 @@ END;
 
 const FTS_SCHEMA: &str = "CREATE VIRTUAL TABLE IF NOT EXISTS events_fts \
                          USING fts5(text, content='');";
-const DATABASE_SCHEMA_VERSION: i64 = 7;
+const DATABASE_SCHEMA_VERSION: i64 = 8;
 
 #[cfg(test)]
 std::thread_local! {
@@ -556,6 +568,12 @@ impl SqliteEventStore {
                 })
             })
             .transpose()
+    }
+
+    fn require_installed_authority_guard(&self) -> p::Result<Arc<AuthorityLeaseGuardInner>> {
+        self.active_authority_guard()?.ok_or_else(|| {
+            p::Error("approval consumption requires an installed authority lease guard".into())
+        })
     }
 
     pub fn run_ids(&self) -> p::Result<Vec<p::RunId>> {
@@ -1289,6 +1307,108 @@ impl BrainAuthorityStore for SqliteEventStore {
             .commit()
             .map_err(|error| store_error("failed to commit brain lease release", error))?;
         Ok(changed == 1)
+    }
+}
+
+impl ApprovalConsumptionLedger for SqliteEventStore {
+    fn claim_approval(&self, claim: &ApprovalConsumptionClaim) -> p::Result<bool> {
+        claim.validate()?;
+        // Unlike the older test-oriented runtime ledgers, this gate must never
+        // operate without the production authority fence installed.
+        let guard = self.require_installed_authority_guard()?;
+        let approver_digest = p::sha256_content_digest(claim.approver.0.as_bytes());
+        if approver_digest != guard.owner_digest {
+            return Err(p::Error(
+                "approval consumption approver does not match the configured owner".into(),
+            ));
+        }
+        let semantic_digest = approval_consumption_semantic_digest(claim)?;
+
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| store_error("failed to begin approval consumption claim", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
+
+        let existing = transaction
+            .query_row(
+                "SELECT owner_digest, store_identity, approval_id, plan_digest,
+                        semantic_digest, claimed_at
+                 FROM approval_consumptions WHERE nonce = ?1",
+                params![&claim.nonce.0],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, i64>(5)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| store_error("failed to inspect approval consumption", error))?;
+
+        if let Some((
+            owner_digest,
+            store_identity,
+            approval_id,
+            plan_digest,
+            stored_semantic_digest,
+            claimed_at,
+        )) = existing
+        {
+            if claimed_at < 0 {
+                return Err(p::Error(
+                    "stored approval consumption claim time is invalid".into(),
+                ));
+            }
+            let stored_semantic_digest = p::SchemaDigest(stored_semantic_digest);
+            p::sha256_digest_bytes(&stored_semantic_digest).map_err(|_| {
+                p::Error("stored approval consumption semantic digest is invalid".into())
+            })?;
+            if owner_digest != guard.owner_digest.0
+                || store_identity != guard.store_identity.0
+                || approval_id != claim.approval_id.0
+                || plan_digest != claim.plan_digest.0
+                || stored_semantic_digest != semantic_digest
+            {
+                return Err(p::Error(
+                    "approval consumption nonce changed semantics".into(),
+                ));
+            }
+            transaction
+                .commit()
+                .map_err(|error| store_error("failed to finish duplicate approval claim", error))?;
+            return Ok(false);
+        }
+
+        transaction
+            .execute(
+                "INSERT INTO approval_consumptions(
+                    nonce, owner_digest, store_identity, approval_id,
+                    plan_digest, semantic_digest, claimed_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![
+                    &claim.nonce.0,
+                    &guard.owner_digest.0,
+                    &guard.store_identity.0,
+                    &claim.approval_id.0,
+                    &claim.plan_digest.0,
+                    &semantic_digest.0,
+                    claim.now,
+                ],
+            )
+            .map_err(|error| store_error("failed to persist approval consumption", error))?;
+        transaction
+            .commit()
+            .map_err(|error| store_error("failed to commit approval consumption", error))?;
+        Ok(true)
     }
 }
 
@@ -7572,6 +7692,35 @@ fn push_semantic_field(encoded: &mut Vec<u8>, value: &[u8]) {
     let length = u64::try_from(value.len()).expect("semantic field length fits in u64");
     encoded.extend_from_slice(&length.to_le_bytes());
     encoded.extend_from_slice(value);
+}
+
+#[derive(serde::Serialize)]
+struct ApprovalConsumptionSemantic<'a> {
+    schema_version: p::SchemaVersion,
+    approval_id: &'a str,
+    approver: &'a str,
+    nonce: &'a str,
+    plan_digest: &'a str,
+    normalized_action_digest: &'a str,
+    affected_resources: &'a [p::ResourceRef],
+    policy_version: p::Version,
+    tool_schema_version: p::Version,
+}
+
+fn approval_consumption_semantic_digest(
+    claim: &ApprovalConsumptionClaim,
+) -> p::Result<p::SchemaDigest> {
+    p::canonical_digest(&ApprovalConsumptionSemantic {
+        schema_version: claim.schema_version,
+        approval_id: &claim.approval_id.0,
+        approver: &claim.approver.0,
+        nonce: &claim.nonce.0,
+        plan_digest: &claim.plan_digest.0,
+        normalized_action_digest: &claim.normalized_action_digest.0,
+        affected_resources: &claim.affected_resources,
+        policy_version: claim.policy_version,
+        tool_schema_version: claim.tool_schema_version,
+    })
 }
 
 fn domain_idempotency_key(event: &p::Event) -> Option<(&'static str, String)> {

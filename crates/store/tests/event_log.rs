@@ -659,7 +659,7 @@ fn open_transactionally_upgrades_the_supported_legacy_catalog() {
     let user_version: i64 = connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(user_version, 7);
+    assert_eq!(user_version, 8);
     assert_eq!(
         table_columns(&connection, "sync_peers"),
         vec!["singleton", "peer_ref", "owner_ref", "semantic_bytes"]
