@@ -349,6 +349,10 @@ fn requested_event(request: &ApprovalRequest) -> p::EventPayload {
         choices: request.choices.clone(),
         requested_permissions: request.requested_permissions.clone(),
         affected_resources: request.affected_resources.clone(),
+        plan_digest: Some(request.plan_digest.clone()),
+        normalized_action_digest: Some(request.normalized_action_digest.clone()),
+        policy_version: Some(request.policy_version),
+        tool_schema_version: Some(request.tool_schema_version),
     })
 }
 

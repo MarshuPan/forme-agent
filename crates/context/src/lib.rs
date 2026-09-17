@@ -1477,6 +1477,10 @@ mod tests {
                     choices: vec![p::ApprovalChoice("deny".into())],
                     requested_permissions: vec![p::PermissionRef("write".into())],
                     affected_resources: vec![p::ResourceRef("file:a".into())],
+                    plan_digest: Some(p::PlanDigest(p::sha256_content_digest(b"plan:compact").0)),
+                    normalized_action_digest: Some(p::sha256_content_digest(b"action:compact")),
+                    policy_version: Some(p::Version(1)),
+                    tool_schema_version: Some(p::Version(1)),
                 }),
             ))
             .unwrap();

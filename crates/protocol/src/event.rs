@@ -174,6 +174,14 @@ define_events! {
         choices: Vec<ApprovalChoice>,
         requested_permissions: Vec<PermissionRef>,
         affected_resources: Vec<ResourceRef>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        plan_digest: Option<PlanDigest>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        normalized_action_digest: Option<SchemaDigest>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        policy_version: Option<Version>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_schema_version: Option<Version>,
     },
     ApprovalResolved => ApprovalResolvedPayload {
         approval_id: ApprovalId,
@@ -663,6 +671,52 @@ define_events! {
         expected_version: u64,
         committed_version: u64,
     },
+}
+
+impl ApprovalRequestedPayload {
+    /// Validates the binding required for newly appended approval requests.
+    ///
+    /// The fields are optional on the wire so events written before the
+    /// binding extension remain readable.  Callers restoring an approval must
+    /// require this method to succeed before treating the event as executable.
+    pub fn validate_current_binding(&self) -> Result<()> {
+        let plan_digest = self
+            .plan_digest
+            .as_ref()
+            .ok_or_else(|| Error("approval request is missing its plan digest".into()))?;
+        sha256_digest_bytes(&SchemaDigest(plan_digest.0.clone()))
+            .map_err(|_| Error("approval request plan digest is not canonical".into()))?;
+
+        let action_digest = self.normalized_action_digest.as_ref().ok_or_else(|| {
+            Error("approval request is missing its normalized action digest".into())
+        })?;
+        sha256_digest_bytes(action_digest).map_err(|_| {
+            Error("approval request normalized action digest is not canonical".into())
+        })?;
+
+        let policy_version = self
+            .policy_version
+            .ok_or_else(|| Error("approval request is missing its policy version".into()))?;
+        if policy_version.0 == 0 {
+            return Err(Error(
+                "approval request policy version must be non-zero".into(),
+            ));
+        }
+
+        let tool_schema_version = self
+            .tool_schema_version
+            .ok_or_else(|| Error("approval request is missing its tool schema version".into()))?;
+        if tool_schema_version.0 == 0 {
+            return Err(Error(
+                "approval request tool schema version must be non-zero".into(),
+            ));
+        }
+
+        if normalize_resource_set(&self.affected_resources) != self.affected_resources {
+            return Err(Error("approval request resources are not canonical".into()));
+        }
+        Ok(())
+    }
 }
 
 fn default_proactive_delivery() -> DeliveryMode {

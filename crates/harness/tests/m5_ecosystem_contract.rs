@@ -148,6 +148,12 @@ fn append_catalog_evidence(
             choices: vec![p::ApprovalChoice("approve once".into())],
             requested_permissions: vec![p::PermissionRef("permission:network-read".into())],
             affected_resources: vec![p::ResourceRef("registry:loopback".into())],
+            plan_digest: Some(p::PlanDigest(
+                p::sha256_content_digest(b"plan:m5-ecosystem").0,
+            )),
+            normalized_action_digest: Some(p::sha256_content_digest(b"action:m5-ecosystem")),
+            policy_version: Some(p::Version(1)),
+            tool_schema_version: Some(p::Version(1)),
         }),
         p::EventPayload::ApprovalResolved(p::ApprovalResolvedPayload {
             approval_id: approval,

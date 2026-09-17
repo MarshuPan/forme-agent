@@ -1032,6 +1032,9 @@ impl SqliteEventStore {
 
     fn prepare_event(&self, event: p::Event) -> p::Result<PreparedEvent> {
         event.validate_payload_kind()?;
+        if let p::EventPayload::ApprovalRequested(payload) = &event.payload {
+            payload.validate_current_binding()?;
+        }
         let payload_type = PayloadType::from_event_kind(event.kind);
         let current_schema = self.core.current_schema_for(payload_type)?;
         if event.schema_version != current_schema {

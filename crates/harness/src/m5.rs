@@ -1575,6 +1575,16 @@ impl EcosystemHarnessRuntime {
             .collect::<Vec<_>>();
         permissions.sort();
         permissions.dedup();
+        let normalized_action_digest = p::canonical_digest(&(
+            "forme-m5-capability-approval-action-v1",
+            &plan.operation,
+            &plan.package,
+            &plan.release,
+            &plan.scope,
+            &plan.policy,
+            &plan.policy_version,
+            &plan.rollback_boundary,
+        ))?;
         self.append(
             run.clone(),
             p::EventPayload::ApprovalRequested(p::ApprovalRequestedPayload {
@@ -1594,6 +1604,10 @@ impl EcosystemHarnessRuntime {
                 ],
                 requested_permissions: permissions,
                 affected_resources: vec![p::ResourceRef(plan.package.0.clone())],
+                plan_digest: Some(plan.digest.clone()),
+                normalized_action_digest: Some(normalized_action_digest),
+                policy_version: Some(plan.policy_version),
+                tool_schema_version: Some(p::Version(1)),
             }),
             owner_provenance(),
         )?;

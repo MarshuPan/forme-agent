@@ -273,6 +273,10 @@ fn all_payload_fixtures() -> Vec<EventPayload> {
             choices: vec![text!(ApprovalChoice, "allow-once")],
             requested_permissions: vec![text!(PermissionRef, "file-write")],
             affected_resources: vec![text!(ResourceRef, "README.md")],
+            plan_digest: Some(PlanDigest(sha256_content_digest(b"plan:event-1").0)),
+            normalized_action_digest: Some(sha256_content_digest(b"action:event-1")),
+            policy_version: Some(Version(1)),
+            tool_schema_version: Some(Version(1)),
         }),
         EventPayload::ApprovalResolved(ApprovalResolvedPayload {
             approval_id: text!(ApprovalId, "approval-1"),
@@ -1128,6 +1132,38 @@ fn m1_b_additive_payload_fields_keep_m0_events_readable() {
         unreachable!()
     };
     assert_eq!(payload.schedule, None);
+}
+
+#[test]
+fn approval_request_binding_is_required_for_current_writes_but_legacy_payloads_remain_readable() {
+    let legacy = serde_json::json!({
+        "ApprovalRequested": {
+            "approval_id": "approval:legacy",
+            "action_summary": "read",
+            "risk": "Low",
+            "scope": "workspace:legacy",
+            "rollback_boundary": "none",
+            "expires_at": 1_700_000_000_100i64,
+            "choices": ["allow-once"],
+            "requested_permissions": ["workspace:read"],
+            "affected_resources": ["path:README.md"]
+        }
+    });
+    let decoded = serde_json::from_value::<EventPayload>(legacy).unwrap();
+    let EventPayload::ApprovalRequested(payload) = decoded else {
+        unreachable!()
+    };
+    assert!(payload.plan_digest.is_none());
+    assert!(payload.validate_current_binding().is_err());
+
+    let current = all_payload_fixtures()
+        .into_iter()
+        .find_map(|payload| match payload {
+            EventPayload::ApprovalRequested(payload) => Some(payload),
+            _ => None,
+        })
+        .expect("approval request fixture");
+    assert!(current.validate_current_binding().is_ok());
 }
 
 #[test]
