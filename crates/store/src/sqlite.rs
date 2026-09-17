@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, VecDeque},
     path::Path,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 #[cfg(test)]
@@ -10,20 +10,21 @@ use std::cell::RefCell;
 use forme_protocol as p;
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
 
+use crate::brain::AuthorityLeaseGuardInner;
 use crate::{
     checksum::{self, PersistedEnvelope},
     cursor::{CursorPage, EventCursor},
     projection::searchable_text,
     replay::projection_diff,
     schema::UpcasterGraph,
-    AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding, BrainAuthorityClaim,
-    BrainAuthorityMetadata, BrainAuthorityStore, EcosystemEventStore, EcosystemPackageArchive,
-    EcosystemProjection, EcosystemRuntimeLedger, EventStore, EvolutionEventStore,
-    EvolutionHistoryEntry, EvolutionProjection, FederationEventStore, FederationProjection,
-    FederationRuntimeLedger, PayloadType, Projection, ProjectionScope, RemoteDispatchLedger,
-    ReplayReport, SchemaSnapshot, SearchHit, SessionState, SessionStateProjection,
-    StableStrategyRecord, SyncCursorState, Transcript, TranscriptProjection, Upcaster,
-    VersionedEventStore, BRAIN_AUTHORITY_SCHEMA_VERSION,
+    AuthorityLeaseGuard, AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding,
+    BrainAuthorityClaim, BrainAuthorityMetadata, BrainAuthorityStore, EcosystemEventStore,
+    EcosystemPackageArchive, EcosystemProjection, EcosystemRuntimeLedger, EventStore,
+    EvolutionEventStore, EvolutionHistoryEntry, EvolutionProjection, FederationEventStore,
+    FederationProjection, FederationRuntimeLedger, PayloadType, Projection, ProjectionScope,
+    RemoteDispatchLedger, ReplayReport, SchemaSnapshot, SearchHit, SessionState,
+    SessionStateProjection, StableStrategyRecord, SyncCursorState, Transcript,
+    TranscriptProjection, Upcaster, VersionedEventStore, BRAIN_AUTHORITY_SCHEMA_VERSION,
 };
 
 const SCHEMA: &str = r#"
@@ -489,6 +490,74 @@ impl SqliteEventStore {
         Ok(Self::from_connection(connection, options))
     }
 
+    /// Installs the process-wide production writer fence for this shared
+    /// SQLite core. Test-only stores remain unfenced unless this method is
+    /// explicitly called.
+    pub fn install_authority_lease_guard(
+        &self,
+        binding: &BrainAuthorityBinding,
+        lease_ttl: p::DurationMs,
+    ) -> p::Result<AuthorityLeaseGuard> {
+        let mut slot = self
+            .core
+            .authority_guard
+            .write()
+            .map_err(|_| p::Error("brain authority guard state is unavailable".into()))?;
+        if slot.as_ref().and_then(Weak::upgrade).is_some() {
+            return Err(p::Error(
+                "a brain authority lease guard is already installed".into(),
+            ));
+        }
+        let guard = AuthorityLeaseGuard::new(self.clone(), binding, lease_ttl)?;
+        *slot = Some(Arc::downgrade(&guard.inner));
+        Ok(guard)
+    }
+
+    fn require_authority_writer(&self) -> p::Result<()> {
+        let Some(guard) = self.active_authority_guard()? else {
+            return Ok(());
+        };
+        AuthorityLeaseGuard { inner: guard }
+            .ensure(current_time_ms()?)
+            .map(|_| ())
+    }
+
+    fn require_authority_writer_in_transaction(
+        &self,
+        transaction: &Transaction<'_>,
+    ) -> p::Result<()> {
+        let Some(guard) = self.active_authority_guard()? else {
+            return Ok(());
+        };
+        renew_brain_authority_lease_in_transaction(
+            transaction,
+            &guard.owner_digest,
+            &guard.store_identity,
+            &guard.process_nonce,
+            current_time_ms()?,
+            guard.lease_ttl,
+        )?;
+        Ok(())
+    }
+
+    fn active_authority_guard(&self) -> p::Result<Option<Arc<AuthorityLeaseGuardInner>>> {
+        let guard = self
+            .core
+            .authority_guard
+            .read()
+            .map_err(|_| p::Error("brain authority guard state is unavailable".into()))?
+            .clone();
+        guard
+            .map(|guard| {
+                guard.upgrade().ok_or_else(|| {
+                    p::Error(
+                        "brain authority writer lease is no longer owned by this runtime".into(),
+                    )
+                })
+            })
+            .transpose()
+    }
+
     pub fn run_ids(&self) -> p::Result<Vec<p::RunId>> {
         let connection = self
             .core
@@ -570,6 +639,7 @@ impl SqliteEventStore {
         to: p::SchemaVersion,
         upcaster: Upcaster,
     ) -> p::Result<()> {
+        self.require_authority_writer()?;
         let _registration = self
             .core
             .upcaster_registration
@@ -593,6 +663,7 @@ impl SqliteEventStore {
                 .map_err(|error| {
                     store_error("failed to begin schema migration registration", error)
                 })?;
+            self.require_authority_writer_in_transaction(&transaction)?;
             let existing = transaction
                 .query_row(
                     "SELECT to_version, note, implementation_identity FROM schema_migrations
@@ -653,6 +724,7 @@ impl SqliteEventStore {
     }
 
     pub fn rebuild_builtin_projections(&self) -> p::Result<()> {
+        self.require_authority_writer()?;
         let upcasters = self.core.upcaster_snapshot()?;
         let captured_upcaster_token = upcasters.token();
         let captured_upcaster_identity = upcasters.identity_bytes();
@@ -694,6 +766,7 @@ impl SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin projection rebuild", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         if read_event_set_token(&transaction)? != captured_token {
             return Err(p::Error(
                 "authoritative event set changed during projection rebuild; stale caches were not committed"
@@ -936,6 +1009,7 @@ impl SqliteEventStore {
     }
 
     pub fn rebuild_evolution_projection(&self) -> p::Result<()> {
+        self.require_authority_writer()?;
         let upcasters = self.core.upcaster_snapshot()?;
         let mut connection = self
             .core
@@ -945,6 +1019,7 @@ impl SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin evolution projection rebuild", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         rebuild_evolution_projection_in_transaction(
             &transaction,
             &self.core.current_schema,
@@ -993,6 +1068,7 @@ impl SqliteEventStore {
                 sync_peer: options.sync_peer,
                 upcasters: RwLock::new(UpcasterGraph::default()),
                 upcaster_registration: Mutex::new(()),
+                authority_guard: RwLock::new(None),
             }),
             cursor_page_size: options.cursor_page_size,
         }
@@ -1149,6 +1225,36 @@ impl BrainAuthorityStore for SqliteEventStore {
         }))
     }
 
+    fn renew_brain_authority_lease(
+        &self,
+        owner_digest: &p::SchemaDigest,
+        store_identity: &p::SchemaDigest,
+        process_nonce: &p::Nonce,
+        now_ms: p::Timestamp,
+        lease_ttl: p::DurationMs,
+    ) -> p::Result<AuthorityWriterLease> {
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| store_error("failed to begin brain lease renewal", error))?;
+        let lease = renew_brain_authority_lease_in_transaction(
+            &transaction,
+            owner_digest,
+            store_identity,
+            process_nonce,
+            now_ms,
+            lease_ttl,
+        )?;
+        transaction
+            .commit()
+            .map_err(|error| store_error("failed to commit brain lease renewal", error))?;
+        Ok(lease)
+    }
+
     fn release_brain_authority_lease(
         &self,
         store_identity: &p::SchemaDigest,
@@ -1185,6 +1291,7 @@ impl BrainAuthorityStore for SqliteEventStore {
 
 impl EventStore for SqliteEventStore {
     fn append(&self, event: p::Event) -> p::Result<p::EventId> {
+        self.require_authority_writer()?;
         reject_non_evolution_write_path(&event)?;
         let prepared = self.prepare_event(event)?;
         let _registration = if self.core.fts_enabled {
@@ -1220,6 +1327,7 @@ impl EventStore for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin append transaction", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let outcome = append_prepared(
             &transaction,
             prepared,
@@ -1342,6 +1450,7 @@ impl VersionedEventStore for SqliteEventStore {
         event: p::Event,
         expected: p::AggregateVersion,
     ) -> p::Result<p::ExpectedAppend> {
+        self.require_authority_writer()?;
         reject_non_evolution_write_path(&event)?;
         expected.validate()?;
         if event.run_id != expected.aggregate {
@@ -1383,6 +1492,7 @@ impl VersionedEventStore for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin expected append transaction", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let actual = aggregate_version_in_transaction(&transaction, &expected.aggregate)?;
         if actual != expected.value {
             transaction
@@ -1421,6 +1531,7 @@ impl VersionedEventStore for SqliteEventStore {
     }
 
     fn apply_sync_batch(&self, batch: p::SyncWriteBatch) -> p::Result<p::SyncApplyReport> {
+        self.require_authority_writer()?;
         batch.validate()?;
         self.core.require_sync_peer(&batch.peer)?;
         let semantic_bytes = sync_batch_semantic_bytes(&batch)?;
@@ -1474,6 +1585,7 @@ impl VersionedEventStore for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin sync batch transaction", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         verify_sync_peer(&transaction, &peer)?;
 
         if let Some((stored_semantics, stored_expected, stored_result, stored_events)) = transaction
@@ -1595,6 +1707,7 @@ impl VersionedEventStore for SqliteEventStore {
     }
 
     fn export_sync_batch(&self, request: p::SyncExportRequest) -> p::Result<p::SyncTransferBatch> {
+        self.require_authority_writer()?;
         request.validate()?;
         self.core.require_sync_peer(&request.peer)?;
         if sync_peer_contains_sensitive_identity(&request.peer, &request.redaction) {
@@ -1611,6 +1724,7 @@ impl VersionedEventStore for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin sync export transaction", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         verify_sync_peer(&transaction, &request.peer)?;
         let actual = aggregate_version_in_transaction(&transaction, &request.aggregate)?;
         if request.after_version.value > actual {
@@ -1780,6 +1894,7 @@ impl EvolutionEventStore for SqliteEventStore {
         aggregate: &p::EvolutionAggregateRef,
         expected: p::EvolutionAggregateVersion,
     ) -> p::Result<p::ExpectedAppend> {
+        self.require_authority_writer()?;
         expected.validate()?;
         if aggregate.0.trim().is_empty() || expected.aggregate != *aggregate {
             return Err(p::Error(
@@ -1833,6 +1948,7 @@ impl EvolutionEventStore for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin evolution append transaction", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let actual = evolution_version_in_transaction(&transaction, aggregate)?;
         if actual != expected.value {
             if actual == committed_version
@@ -2104,6 +2220,7 @@ impl SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin federation append", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let actual = federation_version_in_transaction(&transaction, aggregate)?;
         if actual != expected.version {
             if actual == committed
@@ -2223,6 +2340,7 @@ impl FederationEventStore for SqliteEventStore {
         aggregate: &p::FederationAggregateRef,
         expected: p::FederationAggregateVersion,
     ) -> p::Result<p::ExpectedAppend> {
+        self.require_authority_writer()?;
         if event.kind == p::EventKind::ReplicationCheckpointAdvanced {
             return Err(p::Error(
                 "replication checkpoint requires an authenticated acknowledgement".into(),
@@ -2235,6 +2353,7 @@ impl FederationEventStore for SqliteEventStore {
         &self,
         request: p::ReplicationExportRequest,
     ) -> p::Result<p::ReplicationBatch> {
+        self.require_authority_writer()?;
         request.validate()?;
         let peer = FederationProjection::peer(self, &request.peer)?
             .ok_or_else(|| p::Error("replication peer is not registered".into()))?;
@@ -2340,6 +2459,7 @@ impl FederationEventStore for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin replication export", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let live = read_peer_grant(&transaction, &batch.peer)?
             .ok_or_else(|| p::Error("replication peer disappeared".into()))?;
         let live_epoch = authority_epoch_in_transaction(&transaction)?;
@@ -2403,6 +2523,7 @@ impl FederationEventStore for SqliteEventStore {
         ack: p::ReplicationAck,
         expected: p::FederationAggregateVersion,
     ) -> p::Result<p::ExpectedAppend> {
+        self.require_authority_writer()?;
         ack.validate()?;
         let aggregate = expected.aggregate.clone();
         self.append_federation_internal(event, &aggregate, expected, Some(&ack))
@@ -2416,6 +2537,7 @@ impl RemoteDispatchLedger for SqliteEventStore {
         plan: &p::PlanDigest,
         authority_epoch: p::AuthorityEpoch,
     ) -> p::Result<p::RemoteDispatchClaim> {
+        self.require_authority_writer()?;
         if lease_ref.0.trim().is_empty() || plan.0.trim().is_empty() || authority_epoch.0 == 0 {
             return Err(p::Error(
                 "remote dispatch claim binding is incomplete".into(),
@@ -2429,6 +2551,7 @@ impl RemoteDispatchLedger for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin remote dispatch claim", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let row = transaction
             .query_row(
                 "SELECT d.dispatch_id, d.plan_digest, d.attempted, l.lease
@@ -2562,6 +2685,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         nonce: &p::Nonce,
         digest: &p::SchemaDigest,
     ) -> p::Result<bool> {
+        self.require_authority_writer()?;
         if peer.0.trim().is_empty() || nonce.0.trim().is_empty() || digest.0.trim().is_empty() {
             return Err(p::Error(
                 "federation control replay binding is incomplete".into(),
@@ -2575,6 +2699,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin control replay claim", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
                 "SELECT command_digest FROM federation_control_replay
@@ -2609,6 +2734,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     }
 
     fn claim_device_signal(&self, signal: &p::FederatedDeviceSignal) -> p::Result<bool> {
+        self.require_authority_writer()?;
         signal.validate(i64::MIN)?;
         let mut connection = self
             .core
@@ -2618,6 +2744,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin device signal claim", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
                 "SELECT peer_ref, digest FROM federation_device_replay WHERE signal_ref = ?1",
@@ -2653,6 +2780,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         source: &p::RunId,
         checkpoint: &p::FederatedCheckpointArtifact,
     ) -> p::Result<bool> {
+        self.require_authority_writer()?;
         checkpoint.validate()?;
         if source.0.trim().is_empty() {
             return Err(p::Error("checkpoint source run is empty".into()));
@@ -2702,6 +2830,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     }
 
     fn record_federated_handoff(&self, handoff: &p::FederatedHandoffPlan) -> p::Result<bool> {
+        self.require_authority_writer()?;
         handoff.validate()?;
         let encoded = serde_json::to_vec(handoff)
             .map_err(|error| store_error("failed to encode federated handoff", error))?;
@@ -2731,6 +2860,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     }
 
     fn record_retention_request(&self, request: &p::FederatedRetentionRequest) -> p::Result<bool> {
+        self.require_authority_writer()?;
         request.validate()?;
         let mut state = p::FederatedRetentionState {
             schema_version: p::M4_SCHEMA_VERSION,
@@ -2771,6 +2901,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         &self,
         receipt: &p::FederatedRetentionReceipt,
     ) -> p::Result<p::FederatedRetentionState> {
+        self.require_authority_writer()?;
         receipt.validate()?;
         let mut connection = self
             .core
@@ -2780,6 +2911,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin retention receipt", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let encoded = transaction
             .query_row(
                 "SELECT state FROM federated_retention WHERE request_ref = ?1",
@@ -2833,6 +2965,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     }
 
     fn save_remote_recovery(&self, recovery: &p::RemoteActionRecoveryRecord) -> p::Result<()> {
+        self.require_authority_writer()?;
         recovery.validate()?;
         let encoded = serde_json::to_vec(recovery)
             .map_err(|error| store_error("failed to encode remote recovery", error))?;
@@ -2844,6 +2977,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin remote recovery write", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
                 "SELECT lease_ref, record FROM remote_action_recovery WHERE run_id = ?1",
@@ -3076,6 +3210,7 @@ impl EcosystemEventStore for SqliteEventStore {
         aggregate: &p::EcosystemAggregateRef,
         expected: p::EcosystemAggregateVersion,
     ) -> p::Result<p::ExpectedAppend> {
+        self.require_authority_writer()?;
         require_ecosystem_aggregate(aggregate)?;
         expected.validate()?;
         validate_ecosystem_control_event(&event, &expected)?;
@@ -3116,6 +3251,7 @@ impl EcosystemEventStore for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin ecosystem append", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let actual = ecosystem_version_in_connection(&transaction, aggregate)?;
         if actual != expected.value {
             if actual == committed
@@ -3211,6 +3347,7 @@ impl EcosystemEventStore for SqliteEventStore {
 
 impl EcosystemRuntimeLedger for SqliteEventStore {
     fn claim_ecosystem_nonce(&self, nonce: &p::Nonce, plan: &p::PlanDigest) -> p::Result<bool> {
+        self.require_authority_writer()?;
         if nonce.0.trim().is_empty() || plan.0.trim().is_empty() {
             return Err(p::Error("ecosystem nonce binding is incomplete".into()));
         }
@@ -3222,6 +3359,7 @@ impl EcosystemRuntimeLedger for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin ecosystem nonce claim", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
                 "SELECT plan_digest FROM ecosystem_nonces WHERE nonce = ?1",
@@ -3255,6 +3393,7 @@ impl EcosystemRuntimeLedger for SqliteEventStore {
         &self,
         receipt: &p::CapabilityPackageDistributionReceipt,
     ) -> p::Result<bool> {
+        self.require_authority_writer()?;
         receipt.validate()?;
         let semantic = serde_json::to_vec(receipt)
             .map_err(|error| store_error("failed to encode distribution attempt", error))?;
@@ -3266,6 +3405,7 @@ impl EcosystemRuntimeLedger for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin distribution attempt", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
                 "SELECT semantic FROM ecosystem_distribution_attempts WHERE receipt_ref = ?1",
@@ -3322,6 +3462,7 @@ impl EcosystemRuntimeLedger for SqliteEventStore {
 
 impl EcosystemPackageArchive for SqliteEventStore {
     fn archive_package(&self, package: &p::SignedCapabilityPackage) -> p::Result<bool> {
+        self.require_authority_writer()?;
         package.validate()?;
         let encoded = serde_json::to_vec(package)
             .map_err(|error| store_error("failed to encode capability package bundle", error))?;
@@ -3333,6 +3474,7 @@ impl EcosystemPackageArchive for SqliteEventStore {
         let transaction = connection
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin package archive transaction", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
                 "SELECT bundle FROM ecosystem_package_bundles WHERE release_ref = ?1",
@@ -3556,6 +3698,7 @@ fn persist_immutable_runtime_record(
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|error| store_error(&format!("failed to begin {label} write"), error))?;
+    store.require_authority_writer_in_transaction(&transaction)?;
     let existing = match extra {
         Some((extra_column, _)) => {
             let select = format!(
@@ -6242,6 +6385,7 @@ pub(crate) struct StoreCore {
     sync_peer: Option<p::SyncPeer>,
     upcasters: RwLock<UpcasterGraph>,
     upcaster_registration: Mutex<()>,
+    authority_guard: RwLock<Option<Weak<AuthorityLeaseGuardInner>>>,
 }
 
 impl StoreCore {
@@ -7136,6 +7280,66 @@ fn read_brain_authority_row(
             Ok((owner, store, schema, created_at))
         })
         .transpose()
+}
+
+fn renew_brain_authority_lease_in_transaction(
+    transaction: &Transaction<'_>,
+    owner_digest: &p::SchemaDigest,
+    store_identity: &p::SchemaDigest,
+    process_nonce: &p::Nonce,
+    now_ms: p::Timestamp,
+    lease_ttl: p::DurationMs,
+) -> p::Result<AuthorityWriterLease> {
+    let claim = BrainAuthorityClaim {
+        owner_digest: owner_digest.clone(),
+        process_nonce: process_nonce.clone(),
+        now_ms,
+        lease_ttl,
+    };
+    claim.validate()?;
+    p::sha256_digest_bytes(store_identity)
+        .map_err(|_| p::Error("brain authority store identity is invalid".into()))?;
+    let expires_at = claim.expires_at()?;
+    let Some((bound_owner, bound_store, schema_version, _)) =
+        read_brain_authority_row(transaction)?
+    else {
+        return Err(p::Error("brain authority binding is missing".into()));
+    };
+    if bound_owner != *owner_digest
+        || bound_store != *store_identity
+        || schema_version != BRAIN_AUTHORITY_SCHEMA_VERSION
+    {
+        return Err(p::Error(
+            "brain authority identity changed after runtime construction".into(),
+        ));
+    }
+    let changed = transaction
+        .execute(
+            "UPDATE authority_writer_lease
+             SET expires_at = ?4
+             WHERE store_identity = ?1 AND process_nonce = ?2
+               AND EXISTS(
+                   SELECT 1 FROM brain_authority
+                   WHERE owner_digest = ?3 AND store_identity = ?1
+               )",
+            params![
+                &store_identity.0,
+                &process_nonce.0,
+                &owner_digest.0,
+                expires_at,
+            ],
+        )
+        .map_err(|error| store_error("failed to renew brain writer lease", error))?;
+    if changed != 1 {
+        return Err(p::Error(
+            "brain authority writer lease was released or taken over".into(),
+        ));
+    }
+    Ok(AuthorityWriterLease {
+        store_identity: store_identity.clone(),
+        process_nonce: process_nonce.clone(),
+        expires_at,
+    })
 }
 
 fn load_or_initialize_brain_aggregates(

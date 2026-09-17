@@ -4,10 +4,12 @@
 //! production runtime to one owner, give the brain stable aggregate ids, and
 //! fence concurrent authority writers without fabricating domain events.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
+
+use crate::SqliteEventStore;
 
 pub const BRAIN_AUTHORITY_SCHEMA_VERSION: p::SchemaVersion = p::SchemaVersion(1);
 
@@ -121,6 +123,92 @@ pub struct BrainAuthorityMetadata {
     pub aggregates: BTreeMap<BrainAggregateKind, p::RunId>,
 }
 
+/// Runtime-owned authority fence shared by every clone of the production
+/// store. The exact nonce is intentionally not exposed through Debug or any
+/// portable runtime manifest.
+#[derive(Clone)]
+pub struct AuthorityLeaseGuard {
+    pub(crate) inner: Arc<AuthorityLeaseGuardInner>,
+}
+
+pub(crate) struct AuthorityLeaseGuardInner {
+    pub(crate) store: SqliteEventStore,
+    pub(crate) owner_digest: p::SchemaDigest,
+    pub(crate) store_identity: p::SchemaDigest,
+    pub(crate) process_nonce: p::Nonce,
+    pub(crate) lease_ttl: p::DurationMs,
+}
+
+impl AuthorityLeaseGuard {
+    pub(crate) fn new(
+        store: SqliteEventStore,
+        binding: &BrainAuthorityBinding,
+        lease_ttl: p::DurationMs,
+    ) -> p::Result<Self> {
+        if lease_ttl.0 == 0
+            || binding.schema_version != BRAIN_AUTHORITY_SCHEMA_VERSION
+            || binding.owner_digest.0.trim().is_empty()
+            || binding.store_identity.0.trim().is_empty()
+            || binding.writer_lease.store_identity != binding.store_identity
+            || binding.writer_lease.process_nonce.0.trim().is_empty()
+        {
+            return Err(p::Error(
+                "brain authority lease guard configuration is incomplete".into(),
+            ));
+        }
+        Ok(Self {
+            inner: Arc::new(AuthorityLeaseGuardInner {
+                store,
+                owner_digest: binding.owner_digest.clone(),
+                store_identity: binding.store_identity.clone(),
+                process_nonce: binding.writer_lease.process_nonce.clone(),
+                lease_ttl,
+            }),
+        })
+    }
+
+    /// Renews the exact lease and verifies that the durable owner/store
+    /// identity still matches this runtime. A takeover by another nonce is a
+    /// hard failure; callers must not retry the pending mutation elsewhere.
+    pub fn ensure(&self, now_ms: p::Timestamp) -> p::Result<AuthorityWriterLease> {
+        self.inner.store.renew_brain_authority_lease(
+            &self.inner.owner_digest,
+            &self.inner.store_identity,
+            &self.inner.process_nonce,
+            now_ms,
+            self.inner.lease_ttl,
+        )
+    }
+
+    pub fn owner_digest(&self) -> &p::SchemaDigest {
+        &self.inner.owner_digest
+    }
+
+    pub fn store_identity(&self) -> &p::SchemaDigest {
+        &self.inner.store_identity
+    }
+}
+
+impl fmt::Debug for AuthorityLeaseGuard {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AuthorityLeaseGuard")
+            .field("owner_digest", &self.inner.owner_digest)
+            .field("store_identity", &self.inner.store_identity)
+            .field("process_nonce", &"<redacted>")
+            .field("lease_ttl", &self.inner.lease_ttl)
+            .finish()
+    }
+}
+
+impl Drop for AuthorityLeaseGuardInner {
+    fn drop(&mut self) {
+        let _ = self
+            .store
+            .release_brain_authority_lease(&self.store_identity, &self.process_nonce);
+    }
+}
+
 pub trait BrainAuthorityStore {
     /// Atomically binds the database to one owner, materializes deterministic
     /// aggregate ids, and claims the sole production writer lease.
@@ -129,6 +217,17 @@ pub trait BrainAuthorityStore {
 
     /// Reads durable owner/aggregate metadata without acquiring authority.
     fn brain_authority(&self) -> p::Result<Option<BrainAuthorityMetadata>>;
+
+    /// Renews only the exact active writer. This never creates a missing
+    /// lease and therefore cannot silently resurrect a released runtime.
+    fn renew_brain_authority_lease(
+        &self,
+        owner_digest: &p::SchemaDigest,
+        store_identity: &p::SchemaDigest,
+        process_nonce: &p::Nonce,
+        now_ms: p::Timestamp,
+        lease_ttl: p::DurationMs,
+    ) -> p::Result<AuthorityWriterLease>;
 
     /// Releases only a lease owned by the exact store identity and nonce.
     fn release_brain_authority_lease(

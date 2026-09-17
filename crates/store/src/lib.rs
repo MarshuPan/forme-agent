@@ -13,8 +13,9 @@ mod sqlite;
 use forme_protocol as p;
 
 pub use brain::{
-    AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding, BrainAuthorityClaim,
-    BrainAuthorityMetadata, BrainAuthorityStore, BRAIN_AUTHORITY_SCHEMA_VERSION,
+    AuthorityLeaseGuard, AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding,
+    BrainAuthorityClaim, BrainAuthorityMetadata, BrainAuthorityStore,
+    BRAIN_AUTHORITY_SCHEMA_VERSION,
 };
 pub use cursor::EventCursor;
 pub use projection::{
