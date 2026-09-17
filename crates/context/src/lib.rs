@@ -8,6 +8,10 @@ use forme_memory as memory;
 use forme_protocol as p;
 use forme_store::{EventStore, SqliteEventStore};
 
+mod hydration;
+
+pub use hydration::*;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rule {
     pub schema_version: p::SchemaVersion,
@@ -229,6 +233,21 @@ pub struct Context {
     pub excluded: Vec<ExcludedSource>,
 }
 
+impl Context {
+    pub fn included_sources(&self) -> Vec<p::ContextSource> {
+        context_sources_from_sections(&self.assembled.sections)
+    }
+
+    pub fn included_slice_refs(&self) -> Vec<p::ContextSliceRef> {
+        self.assembled
+            .sections
+            .iter()
+            .filter(|section| section.kind == ContextSectionKind::Slice)
+            .map(|section| p::ContextSliceRef(section.source_ref.clone()))
+            .collect()
+    }
+}
+
 pub trait ContextBuilder {
     fn build(&self, ctx: &RunCtx, budget: ContextBudget) -> p::Result<Context>;
 }
@@ -275,7 +294,6 @@ impl ContextBuilder for LayeredContextBuilder {
             .sources
             .slices
             .iter()
-            .take(self.limits.max_slices)
             .map(|slice| slice.id.clone())
             .collect::<Vec<_>>();
         let source_kinds = source_kinds(&ctx.sources);
@@ -317,8 +335,15 @@ impl ContextBuilder for LayeredContextBuilder {
         if ctx.brain_call {
             if let Some(workspace) = &ctx.sources.agent_workspace {
                 let mut items = workspace.items.iter().collect::<Vec<_>>();
-                items.sort_by_key(|item| std::cmp::Reverse((item.value, item.urgency)));
-                for item in items.into_iter().take(self.limits.max_workspace_items) {
+                items.sort_by(|left, right| {
+                    right
+                        .value
+                        .saturating_mul(right.urgency)
+                        .cmp(&left.value.saturating_mul(left.urgency))
+                        .then_with(|| right.urgency.cmp(&left.urgency))
+                        .then_with(|| left.id.cmp(&right.id))
+                });
+                for item in items.iter().take(self.limits.max_workspace_items) {
                     push_section(
                         &mut sections,
                         &mut excluded,
@@ -334,6 +359,12 @@ impl ContextBuilder for LayeredContextBuilder {
                         false,
                     )?;
                 }
+                mark_over_limit(
+                    &mut excluded,
+                    ContextSectionKind::AgentWorkspace,
+                    items.into_iter().skip(self.limits.max_workspace_items),
+                    |item| item.id.clone(),
+                );
             }
         }
 
@@ -343,6 +374,12 @@ impl ContextBuilder for LayeredContextBuilder {
             .entries
             .len()
             .saturating_sub(self.limits.max_history_entries);
+        mark_over_limit(
+            &mut excluded,
+            ContextSectionKind::History,
+            ctx.sources.history.entries[..history_start].iter(),
+            |entry| entry.event_ref.0.clone(),
+        );
         for entry in &ctx.sources.history.entries[history_start..] {
             push_section(
                 &mut sections,
@@ -377,13 +414,13 @@ impl ContextBuilder for LayeredContextBuilder {
             )?;
         }
 
-        for metadata in ctx
+        let in_scope_metadata = ctx
             .sources
             .skills_metadata
             .iter()
             .filter(|metadata| scope_contains(&metadata.scope, &ctx.scope))
-            .take(self.limits.max_skills)
-        {
+            .collect::<Vec<_>>();
+        for metadata in in_scope_metadata.iter().take(self.limits.max_skills) {
             let provenance = p::Provenance {
                 source: p::Source::Internal,
                 actor: p::Actor::System,
@@ -405,15 +442,21 @@ impl ContextBuilder for LayeredContextBuilder {
                 false,
             )?;
         }
+        mark_over_limit(
+            &mut excluded,
+            ContextSectionKind::SkillMetadata,
+            in_scope_metadata.into_iter().skip(self.limits.max_skills),
+            |metadata| metadata.id.0.clone(),
+        );
 
         let selected = ctx.selected_skills.iter().cloned().collect::<BTreeSet<_>>();
-        for body in ctx
+        let selected_bodies = ctx
             .sources
             .loaded_skill_bodies
             .iter()
             .filter(|body| selected.contains(&body.id))
-            .take(self.limits.max_skills)
-        {
+            .collect::<Vec<_>>();
+        for body in selected_bodies.iter().take(self.limits.max_skills) {
             push_section(
                 &mut sections,
                 &mut excluded,
@@ -429,6 +472,12 @@ impl ContextBuilder for LayeredContextBuilder {
                 false,
             )?;
         }
+        mark_over_limit(
+            &mut excluded,
+            ContextSectionKind::SkillBody,
+            selected_bodies.into_iter().skip(self.limits.max_skills),
+            |body| body.id.0.clone(),
+        );
 
         for tool in ctx
             .sources
@@ -452,6 +501,16 @@ impl ContextBuilder for LayeredContextBuilder {
                 false,
             )?;
         }
+        mark_over_limit(
+            &mut excluded,
+            ContextSectionKind::ToolSchema,
+            ctx.sources
+                .tool_schema
+                .entries
+                .iter()
+                .skip(self.limits.max_tools),
+            |tool| tool.tool.0.clone(),
+        );
 
         for slice in ctx.sources.slices.iter().take(self.limits.max_slices) {
             push_section(
@@ -469,19 +528,19 @@ impl ContextBuilder for LayeredContextBuilder {
                 false,
             )?;
         }
+        mark_over_limit(
+            &mut excluded,
+            ContextSectionKind::Slice,
+            ctx.sources.slices.iter().skip(self.limits.max_slices),
+            |slice| slice.id.0.clone(),
+        );
 
         let rendered = render_sections(&sections);
         let provenance = sections
             .iter()
             .map(|section| section.provenance.clone())
             .collect();
-        self.emit(p::EventPayload::ContextBuildFinished(
-            p::ContextBuildFinishedPayload {
-                sources: source_kinds,
-                slice_refs,
-            },
-        ))?;
-        Ok(Context {
+        let context = Context {
             schema_version: p::SchemaVersion(1),
             assembled: AssembledContext {
                 schema_version: p::SchemaVersion(1),
@@ -491,7 +550,14 @@ impl ContextBuilder for LayeredContextBuilder {
             token_cost: spent,
             provenance,
             excluded,
-        })
+        };
+        self.emit(p::EventPayload::ContextBuildFinished(
+            p::ContextBuildFinishedPayload {
+                sources: context.included_sources(),
+                slice_refs: context.included_slice_refs(),
+            },
+        ))?;
+        Ok(context)
     }
 }
 
@@ -530,13 +596,35 @@ fn source_kinds(sources: &ContextSources) -> Vec<p::ContextSource> {
     if !sources.memory_summary.text.trim().is_empty() {
         kinds.push(p::ContextSource::MemorySummary);
     }
-    if !sources.skills_metadata.is_empty() {
+    if !sources.skills_metadata.is_empty() || !sources.loaded_skill_bodies.is_empty() {
         kinds.push(p::ContextSource::SkillsMetadata);
     }
     if !sources.tool_schema.entries.is_empty() {
         kinds.push(p::ContextSource::ToolSchema);
     }
     kinds
+}
+
+fn context_sources_from_sections(sections: &[ContextSection]) -> Vec<p::ContextSource> {
+    let mut sources = Vec::new();
+    for section in sections {
+        let source = match section.kind {
+            ContextSectionKind::Rule => Some(p::ContextSource::Rules),
+            ContextSectionKind::History => Some(p::ContextSource::History),
+            ContextSectionKind::MemorySummary => Some(p::ContextSource::MemorySummary),
+            ContextSectionKind::SkillMetadata | ContextSectionKind::SkillBody => {
+                Some(p::ContextSource::SkillsMetadata)
+            }
+            ContextSectionKind::ToolSchema => Some(p::ContextSource::ToolSchema),
+            ContextSectionKind::AgentWorkspace | ContextSectionKind::Slice => None,
+        };
+        if let Some(source) = source {
+            if !sources.contains(&source) {
+                sources.push(source);
+            }
+        }
+    }
+    sources
 }
 
 fn make_section(
@@ -659,8 +747,10 @@ pub fn estimate_context_tokens(ctx: &RunCtx) -> u64 {
 }
 
 fn rule_treatment(provenance: &p::Provenance) -> ContentTreatment {
-    if provenance.trust_tier == p::TrustTier::OwnerInput
-        && matches!(provenance.actor, p::Actor::Owner | p::Actor::System)
+    if matches!(
+        provenance.trust_tier,
+        p::TrustTier::OwnerInput | p::TrustTier::VerifiedProcess
+    ) && matches!(provenance.actor, p::Actor::Owner | p::Actor::System)
     {
         ContentTreatment::Instruction
     } else {
@@ -1226,6 +1316,77 @@ mod tests {
             .sections
             .iter()
             .any(|section| section.kind == ContextSectionKind::Rule));
+    }
+
+    #[test]
+    fn count_limits_record_exclusions_and_finished_event_reports_actual_slices() {
+        let mut ctx = run_ctx(false);
+        ctx.sources.slices.push(ContextSlice {
+            schema_version: p::SchemaVersion(1),
+            id: p::ContextSliceRef("slice-2".into()),
+            content: "second slice".into(),
+            provenance: provenance(p::TrustTier::Untrusted),
+        });
+        ctx.sources.tool_schema.entries.push(ToolSchemaEntry {
+            schema_version: p::SchemaVersion(1),
+            tool: p::ToolRef("write".into()),
+            schema: "{path:string,content:string}".into(),
+        });
+        ctx.sources
+            .agent_workspace
+            .as_mut()
+            .unwrap()
+            .items
+            .push(AgentWorkspaceItem {
+                schema_version: p::SchemaVersion(1),
+                id: "secondary-goal".into(),
+                content: "Wait for the primary goal".into(),
+                value: 1,
+                urgency: 1,
+                provenance: provenance(p::TrustTier::VerifiedProcess),
+            });
+        let builder = LayeredContextBuilder::new(ContextLimits {
+            max_rules: 32,
+            max_history_entries: 64,
+            max_skills: 1,
+            max_tools: 1,
+            max_slices: 1,
+            max_workspace_items: 1,
+        });
+        let context = builder
+            .build(
+                &ctx,
+                ContextBudget {
+                    schema_version: p::SchemaVersion(1),
+                    max_tokens: 2_000,
+                    reserve: 100,
+                },
+            )
+            .unwrap();
+        for kind in [
+            ContextSectionKind::AgentWorkspace,
+            ContextSectionKind::SkillMetadata,
+            ContextSectionKind::ToolSchema,
+            ContextSectionKind::Slice,
+        ] {
+            assert!(context
+                .excluded
+                .iter()
+                .any(|item| { item.kind == kind && item.reason == "source count limit reached" }));
+        }
+        let events = builder.take_events();
+        let finished = events
+            .iter()
+            .find_map(|payload| match payload {
+                p::EventPayload::ContextBuildFinished(payload) => Some(payload),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(
+            finished.slice_refs,
+            vec![p::ContextSliceRef("slice-1".into())]
+        );
+        assert_eq!(finished.sources, context.included_sources());
     }
 
     #[test]

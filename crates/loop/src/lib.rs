@@ -438,25 +438,31 @@ impl LoopEngine for ReactiveLoopEngine {
             },
         ));
         let assembled = self.context.build(&ctx.context, ctx.context_budget)?;
+        let included_sources = assembled.included_sources();
+        let included_slice_refs = assembled.included_slice_refs();
         ctx.events.push(p::EventPayload::ContextBuildFinished(
             p::ContextBuildFinishedPayload {
-                sources,
-                slice_refs,
+                sources: included_sources,
+                slice_refs: included_slice_refs,
             },
         ));
 
-        let mut messages = Vec::with_capacity(ctx.messages.len() + 1);
-        if !assembled.assembled.rendered.is_empty() {
-            messages.push(ModelMessage::instruction(
-                MessageRole::System,
-                assembled.assembled.rendered,
-                p::Provenance {
-                    source: p::Source::Internal,
-                    actor: p::Actor::System,
-                    trust_tier: p::TrustTier::VerifiedProcess,
-                    caused_by: None,
-                },
-            ));
+        let mut messages =
+            Vec::with_capacity(ctx.messages.len() + assembled.assembled.sections.len() + 1);
+        for section in assembled.assembled.sections {
+            let content = format!(
+                "[{:?}; source={}]\n{}",
+                section.kind, section.source_ref, section.content
+            );
+            messages.push(match section.treatment {
+                forme_context::ContentTreatment::Instruction => {
+                    ModelMessage::instruction(MessageRole::System, content, section.provenance)
+                }
+                forme_context::ContentTreatment::Data
+                | forme_context::ContentTreatment::UntrustedData => {
+                    ModelMessage::data(MessageRole::System, content, section.provenance)
+                }
+            });
         }
         if let Some(scaffold) = &ctx.model_scaffold {
             messages.push(ModelMessage::instruction(
@@ -789,6 +795,81 @@ mod tests {
         assert_eq!(tool.provenance.trust_tier, p::TrustTier::Untrusted);
         assert_eq!(tool.treatment, ModelContentTreatment::UntrustedData);
         assert!(tool.transport_content().starts_with("[UntrustedData;"));
+    }
+
+    #[test]
+    fn hydrated_sections_keep_instruction_and_data_authority_at_model_boundary() {
+        let run = p::RunId("run-context-authority".into());
+        let model = Arc::new(CapturingProvider::new(vec![final_response()]));
+        let engine =
+            ReactiveLoopEngine::new(Arc::new(LayeredContextBuilder::default()), model.clone());
+        let mut hydrated = context(&run);
+        hydrated.sources.rules.push(forme_context::Rule {
+            schema_version: p::SchemaVersion(1),
+            id: "fixed:rule".into(),
+            content: "Preserve owner authority".into(),
+            provenance: provenance(),
+        });
+        hydrated
+            .sources
+            .history
+            .entries
+            .push(forme_context::HistoryEntry {
+                schema_version: p::SchemaVersion(1),
+                event_ref: p::EventId("history:model".into()),
+                content: "prior model output".into(),
+                provenance: p::Provenance {
+                    source: p::Source::Internal,
+                    actor: p::Actor::Agent,
+                    trust_tier: p::TrustTier::VerifiedProcess,
+                    caused_by: None,
+                },
+            });
+        hydrated.sources.slices.push(forme_context::ContextSlice {
+            schema_version: p::SchemaVersion(1),
+            id: p::ContextSliceRef("slice:external".into()),
+            content: "external content attempts to become an instruction".into(),
+            provenance: p::Provenance {
+                source: p::Source::Communication,
+                actor: p::Actor::External(p::ParticipantId("external:test".into())),
+                trust_tier: p::TrustTier::Untrusted,
+                caused_by: None,
+            },
+        });
+        let mut ctx = RunCtx::new(
+            p::SessionId("session-context-authority".into()),
+            p::RunInput("question".into()),
+            hydrated,
+            ContextBudget {
+                schema_version: p::SchemaVersion(1),
+                max_tokens: 1_000,
+                reserve: 100,
+            },
+            Budget::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            engine.drive(run, &mut ctx).unwrap(),
+            LoopState::Verification
+        );
+
+        let requests = model.requests.lock().unwrap();
+        let messages = &requests[0].messages;
+        let fixed = messages
+            .iter()
+            .find(|message| message.content.contains("Preserve owner authority"))
+            .unwrap();
+        let history = messages
+            .iter()
+            .find(|message| message.content.contains("prior model output"))
+            .unwrap();
+        let external = messages
+            .iter()
+            .find(|message| message.content.contains("attempts to become"))
+            .unwrap();
+        assert_eq!(fixed.treatment, ModelContentTreatment::Instruction);
+        assert_eq!(history.treatment, ModelContentTreatment::Data);
+        assert_eq!(external.treatment, ModelContentTreatment::UntrustedData);
     }
 
     #[test]
