@@ -229,8 +229,8 @@
 
 - **`ToolCall`**:模型 proposal,`{ call_id, tool, args, status, result, approval_ref }`——是 proposal 不是命令(canonical §1)。
 - **`ActionIntent`**:`{ intent_id, source, goal, backend_hint, capability_ref, scope, risk_hint, expected_effect, rollback_expectation }`。**`source` + `expected_effect` 是能力门出口 enforce 的 key(canonical §6/§15)。**
-- **`ExecutionPlan`**:由 ActionIntent 经 ExecutionPlanner 产出,绑 backend/审批/验证/回滚边界；其 digest 覆盖全部 driver-affecting 字段，并带规范化动作摘要与排序去重资源集合。
-- **`ApprovalRequest`/`ApprovalGrant`**:`{ approval_id, action_summary, risk_level, scope, requested_permissions, affected_resources, normalized_action_digest, normalized_affected_resources, rollback_boundary, expires_at, choices, plan_digest, policy_version, tool_schema_version, approver, nonce, use_by }`;Gateway-compatible(canonical/requirements D12)。审批返回后最终 plan 重查通过，且 one-shot nonce 在 authority ledger 原子 claim 后才可进入 driver。
+- **`ExecutionPlan`**:由 ActionIntent 经 ExecutionPlanner 产出,绑 backend/审批/验证/回滚边界；其 digest 覆盖全部 driver-affecting 字段，并带规范化动作摘要与排序去重的 `affected_resources` 集合。
+- **`ApprovalRequest`**:`{ approval_id, action_summary, risk_level, scope, requested_permissions, affected_resources, normalized_action_digest, rollback_boundary, expires_at, choices, plan_digest, policy_version, tool_schema_version }`；**`ApprovalGrant`** 在此基础上绑定 `approver, affected_resources, nonce, use_by`。Gateway-compatible(canonical/requirements D12)。审批返回后最终 plan 重查通过，且 one-shot nonce 在 authority ledger 原子 claim 后才可进入 driver。
 
 ### 2.4 协调约束对象(`coordination` 产出)
 

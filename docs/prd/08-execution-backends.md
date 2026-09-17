@@ -30,7 +30,7 @@
 pub struct ExecutionPlan {              // 审批后不可变;digest 为审批绑定对象(prd/04,防 TOCTOU)
     pub digest: PlanDigest,             // 覆盖全部 driver-affecting 字段
     pub normalized_action_digest: SchemaDigest,
-    pub normalized_affected_resources: Vec<ResourceRef>, // 排序去重;空集合显式存在
+    pub affected_resources: Vec<ResourceRef>, // 排序去重;空集合显式存在
     pub intent: ActionIntent, pub backend: BackendKind, pub scope: Scope,
     pub approval_ref: Option<ApprovalId>, pub verify_ref: Option<VerifyRef>,
     pub rollback_boundary: RollbackBoundary,   // 按 backend 声明

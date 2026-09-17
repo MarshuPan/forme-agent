@@ -44,7 +44,7 @@ pub struct ApprovalRequest {
     pub scope: Scope, pub requested_permissions: Vec<Permission>, pub affected_resources: Vec<ResourceRef>,
     pub rollback_boundary: RollbackBoundary, pub expires_at: Timestamp, pub choices: Vec<ApprovalChoice>,
     pub normalized_action_digest: SchemaDigest,
-    pub normalized_affected_resources: Vec<ResourceRef>,
+    pub affected_resources: Vec<ResourceRef>, // 排序去重后的规范化集合
     pub plan_digest: PlanDigest,
     pub policy_version: Version, pub tool_schema_version: Version,
 }
@@ -53,7 +53,7 @@ pub struct ApprovalGrant {
     pub approver: VerifiedPrincipal,       // 谁批的(AuthContext,canonical §10)
     pub bound_plan_digest: PlanDigest,     // 绑定最终不可变 ExecutionPlan 的规范化摘要——批的是"这个动作",不是"这类动作"
     pub normalized_action_digest: SchemaDigest,
-    pub normalized_affected_resources: Vec<ResourceRef>,
+    pub affected_resources: Vec<ResourceRef>, // 与 request 完全一致的规范化集合
     pub policy_version: Version, pub tool_schema_version: Version,   // 批时所见的判定环境
     pub nonce: Nonce, pub use_by: Timestamp,                         // 一次性使用 + 过期
 }
@@ -97,7 +97,7 @@ pub struct ApprovalBinding {
 
 `AuthContext` 由入口注入，业务 payload 中同名字段只能作为待校验数据，不能覆盖它。`AuthPrincipal`/`AuthMethod` 使用 communication crate 的既有定义；owner epoch 仅在需要 authority/federation fencing 的路径绑定，普通本地审批可为空。M0 的本地单用户认证可以是本地会话，但仍必须走同一对象和校验路径；owner 以外的 external/subagent/system 身份不能伪造 owner approval。
 
-`normalized_action_digest` 由 `forme-protocol` 提供的共享规范化函数从 `ActionIntent` 计算；调用方提供的摘要只用于比较，不能作为计算依据。`normalized_affected_resources` 是排序去重后的集合，空集合也必须显式存在。`ApprovalRequest`、`ApprovalGrant`、`ApprovalAuthorization`、控制面的 `PendingApproval`/`ApprovalDecision` 与最终 `ExecutionPlan` 必须携带同一组绑定值。
+`normalized_action_digest` 由 `forme-protocol` 提供的共享规范化函数从 `ActionIntent` 计算；调用方提供的摘要只用于比较，不能作为计算依据。`affected_resources` 是排序去重后的集合，空集合也必须显式存在。`ApprovalRequest`、`ApprovalGrant`、`ApprovalAuthorization`、控制面的 `PendingApproval`/`ApprovalDecision` 与最终 `ExecutionPlan` 必须携带同一组绑定值。
 
 ## 4. 接口与签名
 
@@ -123,7 +123,7 @@ pub trait ApprovalBroker {
 - **enforce_envelope**:动作是否落在 `DelegationGrant ∩ AutonomyEnvelope` 内 → `Within/OutOfScope/NeedsApproval`;**trust 高不越 permission deny**(permission 判定先行且硬)。
 - **审批流**:`request` → `ApprovalRequested` + `RunWaiting`;`resolve` → `ApprovalResolved{granted|denied|expired}`;`GrantScope` 支持一次性/会话级/参数模式预授权;过期 → `Expired`(等同不批)。**Gateway-compatible**:CLI 与 Local Gateway 共享同一 `ApprovalRequest/Resolved/RunWaiting/RunResumed` 事件,`pending` 供任一入口拉取。
 - **DelegationProposal 承接(放权成长闭环)**:认知层(prd/13)以 CapabilityEvidence 为据申请扩展 envelope → 作为**高影响 ApprovalRequest** 走审批 → 用户确认后落 `DelegationGrant`(带 scope/期限/预算/撤销);**申请本身零副作用**,拒绝不改变现状;trust 不覆盖 permission 不变。
-- **审批-计划不可变绑定(防 TOCTOU)**:审批绑定最终 `ExecutionPlan` 的 `PlanDigest`，并同时绑定 `normalized_action_digest` 与排序去重后的 `normalized_affected_resources`；这些值由 broker 从当前 intent/plan 重新计算，不能信任 payload 自报。执行前重验 digest、approval_ref、参数/backend/scope/timeout/rollback、policy/tool schema snapshot、capability/envelope 与 owner 身份；**任何批后变更 = 新 plan = 作废重批**。nonce 一次性、`use_by` 过期即废;`approver` 必须为 `VerifiedPrincipal`(canonical §10)。
+- **审批-计划不可变绑定(防 TOCTOU)**:审批绑定最终 `ExecutionPlan` 的 `PlanDigest`，并同时绑定 `normalized_action_digest` 与排序去重后的 `affected_resources`；这些值由 broker 从当前 intent/plan 重新计算，不能信任 payload 自报。执行前重验 digest、approval_ref、参数/backend/scope/timeout/rollback、policy/tool schema snapshot、capability/envelope 与 owner 身份；**任何批后变更 = 新 plan = 作废重批**。nonce 一次性、`use_by` 过期即废;`approver` 必须为 `VerifiedPrincipal`(canonical §10)。
 - **最终重查顺序**:approval resolve 后，harness 必须重新读取当前 policy、capability/tool schema、DelegationGrant/AutonomyEnvelope、owner epoch 与最终 `ExecutionPlan`，再交给 driver；backend 不能在这一步偷偷补字段。任一不一致都产生 deny/expired/stale-binding，零 driver call，并要求新 plan/approval。
 - **一次性消费边界**:最终重查全部通过后，先以 `(nonce, bound_plan_digest, approval_id)` 在 authority ledger 原子 claim，再允许 `ActionStarted`/driver。driver 失败、进程崩溃或结果未知都不释放 nonce；恢复只能 probe/取原 receipt/owner 裁决，不能复用原 grant。
 
@@ -152,7 +152,7 @@ pub trait ApprovalBroker {
 - **S2(总纲 §7.2)**:高风险动作 → `ToolPolicyEvaluated{ask}` → `ApprovalRequested` → 拒绝 → 不执行;`deny` 路径直接拒、不进审批;不可见工具名/越权参数被 `deny`。
 - **S6 / S11 支撑**:AutonomyEnvelope 产出后被 `enforce_envelope` 约束;subagent 越出 envelope 的工具被拒。
 - **单元**:合并优先序(managed deny 不被下层放宽);`hook` 不能绕过 user/managed deny;trust 高不越 permission deny;审批过期=不批;GrantScope 三种范围各自生效。
-- **闭合契约**:payload 自报 approver/owner 被拒;grant 缺 plan/action/resource/policy/schema/nonce/expiry 任一绑定被拒;审批后修改任一规范化 plan 字段在 driver 前被拒;最终 plan 的 approval_ref、backend-specific 参数或资源集合变化同样被拒;同一 one-shot nonce 只能成功 claim 一次且重启后仍拒绝重放;stale owner epoch/撤销后的 grant 不能继续。
+- **闭合契约**:payload 自报 approver/owner 被拒;grant 缺 plan/action/affected_resources/policy/schema/nonce/expiry 任一绑定被拒;审批后修改任一规范化 plan 字段在 driver 前被拒;最终 plan 的 approval_ref、backend-specific 参数或资源集合变化同样被拒;同一 one-shot nonce 只能成功 claim 一次且重启后仍拒绝重放;stale owner epoch/撤销后的 grant 不能继续。
 
 ## 10. 验收
 
