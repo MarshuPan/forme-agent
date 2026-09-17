@@ -9,6 +9,11 @@ use sha2::{Digest, Sha256};
 use crate::*;
 
 pub const M5_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
+/// Number of event kinds in the immutable M5 artifact taxonomy.
+///
+/// V1 closure appends new kinds after this prefix; historical M5 readers must
+/// validate against this boundary rather than the current `EventKind::ALL`.
+pub const M5_EVENT_KIND_COUNT: usize = 97;
 
 fn required(value: &str, name: &str) -> Result<()> {
     if value.trim().is_empty() {

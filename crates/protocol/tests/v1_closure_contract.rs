@@ -37,7 +37,13 @@ fn receipt(operation: p::DataLifecycleOperation) -> p::DataLifecycleReceipt {
 
 #[test]
 fn closure_taxonomy_preserves_the_exact_m5_prefix_and_adds_only_two_events() {
+    assert_eq!(p::M5_EVENT_KIND_COUNT, 97);
     assert_eq!(p::EventKind::ALL.len(), 99);
+    assert_eq!(p::EventKind::ALL.len(), p::M5_EVENT_KIND_COUNT + 2);
+    assert_eq!(
+        p::EventKind::ALL[p::M5_EVENT_KIND_COUNT],
+        p::EventKind::WorkspaceCharterChanged
+    );
     assert_eq!(
         &p::EventKind::ALL[97..],
         &[

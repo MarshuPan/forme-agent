@@ -260,7 +260,7 @@ fn bundle() -> M5ArtifactBundle {
             distribution_receipt: receipt.reference,
             stream_seq: (1..=event_kinds.len() as u64).collect(),
             event_kinds,
-            event_taxonomy: p::EventKind::ALL.to_vec(),
+            event_taxonomy: p::EventKind::ALL[..p::M5_EVENT_KIND_COUNT].to_vec(),
             registry_fetches: 1,
             authority_driver_calls: 1,
             executor_installs: 1,

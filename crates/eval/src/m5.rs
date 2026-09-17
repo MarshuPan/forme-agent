@@ -673,7 +673,7 @@ impl M5TraceArtifact {
         if self.event_kinds.is_empty()
             || self.event_kinds.len() != self.stream_seq.len()
             || self.stream_seq.windows(2).any(|pair| pair[0] >= pair[1])
-            || self.event_taxonomy.as_slice() != p::EventKind::ALL.as_slice()
+            || self.event_taxonomy.as_slice() != &p::EventKind::ALL[..p::M5_EVENT_KIND_COUNT]
             || self.registry_fetches != 1
             || self.authority_driver_calls != 1
             || self.executor_installs != 1
