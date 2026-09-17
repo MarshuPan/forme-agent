@@ -29,6 +29,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 
 - 18 crates 与 `architecture/03 §1` 依赖边完全不变。
 - 前 97 个 EventKind 与 M5 exact prefix 同序同名；仅末尾追加 `WorkspaceCharterChanged`、`DataLifecycleApplied`，形成 99-kind taxonomy。
+- 永久 M5 回归必须使用历史 97-kind taxonomy snapshot 验证既有 artifact；不得把当前 99-kind `EventKind::ALL` 直接作为 M5 历史工件的等值比较对象。closure artifact 另行验证完整 99-kind。
 - S1–S99 与 C1–C24 全绿。
 - tracked tree clean；typed artifacts 可离线校验；合规门和 release audit PASS。
 

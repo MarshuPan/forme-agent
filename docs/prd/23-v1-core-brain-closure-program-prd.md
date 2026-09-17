@@ -31,6 +31,7 @@
 
 - `EventStore`、`ModelProvider`、`ContextBuilder`、`MemoryGraph`、`CoordinationReasoner`、`OrchestrationLibrary`、`AgentHarness` 既有签名不破坏；需要新行为时加 companion type/trait 或 internal method。
 - 前 97 `EventKind::ALL`、string、payload mapping 和 store `PayloadType` 是 exact prefix。
+- `M5_EVENT_KIND_COUNT = 97` 是历史验收边界，不等同于当前 `EventKind::ALL.len() = 99`；M5 verifier 按历史 prefix 验证既有工件，closure verifier 才验证完整当前 taxonomy。
 - stable mutation 必须事件化；projection/cache/metric 可删后重建。
 - Loop 每次只调用已绑定的具体 provider。selector/fallback 不藏在 `ModelProvider::call` 内。
 - 子代理、workspace、plugin、MCP、model、catalog 不能 append stable cognition 或绕过 Harness。
@@ -254,7 +255,7 @@ builder 从同一 config 初始化已有 registry/lifecycle：File/Shell/MCP/Ski
 - non-empty context、scope leak、untrusted treatment、budget exclusion；
 - CLI/Gateway/scheduler same manifest；
 - missing model/store/credential fail closed；optional backend disabled；
-- S1–S99、97-kind prefix（A 波尚未激活 R events 前允许文档提交；代码激活后直接 99）。
+- S1–S99、历史 M5 97-kind prefix 兼容性、当前 V1 99-kind taxonomy 与前 97 项 exact prefix；激活 R events 后不得使既有 M5 工件失效。
 
 提交建议：`feat(harness): compose the persistent forme brain runtime`。
 

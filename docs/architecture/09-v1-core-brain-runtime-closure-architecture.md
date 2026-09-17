@@ -9,6 +9,13 @@
 - crate 图、既有 public trait、Harness-first、single authority、owner 身份、执行前重查、能力门出口、candidate/stable/active/permission 分离全部冻结。
 - 本文只定义现有模块的组合、持久运行与产品闭环。任何实现若需要新增 crate、依赖边、第三个事件或改变冻结 trait，必须先回 requirements/architecture 经 owner 确认。
 
+### 0.1 历史 taxonomy 与当前 taxonomy 的验证边界
+
+- `EventKind::ALL` 表示**当前运行时**的完整 taxonomy；V1 闭合后为 99 项。M5 历史验收使用不可变的 97 项 strict prefix，两者不是同一个验证输入。
+- M5 acceptance artifact、release receipt 和历史报告必须按其声明的 schema/taxonomy snapshot 验证；验证器不得把当前 99 项列表直接拿来与历史 97 项工件比较。
+- V1 closure artifact 验证当前完整 99 项，并另行断言前 97 项与 M5 exact prefix 同序同名。历史报告保留当时事实，不通过回写历史文件来“刷新” taxonomy。
+- 任何 additive event 都必须同时更新：当前 protocol taxonomy、对应 closure contract，以及读取历史 artifact 的兼容边界；不得让历史工件依赖未来运行时的完整枚举。
+
 ## 1. 总体拓扑：一个产品运行时，一个大脑
 
 ```text
