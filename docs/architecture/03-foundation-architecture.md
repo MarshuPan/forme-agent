@@ -86,7 +86,7 @@
 |---|---|---|
 | `ToolCallProposed` | call_id, tool, args | §1, S2 |
 | `ToolPolicyEvaluated` | decision(allow/ask/deny), rule_source, reason | §1, S2 |
-| `ApprovalRequested` | approval_id, action_summary, risk, scope, rollback_boundary, expires_at, choices | D12, S2 |
+| `ApprovalRequested` | approval_id, action_summary, risk, scope, rollback_boundary, expires_at, choices, plan_digest, normalized_action_digest, normalized_affected_resources, policy/tool-schema snapshot | D12, S2 |
 | `ApprovalResolved` | outcome(granted/denied/expired), grant_ref | D12, S2 |
 | `HandoffRequested` / `HandoffResolved` | target, reason | §4.1 |
 
@@ -229,8 +229,8 @@
 
 - **`ToolCall`**:模型 proposal,`{ call_id, tool, args, status, result, approval_ref }`——是 proposal 不是命令(canonical §1)。
 - **`ActionIntent`**:`{ intent_id, source, goal, backend_hint, capability_ref, scope, risk_hint, expected_effect, rollback_expectation }`。**`source` + `expected_effect` 是能力门出口 enforce 的 key(canonical §6/§15)。**
-- **`ExecutionPlan`**:由 ActionIntent 经 ExecutionPlanner 产出,绑 backend/审批/验证/回滚边界。
-- **`ApprovalRequest`/`ApprovalGrant`**:`{ approval_id, action_summary, risk_level, scope, requested_permissions, affected_resources, rollback_boundary, expires_at, choices }`;Gateway-compatible(canonical/requirements D12)。
+- **`ExecutionPlan`**:由 ActionIntent 经 ExecutionPlanner 产出,绑 backend/审批/验证/回滚边界；其 digest 覆盖全部 driver-affecting 字段，并带规范化动作摘要与排序去重资源集合。
+- **`ApprovalRequest`/`ApprovalGrant`**:`{ approval_id, action_summary, risk_level, scope, requested_permissions, affected_resources, normalized_action_digest, normalized_affected_resources, rollback_boundary, expires_at, choices, plan_digest, policy_version, tool_schema_version, approver, nonce, use_by }`;Gateway-compatible(canonical/requirements D12)。审批返回后最终 plan 重查通过，且 one-shot nonce 在 authority ledger 原子 claim 后才可进入 driver。
 
 ### 2.4 协调约束对象(`coordination` 产出)
 
@@ -324,7 +324,7 @@ harness 每相职责:**bind**(session/policy/model/toolset)、**enforce**(咽喉
 
 - **PolicyEngine**:allow/ask/deny;合并序 managed→user→workspace→agent→surface→session→skill/tool/plugin requested→hook→final;**deny>ask>allow**;hook 可收紧、不可绕过 managed/user deny。
 - **执行前重查**:工具调用是 proposal;执行前重查 toolset scope + 参数 + 路径/网络/命令 + sandbox(canonical §1 Policy-at-execution)。
-- **ApprovalBroker**:结构化 ApprovalRequest(§2.3);Gateway-compatible 多入口投递;一次性/会话级/参数模式批准;过期 + scope;结果写 event。
+- **ApprovalBroker**:结构化 ApprovalRequest(§2.3);Gateway-compatible 多入口投递;一次性/会话级/参数模式批准;过期 + scope;从 intent/plan 重算 binding;生产 one-shot nonce 由 authority ledger 原子 claim;结果写 event。
 - **Delegation / AutonomyEnvelope enforce**:harness 检查当前动作是否在 DelegationGrant + AutonomyEnvelope 内;**trust 不覆盖 permission**(canonical §1)。
 
 ### 4.5 执行 backend(`execution`)
@@ -392,7 +392,7 @@ trait ApprovalBroker {
 trait ActionBackend {
     fn kind(&self) -> BackendKind;
     fn plan(&self, intent: &ActionIntent) -> Result<ExecutionPlan>;
-    fn execute(&self, plan: ExecutionPlan, sink: &EventSink) -> Result<ActionResult>; // 流式写 action 事件
+    fn execute(&self, plan: ExecutionPlan, sink: &EventSink) -> Result<ActionResult>; // harness 已完成最终重查和 one-shot claim 后才调用
     fn cancel(&self, action: ActionId) -> Result<()>;
 }
 ```

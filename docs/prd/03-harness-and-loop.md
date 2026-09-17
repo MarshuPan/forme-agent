@@ -140,7 +140,7 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 
 | `PendingKind` | 允许的 `ResumeInput` | 额外校验 | 禁止行为 |
 |---|---|---|---|
-| `ApprovalWait` | 当前 approval 的 `ApprovalGrant` | approver、nonce、expiry、最终 plan digest、policy/tool schema snapshot | 用旧 grant 批新 plan |
+| `ApprovalWait` | 当前 approval 的 `ApprovalGrant` | approver、nonce、expiry、最终 plan digest、normalized action/resource binding、approval_ref、policy/tool schema snapshot | 用旧 grant 批新 plan |
 | `ToolInterrupt` | 原 intent 的可信 receipt/probe 或 owner `ToolOutcome` 裁决 | `intent_id`、attempt、scope、plan digest、unknown 状态 | 未知时直接 retry |
 | `Handoff` | 当前 durable checkpoint 的 `HandoffResolution` | checkpoint、owner、scope、目标与版本 | 搬运未验证模型状态 |
 
@@ -151,9 +151,9 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 工具 proposal 到 driver 之间至少经过两次计划相关检查：
 
 - `ActionIntent` 阶段检查候选 scope、toolset、风险和能力门，决定 allow/ask/deny；
-- `ActionBackend::plan` 生成不可变 `ExecutionPlan` 后，把规范化 backend、参数、受影响资源、timeout、rollback、capability、scope 和 schema 计算为 `PlanDigest`；审批返回后、实际 driver 调用前再次检查该 digest 与 policy/grant/envelope/competence/owner epoch。
+- `ActionBackend::plan` 生成不可变 `ExecutionPlan` 后，把规范化 action digest、排序去重的 affected resources、backend、参数、timeout、rollback、capability、scope 和 schema 计算为 `PlanDigest`；审批返回后、实际 driver 调用前再次检查这些 binding 与 policy/grant/envelope/competence/owner epoch，并在全部通过后原子 claim one-shot nonce。
 
-`ActionPlanned` 记录最终计划；任何审批后字段变化都必须废弃原 approval 并重新规划、重审、重批。不能只在 `ActionIntent` 上检查一次后允许 backend 自行补字段。driver 返回后再由 `Verifier` 按 `DoneContract` 取证，结果不明不能被 loop 当作成功。
+`ActionPlanned` 记录最终计划；任何审批后字段变化都必须废弃原 approval 并重新规划、重审、重批。不能只在 `ActionIntent` 上检查一次后允许 backend 自行补字段。nonce claim 成功后即使 driver 失败、崩溃或结果未知也不能回收 grant。driver 返回后再由 `Verifier` 按 `DoneContract` 取证，结果不明不能被 loop 当作成功。
 
 ## 6. 错误/安全/权限/审批
 

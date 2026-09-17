@@ -66,7 +66,7 @@ gateway/src/core_brain.rs
 | 生命周期恢复 | `Waiting`/`Suspended` 非终态；`ActionStarted` 无终态必须形成 `ActionOutcomeUnknown`；启动扫描、typed resume、unknown no-retry 必须可重建。 | `store`、`harness`、`loop` | C1/C2/C5/C16 |
 | 事件并发幂等 | authority 分配 `stream_seq`；command 用 `idempotency_key`、动作用 `intent_id`、聚合 mutation 用 `expected_version`/CAS；event id 不能单独充当幂等。 | `protocol`、`store`、`harness` | C2/C7/C13/C16 |
 | 事件唯一事实源 | 所有稳定 mutation 走 command→append→projection 同事务；memory edge/maintenance/candidate transition 不得有旁路 setter；replay 与在线 fold 同语义。 | `store`、`memory`、`cognition` | C2/C7/C10/C12/C18 |
-| 身份与审批绑定 | ingress 产生不可由 payload 伪造的 `AuthContext`/`VerifiedPrincipal`；grant 绑定 approver、最终 plan digest、规范化参数/资源、policy/tool schema snapshot、nonce/expiry；driver 前最终重查。 | `gateway`、`approval`、`policy`、`harness` | C4/C5/C6/C13/C19/C23 |
+| 身份与审批绑定 | ingress 产生不可由 payload 伪造的 `AuthContext`/`VerifiedPrincipal`；grant 绑定 approver、最终 plan digest、规范化 action digest、排序去重资源集合、approval_ref、policy/tool schema snapshot、nonce/expiry；最终重查通过后由 authority ledger 原子 claim，之后才允许 driver。 | `gateway`、`approval`、`policy`、`harness`、`store` | C4/C5/C6/C13/C19/C23 |
 | 可执行完成证明 | `DoneCriterion` 必须有 evidence selector、predicate、tolerance/不可验证条件；model self-report 不能单独 Pass；`Unverifiable` 独立流转。 | `coordination`、`eval` | C15/C16/C18/C24 |
 | tick 与潮线 | M0 的 timer floor 与 V1 B 波的 activation diffusion 分开；tick claim 原子、重复 signal 不重复履约；三相共享 snapshot、前台优先。 | `store`、`cognition`、`harness` | C7/C10/C11 |
 | 数据生命周期 | 敏感内容在不可变链前 envelope/reference；删除同时验证原文、派生索引和 key；远端 Unknown 不报完成；旧明文迁移未完成则 FAIL/UNVERIFIABLE。 | `store`、`eval`、`harness` | C21/C22/C23 |

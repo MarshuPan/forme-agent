@@ -22,13 +22,15 @@
 - **下游被依赖**:prd/03(harness 把 `ActionPlanned` 路由到 `execute`)。
 - **发出事件**:E 组执行事件 `ActionStarted`/`ActionOutputDelta`/`ActionCompleted`/`ActionFailed`/`ActionCancelled` + `McpCallEvent`(MCP)+ `CapabilityEvidenceRecorded`。(`ActionPlanned` 由 harness 路由时发;`ActionDenied` 由 policy/harness 发——归属见 prd/03。)
 - **实现 trait**:`ActionBackend`(§4.7)、`ExecutionPlanner`。
-- **必守不变量**:**Harness-first**(只经 harness 调,无旁路)、**Policy-at-execution**(执行前重查由 prd/03 §5.1 保证顺序在前)、**shell 不作默认兜底**、**文件写需 diff/变更摘要**、**least-privilege**、**可回滚边界按 backend 声明、不泛化承诺**。
+- **必守不变量**:**Harness-first**(只经 harness 调,无旁路)、**Policy-at-execution**(执行前重查由 prd/03 §5.1 保证顺序在前)、**审批绑定最终 plan**(action/resource digest、approval_ref、backend-specific 参数不可在批后替换)、**one-shot claim 在 driver 前**、**shell 不作默认兜底**、**文件写需 diff/变更摘要**、**least-privilege**、**可回滚边界按 backend 声明、不泛化承诺**。
 
 ## 3. 数据结构与类型
 
 ```rust
 pub struct ExecutionPlan {              // 审批后不可变;digest 为审批绑定对象(prd/04,防 TOCTOU)
-    pub digest: PlanDigest,             // 规范化摘要(参数/backend/scope/timeout/rollback)
+    pub digest: PlanDigest,             // 覆盖全部 driver-affecting 字段
+    pub normalized_action_digest: SchemaDigest,
+    pub normalized_affected_resources: Vec<ResourceRef>, // 排序去重;空集合显式存在
     pub intent: ActionIntent, pub backend: BackendKind, pub scope: Scope,
     pub approval_ref: Option<ApprovalId>, pub verify_ref: Option<VerifyRef>,
     pub rollback_boundary: RollbackBoundary,   // 按 backend 声明
@@ -61,7 +63,7 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 
 ## 5. 行为/算法/状态机
 
-- **执行流**:`ActionIntent → ExecutionPlanner::plan → ExecutionPlan →`(**policy/approval/能力门已由 harness §5.1 判过**)`→ ActionBackend::execute`(流式写 `ActionStarted/OutputDelta/Completed|Failed`)`→ ResultNormalizer → Event + CapabilityEvidence`。
+- **执行流**:`ActionIntent → ExecutionPlanner::plan → ExecutionPlan`(计算 action/resource binding) `→`(**policy/approval/能力门已由 harness §5.1 判过**)`→`(最终重查 + one-shot nonce 原子 claim)` `→ ActionBackend::execute`(流式写 `ActionStarted/OutputDelta/Completed|Failed`)`→ ResultNormalizer → Event + CapabilityEvidence`。claim 失败不得调用 driver。
 - **ShellBackend**:sandbox 内执行;output budget/timeout/cancel;**不作默认兜底**(无匹配 backend 不 fallback 到 shell)。
 - **FileBackend**:写前产 **diff/变更摘要**;路径受 `PathScope` 约束(least-privilege)。
 - **McpBackend**:用 `ExecutionPlan` 内的 `McpTransport` handle(prd/07 spawn、protocol 类型)执行 stdio 调用;发 `McpCallEvent` + timeout/schema/server 错误分类。
