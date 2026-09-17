@@ -65,7 +65,8 @@ impl fmt::Debug for SecretString {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ModelStrength {
     Basic,
     Standard,

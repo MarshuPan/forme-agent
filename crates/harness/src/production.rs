@@ -31,7 +31,7 @@ use forme_coordination::{
 };
 use forme_eval::{DeterministicVerifier, Verifier};
 use forme_execution::{ExecutionBackendRegistry, NotificationBackend};
-use forme_models::{ModelProfile, ModelRegistry};
+use forme_models::{ModelProfile, ModelRegistry, ModelRegistryConfig};
 use forme_protocol as p;
 use forme_store::{
     AuthorityLeaseGuard, BrainAggregateKind, BrainAuthorityBinding, BrainAuthorityClaim,
@@ -60,6 +60,7 @@ pub struct ProductionRuntimeConfig {
     pub store_path: PathBuf,
     pub workspace: p::WorkspaceRef,
     pub agent_profile: p::AgentProfileRef,
+    pub models: ModelRegistryConfig,
     pub scheduler_enabled: bool,
     pub scheduler: p::SchedulerConfig,
     pub notification_enabled: bool,
@@ -77,6 +78,7 @@ impl ProductionRuntimeConfig {
             std::env::var("FORME_WORKSPACE").unwrap_or_else(|_| "workspace:default".to_owned());
         let agent_profile =
             std::env::var("FORME_AGENT_PROFILE").unwrap_or_else(|_| "agent:forme-local".to_owned());
+        let models = ModelRegistryConfig::from_environment()?;
         let scheduler_enabled = optional_bool("FORME_SCHEDULER_ENABLED", true)?;
         let scheduler = p::SchedulerConfig {
             schema_version: p::SchemaVersion(1),
@@ -90,6 +92,7 @@ impl ProductionRuntimeConfig {
             store_path,
             workspace: p::WorkspaceRef(workspace),
             agent_profile: p::AgentProfileRef(agent_profile),
+            models,
             scheduler_enabled,
             scheduler,
             notification_enabled: optional_bool("FORME_NOTIFICATION_ENABLED", true)?,
@@ -106,6 +109,7 @@ impl ProductionRuntimeConfig {
             || self.store_path.as_os_str().is_empty()
             || self.workspace.0.trim().is_empty()
             || self.agent_profile.0.trim().is_empty()
+            || self.models.validate().is_err()
             || self.authority_lease.0 == 0
             || self.scheduler_enabled && self.scheduler.validate().is_err()
             || self.context_limits.max_session_runs == 0
@@ -605,7 +609,7 @@ fn compose(
     let aggregates = BrainAggregateRefs::from_binding(&authority, config.owner.clone())?;
     let store = Arc::new(store);
 
-    let model_registry = Arc::new(ModelRegistry::from_environment()?);
+    let model_registry = Arc::new(ModelRegistry::from_config(config.models.clone())?);
     let default_ref = model_registry.default_ref().clone();
     let registered = model_registry
         .get(&default_ref)

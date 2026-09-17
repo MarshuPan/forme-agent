@@ -131,11 +131,17 @@ impl ModelRegistry {
     }
 
     pub fn from_environment() -> p::Result<Self> {
-        let configured = match std::env::var("FORME_MODEL_PROFILES_JSON") {
-            Ok(value) if !value.trim().is_empty() => parse_profile_config(&value)?,
-            _ => vec![legacy_environment_profile()?],
-        };
-        let defaults = configured
+        Self::from_config(ModelRegistryConfig::from_environment()?)
+    }
+
+    /// Builds a registry from an already resolved, secret-free configuration.
+    /// Credential values are resolved only while binding the concrete provider
+    /// at this boundary; the config itself contains only the environment
+    /// variable name.
+    pub fn from_config(config: ModelRegistryConfig) -> p::Result<Self> {
+        config.validate()?;
+        let defaults = config
+            .profiles
             .iter()
             .filter(|profile| profile.default)
             .map(|profile| p::ModelProfileRef(profile.id.clone()))
@@ -146,7 +152,7 @@ impl ModelRegistry {
             ));
         }
         let mut registry = Self::new(defaults[0].clone())?;
-        for profile in configured {
+        for profile in config.profiles {
             registry.register(profile.bind_provider()?)?;
         }
         registry.validate_ready()?;
@@ -191,6 +197,49 @@ impl ModelRegistry {
 
     pub fn is_empty(&self) -> bool {
         self.models.is_empty()
+    }
+}
+
+/// Secret-free model configuration used by the production composition root.
+/// The actual credential is intentionally not representable here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelRegistryConfig {
+    pub schema_version: p::SchemaVersion,
+    pub profiles: Vec<ModelRuntimeConfig>,
+}
+
+impl ModelRegistryConfig {
+    pub fn from_environment() -> p::Result<Self> {
+        let profiles = match std::env::var("FORME_MODEL_PROFILES_JSON") {
+            Ok(value) if !value.trim().is_empty() => parse_profile_config(&value)?,
+            _ => vec![legacy_environment_profile()?],
+        };
+        let config = Self {
+            schema_version: p::SchemaVersion(1),
+            profiles,
+        };
+        config.validate()?;
+        Ok(config)
+    }
+
+    pub fn validate(&self) -> p::Result<()> {
+        if self.schema_version.0 == 0
+            || self.profiles.is_empty()
+            || self.profiles.len() > MAX_MODEL_PROFILES
+        {
+            return Err(p::Error("model registry configuration is invalid".into()));
+        }
+        let mut ids = std::collections::BTreeSet::new();
+        for profile in &self.profiles {
+            profile.validate()?;
+            if !ids.insert(profile.id.clone()) {
+                return Err(p::Error(format!(
+                    "duplicate model profile reference: {}",
+                    profile.id
+                )));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -302,48 +351,40 @@ impl ModelSelector for ModelRegistry {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct EnvironmentModelProfile {
-    id: String,
-    provider: String,
-    model: String,
-    base_url: String,
-    credential_env: String,
+pub struct ModelRuntimeConfig {
+    pub id: String,
+    pub provider: String,
+    pub model: String,
+    pub base_url: String,
+    pub credential_env: String,
     #[serde(default = "default_context_window")]
-    context_window: u32,
+    pub context_window: u32,
     #[serde(default)]
-    tool_use: bool,
+    pub tool_use: bool,
     #[serde(default = "default_strength")]
-    strength: EnvironmentModelStrength,
+    pub strength: ModelStrength,
     #[serde(default)]
-    input_microunits_per_million: u64,
+    pub input_microunits_per_million: u64,
     #[serde(default)]
-    output_microunits_per_million: u64,
+    pub output_microunits_per_million: u64,
     #[serde(default = "default_requests_per_minute")]
-    requests_per_minute: u32,
+    pub requests_per_minute: u32,
     #[serde(default = "default_tokens_per_minute")]
-    tokens_per_minute: u64,
+    pub tokens_per_minute: u64,
     #[serde(default = "default_timeout_ms")]
-    timeout_ms: u64,
+    pub timeout_ms: u64,
     #[serde(default)]
-    fallback_group: Option<String>,
+    pub fallback_group: Option<String>,
     #[serde(default)]
-    default: bool,
+    pub default: bool,
     #[serde(default)]
-    tool_schema_versions: Vec<u32>,
+    pub tool_schema_versions: Vec<u32>,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum EnvironmentModelStrength {
-    Basic,
-    Standard,
-    Strong,
-}
-
-impl EnvironmentModelProfile {
-    fn validate(&self) -> p::Result<()> {
+impl ModelRuntimeConfig {
+    pub fn validate(&self) -> p::Result<()> {
         for (value, name) in [
             (&self.id, "model profile id"),
             (&self.provider, "model provider"),
@@ -404,11 +445,7 @@ impl EnvironmentModelProfile {
                 schema_version: p::SchemaVersion(1),
                 context_window: self.context_window,
                 tool_use: self.tool_use,
-                strength: match self.strength {
-                    EnvironmentModelStrength::Basic => ModelStrength::Basic,
-                    EnvironmentModelStrength::Standard => ModelStrength::Standard,
-                    EnvironmentModelStrength::Strong => ModelStrength::Strong,
-                },
+                strength: self.strength,
             },
             cost: Cost {
                 schema_version: p::SchemaVersion(1),
@@ -448,13 +485,13 @@ impl EnvironmentModelProfile {
     }
 }
 
-fn parse_profile_config(value: &str) -> p::Result<Vec<EnvironmentModelProfile>> {
+fn parse_profile_config(value: &str) -> p::Result<Vec<ModelRuntimeConfig>> {
     if value.len() > MAX_PROFILE_CONFIG_BYTES {
         return Err(p::Error(
             "model profile configuration exceeds its bound".into(),
         ));
     }
-    let profiles: Vec<EnvironmentModelProfile> = serde_json::from_str(value)
+    let profiles: Vec<ModelRuntimeConfig> = serde_json::from_str(value)
         .map_err(|error| p::Error(format!("model profile configuration is invalid: {error}")))?;
     if profiles.is_empty() || profiles.len() > MAX_MODEL_PROFILES {
         return Err(p::Error(
@@ -467,8 +504,8 @@ fn parse_profile_config(value: &str) -> p::Result<Vec<EnvironmentModelProfile>> 
     Ok(profiles)
 }
 
-fn legacy_environment_profile() -> p::Result<EnvironmentModelProfile> {
-    Ok(EnvironmentModelProfile {
+fn legacy_environment_profile() -> p::Result<ModelRuntimeConfig> {
+    Ok(ModelRuntimeConfig {
         id: std::env::var("FORME_MODEL_PROFILE_ID").unwrap_or_else(|_| {
             let provider = std::env::var("FORME_MODEL_PROVIDER")
                 .unwrap_or_else(|_| "configured-chat-provider".into());
@@ -482,7 +519,7 @@ fn legacy_environment_profile() -> p::Result<EnvironmentModelProfile> {
         credential_env: "FORME_MODEL_API_KEY".into(),
         context_window: optional_env("FORME_MODEL_CONTEXT_WINDOW", default_context_window())?,
         tool_use: false,
-        strength: EnvironmentModelStrength::Standard,
+        strength: ModelStrength::Standard,
         input_microunits_per_million: 0,
         output_microunits_per_million: 0,
         requests_per_minute: 60,
@@ -542,8 +579,8 @@ const fn default_timeout_ms() -> u64 {
     120_000
 }
 
-const fn default_strength() -> EnvironmentModelStrength {
-    EnvironmentModelStrength::Standard
+const fn default_strength() -> ModelStrength {
+    ModelStrength::Standard
 }
 
 #[cfg(test)]
