@@ -1,6 +1,7 @@
 //! forme-store - append-only event log, projections, and replay contracts.
 #![forbid(unsafe_code)]
 
+mod brain;
 mod checksum;
 mod cursor;
 mod projection;
@@ -11,6 +12,10 @@ mod sqlite;
 
 use forme_protocol as p;
 
+pub use brain::{
+    AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding, BrainAuthorityClaim,
+    BrainAuthorityMetadata, BrainAuthorityStore, BRAIN_AUTHORITY_SCHEMA_VERSION,
+};
 pub use cursor::EventCursor;
 pub use projection::{
     SearchHit, SessionState, SessionStateProjection, Transcript, TranscriptEntry,

@@ -16,12 +16,14 @@ use crate::{
     projection::searchable_text,
     replay::projection_diff,
     schema::UpcasterGraph,
-    EcosystemEventStore, EcosystemPackageArchive, EcosystemProjection, EcosystemRuntimeLedger,
-    EventStore, EvolutionEventStore, EvolutionHistoryEntry, EvolutionProjection,
-    FederationEventStore, FederationProjection, FederationRuntimeLedger, PayloadType, Projection,
-    ProjectionScope, RemoteDispatchLedger, ReplayReport, SchemaSnapshot, SearchHit, SessionState,
-    SessionStateProjection, StableStrategyRecord, SyncCursorState, Transcript,
-    TranscriptProjection, Upcaster, VersionedEventStore,
+    AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding, BrainAuthorityClaim,
+    BrainAuthorityMetadata, BrainAuthorityStore, EcosystemEventStore, EcosystemPackageArchive,
+    EcosystemProjection, EcosystemRuntimeLedger, EventStore, EvolutionEventStore,
+    EvolutionHistoryEntry, EvolutionProjection, FederationEventStore, FederationProjection,
+    FederationRuntimeLedger, PayloadType, Projection, ProjectionScope, RemoteDispatchLedger,
+    ReplayReport, SchemaSnapshot, SearchHit, SessionState, SessionStateProjection,
+    StableStrategyRecord, SyncCursorState, Transcript, TranscriptProjection, Upcaster,
+    VersionedEventStore, BRAIN_AUTHORITY_SCHEMA_VERSION,
 };
 
 const SCHEMA: &str = r#"
@@ -347,6 +349,28 @@ CREATE TABLE IF NOT EXISTS ecosystem_package_bundles (
     bundle         BLOB NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS brain_authority (
+    owner_digest   TEXT PRIMARY KEY,
+    store_identity TEXT NOT NULL UNIQUE,
+    schema_version INTEGER NOT NULL CHECK(schema_version > 0),
+    created_at     INTEGER NOT NULL CHECK(created_at >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS brain_aggregates (
+    owner_digest     TEXT NOT NULL,
+    kind             TEXT NOT NULL,
+    aggregate_run_id TEXT NOT NULL UNIQUE,
+    PRIMARY KEY(owner_digest, kind),
+    FOREIGN KEY(owner_digest) REFERENCES brain_authority(owner_digest)
+);
+
+CREATE TABLE IF NOT EXISTS authority_writer_lease (
+    store_identity TEXT PRIMARY KEY,
+    process_nonce  TEXT NOT NULL,
+    expires_at     INTEGER NOT NULL CHECK(expires_at >= 0),
+    FOREIGN KEY(store_identity) REFERENCES brain_authority(store_identity)
+);
+
 CREATE TRIGGER IF NOT EXISTS events_immutable_update
 BEFORE UPDATE ON events
 BEGIN
@@ -362,7 +386,7 @@ END;
 
 const FTS_SCHEMA: &str = "CREATE VIRTUAL TABLE IF NOT EXISTS events_fts \
                          USING fts5(text, content='');";
-const DATABASE_SCHEMA_VERSION: i64 = 6;
+const DATABASE_SCHEMA_VERSION: i64 = 7;
 
 #[cfg(test)]
 std::thread_local! {
@@ -972,6 +996,190 @@ impl SqliteEventStore {
             }),
             cursor_page_size: options.cursor_page_size,
         }
+    }
+}
+
+impl BrainAuthorityStore for SqliteEventStore {
+    fn claim_brain_authority(
+        &self,
+        claim: BrainAuthorityClaim,
+    ) -> p::Result<BrainAuthorityBinding> {
+        claim.validate()?;
+        let expires_at = claim.expires_at()?;
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| store_error("failed to begin brain authority claim", error))?;
+
+        let authority = read_brain_authority_row(&transaction)?;
+        let (store_identity, created_at) = match authority {
+            Some((owner_digest, store_identity, schema_version, created_at)) => {
+                if owner_digest != claim.owner_digest {
+                    return Err(p::Error(
+                        "brain authority owner does not match the store binding".into(),
+                    ));
+                }
+                if schema_version != BRAIN_AUTHORITY_SCHEMA_VERSION {
+                    return Err(p::Error(format!(
+                        "brain authority schema version {} is unsupported",
+                        schema_version.0
+                    )));
+                }
+                p::sha256_digest_bytes(&store_identity)
+                    .map_err(|_| p::Error("brain authority store identity is invalid".into()))?;
+                (store_identity, created_at)
+            }
+            None => {
+                let random: Vec<u8> = transaction
+                    .query_row("SELECT randomblob(32)", [], |row| row.get(0))
+                    .map_err(|error| {
+                        store_error("failed to generate brain store identity", error)
+                    })?;
+                let store_identity = p::sha256_content_digest(&random);
+                transaction
+                    .execute(
+                        "INSERT INTO brain_authority(
+                            owner_digest, store_identity, schema_version, created_at
+                         ) VALUES (?1, ?2, ?3, ?4)",
+                        params![
+                            &claim.owner_digest.0,
+                            &store_identity.0,
+                            i64::from(BRAIN_AUTHORITY_SCHEMA_VERSION.0),
+                            claim.now_ms,
+                        ],
+                    )
+                    .map_err(|error| {
+                        store_error("failed to persist brain authority binding", error)
+                    })?;
+                (store_identity, claim.now_ms)
+            }
+        };
+
+        let aggregates = load_or_initialize_brain_aggregates(
+            &transaction,
+            &claim.owner_digest,
+            &store_identity,
+        )?;
+        let existing_lease = transaction
+            .query_row(
+                "SELECT process_nonce, expires_at
+                 FROM authority_writer_lease WHERE store_identity = ?1",
+                params![&store_identity.0],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()
+            .map_err(|error| store_error("failed to inspect brain writer lease", error))?;
+
+        match existing_lease {
+            Some((existing_nonce, existing_expiry))
+                if existing_nonce != claim.process_nonce.0 && existing_expiry > claim.now_ms =>
+            {
+                return Err(p::Error(
+                    "brain authority writer lease is held by another runtime".into(),
+                ));
+            }
+            Some(_) => {
+                transaction
+                    .execute(
+                        "UPDATE authority_writer_lease
+                         SET process_nonce = ?2, expires_at = ?3
+                         WHERE store_identity = ?1",
+                        params![&store_identity.0, &claim.process_nonce.0, expires_at],
+                    )
+                    .map_err(|error| store_error("failed to renew brain writer lease", error))?;
+            }
+            None => {
+                transaction
+                    .execute(
+                        "INSERT INTO authority_writer_lease(
+                            store_identity, process_nonce, expires_at
+                         ) VALUES (?1, ?2, ?3)",
+                        params![&store_identity.0, &claim.process_nonce.0, expires_at],
+                    )
+                    .map_err(|error| store_error("failed to persist brain writer lease", error))?;
+            }
+        }
+
+        transaction
+            .commit()
+            .map_err(|error| store_error("failed to commit brain authority claim", error))?;
+        Ok(BrainAuthorityBinding {
+            schema_version: BRAIN_AUTHORITY_SCHEMA_VERSION,
+            owner_digest: claim.owner_digest,
+            store_identity: store_identity.clone(),
+            created_at,
+            aggregates,
+            writer_lease: AuthorityWriterLease {
+                store_identity,
+                process_nonce: claim.process_nonce,
+                expires_at,
+            },
+        })
+    }
+
+    fn brain_authority(&self) -> p::Result<Option<BrainAuthorityMetadata>> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let Some((owner_digest, store_identity, schema_version, created_at)) =
+            read_brain_authority_row(&connection)?
+        else {
+            return Ok(None);
+        };
+        if schema_version != BRAIN_AUTHORITY_SCHEMA_VERSION {
+            return Err(p::Error(format!(
+                "brain authority schema version {} is unsupported",
+                schema_version.0
+            )));
+        }
+        let aggregates = read_brain_aggregates(&connection, &owner_digest)?;
+        validate_complete_brain_aggregates(&aggregates)?;
+        Ok(Some(BrainAuthorityMetadata {
+            schema_version,
+            owner_digest,
+            store_identity,
+            created_at,
+            aggregates,
+        }))
+    }
+
+    fn release_brain_authority_lease(
+        &self,
+        store_identity: &p::SchemaDigest,
+        process_nonce: &p::Nonce,
+    ) -> p::Result<bool> {
+        p::sha256_digest_bytes(store_identity)
+            .map_err(|_| p::Error("brain authority store identity is invalid".into()))?;
+        if process_nonce.0.trim().is_empty() {
+            return Err(p::Error(
+                "brain authority process nonce is incomplete".into(),
+            ));
+        }
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| store_error("failed to begin brain lease release", error))?;
+        let changed = transaction
+            .execute(
+                "DELETE FROM authority_writer_lease
+                 WHERE store_identity = ?1 AND process_nonce = ?2",
+                params![&store_identity.0, &process_nonce.0],
+            )
+            .map_err(|error| store_error("failed to release brain writer lease", error))?;
+        transaction
+            .commit()
+            .map_err(|error| store_error("failed to commit brain lease release", error))?;
+        Ok(changed == 1)
     }
 }
 
@@ -6862,6 +7070,9 @@ fn validate_catalog(connection: &Connection) -> p::Result<()> {
         ("ecosystem_nonces", "plan_digest"),
         ("ecosystem_distribution_attempts", "semantic"),
         ("ecosystem_package_bundles", "bundle"),
+        ("brain_authority", "store_identity"),
+        ("brain_aggregates", "aggregate_run_id"),
+        ("authority_writer_lease", "expires_at"),
     ] {
         if !table_has_column(connection, table, column)? {
             return Err(p::Error(format!(
@@ -6870,6 +7081,166 @@ fn validate_catalog(connection: &Connection) -> p::Result<()> {
         }
     }
     Ok(())
+}
+
+fn read_brain_authority_row(
+    connection: &Connection,
+) -> p::Result<
+    Option<(
+        p::SchemaDigest,
+        p::SchemaDigest,
+        p::SchemaVersion,
+        p::Timestamp,
+    )>,
+> {
+    let mut statement = connection
+        .prepare(
+            "SELECT owner_digest, store_identity, schema_version, created_at
+             FROM brain_authority ORDER BY owner_digest",
+        )
+        .map_err(|error| store_error("failed to prepare brain authority lookup", error))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })
+        .map_err(|error| store_error("failed to query brain authority", error))?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| store_error("failed to read brain authority", error))?;
+    if rows.len() > 1 {
+        return Err(p::Error(
+            "event store contains multiple brain authority bindings".into(),
+        ));
+    }
+    rows.into_iter()
+        .next()
+        .map(|(owner, store, schema, created_at)| {
+            let schema = u32::try_from(schema)
+                .map(p::SchemaVersion)
+                .map_err(|_| p::Error("stored brain authority schema is invalid".into()))?;
+            if created_at < 0 {
+                return Err(p::Error(
+                    "stored brain authority creation time is invalid".into(),
+                ));
+            }
+            let owner = p::SchemaDigest(owner);
+            let store = p::SchemaDigest(store);
+            p::sha256_digest_bytes(&owner)
+                .map_err(|_| p::Error("stored brain authority owner digest is invalid".into()))?;
+            p::sha256_digest_bytes(&store)
+                .map_err(|_| p::Error("stored brain authority store identity is invalid".into()))?;
+            Ok((owner, store, schema, created_at))
+        })
+        .transpose()
+}
+
+fn load_or_initialize_brain_aggregates(
+    transaction: &Transaction<'_>,
+    owner_digest: &p::SchemaDigest,
+    store_identity: &p::SchemaDigest,
+) -> p::Result<BTreeMap<BrainAggregateKind, p::RunId>> {
+    let existing = read_brain_aggregates(transaction, owner_digest)?;
+    for kind in BrainAggregateKind::ALL {
+        let expected = derive_brain_aggregate(owner_digest, store_identity, kind);
+        match existing.get(&kind) {
+            Some(stored) if stored != &expected => {
+                return Err(p::Error(format!(
+                    "stored brain aggregate {} does not match its authority",
+                    kind.as_str()
+                )));
+            }
+            Some(_) => {}
+            None => {
+                transaction
+                    .execute(
+                        "INSERT INTO brain_aggregates(owner_digest, kind, aggregate_run_id)
+                         VALUES (?1, ?2, ?3)",
+                        params![&owner_digest.0, kind.as_str(), &expected.0],
+                    )
+                    .map_err(|error| {
+                        store_error("failed to persist brain aggregate reference", error)
+                    })?;
+            }
+        }
+    }
+    let aggregates = read_brain_aggregates(transaction, owner_digest)?;
+    validate_complete_brain_aggregates(&aggregates)?;
+    Ok(aggregates)
+}
+
+fn read_brain_aggregates(
+    connection: &Connection,
+    owner_digest: &p::SchemaDigest,
+) -> p::Result<BTreeMap<BrainAggregateKind, p::RunId>> {
+    let mut statement = connection
+        .prepare(
+            "SELECT kind, aggregate_run_id FROM brain_aggregates
+             WHERE owner_digest = ?1 ORDER BY kind",
+        )
+        .map_err(|error| store_error("failed to prepare brain aggregate lookup", error))?;
+    let rows = statement
+        .query_map(params![&owner_digest.0], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|error| store_error("failed to query brain aggregates", error))?;
+    let mut aggregates = BTreeMap::new();
+    for row in rows {
+        let (kind, aggregate) =
+            row.map_err(|error| store_error("failed to read brain aggregate", error))?;
+        let kind = parse_brain_aggregate_kind(&kind)?;
+        if aggregate.trim().is_empty() {
+            return Err(p::Error("stored brain aggregate identity is empty".into()));
+        }
+        if aggregates.insert(kind, p::RunId(aggregate)).is_some() {
+            return Err(p::Error(format!(
+                "stored brain aggregate {} is duplicated",
+                kind.as_str()
+            )));
+        }
+    }
+    Ok(aggregates)
+}
+
+fn validate_complete_brain_aggregates(
+    aggregates: &BTreeMap<BrainAggregateKind, p::RunId>,
+) -> p::Result<()> {
+    if aggregates.len() != BrainAggregateKind::ALL.len()
+        || BrainAggregateKind::ALL
+            .into_iter()
+            .any(|kind| !aggregates.contains_key(&kind))
+    {
+        return Err(p::Error(
+            "brain authority aggregate set is incomplete".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn parse_brain_aggregate_kind(value: &str) -> p::Result<BrainAggregateKind> {
+    BrainAggregateKind::ALL
+        .into_iter()
+        .find(|kind| kind.as_str() == value)
+        .ok_or_else(|| p::Error(format!("unknown brain aggregate kind: {value}")))
+}
+
+fn derive_brain_aggregate(
+    owner_digest: &p::SchemaDigest,
+    store_identity: &p::SchemaDigest,
+    kind: BrainAggregateKind,
+) -> p::RunId {
+    let material = format!(
+        "forme-brain-aggregate-v1\0{}\0{}\0{}",
+        owner_digest.0,
+        store_identity.0,
+        kind.as_str()
+    );
+    let digest = p::sha256_content_digest(material.as_bytes());
+    let suffix = digest.0.strip_prefix("sha256:").unwrap_or(&digest.0);
+    p::RunId(format!("brain:{}:{suffix}", kind.as_str()))
 }
 
 fn table_has_column(connection: &Connection, table: &str, column: &str) -> p::Result<bool> {
