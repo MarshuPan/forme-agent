@@ -61,6 +61,12 @@ pub trait CommunicationFabric {
 }
 ```
 
+### 4.1 Owner control 的认证绑定
+
+Gateway 的 transport/session 认证先产生 `AuthContext`，再从 `AuthPrincipal::Owner` 提取唯一权威 `VerifiedPrincipal`。`RunControl::ResolveApproval` payload 中的 `approver` 只是待比较字段：与认证 principal 不同必须拒绝，或由 Gateway 在进入 Harness 前用认证 principal 构造新的 decision；绝不能把 payload 值原样当成身份事实。
+
+`AuthContext` 过期、schema 非法、`External`、`AgentRepresentingOwner` 或与 configured owner 不一致时，所有 owner mutation 均拒绝。Gateway 验证不是唯一防线：production Harness 保存 configured owner，直接调用 `resume(ApprovalGrant)` 时仍须独立校验 approver，防止 embedded/test/内部调用绕过入口。
+
 ## 5. 行为/算法/状态机
 
 - **入口(S1/S12)**:raw → `ChannelAdapter::normalize` → `CommunicationEvent` → `Gateway::submit` → `RunRequest`/`CommunicationSession` → harness。CLI 与 Gateway **同协议**;**adapter 不能绕过 Gateway**。
@@ -77,6 +83,7 @@ pub trait CommunicationFabric {
 - **provenance 赋值权(canonical §15)**:`Provenance.trust_tier` 由 **Gateway/harness(受信代码)**按入口与认证盖章,**绝不**由 adapter 或内容自报——防被攻破的 adapter 把外部内容伪标为 owner 输入绕过防投毒。
 - **对外膜**:外部会话有界;披露阻断;代表身份;transcript → candidate/evidence 不自动 stable。
 - **审批 Gateway-compatible**(D12):CLI/Gateway 共享审批事件。
+- **身份不可由 payload 伪造**:HTTP/CLI/本地 embedded 入口都必须把认证后的 owner principal 传到控制面；伪造 approver、过期 AuthContext、external principal 和直接 Harness resume 的错误 owner 全部在 driver 前 fail closed。
 
 ## 7. 配置与可观测
 
@@ -96,6 +103,7 @@ pub trait CommunicationFabric {
 - **S1(总纲 §7.1,入口侧)**:CLI/Gateway 同 `RunRequest`/同 event;入口不拥有 loop。
 - **S12–S17(总纲 §7.17–7.22)**:沟通簇全覆盖(标准化入口/外部会话终止/披露阻断/代表身份/设备授权/A2A bounded)。
 - **单元**:adapter 不绕 Gateway;外部会话超限终止;披露阻断;代表不伪装;设备授权/撤销;A2A 越界拒。
+- **owner control**:认证 owner + 同 binding 批准成功；payload 伪造 owner、过期 AuthContext、external/representative principal、Gateway owner 不匹配均拒绝；绕过 Gateway 直接 resume 的错误 approver 同样拒绝，所有反向场景 driver call=`0`。
 
 ## 10. 验收
 

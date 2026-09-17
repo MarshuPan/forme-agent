@@ -152,6 +152,49 @@ pub struct MutationReceipt {
 
 `idempotency_key` 用于重复 command 归并，`event_id` 用于事件重放去重，动作自身使用 `ActionIntent.intent_id`，聚合写入使用 `AggregateVersion` 的 expected value/CAS。四者不能互相替代。首次写入允许 aggregate version 为 `0`；陈旧 expected version、同键异语义和 event 与 aggregate 不匹配都必须零事件、零 projection 推进并返回可分类 conflict。
 
+### 3.6 ApprovalRequested additive 载荷与持久消费账本
+
+`ApprovalRequestedPayload` 在保留历史事件可读的前提下 additive 增加：`plan_digest`、`normalized_action_digest`、`policy_version`、`tool_schema_version`。旧事件缺少这些字段时只能用于历史展示/replay，**不得**被恢复路径解释成仍可执行的批准依据；新产生的审批事件必须四项齐全，并与 `affected_resources` 一起通过 payload 校验。
+
+生产 one-shot approval 的消费事实属于 authority companion metadata，不新增 `EventKind`，也不由 `approval` crate 的进程内集合充当跨重启事实源：
+
+```rust
+pub struct ApprovalConsumptionClaim {
+    pub schema_version: SchemaVersion,
+    pub approval_id: ApprovalId,
+    pub approver: VerifiedPrincipal,
+    pub nonce: Nonce,
+    pub plan_digest: PlanDigest,
+    pub normalized_action_digest: SchemaDigest,
+    pub affected_resources: Vec<ResourceRef>,
+    pub policy_version: Version,
+    pub tool_schema_version: Version,
+    pub now: Timestamp,
+}
+
+pub trait ApprovalConsumptionLedger {
+    /// true = 本次首次 claim；false = 完全同义的已消费重放；
+    /// 同 nonce 异义复用、authority fence 失效或 binding 不完整均返回 Err。
+    fn claim_approval(&self, claim: &ApprovalConsumptionClaim) -> Result<bool>;
+}
+```
+
+该 trait 由持有有效 `AuthorityLeaseGuard` 的 store companion 实现。调用时在一个 SQLite `IMMEDIATE` transaction 内验证 configured owner/store/process nonce 的活动 writer lease，再按 canonical tuple 计算 `semantic_digest` 并写入：
+
+```sql
+CREATE TABLE approval_consumptions (
+  nonce                    TEXT PRIMARY KEY,
+  owner_digest             TEXT NOT NULL,
+  store_identity           TEXT NOT NULL,
+  approval_id              TEXT NOT NULL,
+  plan_digest              TEXT NOT NULL,
+  semantic_digest          TEXT NOT NULL,
+  claimed_at               INTEGER NOT NULL
+);
+```
+
+`semantic_digest` 至少覆盖 approver、normalized action digest、排序去重后的 affected resources、policy version 与 tool-schema version。首次合法 claim 返回 `true`；同 nonce + 同 approval/plan/semantic digest 重放返回 `false`；同 nonce 的任一异义字段必须 conflict。claim 提交后即使 driver 失败、进程崩溃或结果 Unknown，也不得删除或释放该行。
+
 ## 4. 接口与签名
 
 ```rust
@@ -192,6 +235,7 @@ pub struct EventCursor { /* 惰性、有序、可分页 */ }
 - **schema upcast**:读路径遇低版本 payload,链式套用注册的 upcaster 到当前版本;breaking change 必须有 migration note,否则读路径报错(不静默改语义)。
 - **单写者与并发**:store 保证**单一 append 串行**;per-session run 串行由 harness(prd/03)排队,但稳定层写入的串行性由本模块的单写者保证(canonical §7)。M0 单进程 + 单写者是实现下界；V1 production aggregate mutation 必须使用既有 `VersionedEventStore` 的 expected-version/幂等语义，即使当前部署仍是单进程，也不能把进程锁当作协议。
 - **事件唯一事实源**:所有稳定状态、候选 transition、可影响 replay 的 graph edge/weight/maintenance 变化都只能由 typed mutation 产生事件并在同一事务 fold；projection/cache/metric 删除后必须能从事件重建。瞬时 activation 可由 snapshot + 确定性函数读时派生。
+- **审批一次性消费**:最终 policy/capability/envelope/competence/owner/schema/plan 重查全部通过后，harness 才调用 `ApprovalConsumptionLedger::claim_approval`；该 claim 与 active authority writer fence 在同一 SQLite `IMMEDIATE` transaction 校验。claim 失败、同 nonce 异义冲突或同义重放均必须发生在 `ActionStarted`/driver 之前。
 
 ## 6. 错误/安全/权限/审批
 
@@ -214,6 +258,7 @@ pub struct EventCursor { /* 惰性、有序、可分页 */ }
 3. 投影:`Projection` trait + `session_state`、`transcript` 两个内置投影 + 重建。
 4. schema 版本:`register_upcaster` + 读时 upcast + migration note。
 5. `replay` + `ReplayReport`(diff)。
+6. authority companion:`approval_consumptions` + `ApprovalConsumptionLedger`；不得新增事件或第二事实库。
 
 ### 8.1 SQLite schema(M0)
 
@@ -247,6 +292,8 @@ CREATE VIRTUAL TABLE events_fts USING fts5(text, content='');  -- 可检索文�
 - **S1 事件面**(本模块部分):两入口产生**同构**事件序列(仅 run_id/ts/source 不同);均可从 `read_run` 得到相同 `EventKind` 序列。
 - **S19 单写者**(本模块部分):并发 append 被串行化、无交错半写;投影可从事件重建,与在线投影一致。
 - **单元**:append/read round-trip;event_id 去重幂等;command 同键同义返回原 receipt、同键异义冲突;expected-version stale 零写;动作 intent 幂等键不重复副作用;v1→v2 upcast 链;`Projection::apply` 折叠确定性;FTS 查询;事务失败回滚不留半条。
+- **审批消费账本**:首次 claim=`true`；完全同义重放=`false`；同 nonce 改 approval/plan/action/resource/policy/tool schema/approver 任一字段均 conflict；SQLite 关闭重开仍拒绝重放；并发 claim 仅一个成功；错误 owner、过期/被替换 writer lease 与无 authority guard 全部零写。
+- **ApprovalRequested 兼容**:legacy payload 缺新增 binding 字段仍可反序列化和 replay，但不能恢复成可执行批准；当前 payload 缺任一 binding 校验失败；当前事件 round-trip 后字段完整。
 
 ## 10. 验收
 

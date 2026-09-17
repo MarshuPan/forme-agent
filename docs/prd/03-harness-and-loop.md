@@ -155,6 +155,21 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 
 `ActionPlanned` 记录最终计划；任何审批后字段变化都必须废弃原 approval 并重新规划、重审、重批。不能只在 `ActionIntent` 上检查一次后允许 backend 自行补字段。nonce claim 成功后即使 driver 失败、崩溃或结果未知也不能回收 grant。driver 返回后再由 `Verifier` 按 `DoneContract` 取证，结果不明不能被 loop 当作成功。
 
+批准恢复到 driver 的固定顺序如下，不得提前消费 grant，也不得先写 `ActionPlanned`/`ActionStarted` 再补检查：
+
+1. `ApprovalGrant.approver` 与 configured owner 的 `VerifiedPrincipal` 精确一致；直接调用 Harness `resume` 也执行此检查。
+2. `approval_id` 与当前 pending ticket、`ExecutionPlan.approval_ref` 精确一致。
+3. 从 `ActionIntent` 重算 normalized action digest/affected resources，并校验完整 `PlanDigest`。
+4. 重新读取当前 policy 并判定；deny/ask 漂移均使旧 grant 失效。
+5. 重读 capability/tool-schema snapshot，验证 backend、tool 与参数仍可用。
+6. 重读 `DelegationGrant`/`AutonomyEnvelope`，permission 仍是硬边界。
+7. 重跑 `CompetenceGate`；能力证据下降可以收紧，不能用旧 ceiling 放行。
+8. 重查 owner epoch、schema/version 与 production authority writer fence。
+9. 由 durable `ApprovalConsumptionLedger` 原子 claim nonce；同义重放返回已消费，异义重用返回 conflict。
+10. 只有第 9 步首次成功后，才允许写 `ActionPlanned`/`ActionStarted` 并调用 driver。
+
+以上任一步失败都必须 `driver call = 0`。durable claim 已成功后的任何失败都保持 nonce consumed；后续恢复只走 receipt/probe/owner 裁决，不复用 grant。
+
 ## 6. 错误/安全/权限/审批
 
 - **错误 → FailureTaxonomy**(canonical §11):`handoff_failure`(交接不完整/成环)、`safety_policy_failure`(咽喉点缺失/误判)、`self_eval_trap`(自检过早宣称完成)、`execution_failure`(重试耗尽);loop stop reason 中属失败的映射到分类。

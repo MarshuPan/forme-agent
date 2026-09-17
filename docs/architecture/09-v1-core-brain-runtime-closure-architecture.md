@@ -443,6 +443,8 @@ typed command
 
 审批绑定的是最终计划，而不是“某类动作”的泛化许可。绑定 tuple 还必须包含 approver、`normalized_action_digest`、排序去重的 `affected_resources`、policy/tool-schema snapshot、nonce 和 expiry。任何 plan 字段、资源集合、审批身份或 backend-specific 参数变化都必须形成新 digest、新 approval ticket/nonce 和新审计链；one-shot 消费状态必须在 authority companion ledger 中跨重启保留。`Verifier` 不得以模型文本或动作自报为唯一证据；它必须按 `DoneContract` 的 selector/predicate/tolerance 读取事件段、动作结果、文件/外部 ground truth，并显式返回 `Pass`、`Fail` 或 `Unverifiable`。
 
+authority companion ledger 以 nonce 为唯一消费键，并保存 owner/store、approval id、plan digest 与其余审批语义的 canonical digest。claim 必须和当前 process nonce 的 writer fence 在同一个 SQLite `IMMEDIATE` transaction 内验证；首次同义 claim 成功，完全同义重放返回已消费，同 nonce 异义复用返回 conflict。该记录不是新业务事件，但属于跨重启执行授权事实，不能由进程内 `Mutex`、Gateway 会话或 `ApprovalResolved` 事件单独替代。
+
 ### 12.4 文档与实现状态契约
 
 `main` 是用户可复用的基线，功能分支是施工现场。架构/PRD 可以记录当前分支的实现进度，但只有对应 commit 已通过该波独立验收、永久回归、合规门和 clean-tree release audit 并合入 `main`，才允许在总入口写“完成”“闭合”或“永久基线”。这条规则防止文档把草案、局部测试和正式交付混为一谈。
