@@ -1190,6 +1190,7 @@ name = "forme-models"
 version = "0.0.1"
 dependencies = [
  "forme-protocol",
+ "serde",
  "serde_json",
 ]
 

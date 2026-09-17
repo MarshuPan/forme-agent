@@ -11,8 +11,10 @@ use forme_protocol as p;
 use serde_json::{json, Value};
 
 mod m3_b;
+mod registry;
 
 pub use m3_b::*;
+pub use registry::*;
 
 pub type SecretRef = p::CredentialRef;
 
