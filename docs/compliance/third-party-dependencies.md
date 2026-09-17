@@ -20,7 +20,7 @@
 | enigo | 0.6.1 | [crates.io](https://crates.io/crates/enigo) | [enigo-rs/enigo](https://github.com/enigo-rs/enigo) | MIT | Low | Windows-only public bounded input API behind the project-owned `ComputerDriver` boundary | No copied code, examples, fixtures, errors, or naming | Review LICENSE and platform notices before release |
 | xcap | 0.9.6 | [crates.io](https://crates.io/crates/xcap) | [nashaofu/xcap](https://github.com/nashaofu/xcap) | Apache-2.0 | Low | Windows-only public monitor capture API; pixels remain in the scoped artifact store | No copied code, examples, fixtures, errors, or naming | Preserve Apache-2.0 notice and review transitive notices before release |
 | httparse | 1.10.1 | [crates.io](https://crates.io/crates/httparse) | [seanmonstar/httparse](https://github.com/seanmonstar/httparse) | MIT OR Apache-2.0 | Low | Public bounded HTTP/1 parser API only inside the project-owned TLS transport | No copied code, examples, fixtures, errors, or naming | Review LICENSE/NOTICE before release |
-| rustls | 0.23.42 | [crates.io](https://crates.io/crates/rustls) | [rustls/rustls](https://github.com/rustls/rustls) | Apache-2.0 OR ISC OR MIT | Low | Public TLS 1.3 client/server APIs only behind project-owned remote transport traits | No copied code, examples, fixtures, errors, protocol names, or naming | Review enabled provider, LICENSE, NOTICE, and reachable advisories before release |
+| rustls | 0.23.45 | [crates.io](https://crates.io/crates/rustls) | [rustls/rustls](https://github.com/rustls/rustls) | Apache-2.0 OR ISC OR MIT | Low | Public TLS 1.3 client/server APIs only behind project-owned remote transport traits | No copied code, examples, fixtures, errors, protocol names, or naming | Review enabled provider, LICENSE, NOTICE, and reachable advisories before release |
 | rustls-pki-types | 1.15.0 | [crates.io](https://crates.io/crates/rustls-pki-types) | [rustls/pki-types](https://github.com/rustls/pki-types) | MIT OR Apache-2.0 | Low | Public certificate and private-key wrapper types only at local identity-loading boundaries | No copied code, examples, fixtures, errors, or naming | Review LICENSE/NOTICE before release |
 | rcgen | 0.14.8 | [crates.io](https://crates.io/crates/rcgen) | [rustls/rcgen](https://github.com/rustls/rcgen) | MIT OR Apache-2.0 | Low | Dev-only public certificate generation API for repository-owned loopback test identities | No copied code, examples, fixtures, certificate material, errors, or naming | Review LICENSE/NOTICE; never ship generated test private keys |
 | ed25519-dalek | 2.2.0 | [crates.io](https://crates.io/crates/ed25519-dalek) | [dalek-cryptography/curve25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek) | BSD-3-Clause | Low | Public Ed25519 verification API only behind the project-owned publisher keyring and admission verifier | No copied code, examples, fixtures, errors, vectors, or naming | Preserve BSD notice and review locked transitive notices before release |
@@ -45,3 +45,10 @@ the release audit independently verifies all four findings as unreachable on
 the frozen `x86_64-pc-windows-gnu` target and retains them as typed
 observations. Reachable advisories, unsound warnings, or yanked packages
 remain blocking; scanner or reachability uncertainty fails closed.
+
+Security dependency update (2026-09-17): `RUSTSEC-2026-0285` (TLS 1.3
+handshake messages accepted across encryption-level boundaries) affects the
+reachable `rustls 0.23.42` on the release target. The exact pin moves to the
+patched `rustls 0.23.45` within the same minor line; the enabled `ring` and
+`std` features, public API surface, license, and project-owned transport traits
+are unchanged, and no dependency source, example, fixture, or naming was copied.

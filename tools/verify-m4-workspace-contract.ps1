@@ -54,7 +54,7 @@ try {
     Assert-Condition ($null -ne $execution -and $null -ne $harness -and $null -ne $store) "M4 owner crates are absent"
 
     Assert-ExactDependency $execution "httparse" "=1.10.1" "normal" | Out-Null
-    $rustls = Assert-ExactDependency $execution "rustls" "=0.23.42" "normal"
+    $rustls = Assert-ExactDependency $execution "rustls" "=0.23.45" "normal"
     Assert-Condition (-not $rustls.uses_default_features) "rustls default features must remain disabled"
     Assert-Condition (@($rustls.features | Sort-Object) -join "," -ceq "ring,std") "rustls feature set drifted from ring,std"
     Assert-ExactDependency $execution "rustls-pki-types" "=1.15.0" "normal" | Out-Null

@@ -83,7 +83,7 @@
       "allowed_sha256": []
     },
     {
-      "source": "rustls 0.23.42 public crate API",
+      "source": "rustls 0.23.45 public crate API",
       "license": "Apache-2.0 OR ISC OR MIT",
       "copy_risk": "low",
       "implementation_rule": "Use only the public TLS client and server APIs behind project-owned transport traits; do not copy source, examples, fixtures, errors, protocol names, or naming.",
