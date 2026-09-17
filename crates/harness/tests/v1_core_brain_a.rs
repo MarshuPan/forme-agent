@@ -5,7 +5,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use forme_context::{ContextBudget, ContextHydrationRequest, ContextHydrator};
 use forme_harness::{ProductionRuntimeBuilder, ProductionRuntimeConfig, RuntimeServiceStatus};
-use forme_models::{ModelRegistryConfig, ModelRuntimeConfig, ModelStrength};
+use forme_models::{ModelRuntimeConfig, ModelStrength};
 use forme_protocol as p;
 use forme_store::{
     ApprovalConsumptionClaim, ApprovalConsumptionLedger, BrainAuthorityStore, EventStore,
@@ -93,27 +93,24 @@ fn config(owner: &str, path: &Path) -> ProductionRuntimeConfig {
         store_path: path.to_path_buf(),
         workspace: p::WorkspaceRef("workspace:test".into()),
         agent_profile: p::AgentProfileRef("agent:test".into()),
-        models: ModelRegistryConfig {
-            schema_version: p::SchemaVersion(1),
-            profiles: vec![ModelRuntimeConfig {
-                id: "model:test".into(),
-                provider: "test-provider".into(),
-                model: "test-model".into(),
-                base_url: "http://127.0.0.1:9/v1".into(),
-                credential_env: "FORME_MODEL_API_KEY".into(),
-                context_window: 32_768,
-                tool_use: false,
-                strength: ModelStrength::Standard,
-                input_microunits_per_million: 0,
-                output_microunits_per_million: 0,
-                requests_per_minute: 60,
-                tokens_per_minute: 1_000_000,
-                timeout_ms: 1_000,
-                fallback_group: Some("test-default".into()),
-                default: true,
-                tool_schema_versions: Vec::new(),
-            }],
-        },
+        models: vec![ModelRuntimeConfig {
+            id: "model:test".into(),
+            provider: "test-provider".into(),
+            model: "test-model".into(),
+            base_url: "http://127.0.0.1:9/v1".into(),
+            credential_env: "FORME_MODEL_API_KEY".into(),
+            context_window: 32_768,
+            tool_use: false,
+            strength: ModelStrength::Standard,
+            input_microunits_per_million: 0,
+            output_microunits_per_million: 0,
+            requests_per_minute: 60,
+            tokens_per_minute: 1_000_000,
+            timeout_ms: 1_000,
+            fallback_group: Some("test-default".into()),
+            default: true,
+            tool_schema_versions: Vec::new(),
+        }],
         scheduler_enabled: true,
         scheduler: p::SchedulerConfig {
             schema_version: p::SchemaVersion(1),
