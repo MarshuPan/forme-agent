@@ -424,6 +424,63 @@ struct ExternalRecordingBackend {
     declares_reversible_boundary: bool,
 }
 
+struct PlanDriftBackend {
+    executions: Arc<AtomicUsize>,
+    plans: AtomicUsize,
+}
+
+struct SequencedCompetenceGate {
+    calls: AtomicUsize,
+    high_calls: usize,
+}
+
+impl cognition::CompetenceGate for SequencedCompetenceGate {
+    fn ceiling(
+        &self,
+        _scope: p::Scope,
+        _risk: p::Risk,
+        _context: &cognition::CompetenceInputs,
+    ) -> cognition::InterventionLevel {
+        let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+        if call <= self.high_calls {
+            cognition::InterventionLevel::L4Autonomous
+        } else {
+            cognition::InterventionLevel::L3ActWithApproval
+        }
+    }
+}
+
+impl ActionBackend for PlanDriftBackend {
+    fn kind(&self) -> p::BackendKind {
+        p::BackendKind::Shell
+    }
+
+    fn plan(&self, intent: &p::ActionIntent) -> p::Result<ExecutionPlan> {
+        let mut plan =
+            DefaultExecutionPlanner::new(OutputBudget::truncate_at(4_096), p::DurationMs(1_000))
+                .plan(intent)?;
+        if self.plans.fetch_add(1, Ordering::SeqCst) > 0 {
+            plan.timeout = p::DurationMs(2_000);
+            plan.refresh_digest()?;
+        }
+        Ok(plan)
+    }
+
+    fn execute(
+        &self,
+        _plan: ExecutionPlan,
+        _sink: &EventSink,
+        _cancel: CancelToken,
+    ) -> p::Result<ActionResult> {
+        self.executions.fetch_add(1, Ordering::SeqCst);
+        Err(p::Error("plan drift backend must not be dispatched".into()))
+    }
+
+    fn cancel(&self, _action: p::ActionId) -> p::Result<()> {
+        Ok(())
+    }
+}
+
 impl ActionBackend for ExternalRecordingBackend {
     fn kind(&self) -> p::BackendKind {
         p::BackendKind::Browser
@@ -1171,6 +1228,166 @@ fn s41_intent_cannot_claim_a_reversible_boundary_the_backend_did_not_declare() {
         .unwrap();
     assert_eq!(policy.decision, p::PolicyDecision::Ask);
     assert_eq!(policy.rule_source.0, "external-action-floor");
+}
+
+#[test]
+fn final_policy_floor_is_rechecked_before_driver_dispatch() {
+    let intent = external_browser_intent(p::Risk::Low, "reversible:fixture-reset");
+    let executions = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(ExecutionBackendRegistry::default());
+    registry
+        .register(Arc::new(ExternalRecordingBackend {
+            executions: executions.clone(),
+            declares_reversible_boundary: true,
+        }))
+        .unwrap();
+
+    let mut governance = external_governance(&intent);
+    let envelope = governance.envelope.as_mut().unwrap();
+    envelope.risk_limit = p::Risk::Low;
+    envelope.rollback = p::RollbackReq {
+        schema_version: p::SchemaVersion(1),
+        required: true,
+        boundary: Some(intent.rollback_expectation.clone()),
+    };
+    governance.delegation.as_mut().unwrap().envelope = envelope.clone();
+
+    let gate = Arc::new(SequencedCompetenceGate {
+        calls: AtomicUsize::new(0),
+        high_calls: 3,
+    });
+    let model_profile = profile();
+    let harness = ReactiveHarness::new(
+        SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap(),
+        Arc::new(
+            ScriptedModelProvider::new(model_profile.clone(), vec![tool_response(intent.clone())])
+                .unwrap(),
+        ),
+        registry,
+        governance,
+        HarnessConfig::for_model(&model_profile),
+    )
+    .unwrap()
+    .with_competence_gate(gate.clone())
+    .with_competence_snapshot(l4_competence_evidence())
+    .unwrap();
+
+    let run = harness
+        .submit_run(request(
+            "session-final-floor",
+            "recheck the final external policy",
+            "final-floor",
+        ))
+        .unwrap();
+    assert_eq!(
+        harness.wait(run.clone()).unwrap().status,
+        p::RunStatus::Aborted
+    );
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+    assert!(gate.calls.load(Ordering::SeqCst) >= 4);
+
+    let events = harness.stream_events(run).events();
+    let policies = events
+        .iter()
+        .filter_map(|event| match &event.payload {
+            p::EventPayload::ToolPolicyEvaluated(payload) => Some(payload),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let final_policy = policies.last().expect("final policy recheck is recorded");
+    assert_eq!(final_policy.decision, p::PolicyDecision::Ask);
+    assert_eq!(final_policy.rule_source.0, "external-action-floor");
+    assert!(events
+        .iter()
+        .any(|event| event.kind == p::EventKind::ActionDenied));
+    assert!(!events
+        .iter()
+        .any(|event| event.kind == p::EventKind::ActionStarted));
+}
+
+#[test]
+fn plan_drift_is_denied_before_driver_dispatch() {
+    let intent = action_intent();
+    let executions = Arc::new(AtomicUsize::new(0));
+    let registry = Arc::new(ExecutionBackendRegistry::default());
+    registry
+        .register(Arc::new(PlanDriftBackend {
+            executions: executions.clone(),
+            plans: AtomicUsize::new(0),
+        }))
+        .unwrap();
+    let model_profile = profile();
+    let harness = ReactiveHarness::new(
+        SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap(),
+        Arc::new(
+            ScriptedModelProvider::new(
+                model_profile.clone(),
+                vec![
+                    tool_response(intent.clone()),
+                    final_response("must not be reached"),
+                ],
+            )
+            .unwrap(),
+        ),
+        registry,
+        governance(&intent),
+        HarnessConfig::for_model(&model_profile),
+    )
+    .unwrap();
+
+    let run = harness
+        .submit_run(request(
+            "session-plan-drift",
+            "drift the plan",
+            "plan-drift",
+        ))
+        .unwrap();
+    let pending = harness
+        .pending_approvals(p::SessionId("session-plan-drift".into()))
+        .unwrap();
+    assert_eq!(pending.len(), 1);
+    harness
+        .resume(
+            run.clone(),
+            ResumeInput::Approval(approval_grant(&pending[0], p::ApprovalOutcome::Granted)),
+        )
+        .unwrap();
+
+    assert_eq!(
+        harness.wait(run.clone()).unwrap().status,
+        p::RunStatus::Aborted
+    );
+    assert_eq!(executions.load(Ordering::SeqCst), 0);
+    let events = harness.stream_events(run).events();
+    let denied = events
+        .iter()
+        .find_map(|event| match &event.payload {
+            p::EventPayload::ActionDenied(payload) => Some(payload),
+            _ => None,
+        })
+        .expect("stale plan must produce an action denial");
+    assert!(denied.reason.0.contains("approval is stale"));
+    assert!(!events
+        .iter()
+        .any(|event| event.kind == p::EventKind::ActionPlanned));
+    assert!(!events
+        .iter()
+        .any(|event| event.kind == p::EventKind::ActionStarted));
+
+    let kinds = events.iter().map(|event| event.kind).collect::<Vec<_>>();
+    let resolved = kinds
+        .iter()
+        .position(|kind| *kind == p::EventKind::ApprovalResolved)
+        .unwrap();
+    let resumed = kinds
+        .iter()
+        .position(|kind| *kind == p::EventKind::RunResumed)
+        .unwrap();
+    let denied = kinds
+        .iter()
+        .position(|kind| *kind == p::EventKind::ActionDenied)
+        .unwrap();
+    assert!(resolved < resumed && resumed < denied);
 }
 
 fn l4_competence_evidence() -> cognition::CompetenceInputs {

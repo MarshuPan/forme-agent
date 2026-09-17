@@ -867,6 +867,13 @@ where
         auth: AuthContext,
     ) -> p::Result<()> {
         self.validate_owner_control(auth)?;
+        if let p::RunControl::ResolveApproval(decision) = &control {
+            if decision.approver != self.owner {
+                return Err(p::Error(
+                    "approval principal does not match the authenticated owner".into(),
+                ));
+            }
+        }
         HarnessGatewayControl::control(self.harness.as_ref(), run, control)
     }
 
@@ -2465,6 +2472,37 @@ mod tests {
             p::AgentProfileRef("agent:test".into()),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn local_gateway_rejects_an_approval_principal_that_is_not_the_authenticated_owner() {
+        let gateway = gateway(Vec::new());
+        let decision = p::ApprovalDecision {
+            schema_version: p::SchemaVersion(1),
+            approval_id: p::ApprovalId("approval:wrong-principal".into()),
+            outcome: p::ApprovalOutcome::Granted,
+            approver: p::VerifiedPrincipal("owner:other".into()),
+            bound_plan_digest: p::PlanDigest("sha256:plan".into()),
+            normalized_action_digest: p::SchemaDigest("sha256:action".into()),
+            affected_resources: Vec::new(),
+            policy_version: p::Version(1),
+            tool_schema_version: p::Version(1),
+            nonce: p::Nonce("nonce:wrong-principal".into()),
+            use_by: now_ms().saturating_add(60_000),
+        };
+        let error = gateway
+            .control_run(
+                p::RunId("run:wrong-principal".into()),
+                p::RunControl::ResolveApproval(decision),
+                AuthContext::local_owner(
+                    p::VerifiedPrincipal("owner:test".into()),
+                    now_ms().saturating_add(60_000),
+                ),
+            )
+            .expect_err("gateway must reject a mismatched approval principal");
+        assert!(error
+            .0
+            .contains("approval principal does not match the authenticated owner"));
     }
 
     fn external_grant() -> ExternalCommunicationGrant {

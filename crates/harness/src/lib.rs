@@ -38,10 +38,14 @@ use forme_models::{
 };
 use forme_policy::{
     ActionMatcher, ArgMatcher, DefaultPolicyEngine, DelegationGrant, DelegationSubject,
-    EnvelopeDecision, PolicyContext, PolicyEngine, PolicyLayer, PolicyLayerSource, PolicyRule,
+    EnvelopeDecision, PolicyContext, PolicyEngine, PolicyEvaluation, PolicyLayer,
+    PolicyLayerSource, PolicyRule,
 };
 use forme_protocol as p;
-use forme_store::{EventStore, EvolutionProjection, SqliteEventStore, StoreOptions};
+use forme_store::{
+    ApprovalConsumptionClaim, ApprovalConsumptionLedger, EventStore, EvolutionProjection,
+    SqliteEventStore, StoreOptions,
+};
 
 mod m3_a;
 mod m3_b;
@@ -624,6 +628,7 @@ struct SchedulerRuntime {
 pub struct ReactiveHarness {
     store: SqliteEventStore,
     authority_guard: Option<forme_store::AuthorityLeaseGuard>,
+    configured_owner: Option<p::VerifiedPrincipal>,
     brain_services: Option<Arc<BrainServices>>,
     ingress_authority: IngressAuthority,
     model: Arc<dyn ModelProvider>,
@@ -699,6 +704,7 @@ impl ReactiveHarness {
         let harness = Self {
             store,
             authority_guard: None,
+            configured_owner: None,
             brain_services: None,
             ingress_authority: IngressAuthority::default(),
             model,
@@ -756,6 +762,7 @@ impl ReactiveHarness {
     /// surfaces. The bundle is intentionally optional for legacy test
     /// harnesses constructed with `new`.
     pub fn with_brain_services(mut self, services: Arc<BrainServices>) -> Self {
+        self.configured_owner = Some(p::VerifiedPrincipal(services.aggregates.owner.0.clone()));
         self.brain_services = Some(services);
         self
     }
@@ -765,7 +772,9 @@ impl ReactiveHarness {
     }
 
     pub fn has_production_composition(&self) -> bool {
-        self.authority_guard.is_some() && self.brain_services.is_some()
+        self.authority_guard.is_some()
+            && self.configured_owner.is_some()
+            && self.brain_services.is_some()
     }
 
     pub fn ecosystem_runtime(&self) -> Arc<EcosystemHarnessRuntime> {
@@ -3176,31 +3185,15 @@ impl ReactiveHarness {
         } else {
             Some(self.backends.backend(intent.backend_hint)?.plan(&intent)?)
         };
-        let external_floor = external_policy_floor(
+        evaluation = apply_policy_floors(
+            evaluation,
             &intent,
-            plan.as_ref().map(|plan| &plan.rollback_boundary),
-            evaluation.decision,
-            context.envelope.as_ref(),
+            plan.as_ref(),
+            &context,
             &record.competence_inputs,
             self.competence.as_ref(),
         );
-        let effective_decision = untrusted_ingress_policy_floor(&intent, external_floor);
-        if effective_decision != evaluation.decision {
-            let external_floor_changed = external_floor != evaluation.decision;
-            evaluation.decision = effective_decision;
-            if external_floor_changed {
-                evaluation.rule_source = p::RuleSourceRef("external-action-floor".into());
-                evaluation.reason = p::ReasonRef(
-                    "external action requires plan-bound approval under canonical section 24"
-                        .into(),
-                );
-            } else {
-                evaluation.rule_source = p::RuleSourceRef("untrusted-ingress-floor".into());
-                evaluation.reason = p::ReasonRef(
-                    "an action derived from untrusted communication requires owner approval".into(),
-                );
-            }
-        }
+        let effective_decision = evaluation.decision;
         self.append(
             run.clone(),
             turn.clone(),
@@ -3276,7 +3269,7 @@ impl ReactiveHarness {
         record: &mut RunRecord,
         intent: p::ActionIntent,
         mut plan: ExecutionPlan,
-        approval: Option<p::ApprovalId>,
+        approval: Option<forme_approval::ApprovalGrant>,
     ) -> p::Result<()> {
         let turn = Some(current_turn(run, record.loop_ctx.turn_index));
         let provenance = internal_provenance(record.request.source);
@@ -3286,7 +3279,15 @@ impl ReactiveHarness {
             &self.policy,
             record.bound_envelope.as_ref(),
         );
-        let recheck = self.policy.evaluate_detailed(&policy_context, &intent);
+        let mut recheck = self.policy.evaluate_detailed(&policy_context, &intent);
+        recheck = apply_policy_floors(
+            recheck,
+            &intent,
+            Some(&plan),
+            &policy_context,
+            &record.competence_inputs,
+            self.competence.as_ref(),
+        );
         self.append(
             run.clone(),
             turn.clone(),
@@ -3310,6 +3311,19 @@ impl ReactiveHarness {
                 record,
                 &intent,
                 recheck.reason,
+                StopReason::ApprovalDenied,
+            );
+        }
+        if recheck.decision == p::PolicyDecision::Ask && approval.is_none() {
+            return self.deny_action(
+                run,
+                handle,
+                record,
+                &intent,
+                p::ReasonRef(format!(
+                    "final policy recheck requires approval before dispatch: {}",
+                    recheck.reason.0
+                )),
                 StopReason::ApprovalDenied,
             );
         }
@@ -3376,8 +3390,103 @@ impl ReactiveHarness {
                 );
             }
         }
-        if let Some(approval) = approval {
-            plan = plan.with_approval(approval);
+
+        // Re-plan at the execution boundary.  A backend may derive
+        // driver-affecting fields from live state, so the plan captured before
+        // approval cannot be trusted without this final comparison.
+        plan.validate_digest()?;
+        if plan.intent != intent {
+            return self.deny_action(
+                run,
+                handle,
+                record,
+                &intent,
+                p::ReasonRef("execution plan intent changed before dispatch".into()),
+                StopReason::ApprovalDenied,
+            );
+        }
+        let current_plan = self.backends.backend(intent.backend_hint)?.plan(&intent)?;
+        current_plan.validate_digest()?;
+        if current_plan.digest != plan.digest
+            || current_plan.normalized_action_digest != plan.normalized_action_digest
+            || current_plan.affected_resources != plan.affected_resources
+        {
+            return self.deny_action(
+                run,
+                handle,
+                record,
+                &intent,
+                p::ReasonRef("execution plan changed before dispatch; approval is stale".into()),
+                StopReason::ApprovalDenied,
+            );
+        }
+
+        let mut final_recheck = self.policy.evaluate_detailed(&policy_context, &intent);
+        final_recheck = apply_policy_floors(
+            final_recheck,
+            &intent,
+            Some(&current_plan),
+            &policy_context,
+            &record.competence_inputs,
+            self.competence.as_ref(),
+        );
+        self.append(
+            run.clone(),
+            turn.clone(),
+            provenance.clone(),
+            final_recheck.event_payload(),
+        )?;
+        record.loop_ctx.mark_policy(final_recheck.decision);
+        if final_recheck.decision == p::PolicyDecision::Deny {
+            return self.deny_action(
+                run,
+                handle,
+                record,
+                &intent,
+                final_recheck.reason,
+                StopReason::ApprovalDenied,
+            );
+        }
+        if final_recheck.decision == p::PolicyDecision::Ask && approval.is_none() {
+            return self.deny_action(
+                run,
+                handle,
+                record,
+                &intent,
+                p::ReasonRef(format!(
+                    "final policy recheck requires approval before dispatch: {}",
+                    final_recheck.reason.0
+                )),
+                StopReason::ApprovalDenied,
+            );
+        }
+        plan = current_plan;
+
+        if let Some(grant) = approval.as_ref() {
+            if plan
+                .approval_ref
+                .as_ref()
+                .is_some_and(|approval_ref| approval_ref != &grant.approval_id)
+            {
+                return Err(p::Error(
+                    "execution plan approval reference does not match the grant".into(),
+                ));
+            }
+            if grant.bound_plan_digest != plan.digest
+                || grant.normalized_action_digest != plan.normalized_action_digest
+                || grant.affected_resources != plan.affected_resources
+                || grant.policy_version != self.config.policy_version
+                || grant.tool_schema_version != self.config.tool_schema_version
+            {
+                return Err(p::Error(
+                    "approval binding does not match the final execution plan".into(),
+                ));
+            }
+            plan = plan.with_approval(grant.approval_id.clone());
+        } else if plan.approval_ref.is_some() {
+            return Err(p::Error(
+                "unapproved execution plan carries an approval reference".into(),
+            ));
         }
         plan.validate_digest()?;
         if record.remaining_action_budget == Some(0) {
@@ -3386,6 +3495,9 @@ impl ReactiveHarness {
                 StopReason::BudgetExhausted(forme_loop::BudgetKind::ToolCalls),
             );
             return self.finish_terminal(run, handle, record);
+        }
+        if let Some(grant) = approval.as_ref() {
+            self.claim_approval_consumption(grant, &intent, &plan)?;
         }
         if let Some(remaining) = &mut record.remaining_action_budget {
             *remaining = remaining.saturating_sub(1);
@@ -3672,6 +3784,55 @@ impl ReactiveHarness {
         }
     }
 
+    fn validate_configured_owner(&self, approver: &p::VerifiedPrincipal) -> p::Result<()> {
+        match (&self.configured_owner, self.authority_guard.is_some()) {
+            (Some(owner), _) if owner == approver => Ok(()),
+            (Some(_), _) => Err(p::Error(
+                "approval principal does not match the configured owner".into(),
+            )),
+            (None, true) => Err(p::Error(
+                "production harness has no configured owner for approval".into(),
+            )),
+            // Legacy test-only harnesses predate the production owner binding.
+            // They retain the in-memory approval semantics; production
+            // composition always installs both the owner and authority fence.
+            (None, false) => Ok(()),
+        }
+    }
+
+    fn claim_approval_consumption(
+        &self,
+        grant: &forme_approval::ApprovalGrant,
+        intent: &p::ActionIntent,
+        plan: &ExecutionPlan,
+    ) -> p::Result<()> {
+        self.validate_configured_owner(&grant.approver)?;
+        if grant.granted_scope != GrantScope::OneShot {
+            return Ok(());
+        }
+        if self.authority_guard.is_none() {
+            return Ok(());
+        }
+        let claimed = self.store.claim_approval(&ApprovalConsumptionClaim {
+            schema_version: forme_store::APPROVAL_CONSUMPTION_SCHEMA_VERSION,
+            approval_id: grant.approval_id.clone(),
+            approver: grant.approver.clone(),
+            nonce: grant.nonce.clone(),
+            plan_digest: plan.digest.clone(),
+            normalized_action_digest: p::normalized_action_digest(intent)?,
+            affected_resources: p::affected_resources_for(intent),
+            policy_version: grant.policy_version,
+            tool_schema_version: grant.tool_schema_version,
+            now: now_ms(),
+        })?;
+        if !claimed {
+            return Err(p::Error(
+                "approval nonce was already consumed; a new plan and approval are required".into(),
+            ));
+        }
+        Ok(())
+    }
+
     fn deny_action(
         &self,
         run: &p::RunId,
@@ -3885,6 +4046,7 @@ impl ReactiveHarness {
         record: &mut RunRecord,
         grant: forme_approval::ApprovalGrant,
     ) -> p::Result<()> {
+        self.validate_configured_owner(&grant.approver)?;
         let Some(pending) = record.pending_action.clone() else {
             return Err(p::Error("run has no pending approval action".into()));
         };
@@ -3972,7 +4134,7 @@ impl ReactiveHarness {
             record,
             pending.intent.clone(),
             pending.plan,
-            Some(grant.approval_id),
+            Some(grant.clone()),
         ) {
             if !record.loop_ctx.state.is_terminal() {
                 self.deny_action(
@@ -5005,6 +5167,7 @@ impl HarnessIngress for ReactiveHarness {
         ticket: ApprovalTicket,
         grant: forme_approval::ApprovalGrant,
     ) -> p::Result<()> {
+        self.validate_configured_owner(&grant.approver)?;
         if ticket.0 != grant.approval_id {
             return Err(p::Error("approval ticket and grant do not match".into()));
         }
@@ -5587,6 +5750,41 @@ fn external_policy_floor(
     } else {
         p::PolicyDecision::Ask
     }
+}
+
+fn apply_policy_floors(
+    mut evaluation: PolicyEvaluation,
+    intent: &p::ActionIntent,
+    plan: Option<&ExecutionPlan>,
+    context: &PolicyContext,
+    inputs: &cognition::CompetenceInputs,
+    competence: &(dyn cognition::CompetenceGate + Send + Sync),
+) -> PolicyEvaluation {
+    let external_floor = external_policy_floor(
+        intent,
+        plan.map(|plan| &plan.rollback_boundary),
+        evaluation.decision,
+        context.envelope.as_ref(),
+        inputs,
+        competence,
+    );
+    let effective_decision = untrusted_ingress_policy_floor(intent, external_floor);
+    if effective_decision != evaluation.decision {
+        let external_floor_changed = external_floor != evaluation.decision;
+        evaluation.decision = effective_decision;
+        if external_floor_changed {
+            evaluation.rule_source = p::RuleSourceRef("external-action-floor".into());
+            evaluation.reason = p::ReasonRef(
+                "external action requires plan-bound approval under canonical section 24".into(),
+            );
+        } else {
+            evaluation.rule_source = p::RuleSourceRef("untrusted-ingress-floor".into());
+            evaluation.reason = p::ReasonRef(
+                "an action derived from untrusted communication requires owner approval".into(),
+            );
+        }
+    }
+    evaluation
 }
 
 fn untrusted_ingress_policy_floor(

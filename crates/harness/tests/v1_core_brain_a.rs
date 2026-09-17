@@ -6,7 +6,10 @@ use std::sync::{Mutex, MutexGuard};
 use forme_context::{ContextBudget, ContextHydrationRequest, ContextHydrator};
 use forme_harness::{ProductionRuntimeBuilder, ProductionRuntimeConfig, RuntimeServiceStatus};
 use forme_protocol as p;
-use forme_store::{BrainAuthorityStore, EventStore, SqliteEventStore, StoreOptions};
+use forme_store::{
+    ApprovalConsumptionClaim, ApprovalConsumptionLedger, BrainAuthorityStore, EventStore,
+    SqliteEventStore, StoreOptions, APPROVAL_CONSUMPTION_SCHEMA_VERSION,
+};
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 static NEXT_DATABASE: AtomicU64 = AtomicU64::new(1);
@@ -214,6 +217,50 @@ fn production_brain_authority_and_manifest_survive_restart_without_synthetic_fac
         .unwrap()
         .contains(&first_refs.memory_cognition));
     drop(inspection);
+    remove_database(&path);
+}
+
+#[test]
+fn production_runtime_approval_consumption_remains_closed_after_restart() {
+    let _env = EnvironmentGuard::model();
+    let path = database_path("approval-restart");
+    let owner = p::VerifiedPrincipal("owner:approval-restart".into());
+    let plan_digest = p::sha256_content_digest(b"production-approval-plan");
+    let action_digest = p::sha256_content_digest(b"production-approval-action");
+    let claim = ApprovalConsumptionClaim {
+        schema_version: APPROVAL_CONSUMPTION_SCHEMA_VERSION,
+        approval_id: p::ApprovalId("approval:production-restart".into()),
+        approver: owner.clone(),
+        nonce: p::Nonce("nonce:production-restart".into()),
+        plan_digest: p::PlanDigest(plan_digest.0.clone()),
+        normalized_action_digest: action_digest,
+        affected_resources: vec![p::ResourceRef("workspace:production-restart".into())],
+        policy_version: p::Version(1),
+        tool_schema_version: p::Version(1),
+        now: 1,
+    };
+
+    let first = ProductionRuntimeBuilder::from_config(config(&owner.0, &path))
+        .unwrap()
+        .build()
+        .unwrap();
+    assert!(first
+        .services()
+        .store
+        .claim_approval(&claim)
+        .expect("production runtime must expose its durable approval ledger"));
+    drop(first);
+
+    let second = ProductionRuntimeBuilder::from_config(config(&owner.0, &path))
+        .unwrap()
+        .build()
+        .unwrap();
+    assert!(!second
+        .services()
+        .store
+        .claim_approval(&claim)
+        .expect("replayed approval nonce must be rejected as an equivalent retry"));
+    drop(second);
     remove_database(&path);
 }
 

@@ -371,6 +371,7 @@ fn s44_s45_real_loopback_delivery_stays_inside_disclosure_and_harness_governance
             p::EventKind::RunResumed,
             p::EventKind::ToolPolicyEvaluated,
             p::EventKind::CompetenceGateEvaluated,
+            p::EventKind::ToolPolicyEvaluated,
             p::EventKind::ActionPlanned,
             p::EventKind::ActionStarted,
             p::EventKind::ActionOutputDelta,
