@@ -8,9 +8,26 @@
 2. **事件 + 投影 + 地面真值三证合一**：事件证明发生顺序，投影证明可恢复状态，外部/文件/模型 ground truth 证明结果不是自报。
 3. **重启是必测路径**：memory、cognition、charter、AgentWorkspace、intentions、model routing、backup lifecycle 都必须跨进程/重建验证。
 4. **正反场景成对**：每个能力同时证明“该发生时发生”和“不该发生时结构上发不出去”。
-5. **有用性独立于结构正确性**：C23 使用真实任务与直接模型/简单算法基线；结构全绿但长期价值不优不得宣称“越用越好”。
+5. **有用性独立于结构正确性**：C24 使用真实任务与直接模型/简单算法基线；结构全绿但长期价值不优不得宣称“越用越好”。
 6. **hard invariant 不可被总分抵消**：越权、密钥泄露、盲重试、稳定层直写、前台被后台抢占、数据删除不完整等任一失败直接阻断。
 7. **证据可携带且不含秘密**：acceptance artifact 只保留 digest/ref、脱敏事件和可复验报告，不含 API key、加密 key、SecretRef identifier、私有 endpoint 或本机私有路径。
+
+### 1.1 承重协议阻断子断言
+
+下列子断言不新增场景编号，而是嵌入现有 C1–C24。任一子断言失败，所属场景为 FAIL；不能用其他场景的总分抵消：
+
+| 子断言 | 必须证明 | 归属场景 |
+|---|---|---|
+| R-STATE | `Waiting/Suspended` 非终态；崩溃窗口形成唯一 `ActionOutcomeUnknown`；启动扫描、typed resume、unknown no-retry 可 replay。 | C1/C2/C5/C16 |
+| R-EVENT | `stream_seq` 是 authority 排序权威；command/action/aggregate 分别有幂等键与 expected-version/CAS；event id 不可替代它们。 | C2/C7/C13/C16 |
+| R-FOLD | 稳定与可 replay mutation 都走 event append + projection fold；无 direct setter/旁路 UPDATE；在线 fold 与 replay 一致。 | C2/C7/C10/C12/C18 |
+| R-AUTH | owner ingress 的 `AuthContext/VerifiedPrincipal` 不可被 payload 覆盖；approval 绑定最终 plan/policy/schema/nonce/expiry；driver 前最终重查。 | C4/C5/C6/C13/C19/C23 |
+| R-PROOF | `DoneContract` 每条 criterion 都有 selector/predicate/tolerance；model/subagent self-report 不能单独 Pass；`Unverifiable` 独立记录。 | C15/C16/C18/C24 |
+| R-TICK | M0 timer floor 与 V1 B 波 activation 分离；tick claim/lease 原子且重复 signal 不重复履约。 | C7/C10/C11 |
+| R-DATA | 敏感原文、索引和内容 key 的保护/清理可验证；远端 Unknown 不报完成；artifact 不泄露秘密。 | C21/C22/C23 |
+| R-ROUTE | route node 状态、依赖失败、预算、取消、隔离、retry、unknown 都是持久运行语义。 | C14/C16/C17/C18 |
+
+这些子断言必须同时有正向和反向证据，且至少一个场景通过重启、并发或 replay 验证；只读类型定义、单元 happy path 或测试专用 builder 不算通过。
 
 ## 2. 全局回归门
 
@@ -69,7 +86,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - **准备**：仅设置最小 owner/model/store 环境；不调用任何 `with_*` 测试装配方法。
 - **动作**：分别创建正式 CLI 与 Local Gateway runtime。
 - **必须观察**：model registry、EventStore、EventSourcedMemory、CognitiveRuntime、coordination reasoner、orchestration library、proactivity、scheduler、capability registries、backend registry、eval、federation、ecosystem 都有明确状态；composition manifest digest 相同。
-- **反向断言**：正式运行不允许 `NoopProactivity`、`coordination=None`、临时 in-memory store 或空 owner identity；同一进程不能创建两个 authority writer 指向同一 store。
+- **反向断言**：正式运行不允许 `NoopProactivity`、`coordination=None`、临时 in-memory store 或空 owner identity；同一进程不能创建两个 authority writer 指向同一 store。构造后模拟 `ActionStarted` 崩溃，启动恢复不得重新调用 driver，而必须进入唯一 unknown 挂起。
 
 ### C2 owner 大脑跨重启连续
 
@@ -77,6 +94,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - 关闭并从同一 SQLite 重新构建 runtime。
 - 重启后 aggregate IDs、stream_seq、candidate/intention/charter 状态与 active strategies 必须连续；重复构建不得追加伪初始化事实。
 - 修改 owner ID 后打开同一 store 必须 fail closed，不能继承前 owner 的大脑。
+- 并发提交同一 command 时只能有一个 committed receipt；同一 id 异义或 stale expected version 必须冲突且 zero write；重启后的 projection/replay 与首次提交一致。
 
 ### C3 默认 context hydration
 
@@ -84,6 +102,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - 下一次大脑级模型调用的 `ContextBuildFinished` 必须列出实际来源；装配内容 obey scope、trust treatment 和 token budget。
 - 普通执行节点只装必要切片；未选择 skill 不加载正文；Untrusted 内容标 data treatment。
 - 反向：`ContextSources::empty()`、跨 workspace memory、raw event dump、超预算静默截断均阻断。
+- context 中的 external/tool/model 内容必须保持 data/untrusted provenance；owner `AuthContext` 和系统规则才可成为 instruction。
 
 ### C4 统一能力与执行装配
 
@@ -91,6 +110,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - registry lifecycle 必须为 discovery -> config -> enable -> trust -> policy -> visible toolset；实际执行仍走 final recheck。
 - capability 配置缺失、schema drift、driver 不可用、SecretRef resolver 缺失时 doctor 明确解释且能力不暴露。
 - 反向：已安装 package、MCP 返回或 plugin manifest 不能自动获得 trust/permission。
+- registry/doctor 不得接受 payload 自报 owner、publisher 或 approver；SecretRef resolver 缺失时能力必须不可见或 disabled。
 
 ### C5 多入口同一语义
 
@@ -104,6 +124,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - 构造缺 model credential、无 owner、store 不可写、MCP executable 缺失、encryption key 缺失但敏感加密启用等配置。
 - 必需组件缺失则 runtime 构建失败；可选组件缺失则 disabled 且有 doctor explanation，不允许半启用。
 - doctor report 进入事件且不包含秘密值。
+- approval grant 的 approver、最终 plan digest、policy/tool schema snapshot、nonce/expiry 必须绑定；缺任一项或 plan 在 driver 前发生变化，必须 zero driver call。
 
 ### C7 三相 cognitive tick
 
@@ -111,6 +132,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - tick 事件序列必须先 observation/opportunity，再 reflection/candidate，再 memory maintenance；报告分别列 phase outcome。
 - foreground session active 时，重认知 phase defer；无 diff/到期 intention/新 evidence 时不调用模型。
 - 后台不得直接发 ActionStarted、改变 stable cognition 或抢占前台 session lock。
+- 反向：重复 tick signal 不能重复创建 proposal/intention run；`ActionStarted` 无终态的恢复只能产生 `ActionOutcomeUnknown`，不能自动 retry。
 
 ### C8 AskToLearn
 
@@ -170,6 +192,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - 子预算从父预算原子预留并回收；父取消级联；同 intent retry 幂等；副作用不明进入 unknown、不得重试。
 - 每个子代理只见最小 toolset/scope/model/budget，使用隔离工作目录；结果按 summary/result contract 回传。
 - 事实/设计/质量真冲突不能由 integrator 静默裁决，必须保留 conflict 并上抛主脑。
+- 每个 node 的状态/预算 reservation/取消传播/隔离与 retry 结果必须能从事件重建；unknown node 的 driver call 必须为零。
 
 ### C17 长期 workspace 监管
 
@@ -208,12 +231,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - sensitive event/object content 用成熟 AEAD 库加密，envelope 只记录 key ref、nonce/ciphertext/version；key 由本地 resolver 获取。
 - DB、日志、trace、portable artifact、doctor debug 搜索不到明文、key 和 SecretRef identifier；正常授权读取可解密。
 - 错 key、缺 key、tamper 必须 fail closed，不能返回乱码或把密文当普通内容。
+- envelope 只能保留安全 key digest/ref，不得落真实 `SecretRef` identifier；测试必须覆盖 DB、日志、trace、manifest、backup 和 artifact 的负向扫描。
 
 ### C23 真实删除与保留
 
 - owner 对一个 scoped subject 发起 delete/retention；系统删除/crypto-shred 原始敏感 payload、FTS、summary/vector/graph/candidate 派生内容，并追加不含原文的 `DataLifecycleApplied` tombstone。
 - 证明清理前可检索、清理后所有本地索引不可检索；manifest 列出 cleaned projections/destroyed key refs 的安全 digest。
 - 审计事件、授权依据和“不宣称远端已删”的事实保留；非 owner、跨 scope、stale expected version 零改变。
+- 若历史链中仍有可恢复明文，删除 projection 或新增 tombstone 不算完成；场景必须报告 FAIL/UNVERIFIABLE，直到迁移/清理完成。
 
 ### C24 最终价值与真实 golden
 
@@ -221,6 +246,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 - 每类与直接模型/最简单可用策略对照，报告质量、可靠性、一致性、延迟、成本、打扰和 hard invariant；保留失败 case。
 - 真实配置模型、真实 SQLite 重启、至少一个真实外部 backend 和完整 A–D 路径生成封闭 typed artifact 集。
 - 最终结论只能是 PASS / FAIL / UNVERIFIABLE；不可用“测试很多”替代价值证据。
+- 六类任务的 DoneContract 必须提供可复核 evidence selectors、predicates、tolerances 和 ground-truth refs；仅模型最终回答不能作为长期价值证明。
 
 ## 5. 三类正确性
 

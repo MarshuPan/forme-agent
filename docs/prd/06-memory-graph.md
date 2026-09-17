@@ -94,6 +94,25 @@ pub trait IntentionStore {
 }
 ```
 
+### 4.1 记忆 mutation 的事件化边界
+
+上述 trait 的写方法是**语义 command**，不是对 SQLite projection 的直接 setter。实现必须通过 store 的唯一写入路径完成：
+
+```text
+MemoryCommand / CandidateCommand / IntentionCommand
+ -> provenance + scope/trust 校验
+ -> expected-version / 幂等检查
+ -> 对应事实事件 append
+ -> 同一事务 fold projection
+ -> 返回 committed receipt
+```
+
+- `add_node`/`add_edge` 对应 `MemoryNodeAppended`/`MemoryEdgeAppended`；相同 command 重放必须幂等，同一 id 异义必须 conflict。
+- `set_edge_weight`、巩固、衰减、修剪和任何会改变未来 recall/replay 的 delta 必须聚合为带 digest 的 `MemoryMaintenanceApplied`，不能先改边表再补事件。
+- `CandidateStore::transition` 必须由 `CandidatePromoted`、`CandidateRejected`、`CandidateDowngraded` 或 `CandidateDecayed` 等既有 H 组事件表达；直接 UPDATE candidate projection 是违规实现。
+- `IntentionStore::claim_due` 的 claim/lease/resolve 必须在同一 authority ledger 中原子化；重复 tick 只能得到同一 claim 或明确未获 claim，不能重复创建履约 run。
+- `seed` 产生的是当前 snapshot 内的瞬时激活输入；它不能把未信任内容写成图边/权重，也不能把 `current_activation` 当作稳定事实。需要跨 tick 保留的事实必须由对应事件表达。
+
 ## 5. 行为/算法/状态机
 
 - **激活扩散(canonical §22)**:`seed(shape)` 置初始激活 → `spread` 沿边权 × 每跳衰减扩散(汇聚相加)→ 衰减 → 过阈值浮现 → **有界**(`max_hops` / `top_k_frontier` / `per_tick`);**无 seed 不扩散**(接 canonical §16/§18)。五来源映射到五种 `ActivationShape`。
@@ -102,7 +121,7 @@ pub trait IntentionStore {
 - **记忆链(canonical §14)**:纵向 `RawEvent→Event→Episodic→Reflection→候选→稳定`(候选存 `CandidateStore`,稳定提升由 prd/10 治理);横向 association 图。
 - **EpisodicMemory 派生**:从事件日志折叠(`MemoryProjection`,可重建)。
 - **recall**:索引/向量(M0 最小)+ **scoped 遍历**(只遍历相关 workspace/scope,不扫全图,canonical §19)。
-- **事件覆盖划分(事件是唯一事实源,replay 必须能重建认知演化)**:**事件化**——节点/边增删(`MemoryNodeAppended/EdgeAppended`)、边权变更与巩固/修剪(批量事件 `MemoryMaintenanceApplied{deltas_ref}`,由整理 tick/A3 周期归并发射,防高频刷屏)、候选生命周期(H 组);**读时派生(不事件化)**——`current_activation`(瞬时)、懒衰减(由 `last_updated + 衰减率` 确定性计算,不物化)。replay 重建 = 事件流 + 确定性懒衰减函数。
+- **事件覆盖划分(事件是唯一事实源,replay 必须能重建认知演化)**:**事件化**——节点/边增删(`MemoryNodeAppended/EdgeAppended`)、边权变更与巩固/修剪(批量事件 `MemoryMaintenanceApplied{deltas_ref}`,由整理 tick/A3 周期归并发射,防高频刷屏)、候选生命周期(H 组)、intention claim/lease/resolve 的 authority ledger;**读时派生(不事件化)**——`current_activation`(瞬时)、seed 后的 frontier、懒衰减(由 `last_updated + 衰减率` 确定性计算,不物化)。replay 重建 = 事件流 + 确定性派生函数；在线 projection 不得拥有 replay 无法解释的额外状态。
 
 ## 6. 错误/安全/权限/审批
 
@@ -119,21 +138,21 @@ pub trait IntentionStore {
 
 ## 8. 实施步骤与顺序
 
-1. `nodes`/`edges` 存储(architecture §7 表)+ `MemoryGraph::add_*`。
+1. `nodes`/`edges` 存储(architecture §7 表)+ `MemoryGraph::add_*` 的 command/event/projection 路径。
 2. `query` + `MemoryProjection`(timeline/recall/summary;EpisodicMemory 从 events)。
 3. 激活操作 `seed/spread/decay/surface`(有界)。
-4. `set_edge_weight` 强化入口 + 遗忘/巩固(慢/快衰减)。
+4. `set_edge_weight` 强化入口 + 遗忘/巩固(慢/快衰减)，全部经 `MemoryMaintenanceApplied` delta。
 5. `CandidateStore`(记忆链候选)+ `UserAttributeCandidate`/`ImportedHistoricalEvidence` 存储。
 
 ## 9. 测试
 
 - **S8 存储侧(总纲 §7.11 支撑)**:`UserAttributeCandidate` 带 evidence/confidence/时间戳/stability/scope 落盘;`ImportedHistoricalEvidence{low_weight}`。
 - **Context/Memory 矩阵行**:session/每日/长期切片可取;candidate≠stable。
-- **单元**:seed/spread 有界(max_hops/top_k 生效)、无 seed 不扩散;边权更新;衰减(稳定慢/易变快);recall scoped(不扫全图);EpisodicMemory 从 events 重建一致;防投毒——未信任摄入落低权重候选、不动稳定。
+- **单元**:seed/spread 有界(max_hops/top_k 生效)、无 seed 不扩散;边权更新只能经 maintenance event;在线 fold 与 replay 一致;candidate transition 无旁路 UPDATE;intention claim 并发只产生一个 winner;衰减(稳定慢/易变快);recall scoped(不扫全图);EpisodicMemory 从 events 重建一致;防投毒——未信任摄入落低权重候选、不动稳定。
 
 ## 10. 验收
 
-- memory = 事实源;图 + 激活(有界);记忆链候选;candidate≠stable;scoped recall + 遗忘;防投毒降权;S8 存储侧 + Context/Memory 行通过。
+- memory = 事实源;图 + 激活(有界);所有稳定/可 replay mutation 事件化且无旁路写;记忆链候选;candidate≠stable;scoped recall + 遗忘;防投毒降权;S8 存储侧 + Context/Memory 行通过。
 
 ## 11. 原创性与合规
 

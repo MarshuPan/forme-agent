@@ -65,6 +65,32 @@ pub struct AutonomyEnvelope {
 pub enum EnvelopeDecision { Within, OutOfScope(Reason), NeedsApproval }
 ```
 
+### 3.1 入口身份与审批证明
+
+审批对象中的 `approver` 不能由客户端 payload 自报。Gateway/CLI 先把已认证的 transport/session 事实转换成只读 `AuthContext`，再由 harness 生成 `VerifiedPrincipal`；`ApprovalGrant` 只接受后者：
+
+```rust
+// `AuthContext` is owned by the communication/gateway boundary. The field
+// names below mirror the existing `forme_communication::AuthContext`; the
+// policy/approval layer consumes it but does not redefine it.
+pub struct AuthContext {
+    pub principal: AuthPrincipal,
+    pub method: AuthMethod,
+    pub expires_at: Timestamp,
+}
+
+pub struct ApprovalBinding {
+    pub plan_digest: PlanDigest,
+    pub normalized_action_digest: SchemaDigest,
+    pub affected_resources: Vec<ResourceRef>,
+    pub policy_version: Version,
+    pub tool_schema_version: Version,
+    pub owner_epoch: Option<AuthorityEpoch>,
+}
+```
+
+`AuthContext` 由入口注入，业务 payload 中同名字段只能作为待校验数据，不能覆盖它。`AuthPrincipal`/`AuthMethod` 使用 communication crate 的既有定义；owner epoch 仅在需要 authority/federation fencing 的路径绑定，普通本地审批可为空。M0 的本地单用户认证可以是本地会话，但仍必须走同一对象和校验路径；owner 以外的 external/subagent/system 身份不能伪造 owner approval。
+
 ## 4. 接口与签名
 
 ```rust
@@ -88,6 +114,7 @@ pub trait ApprovalBroker {
 - **审批流**:`request` → `ApprovalRequested` + `RunWaiting`;`resolve` → `ApprovalResolved{granted|denied|expired}`;`GrantScope` 支持一次性/会话级/参数模式预授权;过期 → `Expired`(等同不批)。**Gateway-compatible**:CLI 与 Local Gateway 共享同一 `ApprovalRequest/Resolved/RunWaiting/RunResumed` 事件,`pending` 供任一入口拉取。
 - **DelegationProposal 承接(放权成长闭环)**:认知层(prd/13)以 CapabilityEvidence 为据申请扩展 envelope → 作为**高影响 ApprovalRequest** 走审批 → 用户确认后落 `DelegationGrant`(带 scope/期限/预算/撤销);**申请本身零副作用**,拒绝不改变现状;trust 不覆盖 permission 不变。
 - **审批-计划不可变绑定(防 TOCTOU)**:审批绑定最终 `ExecutionPlan` 的 `PlanDigest`(规范化参数/backend/scope/timeout/rollback);执行前重验 digest 一致,**任何批后变更 = 新 plan = 作废重批**;nonce 一次性、`use_by` 过期即废;`approver` 必须为 `VerifiedPrincipal`(canonical §10)。
+- **最终重查顺序**:approval resolve 后，harness 必须重新读取当前 policy、capability/tool schema、DelegationGrant/AutonomyEnvelope、owner epoch 与最终 `ExecutionPlan`，再交给 driver；backend 不能在这一步偷偷补字段。任一不一致都产生 deny/expired/stale-binding，零 driver call，并要求新 plan/approval。
 
 ## 6. 错误/安全/权限/审批
 
@@ -114,6 +141,7 @@ pub trait ApprovalBroker {
 - **S2(总纲 §7.2)**:高风险动作 → `ToolPolicyEvaluated{ask}` → `ApprovalRequested` → 拒绝 → 不执行;`deny` 路径直接拒、不进审批;不可见工具名/越权参数被 `deny`。
 - **S6 / S11 支撑**:AutonomyEnvelope 产出后被 `enforce_envelope` 约束;subagent 越出 envelope 的工具被拒。
 - **单元**:合并优先序(managed deny 不被下层放宽);`hook` 不能绕过 user/managed deny;trust 高不越 permission deny;审批过期=不批;GrantScope 三种范围各自生效。
+- **闭合契约**:payload 自报 approver/owner 被拒;grant 缺 plan/policy/schema/nonce/expiry 任一绑定被拒;审批后修改任一规范化 plan 字段在 driver 前被拒;同一 one-shot nonce 只能成功消费一次;stale owner epoch/撤销后的 grant 不能继续。
 
 ## 10. 验收
 

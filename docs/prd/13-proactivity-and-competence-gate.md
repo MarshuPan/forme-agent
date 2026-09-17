@@ -16,6 +16,8 @@
 - **不做**:记忆图存储(prd/06,主动在其上 seed/spread)、认知语义(prd/10)、tick **调度**(prd/03 harness 托管调度器,本篇提供**用快照执行的 tick 逻辑**)、执行(harness 路由 proposal)。
 - **crate**:`cognition`(Proactivity)。**M0 范围**:定时器 tick 地板;激活扩散 = M2+。
 
+**阶段边界必须写清**：M0 的“主动存在”由定时器、授权观察、简单规则和前瞻意图消费证明；这不是把激活扩散偷偷塞进 M0。激活扩散的正式运行实现属于 M2+，在当前 V1 核心大脑闭合计划中由 **B 波**激活。M0/M1 的测试可以验证 schema、seed contract 和退役基线，但不能把未实现的扩散结果当成产品能力。
+
 ## 2. 全局位置与集成契约(防各自为战)
 
 - **上游依赖**:prd/06(记忆图——seed/spread)、prd/10(cognition——MapConfidence)、prd/11(AgentSelfModel/UserModel)、prd/15(FailureEvidence)。
@@ -62,6 +64,7 @@ pub trait CompetenceGate {
 ## 5. 行为/算法/状态机
 
 - **tick(canonical §18,harness 用快照执行)**:`ObservationRecorded` → `OpportunityDetector`(**M0 = 定时器 + 简单启发/规则;M2+ = 在 prd/06 记忆图上 seed 激活扩散**、五种 `ActivationShape`,canonical §22 潮线)→ 念头 `Impulse`(触及梯度 + 向内引力:优先内化,再独立/协作/对外)→ `ValueGate`(值不值得打扰)→ `emit`。
+- **tick claim**:harness 先从 authority ledger 原子 claim `(owner, tick_window, trigger)`；未获 claim 的重复信号不得调用模型、创建 proposal 或创建履约 run。lease 过期后只能由恢复路径重新 claim，已产生的 intent 仍按 `intent_id` 幂等 resolve。
 - **emit**:认知侧组装 `EmissionGuard = ValueGate ∧ CompetenceGate` → `Proposal`(不足则**降级**);**只产 Proposal、永不动手**。完整 `ProactiveEmissionGuard` 的第三因子 **Policy/AutonomyEnvelope 由 harness 在出口 enforce**(prd/03 §5.1,Proposal 变动作时过 policy)——认知层不自评 policy。
 - **CompetenceGate::ceiling**:`(scope, risk)` → 允许最高 `InterventionLevel`,读 `CompetenceInputs`(Map/Self/Capability/Trust/Failure + Verification result refs);不足降级 `L4→L3→L2→L1→L0`(canonical §6)。
 - **五个涌现来源=五形状**(canonical §22):联想=汇聚、变化=重 seed、压力=目标静息上升、缺口=亮但低 confidence、张力=co-激活 Contradicts;第六来源 `Commitment` 确定性触发、无 shape。
@@ -87,7 +90,7 @@ pub trait CompetenceGate {
 
 ## 8. 实施步骤与顺序
 
-1. `OpportunityDetector`(在 prd/06 seed 激活扩散、五形状)——M0 定时器 tick 地板。
+1. `OpportunityDetector`(在 prd/06 seed 激活扩散、五形状)——M0 只实现定时器 tick 地板；M2+ / V1 B 才启用扩散。
 2. 念头 `Impulse`(触及梯度 + 向内引力)。
 3. `ValueGate`(打扰成本 vs 价值)。
 4. `CompetenceGate::ceiling`(读五输入、降级)。
@@ -98,7 +101,7 @@ pub trait CompetenceGate {
 
 - **S7(总纲 §7.14)**:`ObservationRecorded`→`OpportunityDetected`→`ValueGateEvaluated`→`ProactiveProposalEmitted`→`ProactiveProposalResolved`;被拒不自动执行、不反复打扰;未授权 observation 不进 stream。
 - **S18(总纲 §7.15)**:ValueGate 过但 MapConfidence/AgentSelfModel 不足 → `CompetenceGateEvaluated` → 降级 `L2/L1/L0`;原因/失败证据进 trace;降级后不绕 policy/approval/AutonomyEnvelope。
-- **单元**:emit 只产 Proposal;guard = 三门与;能力门降级 + 自评只压不抬;五形状 + Commitment 确定触发(到期必触发/时效复核/defer 转议程);AskToLearn 指向自身缺口且受打扰预算;搭车投递不计打扰、打断计预算;DelegationProposal 拒绝零副作用;冷启动只观察/追问。
+- **单元**:emit 只产 Proposal;guard = 三门与;能力门降级 + 自评只压不抬;五形状 + Commitment 确定触发(到期必触发/时效复核/defer 转议程);AskToLearn 指向自身缺口且受打扰预算;搭车投递不计打扰、打断计预算;DelegationProposal 拒绝零副作用;冷启动只观察/追问;重复 tick claim 只有一个 winner，M0 timer-floor 不依赖 activation implementation。
 
 ## 10. 验收
 

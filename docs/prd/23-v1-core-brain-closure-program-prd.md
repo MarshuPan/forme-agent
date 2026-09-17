@@ -57,6 +57,45 @@ gateway/src/core_brain.rs
 
 是否拆文件不影响 public API；实现可先在现有文件落地再机械拆分，但每个 crate 必须保持 `#![forbid(unsafe_code)]`。
 
+### 1.4 承重协议补充（实施前必须先闭合）
+
+本节把本轮架构复核发现的隐含前提转成所有波次共同遵守的实施契约。它不增加 C 场景编号，不增加 EventKind，也不改变冻结的既有 public trait；每一项都必须在对应模块 PRD 的代码和测试中可见。
+
+| 契约 | 实施要求 | 主要落点 | 阻断验收 |
+|---|---|---|---|
+| 生命周期恢复 | `Waiting`/`Suspended` 非终态；`ActionStarted` 无终态必须形成 `ActionOutcomeUnknown`；启动扫描、typed resume、unknown no-retry 必须可重建。 | `store`、`harness`、`loop` | C1/C2/C5/C16 |
+| 事件并发幂等 | authority 分配 `stream_seq`；command 用 `idempotency_key`、动作用 `intent_id`、聚合 mutation 用 `expected_version`/CAS；event id 不能单独充当幂等。 | `protocol`、`store`、`harness` | C2/C7/C13/C16 |
+| 事件唯一事实源 | 所有稳定 mutation 走 command→append→projection 同事务；memory edge/maintenance/candidate transition 不得有旁路 setter；replay 与在线 fold 同语义。 | `store`、`memory`、`cognition` | C2/C7/C10/C12/C18 |
+| 身份与审批绑定 | ingress 产生不可由 payload 伪造的 `AuthContext`/`VerifiedPrincipal`；grant 绑定 approver、最终 plan digest、规范化参数/资源、policy/tool schema snapshot、nonce/expiry；driver 前最终重查。 | `gateway`、`approval`、`policy`、`harness` | C4/C5/C6/C13/C19/C23 |
+| 可执行完成证明 | `DoneCriterion` 必须有 evidence selector、predicate、tolerance/不可验证条件；model self-report 不能单独 Pass；`Unverifiable` 独立流转。 | `coordination`、`eval` | C15/C16/C18/C24 |
+| tick 与潮线 | M0 的 timer floor 与 V1 B 波的 activation diffusion 分开；tick claim 原子、重复 signal 不重复履约；三相共享 snapshot、前台优先。 | `store`、`cognition`、`harness` | C7/C10/C11 |
+| 数据生命周期 | 敏感内容在不可变链前 envelope/reference；删除同时验证原文、派生索引和 key；远端 Unknown 不报完成；旧明文迁移未完成则 FAIL/UNVERIFIABLE。 | `store`、`eval`、`harness` | C21/C22/C23 |
+| route 运行语义 | node 状态、依赖失败策略、父子取消、父预算原子预留/回收、隔离 workspace、retry 幂等和 unknown no-retry 都是运行时事实，不以“子代理无认知”替代。 | `coordination`、`harness` | C14/C16/C17/C18 |
+| 状态文档纪律 | 分支实现只能标进行中/待验收；“完成/闭合/永久基线”只在独立验收、clean-tree release audit 后合入 `main` 才能写。 | docs/README、documentation-map、acceptance | 全局 release gate |
+
+#### 1.4.1 统一事务边界
+
+任何改变稳定状态、授权状态或可 replay 的派生状态的 command，必须按以下顺序完成；中间失败不得留下半条事实：
+
+```text
+认证/参数规范化
+ -> policy/competence/expected-version 重查
+ -> authority 分配 stream_seq
+ -> append immutable event
+ -> 同事务更新 projection/ledger
+ -> 返回 committed result
+```
+
+`event_id` 解决事件重放，`idempotency_key` 解决命令重复，`intent_id` 解决动作重复，`expected_version` 解决陈旧聚合写入。实现和测试必须分别覆盖四种语义，不能以“event_id 唯一”替代其余三种。
+
+#### 1.4.2 统一恢复边界
+
+恢复不是从最后一个 prompt 重新跑一遍。启动时先检查 store integrity、owner binding、未决 action/remote/ecosystem outcome 和 lease，再 replay aggregate；发现副作用可能已经发生而无可信终态时，只能进入 unknown 挂起并等待 receipt/probe/owner 裁决。`resume` 的输入必须匹配 `PendingKind`，恢复前重新检查最终 plan digest、权限、审批、envelope、schema 和 owner epoch。
+
+#### 1.4.3 统一验证边界
+
+`DoneContract` 是执行前的约束，也是执行后的证明接口。每个 criterion 都要声明“从哪里取证据、用什么谓词判断、允许多大容差、什么情况下不可验证”。Verifier 必须保留 evidence selector 的命中记录与 ground-truth refs；没有足够证据时返回 `Unverifiable`，不得为了让 run 结束而猜测 Pass。
+
 ## 2. Protocol 与 99-kind taxonomy
 
 ### 2.1 新增类型

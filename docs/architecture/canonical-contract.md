@@ -618,3 +618,17 @@ V1 核心大脑闭合不是 M6，也不是第四内核。它把 M0–M5 已经�
 - C1–C24 不是 S100+，也不是新里程碑编号。S1–S99 永久回归继续有效。
 - 只有正式入口、真实 SQLite 重启、真实 backend、真实/可控多模型选择、六类价值 golden、99-kind/18-crate/strict-clippy/compliance/typed-artifact/release gate 全绿，才可声明“V1 核心大脑运行闭合”。类型存在、测试 builder 可拼装或结构测试全绿都不等于产品闭合。
 
+### 28.9 实现前必须闭合的承重协议
+
+V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`harness`、`policy`、`memory`、`coordination` 和 `eval` 的实现与测试中保持同一语义。它们是现有 C1–C24 的**阻断子断言**，不是新的里程碑或新的事件组。
+
+1. **挂起、终态与未知副作用分离**：`Waiting`/`Suspended` 不是终态；只有 `Complete`、`Aborted`、`Failed`、`Limited` 才能收敛为 terminal。`ActionStarted` 已落盘而可信终态未落盘时，必须追加 `ActionOutcomeUnknown`，启动恢复扫描必须发现并把 run 保持在可裁决挂起态。`resume` 必须按 `PendingKind` 接受对应的 typed input；未知副作用只允许取原 receipt、只读 probe 或 owner 裁决，绝不盲目重试。
+2. **事件并发与幂等**：authority store 分配 `stream_seq`，它是排序权威；事件 ID 去重不能替代 command/action 幂等。每个会产生副作用或聚合变更的 command 必须带稳定 `idempotency_key`/`intent_id`，聚合写入必须带 `expected_version` 并在同一事务中 CAS；重复同义 command 返回原结果，异义复用必须冲突且零推进。M0 单进程单写者可以是实现下界，但不能把它写成永久协议。
+3. **事件唯一事实源**：任何稳定状态 mutation 都必须表现为 command → event append → projection fold；`set_*`、`transition`、`decay`、边权更新等 API 不能绕过事件。高频瞬时激活可以按确定性函数从事件和 snapshot 派生，不要求逐次物化；但边权、巩固、衰减、修剪和候选生命周期等可影响 replay 的事实必须进入已有对应事件（优先使用结构化 maintenance delta），replay 与在线 projection 必须得到同一结果。
+4. **身份、审批与最终计划绑定**：入口先把 transport/session 认证结果绑定成不可由 payload 伪造的 `AuthContext`，owner 操作只能由 `VerifiedPrincipal=owner` 发起。`ApprovalGrant` 至少绑定 approver、最终 `PlanDigest`、规范化参数/受影响资源、policy/tool-schema snapshot、nonce、expiry 和一次性消费状态。审批返回后以及 driver 调用前都要重新检查最终 plan、policy、grant/envelope 和 capability；任一字段变化即作废重批，避免 TOCTOU。
+5. **DoneContract 必须可验证**：每个完成标准必须说明 evidence selector、predicate、可选 tolerance 和 unverifiable 条件。`Verifier` 只能依据事件段、动作结果、文件/外部 ground truth 等已选证据判定；模型文本自报不能单独成为完成证明。`Unverifiable` 与 `Fail`、`Pass` 分离，并进入 trace、失败/降级与能力门输入。
+6. **tick 与激活潮线不可混写**：M0 的主动底板是定时器 + 有界规则/前瞻意图；激活扩散属于后续 M2+ 能力，在 V1 闭合 B 波才进入正式运行。无论底层算法是什么，tick claim/lease 都必须原子，重复信号只能复用或返回已有 claim，不得重复履约；三相按固定 snapshot 有序执行。
+7. **长期数据治理是运行协议的一部分**：敏感 payload 在不可变链前必须进入应用层 envelope 或安全内容引用；明文、密钥和可利用的 SecretRef 标识不能进入 event、trace、manifest、backup 或 artifact。删除必须同时验证原文、FTS、summary/vector/graph/candidate 等派生索引和内容密钥，保留无原文 tombstone；远端只报告可验证的 disposition，未知不得伪称完成。
+8. **route 运行语义不可由“子代理无认知”替代**：每个 route node 必须有状态、依赖失败策略、父子取消传播、父预算原子预留/回收、隔离 workspace/scope/toolset、声明式 retry 和 unknown no-retry；子代理只回传 summary/result，真实副作用仍经各自 Harness 治理。
+9. **状态声明必须区分 branch 与 main**：文档可以记录分支上的实现草案，但“已完成/已闭合/可作为永久回归基线”只在对应 commit 已通过独立验收、clean-tree release audit 并合入 `main` 后使用。未合入的 A/B/C/D 只能标为进行中或待验收。
+

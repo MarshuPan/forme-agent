@@ -128,6 +128,30 @@ pub struct ReplayReport {
 pub struct SchemaSnapshot { pub schema: BTreeMap<PayloadType, SchemaVersion>, pub policy_version: Version, pub loop_version: Version, pub model_profile: ModelProfileRef, pub tool_schema: Version }
 ```
 
+### 3.5 命令、聚合版本与幂等边界
+
+`EventStore::append` 仍是冻结的底层事件接口；V1 生产 mutation 必须通过 store-owned 的 typed command facade，不能让各模块自行拼 SQL 或直接改 projection。这里的 command facade 是实现边界，不是要新增一套与既有 `VersionedEventStore` 平行的 public trait。
+
+生产 command 至少携带以下语义字段（字段名是概念 DTO，具体 command 可按聚合拆分）：
+
+```rust
+pub struct MutationCommand {
+    pub aggregate: RunId,
+    pub expected: AggregateVersion, // 复用 protocol::AggregateVersion
+    pub idempotency_key: IdempotencyKey,
+    pub event: Event,
+}
+
+pub struct MutationReceipt {
+    pub result: ExpectedAppend, // 复用 protocol::ExpectedAppend
+    pub replay_digest: SchemaDigest,
+}
+```
+
+实现必须把该边界落到既有 `VersionedEventStore::append_expected(event, expected)` 与对应的领域幂等 ledger；不得引入 `ExpectedVersion`、`CommandId` 或 `VersionedMutationStore` 作为第二套协议。`AggregateVersion` 是带 `schema_version + aggregate + value` 的 protocol 对象，`ExpectedAppend` 是既有的提交结果。
+
+`idempotency_key` 用于重复 command 归并，`event_id` 用于事件重放去重，动作自身使用 `ActionIntent.intent_id`，聚合写入使用 `AggregateVersion` 的 expected value/CAS。四者不能互相替代。首次写入允许 aggregate version 为 `0`；陈旧 expected version、同键异语义和 event 与 aggregate 不匹配都必须零事件、零 projection 推进并返回可分类 conflict。
+
 ## 4. 接口与签名
 
 ```rust
@@ -135,10 +159,10 @@ pub trait EventStore {
     /// 唯一写入路径。单写者:实现内部串行化 append。
     /// 前置:event.schema_version 已是当前版本;event_id 唯一。
     /// 后置:事件持久化 + 索引;返回 EventId。append 不可变、不覆盖。
-    /// 顺序:append 赋值 run 内单调 stream_seq(排序权威);幂等:event_id 去重 + 命令/动作按 idempotency_key/intent_id 去重。
+    /// 顺序:append 由 authority 赋值 aggregate/run 内单调 stream_seq(排序权威);幂等:event_id 去重 + command/action 由各自幂等键处理。
     fn append(&self, event: Event) -> Result<EventId>;
 
-    /// 按 run 顺序读事件(append 顺序 = ULID/ts 顺序)。
+    /// 按 authority stream_seq 读事件；ULID/ts 只作信息字段，不能排序裁决。
     fn read_run(&self, run: RunId) -> EventCursor;
 
     /// 从事件派生投影(可重建)。P: Projection。
@@ -162,10 +186,12 @@ pub struct EventCursor { /* 惰性、有序、可分页 */ }
 ## 5. 行为/算法/状态机
 
 - **append(单写者)**:校验 schema_version 为当前 → 校验 event_id 唯一(去重) → 序列化 payload → **单写者串行化**(store 级写锁 / 单写线程)→ 事务写 `events` 表 + 更新 FTS/索引 → 返回 EventId。整条原子:失败回滚,不留半条。
+- **typed mutation**:认证后的 command → 规范化语义字节 → 查幂等键 → expected-version/CAS → authority 分配 `stream_seq` → append event → 同一事务更新 aggregate version 与 projection/ledger → 返回 `MutationReceipt`。重复同义 command 返回原 receipt；同键异义、版本陈旧或 payload aggregate 不匹配时 conflict，不能先写后补偿。
 - **投影派生**:`project` = `read_run` 折叠 `Projection::apply`;投影是缓存,权威永远是事件;可丢弃重建。
 - **replay**:读事件(按 `SchemaSnapshot`)→ 旧版本读时 upcast → 折叠出 replay 投影 → 与当前 projection 比对产 `diff_vs_current`。**只报差异、不改历史事件**。
 - **schema upcast**:读路径遇低版本 payload,链式套用注册的 upcaster 到当前版本;breaking change 必须有 migration note,否则读路径报错(不静默改语义)。
-- **单写者与并发**:store 保证**单一 append 串行**;per-session run 串行由 harness(prd/03)排队,但稳定层写入的串行性由本模块的单写者保证(canonical §7)。**并发边界(契约)**:M0 单进程 + per-session 串行 + 单写者已给出全序,不需要 expected-version/CAS;**多进程/多写者(M2+)时必须引入 aggregate version + expected-version 检查**,不得静默跨越此边界。
+- **单写者与并发**:store 保证**单一 append 串行**;per-session run 串行由 harness(prd/03)排队,但稳定层写入的串行性由本模块的单写者保证(canonical §7)。M0 单进程 + 单写者是实现下界；V1 production aggregate mutation 必须使用既有 `VersionedEventStore` 的 expected-version/幂等语义，即使当前部署仍是单进程，也不能把进程锁当作协议。
+- **事件唯一事实源**:所有稳定状态、候选 transition、可影响 replay 的 graph edge/weight/maintenance 变化都只能由 typed mutation 产生事件并在同一事务 fold；projection/cache/metric 删除后必须能从事件重建。瞬时 activation 可由 snapshot + 确定性函数读时派生。
 
 ## 6. 错误/安全/权限/审批
 
@@ -207,6 +233,10 @@ CREATE UNIQUE INDEX idx_events_run ON events(run_id, stream_seq);   -- run 内�
 CREATE INDEX idx_events_kind  ON events(kind);
 CREATE VIRTUAL TABLE events_fts USING fts5(text, content='');  -- 可检索文本投影
 -- 投影表(可重建,非事实源):session_state / transcript 由 apply 折叠维护
+
+-- V1 生产 mutation companion ledger（均可由事件/命令事实重建或核对）
+-- aggregate_versions(aggregate PRIMARY KEY, version)
+-- command_idempotency(namespace, idempotency_key PRIMARY KEY, semantic_digest, receipt_json)
 ```
 
 - append-only:**无 UPDATE/DELETE** 于 `events`;撤销经 `RetractionEvent` 新事件表达。
@@ -216,11 +246,11 @@ CREATE VIRTUAL TABLE events_fts USING fts5(text, content='');  -- 可检索文�
 - **S21 Schema/Replay**(总纲 §7.4 全规格):v1 事件经 upcast 被 v2 reader 解释;`ReplayReport` 记 schema/policy/loop/model/tool version;replay 出 diff 不覆盖;无 migration note 的 breaking change → 读路径报错。
 - **S1 事件面**(本模块部分):两入口产生**同构**事件序列(仅 run_id/ts/source 不同);均可从 `read_run` 得到相同 `EventKind` 序列。
 - **S19 单写者**(本模块部分):并发 append 被串行化、无交错半写;投影可从事件重建,与在线投影一致。
-- **单元**:append/read round-trip;event_id 去重幂等;v1→v2 upcast 链;`Projection::apply` 折叠确定性;FTS 查询;事务失败回滚不留半条。
+- **单元**:append/read round-trip;event_id 去重幂等;command 同键同义返回原 receipt、同键异义冲突;expected-version stale 零写;动作 intent 幂等键不重复副作用;v1→v2 upcast 链;`Projection::apply` 折叠确定性;FTS 查询;事务失败回滚不留半条。
 
 ## 10. 验收
 
-- append-only 不可变、单写者、每对象带 `schema_version`;投影可从事件完全重建;replay 复现且带版本元数据 + diff(不覆盖历史);`events` 无旁路写路径;S21 通过、S1/S19 事件面通过。
+- append-only 不可变、单写者、每对象带 `schema_version`;`stream_seq` 是排序权威;command/action/aggregate 各自幂等与 CAS 语义闭合;投影可从事件完全重建;replay 复现且带版本元数据 + diff(不覆盖历史);`events` 无旁路写路径;S21 通过、S1/S19 事件面通过。
 
 ## 11. 原创性与合规
 

@@ -107,8 +107,8 @@
 | `acceptance/m5-acceptance-report.md` | M5 最终验收报告。 | A/B/C、S1-S99、typed artifacts、strict gates 与 release audit。 | V1 核心大脑闭合永久回归基线。 | 工程结果已合入 main。 |
 | `requirements/15-v1-core-brain-closure-scope-decisions.md` | V1 核心大脑闭合范围。 | M5 final、完整设计审查。 | `requirements/16`、canonical §28、`architecture/09`。 | 已冻结 B1-B24；不是 M6。 |
 | `requirements/16-v1-core-brain-closure-verification-strategy.md` | V1 闭合验收策略。 | `requirements/15`、S1-S99。 | `architecture/09`、`prd/23`、closure acceptance。 | 已冻结 C1-C24、99-kind 与真实/重启/反向证据。 |
-| `architecture/09-v1-core-brain-runtime-closure-architecture.md` | V1 默认大脑运行闭合架构。 | `requirements/15-16`、canonical §28、M0-M5 architecture。 | `prd/23`、A-D runtime。 | 文档冻结；保持 18 crates，仅追加两个 R 事件。 |
-| `prd/23-v1-core-brain-closure-program-prd.md` | V1 闭合 Program PRD。 | `requirements/15-16`、canonical §28、`architecture/09`。 | A/B/C/D 实现与 C1-C24 验收。 | 文档冻结；按 A→B→C→D 实施中，尚无闭合验收证据。 |
+| `architecture/09-v1-core-brain-runtime-closure-architecture.md` | V1 默认大脑运行闭合架构。 | `requirements/15-16`、canonical §28、M0-M5 architecture。 | `prd/23`、A-D runtime。 | 文档与承重协议冻结；A 波在开发分支施工，尚未独立验收/合入 main；保持 18 crates，仅追加两个 R 事件。 |
+| `prd/23-v1-core-brain-closure-program-prd.md` | V1 闭合 Program PRD。 | `requirements/15-16`、canonical §28、`architecture/09`。 | A/B/C/D 实现与 C1-C24 验收。 | 文档与模块契约冻结；A 波分支施工中，B/C/D 未实施；不得把分支提交写成正式完成。 |
 
 ## 依赖图
 

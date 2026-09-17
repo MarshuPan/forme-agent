@@ -41,6 +41,46 @@ pub struct FailureEvidence { pub class: FailureClass, pub impact: Impact, pub sc
 pub struct FailureDigest { pub members: Vec<FailureRef>, pub summary: DigestSummary }
 ```
 
+### 3.1 DoneContract 的可执行证明
+
+`DoneContract` 不是一段自然语言目标，而是 Verifier 可执行的证据查询计划。每个 criterion 至少必须明确：
+
+```rust
+pub enum EvidenceSelector {
+    EventRange { run: RunId, from: u64, to: Option<u64>, kinds: Vec<EventKind> }, // u64 = Event.stream_seq
+    ActionReceipt { intent: ActionId },
+    FileState { workspace: WorkspaceRef, path: String, digest: Option<SchemaDigest> }, // verifier validates workspace-relative path
+    ExternalGroundTruth { reference: EvidenceRef },
+}
+
+pub enum Predicate {
+    Exists,
+    Equals,
+    MatchesSchema,
+    CountWithin,
+    DigestEquals,
+    CustomDeterministic(DeterministicPredicateRef),
+}
+
+pub struct EvidenceRequirement {
+    pub selector: EvidenceSelector,
+    pub predicate: Predicate,
+    pub tolerance: Option<Tolerance>,
+    pub unverifiable_if: Vec<UnverifiableCondition>,
+}
+
+pub struct EvidenceBundle {
+    pub requirements: Vec<EvidenceRequirement>,
+    pub matched_refs: Vec<EvidenceRef>,
+    pub missing: Vec<EvidenceRequirement>,
+    pub ground_truth_refs: Vec<EvidenceRef>,
+}
+```
+
+`u64` 在本选择器中专指 authority store 分配的 `Event.stream_seq`；不引入第二个 `StreamSeq` protocol newtype。路径保持字符串载荷，但只能通过 workspace-relative path 校验后读取；外部地面真值复用既有 `EvidenceRef`，其 provenance/verification 状态决定是否可用。
+
+Verifier 必须返回每个 criterion 的 matched/missing/unverifiable 结果与实际证据引用；不能只返回一个总体布尔值。模型的最终文本、工具自报“成功”或 subagent 自报“完成”可以作为待验证数据，但不能单独满足 `Exists` 以外的结果证明，也不能覆盖文件/外部 ground truth 的冲突。
+
 ## 4. 接口与签名
 
 ```rust
@@ -50,7 +90,7 @@ pub trait FailureClassifier { fn classify(&self, ev: RawFailure) -> FailureClass
 
 ## 5. 行为/算法/状态机
 
-- **verify**:deterministic + tool result + final output validator 对照 `DoneContract` → `VerificationOutcome` → `VerificationFinished` 事件。
+- **verify**:按 `DoneContract.criteria` 逐条解析 `EvidenceSelector` → 读取权威事件段/动作 receipt/文件状态/外部 ground truth → 执行 deterministic predicate 与 tolerance → 生成带 matched/missing/unverifiable refs 的 `VerificationOutcome` → `VerificationFinished` 事件。证据不足返回 `Unverifiable`，不得猜测为 Pass。
 - **失败分类**:映射到 `FailureTaxonomy` 13 类;`CoordinationError` / loop stop reason 中属失败的映射到此(canonical §11)。`memory_misevolution` 由认知层主动失效自检产(canonical §8 / prd/10)。
 - **digest**:聚类 + 记影响/scope/相关资源/验证/反馈/建议修正;关联 DecisionTrace/CapabilityEvidence/TrustProfileRef/CognitiveMapUpdateProposal。
 - **trace export**:供 replay/可观测。
@@ -60,6 +100,7 @@ pub trait FailureClassifier { fn classify(&self, ev: RawFailure) -> FailureClass
 
 - **`self_eval_trap` 守卫**:自检自己后不过早宣称完成。
 - **验证失败不标记成功**;失败进证据链而非被吞。
+- **结果分层**:`Pass` 只能在所有必需 criterion 满足且没有 hard invariant violation 时产生；任一 criterion `Fail` → `Fail`；证据缺失、权限不可读、外部 ground truth 未验证或副作用未知 → `Unverifiable`。`Unverifiable` 必须降低承诺/能力门输入，并阻止依赖该证明的 promotion 或高等级自治。
 
 ## 7. 配置与可观测
 
@@ -78,11 +119,11 @@ pub trait FailureClassifier { fn classify(&self, ev: RawFailure) -> FailureClass
 
 - **S10(总纲 §7.16)**:工具/验证/审批/主动/资源失败分类 + digest + 关联;final 成功不掩盖。
 - **Verification 矩阵行**:验证结果进 trace;验证失败不标成功。
-- **单元**:13 类映射;`self_eval_trap` 守卫;digest 聚类。
+- **单元**:13 类映射;`self_eval_trap` 守卫;selector/predicate/tolerance 逐条匹配;model self-report 不能独立 Pass;missing/unknown ground truth 返回 Unverifiable;digest 聚类。
 
 ## 10. 验收
 
-- 单一 FailureTaxonomy;verifier 结果进 trace;失败分类 + digest + 关联;成功不掩盖;S10 + Verification 行通过。
+- 单一 FailureTaxonomy;verifier 结果进 trace;DoneContract 可执行且证据引用完整;Pass/Fail/Unverifiable 分离;失败分类 + digest + 关联;成功不掩盖;S10 + Verification 行通过。
 
 ## 11. 原创性与合规
 

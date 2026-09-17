@@ -45,6 +45,37 @@ pub struct RouteNode { pub subtask: Subtask, pub role: SubagentProfile, pub reso
 pub struct SubagentProfile { pub role: Role, pub toolset: Toolset, pub model: ModelProfileRef, pub permission: Scope, pub budget: Budget }  // 无认知
 ```
 
+### 3.1 Route 运行协议
+
+`ExecutionRoute` 是可运行的 DAG 实例，不是只供模型阅读的拓扑描述。每个节点和边都必须有可持久化、可 replay 的运行语义：
+
+```rust
+pub enum RouteNodeState { Pending, Ready, Running, Waiting, Done, Failed, Cancelled, OutcomeUnknown }
+pub enum DependencyFailurePolicy { AbortRoute, ContinueIndependent, ReplanToBrain }
+
+pub struct RouteEdge {
+    pub from: String, // route node id = Subtask.id
+    pub to: String,
+    pub on_failure: DependencyFailurePolicy,
+}
+
+pub struct RouteExecutionRecord {
+    pub route: ExecutionRouteRef,
+    pub node: String,
+    pub state: RouteNodeState,
+    pub parent_run: RunId,
+    pub child_run: Option<RunId>,
+    pub intent_id: Option<ActionId>,
+    pub reserved_budget_units: u64,
+    pub workspace_ref: WorkspaceRef,
+    pub result_ref: Option<ResultRef>,
+}
+```
+
+`RouteNodeState` 的 `Ready`/`Waiting` 是 route runtime 的内部状态；现有 `RouteOutcome` 的 `OutcomeUnknown` 命名继续作为 wire/结果层名称，二者表达同一个“副作用未知、不可盲重试”语义。`ExecutionRouteRef`、`ActionId`、`ResultRef` 和 `WorkspaceRef` 复用既有 protocol 类型；`reserved_budget_units` 是内部账本数值，不新增 protocol ref。
+
+运行记录必须由 authority 事件和 projection 派生；不能只存在 Orchestrator 内存。父 run 取消时按依赖顺序向所有未终态 child 传播取消；父预算在 spawn 前原子预留、child 结束/取消/失败后回收未用额度，所有 child reservation 之和不得超过父剩余预算。child workspace、scope、toolset、model 和 permission 是独立裁剪快照，不得通过共享当前工作目录或可变全局 map间接扩大。
+
 ## 4. 接口与签名
 
 ```rust
@@ -67,7 +98,8 @@ pub trait OrchestrationLibrary {
 - **plan**:自我盘点(读 AgentSelfModel,prd/11)→ 看缺口(`SituationModel`)→ 定资源(读 CognitiveMap prd/10 + capabilities prd/07)→ 产 `ResourcePlan`/`DoneContract`/`AutonomyEnvelope`/`DecisionTrace`。**产约束,不产分步**——模型在 loop 内于约束下规划。
 - **orchestration**:`match_pattern`(6 维适用签名)→ 命中用模式 / 不够则**定制** / 有效则经 prd/10 A3 **沉淀**;`route` 产 `ExecutionRoute`(DAG)。单 vs 多是匹配里的一步;可以输出"不进库、大脑直接处理"。
 - **subagent**:`Orchestrator` 产 route → **经 harness** spawn child run(scoped toolset/model/permission/budget、无认知);结果按 summary/result 回;整合冲突 → 上抛大脑裁(canonical §8/§13)。
-- **路线运行语义(M0 即写明,实现可薄)**:RouteNode 状态机 `Pending→Running→Done|Failed|Cancelled`;依赖失败策略按边声明(abort_route / continue / replan→上抛);**父取消级联子取消**;子代理预算自父 run 预算**原子预留**(Σ子 ≤ 父剩余,结束回收);文件副作用隔离(子代理独立工作区,产物经 summary/result contract 交回,不直写父工作区);重试按节点声明、以 `intent_id` 幂等键防重复副作用。
+- **路线运行语义(M0 即写明,实现可薄)**:RouteNode 状态机 `Pending→Ready→Running→Waiting|Done|Failed|Cancelled|Unknown`;依赖失败策略按边声明(abort_route / continue / replan→上抛);**父取消级联子取消**;子代理预算自父 run 预算**原子预留**(Σ子 ≤ 父剩余,结束回收);文件副作用隔离(子代理独立工作区,产物经 summary/result contract 交回,不直写父工作区);重试按节点声明、以 `intent_id` 幂等键防重复副作用;`Unknown` 节点只能取原 receipt/probe/owner 裁决，不能盲重试。
+- **状态推进**:节点 claim、状态迁移、预算 reservation、result/ref 绑定必须在同一 authority 语义下幂等；重复 completion 不得重复回收预算或重复写父结果。节点失败策略只能收紧父 route，不得使子代理获得更高 autonomy。
 - **blocked**:无 DoneContract 或资源不可信 → **不假装已具备行动路线**(标 blocked,不进执行相)。
 
 ## 6. 错误/安全/权限/审批
@@ -94,11 +126,11 @@ pub trait OrchestrationLibrary {
 
 - **S6(总纲 §7.9)**:`GoalFramed` → `ResourcePlanned`/`DoneContractSet`/`AutonomyEnvelopeSet`/`DecisionTraceRecorded`;可解释;无 DoneContract 时 blocked。
 - **S11(总纲 §7.10)**:`SubagentSpawned`(scoped)→ 越权被拒 → `SubagentResultReturned`;不写父稳定层。
-- **单元**:产约束不产分步;模式匹配/定制兜底/沉淀;subagent scoped;blocked 路径。
+- **单元**:产约束不产分步;模式匹配/定制兜底/沉淀;每种 RouteNodeState 可达且可 replay;依赖失败三种策略;父预算原子预留/回收;取消级联;workspace/toolset/model/permission 隔离;retry intent 幂等;Unknown 零盲重试;subagent scoped;blocked 路径。
 
 ## 10. 验收
 
-- coordination 产约束不产分步;DecisionTrace 可解释;编排 match/定制/sediment;subagent scoped + 回传 + 不写稳定层;单脑;模式≠大脑;S6/S11 通过。
+- coordination 产约束不产分步;DecisionTrace 可解释;编排 match/定制/sediment;route 有完整状态/依赖/预算/取消/隔离/unknown 运行语义;subagent scoped + 回传 + 不写稳定层;单脑;模式≠大脑;S6/S11 通过。
 
 ## 11. 原创性与合规
 

@@ -402,6 +402,51 @@ pub struct DataLifecycleAppliedPayload {
 
 启动恢复顺序固定为：store integrity/owner binding -> unknown action/remote/ecosystem recovery -> aggregate replay -> scheduler/tick lease recovery -> registry reconciliation -> dashboard rebuild check -> 接受入口。
 
+### 12.1 运行状态恢复契约
+
+运行状态必须把“暂时不能继续”和“已经结束”分开表达：
+
+| 类别 | 状态 | 是否可继续 | 必须保留的事实 |
+|---|---|---:|---|
+| 可运行 | `Accepted` / `Running` | 是 | 当前 run、turn、snapshot 与已消费的幂等键 |
+| 可恢复挂起 | `Waiting` / `Suspended` | 是 | `PendingKind`、resume state、等待原因、过期时间 |
+| 终态 | `Complete` / `Aborted` / `Failed` / `Limited` | 否 | stop reason、result/evidence refs、最终 stream cursor |
+| 副作用未知 | `Suspended(ToolInterrupt)` + `ActionOutcomeUnknown` | 仅裁决后 | intent、plan digest、attempt、probe/裁决记录；不得自动重试 |
+
+`ResumeInput` 必须与 `PendingKind` 一一匹配：审批等待只能接受绑定当前 plan 的 `ApprovalGrant`，工具中断只能接受原 `intent_id` 的可信 receipt/probe 结果或 owner 裁决，handoff 只能接受当前 checkpoint 的 resolution。恢复前重新校验 owner、scope、policy、grant、envelope、plan digest 和 schema snapshot；校验失败时零动作、零状态推进。
+
+启动恢复扫描不是“把未完成 run 重新执行一遍”，而是：扫描已持久化的中间事实，补记未知结果或恢复记录，重建挂起状态，随后等待明确裁决。只有已证明没有副作用、且符合 retry policy 的 attempt 才能建立新 attempt；同一 `intent_id` 不得盲重放。
+
+### 12.2 事件写入与状态投影契约
+
+所有会改变稳定事实的操作采用统一事务边界：
+
+```text
+typed command
+ -> authenticate / authorize / expected-version check
+ -> assign authority stream_seq
+ -> append immutable event
+ -> update the derived projection in the same transaction
+ -> return the committed result
+```
+
+`event_id`、command `idempotency_key`、动作 `intent_id` 和聚合 `expected_version` 分别解决不同问题，不能互相替代。`stream_seq` 由 authority store 分配，是唯一排序权威；时间戳和 ULID 只作信息字段。重复同义 command 必须返回原提交结果，重复键的异义 payload 必须以 conflict 拒绝且不推进版本。
+
+任何 `set_*`、`transition`、`decay`、edge-weight 更新或 lifecycle mutation 都只能是上述 command 的内部实现，不得直接写 projection/cache。瞬时 `current_activation` 可以由 event range + snapshot + 确定性衰减函数按读时派生；会影响 replay、召回或治理判断的边权、巩固、修剪和候选状态变化必须进入结构化事件/maintenance delta。在线 fold 与 replay fold 必须共享同一验证和应用语义。
+
+### 12.3 最终计划、审批和验证契约
+
+执行路径至少有两次治理检查：
+
+1. `ActionIntent` 产生候选计划时，做一次初始 policy/competence/approval 判断；
+2. 形成不可变 `ExecutionPlan`、批准返回、driver 调用前，分别重新检查最终 plan digest、参数、backend、scope、timeout、rollback、capability、policy snapshot、grant/envelope、owner epoch 和 schema。
+
+审批绑定的是最终计划，而不是“某类动作”的泛化许可。任何 plan 字段变化都必须形成新 digest、新 approval ticket/nonce（如需要）和新审计链。`Verifier` 不得以模型文本或动作自报为唯一证据；它必须按 `DoneContract` 的 selector/predicate/tolerance 读取事件段、动作结果、文件/外部 ground truth，并显式返回 `Pass`、`Fail` 或 `Unverifiable`。
+
+### 12.4 文档与实现状态契约
+
+`main` 是用户可复用的基线，功能分支是施工现场。架构/PRD 可以记录当前分支的实现进度，但只有对应 commit 已通过该波独立验收、永久回归、合规门和 clean-tree release audit 并合入 `main`，才允许在总入口写“完成”“闭合”或“永久基线”。这条规则防止文档把草案、局部测试和正式交付混为一谈。
+
 ## 13. Crate 增量职责
 
 | crate | V1 闭合职责 |

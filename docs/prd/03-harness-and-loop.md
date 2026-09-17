@@ -124,6 +124,37 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 - **背景 tick 调度(canonical §18)**:**前台优先、绝不打断**——执行中的 run 不被新念头劫持(承诺守卫);后台只在 `PostTurn/Idle/Schedule/Diff` 触发,无有意义触发不跑;调 `ProactivityEngine::tick(trigger, snapshot)`(只读快照,产 Impulse/candidate,不动手);后台内部按价值排队。长任务/多 Agent 跑时后台重活暂停。
 - **并发(§7)**:同 session run 进 `SessionQueues` 串行;所有事件经 store 单写路径;子代理 child run 只读快照、只回 summary/result、不写父 session 稳定态。
 
+### 5.2 恢复与未知副作用的实施契约
+
+`LoopState::Suspended` 是可恢复状态，`LoopState::Terminal` 才是终态。实现不得把 `Waiting` 作为 terminal，也不得用“进程重启后从最后一条模型消息重新跑”代替恢复。
+
+启动恢复扫描按以下顺序执行：
+
+1. 读取 authority store 的 integrity、owner binding、aggregate version 和最后 `stream_seq`；
+2. 找出已持久化 `ActionStarted` 但没有 `ActionCompleted`/`ActionFailed`/`ActionCancelled` 的 `intent_id`，追加 `ActionOutcomeUnknown`（重复扫描幂等）；
+3. 找出未完成 approval、handoff、tool interrupt 和 lease，重建 `ResumeState`，过期或不匹配的输入直接失效；
+4. 只有在 unknown 已由原 receipt、只读 probe 或 owner 裁决解决后，才允许继续；否则保持 `Suspended(ToolInterrupt)`；
+5. 恢复 scheduler/tick lease，最后才接受新的入口请求。
+
+恢复输入必须与挂起原因匹配：
+
+| `PendingKind` | 允许的 `ResumeInput` | 额外校验 | 禁止行为 |
+|---|---|---|---|
+| `ApprovalWait` | 当前 approval 的 `ApprovalGrant` | approver、nonce、expiry、最终 plan digest、policy/tool schema snapshot | 用旧 grant 批新 plan |
+| `ToolInterrupt` | 原 intent 的可信 receipt/probe 或 owner `ToolOutcome` 裁决 | `intent_id`、attempt、scope、plan digest、unknown 状态 | 未知时直接 retry |
+| `Handoff` | 当前 durable checkpoint 的 `HandoffResolution` | checkpoint、owner、scope、目标与版本 | 搬运未验证模型状态 |
+
+任一恢复校验失败都必须零 driver call、零稳定状态推进，并记录可审计的 failure/blocked 原因。`ActionOutcomeUnknown` 不是失败的同义词，也不是成功的同义词；它是“副作用可能已发生、当前不能证明结果”的独立状态。
+
+### 5.3 最终计划与执行前双重重查
+
+工具 proposal 到 driver 之间至少经过两次计划相关检查：
+
+- `ActionIntent` 阶段检查候选 scope、toolset、风险和能力门，决定 allow/ask/deny；
+- `ActionBackend::plan` 生成不可变 `ExecutionPlan` 后，把规范化 backend、参数、受影响资源、timeout、rollback、capability、scope 和 schema 计算为 `PlanDigest`；审批返回后、实际 driver 调用前再次检查该 digest 与 policy/grant/envelope/competence/owner epoch。
+
+`ActionPlanned` 记录最终计划；任何审批后字段变化都必须废弃原 approval 并重新规划、重审、重批。不能只在 `ActionIntent` 上检查一次后允许 backend 自行补字段。driver 返回后再由 `Verifier` 按 `DoneContract` 取证，结果不明不能被 loop 当作成功。
+
 ## 6. 错误/安全/权限/审批
 
 - **错误 → FailureTaxonomy**(canonical §11):`handoff_failure`(交接不完整/成环)、`safety_policy_failure`(咽喉点缺失/误判)、`self_eval_trap`(自检过早宣称完成)、`execution_failure`(重试耗尽);loop stop reason 中属失败的映射到分类。
@@ -152,7 +183,9 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 
 - **S1(harness 侧,总纲 §7.1)**:CLI/Gateway 提交同 `RunRequest` → 同构事件序列(`RunAccepted→SessionBound→…→RunComplete`);**无 loop 直调口**;Gateway 提交仍经 `SessionBound` 绑 policy。
 - **S2(总纲 §7.2 的 loop 侧)**:max_turns / cancel / tool error / approval deny 后**不丢状态**——可从 `ResumeState` 续或干净收尾;咽喉点序列正确(policy 早于 execute)。
-- **S19(总纲 §7.3)**:同 session A、B 串行(B.`TurnStarted` 不早于 A.`RunComplete`);后台 tick 只产 candidate、不产 stable 写;承诺守卫:执行中 run 不被 tick 劫持。
+- **S19(总纲 §7.3)**:同 session A、B 串行(B.`TurnStarted` 不早于 A.`RunComplete`);后台 tick 只产 candidate、不产 stable 写;承诺守卫:执行中 run 不被 tick 劫持;重复 command/恢复扫描不重复 driver 副作用。
+- **V1 closure recovery**:模拟 `ActionStarted` 后崩溃，重启必须得到唯一 `ActionOutcomeUnknown` 和挂起态；无裁决时 driver call=0；合法 receipt/owner 裁决后只恢复一次。
+- **V1 closure plan binding**:审批后修改 backend、参数、scope、timeout 或 rollback 任一字段，最终重查必须拒绝并要求新 approval；旧 grant 不得复用。
 - **单元**:状态迁移全覆盖;每个 `StopReason` 可达且干净;resume 往返;咽喉点乱序被拒(policy 必先于 execute);tick 无触发不跑。
 
 ## 10. 验收
