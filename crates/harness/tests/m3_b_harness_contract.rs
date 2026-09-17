@@ -757,6 +757,8 @@ fn approval_grant(request: &forme_approval::ApprovalRequest) -> ApprovalGrant {
         granted_scope: GrantScope::OneShot,
         approver: p::VerifiedPrincipal("owner:m3-b".into()),
         bound_plan_digest: request.plan_digest.clone(),
+        normalized_action_digest: request.normalized_action_digest.clone(),
+        affected_resources: request.affected_resources.clone(),
         policy_version: request.policy_version,
         tool_schema_version: request.tool_schema_version,
         nonce: p::Nonce("nonce:m3-b-outward".into()),

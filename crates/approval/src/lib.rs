@@ -17,6 +17,7 @@ pub struct ApprovalRequest {
     pub risk_level: p::Risk,
     pub scope: p::Scope,
     pub requested_permissions: Vec<p::PermissionRef>,
+    pub normalized_action_digest: p::SchemaDigest,
     pub affected_resources: Vec<p::ResourceRef>,
     pub rollback_boundary: p::RollbackBoundary,
     pub expires_at: p::Timestamp,
@@ -52,6 +53,8 @@ pub struct ApprovalGrant {
     pub granted_scope: GrantScope,
     pub approver: p::VerifiedPrincipal,
     pub bound_plan_digest: p::PlanDigest,
+    pub normalized_action_digest: p::SchemaDigest,
+    pub affected_resources: Vec<p::ResourceRef>,
     pub policy_version: p::Version,
     pub tool_schema_version: p::Version,
     pub nonce: p::Nonce,
@@ -64,6 +67,8 @@ pub struct ApprovalAuthorization {
     pub session: p::SessionId,
     pub scope: p::Scope,
     pub plan_digest: p::PlanDigest,
+    pub normalized_action_digest: p::SchemaDigest,
+    pub affected_resources: Vec<p::ResourceRef>,
     pub policy_version: p::Version,
     pub tool_schema_version: p::Version,
     pub now: p::Timestamp,
@@ -144,6 +149,19 @@ impl InMemoryApprovalBroker {
         {
             return Err(p::Error("execution plan changed after approval".into()));
         }
+        let normalized_action_digest = p::normalized_action_digest(&authorization.intent)?;
+        let affected_resources = p::affected_resources_for(&authorization.intent);
+        if authorization.normalized_action_digest != normalized_action_digest
+            || authorization.normalized_action_digest != active.request.normalized_action_digest
+            || authorization.normalized_action_digest != active.grant.normalized_action_digest
+            || authorization.affected_resources != affected_resources
+            || authorization.affected_resources != active.request.affected_resources
+            || authorization.affected_resources != active.grant.affected_resources
+        {
+            return Err(p::Error(
+                "approval action or resource binding changed".into(),
+            ));
+        }
         if authorization.policy_version != active.grant.policy_version
             || authorization.policy_version != active.request.policy_version
             || authorization.tool_schema_version != active.grant.tool_schema_version
@@ -199,8 +217,14 @@ impl ApprovalBroker for InMemoryApprovalBroker {
         if request.action_summary.trim().is_empty()
             || request.choices.is_empty()
             || request.plan_digest.0.trim().is_empty()
+            || request.normalized_action_digest.0.trim().is_empty()
         {
             return Err(p::Error("approval request is incomplete".into()));
+        }
+        if p::normalize_resource_set(&request.affected_resources) != request.affected_resources {
+            return Err(p::Error(
+                "approval resources must be a canonical set".into(),
+            ));
         }
 
         let mut state = self.lock_state()?;
@@ -291,12 +315,19 @@ fn validate_grant(
         return Err(p::Error("approval requires a verified principal".into()));
     }
     if grant.bound_plan_digest != request.plan_digest
+        || grant.normalized_action_digest != request.normalized_action_digest
+        || grant.affected_resources != request.affected_resources
         || grant.policy_version != request.policy_version
         || grant.tool_schema_version != request.tool_schema_version
     {
         return Err(p::Error(
             "approval binding does not match the request".into(),
         ));
+    }
+    if grant.normalized_action_digest.0.trim().is_empty()
+        || p::normalize_resource_set(&grant.affected_resources) != grant.affected_resources
+    {
+        return Err(p::Error("approval binding is not canonical".into()));
     }
     if grant.nonce.0.trim().is_empty() || used_nonces.contains(&grant.nonce) {
         return Err(p::Error("approval nonce is invalid or already used".into()));

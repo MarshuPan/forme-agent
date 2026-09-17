@@ -5,8 +5,8 @@ use crate::{
     DurationMs, Error, EvalCaseRef, EvalRef, Event, EventId, EventKind, IntentionId,
     IntentionSource, IntentionTriggerRef, LineageRef, ModelProfileRef, Nonce, ObjectRef,
     PermissionRef, PlanDigest, PolicyProfileRef, Provenance, ReplaySnapshotRef, ResourceRef,
-    Result, RollbackBoundary, RubricRef, RunId, RunRequest, RunResult, RunStatus, SchemaVersion,
-    Scope, SeedRef, SessionId, Source, SurfaceRef, Timestamp, ToolsetRef, TrustTier,
+    Result, RollbackBoundary, RubricRef, RunId, RunRequest, RunResult, RunStatus, SchemaDigest,
+    SchemaVersion, Scope, SeedRef, SessionId, Source, SurfaceRef, Timestamp, ToolsetRef, TrustTier,
     VerificationOutcome, VerifiedPrincipal, Version, WorkspaceRef,
 };
 
@@ -166,6 +166,7 @@ pub struct PendingApproval {
     pub risk_level: crate::Risk,
     pub scope: Scope,
     pub requested_permissions: Vec<PermissionRef>,
+    pub normalized_action_digest: SchemaDigest,
     pub affected_resources: Vec<ResourceRef>,
     pub rollback_boundary: RollbackBoundary,
     pub expires_at: Timestamp,
@@ -185,10 +186,14 @@ impl PendingApproval {
             || self.scope.0.trim().is_empty()
             || self.choices.is_empty()
             || self.plan_digest.0.trim().is_empty()
+            || self.normalized_action_digest.0.trim().is_empty()
             || self.policy_version.0 == 0
             || self.tool_schema_version.0 == 0
         {
             return Err(Error("pending approval is incomplete".into()));
+        }
+        if crate::normalize_resource_set(&self.affected_resources) != self.affected_resources {
+            return Err(Error("pending approval resources are not canonical".into()));
         }
         Ok(())
     }
@@ -211,6 +216,8 @@ pub struct ApprovalDecision {
     pub outcome: ApprovalOutcome,
     pub approver: VerifiedPrincipal,
     pub bound_plan_digest: PlanDigest,
+    pub normalized_action_digest: SchemaDigest,
+    pub affected_resources: Vec<ResourceRef>,
     pub policy_version: Version,
     pub tool_schema_version: Version,
     pub nonce: Nonce,
@@ -223,12 +230,18 @@ impl ApprovalDecision {
             || self.approval_id.0.trim().is_empty()
             || self.approver.0.trim().is_empty()
             || self.bound_plan_digest.0.trim().is_empty()
+            || self.normalized_action_digest.0.trim().is_empty()
             || self.nonce.0.trim().is_empty()
             || self.policy_version.0 == 0
             || self.tool_schema_version.0 == 0
             || self.use_by <= 0
         {
             return Err(Error("approval decision is incomplete".into()));
+        }
+        if crate::normalize_resource_set(&self.affected_resources) != self.affected_resources {
+            return Err(Error(
+                "approval decision resources are not canonical".into(),
+            ));
         }
         Ok(())
     }

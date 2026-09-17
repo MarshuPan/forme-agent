@@ -320,6 +320,8 @@ fn s44_s45_real_loopback_delivery_stays_inside_disclosure_and_harness_governance
                 outcome: p::ApprovalOutcome::Granted,
                 approver: owner,
                 bound_plan_digest: approval.plan_digest.clone(),
+                normalized_action_digest: approval.normalized_action_digest.clone(),
+                affected_resources: approval.affected_resources.clone(),
                 policy_version: approval.policy_version,
                 tool_schema_version: approval.tool_schema_version,
                 nonce: p::Nonce("nonce:m2-b-real-delivery".into()),

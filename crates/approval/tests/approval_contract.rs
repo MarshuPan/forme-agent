@@ -76,6 +76,8 @@ fn grant_binds_approver_digest_policy_schema_nonce_and_expiry() {
 
     for (label, mutate) in [
         ("digest", mutate_digest as fn(&mut ApprovalGrant)),
+        ("action-digest", mutate_action_digest),
+        ("resources", mutate_resources),
         ("policy", mutate_policy),
         ("tool-schema", mutate_tool_schema),
         ("approver", mutate_approver),
@@ -110,6 +112,17 @@ fn one_shot_is_consumed_once_and_post_approval_plan_change_is_rejected() {
         .unwrap();
     let mut changed = authorization("approval-mutated-plan");
     changed.plan_digest = p::PlanDigest("sha256:changed".into());
+    assert!(broker.authorize(&changed).is_err());
+
+    let ticket = broker.request(request("approval-mutated-action")).unwrap();
+    broker
+        .resolve(
+            ticket,
+            granted("approval-mutated-action", GrantScope::OneShot),
+        )
+        .unwrap();
+    let mut changed = authorization("approval-mutated-action");
+    changed.intent = shell_intent("powershell");
     assert!(broker.authorize(&changed).is_err());
 }
 
@@ -164,9 +177,14 @@ fn expired_request_or_grant_never_authorizes_and_nonce_cannot_be_replayed() {
     let mut replay = granted("approval-nonce-b", GrantScope::OneShot);
     replay.nonce = p::Nonce("nonce-approval-nonce-a".into());
     assert!(broker.resolve(ticket, replay).is_err());
+
+    let mut noncanonical = request("approval-noncanonical-resources");
+    noncanonical.affected_resources.reverse();
+    assert!(broker.request(noncanonical).is_err());
 }
 
 fn request(id: &str) -> ApprovalRequest {
+    let intent = shell_intent("git");
     ApprovalRequest {
         schema_version: p::SchemaVersion(1),
         approval_id: p::ApprovalId(id.into()),
@@ -175,7 +193,8 @@ fn request(id: &str) -> ApprovalRequest {
         risk_level: p::Risk::High,
         scope: p::Scope("workspace:alpha".into()),
         requested_permissions: vec![p::PermissionRef("execute".into())],
-        affected_resources: vec![p::ResourceRef("repository".into())],
+        normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
+        affected_resources: p::affected_resources_for(&intent),
         rollback_boundary: p::RollbackBoundary("none".into()),
         expires_at: 100,
         choices: vec![p::ApprovalChoice("approve-once".into())],
@@ -186,6 +205,7 @@ fn request(id: &str) -> ApprovalRequest {
 }
 
 fn granted(id: &str, granted_scope: GrantScope) -> ApprovalGrant {
+    let intent = shell_intent("git");
     ApprovalGrant {
         schema_version: p::SchemaVersion(1),
         approval_id: p::ApprovalId(id.into()),
@@ -193,6 +213,8 @@ fn granted(id: &str, granted_scope: GrantScope) -> ApprovalGrant {
         granted_scope,
         approver: p::VerifiedPrincipal("owner".into()),
         bound_plan_digest: p::PlanDigest("sha256:approved".into()),
+        normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
+        affected_resources: p::affected_resources_for(&intent),
         policy_version: p::Version(7),
         tool_schema_version: p::Version(11),
         nonce: p::Nonce(format!("nonce-{id}")),
@@ -208,15 +230,18 @@ fn denied_grant(id: &str) -> ApprovalGrant {
 }
 
 fn authorization(id: &str) -> ApprovalAuthorization {
+    let intent = shell_intent("git");
     ApprovalAuthorization {
         approval_id: p::ApprovalId(id.into()),
         session: p::SessionId("session-1".into()),
         scope: p::Scope("workspace:alpha".into()),
         plan_digest: p::PlanDigest("sha256:approved".into()),
+        normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
+        affected_resources: p::affected_resources_for(&intent),
         policy_version: p::Version(7),
         tool_schema_version: p::Version(11),
         now: 10,
-        intent: shell_intent("git"),
+        intent,
     }
 }
 
@@ -277,6 +302,16 @@ fn policy_context(engine: &DefaultPolicyEngine, decision: p::PolicyDecision) -> 
 
 fn mutate_digest(grant: &mut ApprovalGrant) {
     grant.bound_plan_digest = p::PlanDigest("sha256:other".into());
+}
+
+fn mutate_action_digest(grant: &mut ApprovalGrant) {
+    grant.normalized_action_digest = p::SchemaDigest("sha256:other-action".into());
+}
+
+fn mutate_resources(grant: &mut ApprovalGrant) {
+    grant
+        .affected_resources
+        .push(p::ResourceRef("path:other".into()));
 }
 
 fn mutate_policy(grant: &mut ApprovalGrant) {

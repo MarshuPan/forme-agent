@@ -3944,6 +3944,8 @@ impl ReactiveHarness {
             session: record.loop_ctx.session.clone(),
             scope: pending.intent.scope.clone(),
             plan_digest: pending.plan.digest.clone(),
+            normalized_action_digest: pending.plan.normalized_action_digest.clone(),
+            affected_resources: pending.plan.affected_resources.clone(),
             policy_version: self.config.policy_version,
             tool_schema_version: self.config.tool_schema_version,
             now: now_ms(),
@@ -4496,6 +4498,8 @@ impl GatewayControl for ReactiveHarness {
                         granted_scope: GrantScope::OneShot,
                         approver: decision.approver,
                         bound_plan_digest: decision.bound_plan_digest,
+                        normalized_action_digest: decision.normalized_action_digest,
+                        affected_resources: decision.affected_resources,
                         policy_version: decision.policy_version,
                         tool_schema_version: decision.tool_schema_version,
                         nonce: decision.nonce,
@@ -5231,7 +5235,8 @@ fn approval_request(
         risk_level: intent.risk_hint,
         scope: intent.scope.clone(),
         requested_permissions: intent.requested_permissions.clone(),
-        affected_resources: affected_resources(intent),
+        normalized_action_digest: plan.normalized_action_digest.clone(),
+        affected_resources: plan.affected_resources.clone(),
         rollback_boundary: plan.rollback_boundary.clone(),
         expires_at: now.saturating_add(ttl),
         choices: vec![
@@ -5244,53 +5249,6 @@ fn approval_request(
     })
 }
 
-fn affected_resources(intent: &p::ActionIntent) -> Vec<p::ResourceRef> {
-    match &intent.parameters {
-        p::ActionParameters::Shell { cwd, .. } => cwd
-            .iter()
-            .map(|cwd| p::ResourceRef(format!("path:{cwd}")))
-            .collect(),
-        p::ActionParameters::File { path, .. } => {
-            vec![p::ResourceRef(format!("path:{path}"))]
-        }
-        p::ActionParameters::Mcp { server, tool, .. } => {
-            vec![p::ResourceRef(format!("mcp:{}:{}", server.0, tool.0))]
-        }
-        p::ActionParameters::Notification {
-            surface, target, ..
-        } => vec![
-            p::ResourceRef(format!("surface:{}", surface.0)),
-            p::ResourceRef(format!("participant:{}", target.0)),
-        ],
-        p::ActionParameters::Browser(spec) => vec![
-            p::ResourceRef(format!("browser-driver:{}", spec.driver.0)),
-            p::ResourceRef(format!("url:{}", spec.target_url)),
-        ],
-        p::ActionParameters::Computer(spec) => vec![
-            p::ResourceRef(format!("computer-driver:{}", spec.driver.0)),
-            p::ResourceRef(format!("surface:{}", spec.surface.0)),
-        ],
-        p::ActionParameters::Pty(spec) => vec![
-            p::ResourceRef(format!("program:{}", spec.program)),
-            p::ResourceRef(format!("path:{}", spec.cwd)),
-        ],
-        p::ActionParameters::AppApi(spec) => {
-            let mut resources = vec![
-                p::ResourceRef(format!("connector:{}", spec.connector.0)),
-                p::ResourceRef(format!("endpoint:{}", spec.endpoint)),
-            ];
-            if let Some(participant) = &spec.participant {
-                resources.push(p::ResourceRef(format!("participant:{}", participant.0)));
-            }
-            resources
-        }
-        p::ActionParameters::Remote(spec) => vec![
-            p::ResourceRef(format!("federated-peer:{}", spec.placement.executor.0)),
-            p::ResourceRef(format!("peer-grant:{}", spec.placement.peer_grant.0)),
-        ],
-    }
-}
-
 fn pending_approval(run: p::RunId, request: ApprovalRequest) -> p::PendingApproval {
     p::PendingApproval {
         schema_version: request.schema_version,
@@ -5301,6 +5259,7 @@ fn pending_approval(run: p::RunId, request: ApprovalRequest) -> p::PendingApprov
         risk_level: request.risk_level,
         scope: request.scope,
         requested_permissions: request.requested_permissions,
+        normalized_action_digest: request.normalized_action_digest,
         affected_resources: request.affected_resources,
         rollback_boundary: request.rollback_boundary,
         expires_at: request.expires_at,

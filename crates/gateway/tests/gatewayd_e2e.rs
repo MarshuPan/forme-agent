@@ -340,6 +340,8 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
         outcome: p::ApprovalOutcome::Granted,
         approver: p::VerifiedPrincipal("owner:other".into()),
         bound_plan_digest: p::PlanDigest("digest:not-pending".into()),
+        normalized_action_digest: p::SchemaDigest("sha256:not-pending".into()),
+        affected_resources: Vec::new(),
         policy_version: p::Version(1),
         tool_schema_version: p::Version(1),
         nonce: p::Nonce("nonce:wrong-principal".into()),
