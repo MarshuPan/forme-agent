@@ -21,18 +21,92 @@ fn plan_digest_is_deterministic_and_mutation_is_rejected_before_effects() {
     let first = backend.plan(&intent).unwrap();
     let second = backend.plan(&intent).unwrap();
     assert_eq!(first.digest, second.digest);
+    assert_eq!(
+        first.normalized_action_digest,
+        p::normalized_action_digest(&intent).unwrap()
+    );
+    assert_eq!(first.affected_resources, p::affected_resources_for(&intent));
     assert!(first.digest.0.starts_with("sha256:"));
 
-    let mut mutated = first;
-    let p::ActionParameters::Shell { args, .. } = &mut mutated.intent.parameters else {
+    let approval = p::ApprovalId("approval:exact-plan".into());
+    let approved = first.clone().with_approval(approval.clone());
+    approved.validate_digest().unwrap();
+    assert_eq!(approved.approval_ref, Some(approval));
+
+    let mut mutated_intent = first.clone();
+    let p::ActionParameters::Shell { args, .. } = &mut mutated_intent.intent.parameters else {
         panic!("fixture must remain shell parameters");
     };
     args.push("--mutated-after-approval".into());
-    let sink = EventSink::default();
-    assert!(backend
-        .execute(mutated, &sink, CancelToken::default())
-        .is_err());
-    assert!(sink.events().is_empty());
+
+    let mut mutated_action_digest = first.clone();
+    mutated_action_digest.normalized_action_digest = p::SchemaDigest("sha256:forged".into());
+
+    let mut mutated_resources = first.clone();
+    mutated_resources
+        .affected_resources
+        .push(p::ResourceRef("path:extra".into()));
+
+    let mut mutated_backend = first.clone();
+    mutated_backend.backend = p::BackendKind::File;
+
+    let mut mutated_scope = first.clone();
+    mutated_scope.scope = p::Scope("workspace:changed".into());
+
+    let mut mutated_timeout = first.clone();
+    mutated_timeout.timeout = p::DurationMs(2_000);
+
+    let mut mutated_budget = first.clone();
+    mutated_budget.budget.max_bytes += 1;
+
+    let mut mutated_rollback = first.clone();
+    mutated_rollback.rollback_boundary = p::RollbackBoundary("changed".into());
+
+    let mut mutated_verifier = first;
+    mutated_verifier.verify_ref = Some(p::VerifyRef("verify:changed".into()));
+
+    for plan in [
+        mutated_intent,
+        mutated_action_digest,
+        mutated_resources,
+        mutated_backend,
+        mutated_scope,
+        mutated_timeout,
+        mutated_budget,
+        mutated_rollback,
+        mutated_verifier,
+    ] {
+        let sink = EventSink::default();
+        assert!(backend
+            .execute(plan, &sink, CancelToken::default())
+            .is_err());
+        assert!(sink.events().is_empty());
+    }
+}
+
+#[test]
+fn plan_digest_uses_normalized_permission_set_semantics() {
+    let planner =
+        DefaultExecutionPlanner::new(OutputBudget::truncate_at(128), p::DurationMs(1_000));
+    let mut left = shell_intent();
+    left.requested_permissions = vec![
+        p::PermissionRef("workspace:read".into()),
+        p::PermissionRef("process:execute".into()),
+        p::PermissionRef("workspace:read".into()),
+    ];
+    let mut right = left.clone();
+    right.requested_permissions = vec![
+        p::PermissionRef("process:execute".into()),
+        p::PermissionRef("workspace:read".into()),
+    ];
+
+    let left = planner.plan(&left).unwrap();
+    let right = planner.plan(&right).unwrap();
+    assert_eq!(
+        left.normalized_action_digest,
+        right.normalized_action_digest
+    );
+    assert_eq!(left.digest, right.digest);
 }
 
 #[test]

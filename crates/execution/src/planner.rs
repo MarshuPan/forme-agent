@@ -1,7 +1,5 @@
-use forme_protocol as p;
-use sha2::{Digest, Sha256};
-
 use crate::{BackendKind, ExecutionPlanner};
+use forme_protocol as p;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputBudget {
@@ -32,6 +30,8 @@ impl OutputBudget {
 pub struct ExecutionPlan {
     pub schema_version: p::SchemaVersion,
     pub digest: p::PlanDigest,
+    pub normalized_action_digest: p::SchemaDigest,
+    pub affected_resources: Vec<p::ResourceRef>,
     pub intent: p::ActionIntent,
     pub backend: BackendKind,
     pub scope: p::Scope,
@@ -44,6 +44,18 @@ pub struct ExecutionPlan {
 
 impl ExecutionPlan {
     pub fn validate_digest(&self) -> p::Result<()> {
+        let normalized_action_digest = p::normalized_action_digest(&self.intent)?;
+        if normalized_action_digest != self.normalized_action_digest {
+            return Err(p::Error(
+                "execution plan action digest does not match its intent".into(),
+            ));
+        }
+        let affected_resources = p::affected_resources_for(&self.intent);
+        if affected_resources != self.affected_resources {
+            return Err(p::Error(
+                "execution plan affected resources do not match its intent".into(),
+            ));
+        }
         let expected = digest_plan(self)?;
         if expected != self.digest {
             return Err(p::Error(
@@ -54,10 +66,15 @@ impl ExecutionPlan {
     }
 
     pub fn refresh_digest(&mut self) -> p::Result<()> {
+        self.normalized_action_digest = p::normalized_action_digest(&self.intent)?;
+        self.affected_resources = p::affected_resources_for(&self.intent);
         self.digest = digest_plan(self)?;
         Ok(())
     }
 
+    /// Approval identity is intentionally excluded from `PlanDigest`: the
+    /// request is created from the digest first, then the returned approval id
+    /// is attached and checked independently by the harness.
     pub fn with_approval(mut self, approval: p::ApprovalId) -> Self {
         self.approval_ref = Some(approval);
         self
@@ -245,6 +262,8 @@ pub(crate) fn plan_with(
     let mut plan = ExecutionPlan {
         schema_version: p::SchemaVersion(1),
         digest: p::PlanDigest(String::new()),
+        normalized_action_digest: p::SchemaDigest(String::new()),
+        affected_resources: Vec::new(),
         intent: intent.clone(),
         backend: intent.backend_hint,
         scope: intent.scope.clone(),
@@ -329,9 +348,11 @@ fn rollback_boundary(intent: &p::ActionIntent) -> p::RollbackBoundary {
 fn digest_plan(plan: &ExecutionPlan) -> p::Result<p::PlanDigest> {
     let material = serde_json::json!({
         "schema_version": plan.schema_version,
-        "intent": plan.intent,
+        "normalized_action_digest": plan.normalized_action_digest,
+        "affected_resources": plan.affected_resources,
         "backend": plan.backend,
         "scope": plan.scope,
+        "verify_ref": plan.verify_ref,
         "rollback_boundary": plan.rollback_boundary,
         "budget": {
             "schema_version": plan.budget.schema_version,
@@ -340,15 +361,5 @@ fn digest_plan(plan: &ExecutionPlan) -> p::Result<p::PlanDigest> {
         },
         "timeout": plan.timeout,
     });
-    let bytes = serde_json::to_vec(&material)
-        .map_err(|error| p::Error(format!("failed to normalize execution plan: {error}")))?;
-    let digest = Sha256::digest(bytes);
-    let mut encoded = String::with_capacity(7 + digest.len() * 2);
-    encoded.push_str("sha256:");
-    for byte in digest {
-        use core::fmt::Write as _;
-        write!(&mut encoded, "{byte:02x}")
-            .map_err(|_| p::Error("failed to encode execution digest".into()))?;
-    }
-    Ok(p::PlanDigest(encoded))
+    Ok(p::PlanDigest(p::canonical_digest(&material)?.0))
 }
