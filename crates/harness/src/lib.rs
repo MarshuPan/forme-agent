@@ -670,6 +670,24 @@ impl ReactiveHarness {
         governance: GovernanceConfig,
         config: HarnessConfig,
     ) -> p::Result<Self> {
+        let harness = Self::new_without_recovery(store, model, backends, governance, config)?;
+        harness.recover_unknown_outcomes()?;
+        Ok(harness)
+    }
+
+    /// Builds the harness without touching durable recovery state.
+    ///
+    /// Production composition uses this seam to install the authority lease
+    /// fence before startup recovery can append an `ActionOutcomeUnknown` or
+    /// `RunWaiting` event. The public `new` constructor retains its legacy
+    /// test-fixture behavior and performs recovery immediately.
+    pub(crate) fn new_without_recovery(
+        store: SqliteEventStore,
+        model: Arc<dyn ModelProvider>,
+        backends: Arc<ExecutionBackendRegistry>,
+        governance: GovernanceConfig,
+        config: HarnessConfig,
+    ) -> p::Result<Self> {
         config.validate()?;
         model.profile().validate()?;
         let context_builder: Arc<dyn ContextBuilder + Send + Sync> =
@@ -720,7 +738,6 @@ impl ReactiveHarness {
             federation,
             ecosystem,
         };
-        harness.recover_unknown_outcomes()?;
         Ok(harness)
     }
 

@@ -689,7 +689,7 @@ fn compose(
     );
     let verifier: Arc<dyn Verifier + Send + Sync> = Arc::new(DeterministicVerifier);
 
-    let mut harness = ReactiveHarness::new(
+    let mut harness = ReactiveHarness::new_without_recovery(
         (*store).clone(),
         provider,
         backends.clone(),
@@ -716,6 +716,11 @@ fn compose(
     .with_proactivity(proactivity.clone())
     .with_verifier(verifier.clone())
     .with_authority_guard(guard.clone());
+
+    // Startup recovery is a durable mutation boundary: the production
+    // authority fence must already be installed before an incomplete action
+    // can be converted into ActionOutcomeUnknown/RunWaiting events.
+    harness.recover_unknown_outcomes()?;
 
     if config.scheduler_enabled {
         harness = harness.with_scheduler(intentions.scheduled.clone(), config.scheduler.clone())?;
