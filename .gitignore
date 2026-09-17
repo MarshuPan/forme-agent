@@ -1,0 +1,13 @@
+# Local research snapshots and upstream reference sources.
+research/upstreams/
+
+/target/
+/.worktrees/
+
+# Local tool state.
+.serena/
+__pycache__/
+*.py[cod]
+
+# Local runtime state (event store written by forme-cli runs).
+.forme/

@@ -1,0 +1,9 @@
+[package]
+name = "forme-policy"
+version = "0.0.1"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+forme-protocol = { path = "../protocol" }
+url = "=2.5.8"

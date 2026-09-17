@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_type": "forme-m5-distribution",
+  "digest": "sha256:1c664dcf415206932dedd97dcc2d8318115eb312c1381913403a6b3ca9686d5a",
+  "body": {
+    "schema_version": 1,
+    "capability_plan": "plan:distribute:package:m5-distribution:release:m5-distribution:v1:4",
+    "capability_plan_digest": "sha256:12ba13d34b2327f6f82f077be9e4ab5e8ec3057260164132a1c1bcd33a4770ad",
+    "semantic_envelope_digest": "sha256:2d986a69bd8f4f18cd0f4ea59a66ba02ed88c17fc0b3c2370cde80d5627740d6",
+    "executor_record": {
+      "schema_version": 1,
+      "peer": "peer:m5-golden-executor",
+      "package": "package:m5-distribution",
+      "release": "release:m5-distribution:v1",
+      "package_digest": "sha256:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+      "installed_generation": 1,
+      "semantic_digest": "sha256:5fe6088630889a3c2e2803a89b18ef8cb39807cba87019f81d43f563922825f8"
+    },
+    "receipt": {
+      "schema_version": 1,
+      "reference": "distribution-evidence:sha256:836434931bd229c0bee8cae7dc2e7a4ba253b1ac2c6ea53f99cc01e0301c9d76",
+      "package": "package:m5-distribution",
+      "release": "release:m5-distribution:v1",
+      "package_digest": "sha256:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+      "peer": "peer:m5-golden-executor",
+      "authority_epoch": 2,
+      "capability_plan_digest": "sha256:12ba13d34b2327f6f82f077be9e4ab5e8ec3057260164132a1c1bcd33a4770ad",
+      "lease": "lease:intent:m5-distribution:three-process",
+      "fence_token": 3,
+      "installed_generation": 1,
+      "ground_truth": "executor-package-semantic-record:sha256:5fe6088630889a3c2e2803a89b18ef8cb39807cba87019f81d43f563922825f8",
+      "peer_grant_binding_verified": true,
+      "remote_plan_binding_verified": true,
+      "authority_verified": true
+    },
+    "committed_version": {
+      "schema_version": 1,
+      "value": 5
+    }
+  }
+}

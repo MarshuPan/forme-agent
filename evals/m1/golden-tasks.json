@@ -1,0 +1,135 @@
+[
+  {
+    "schema_version": 1,
+    "case_ref": "case:m1-final-only",
+    "kind": "FinalOnly",
+    "request": {
+      "schema_version": 1,
+      "source": "UserTurn",
+      "session": "eval:m1-final-only",
+      "agent_profile": "agent:eval",
+      "input": "Return one deterministic final answer.",
+      "budget": null,
+      "idempotency_key": "eval:m1-final-only:v1"
+    },
+    "workspace": "workspace:default",
+    "done_contract": "done:m1-final-only",
+    "allowed_capabilities": [],
+    "policy": "policy:default-deny",
+    "rubric": "rubric:verified-complete",
+    "required_events": [
+      "RunAccepted",
+      "SessionBound",
+      "VerificationFinished",
+      "RunComplete"
+    ],
+    "forbidden_events": [
+      "ActionStarted",
+      "CandidatePromoted"
+    ]
+  },
+  {
+    "schema_version": 1,
+    "case_ref": "case:m1-tool-approval",
+    "kind": "ToolApproval",
+    "request": {
+      "schema_version": 1,
+      "source": "UserTurn",
+      "session": "eval:m1-tool-approval",
+      "agent_profile": "agent:eval",
+      "input": "Perform the governed fixture action after one-shot approval.",
+      "budget": "units:20",
+      "idempotency_key": "eval:m1-tool-approval:v1"
+    },
+    "workspace": "workspace:default",
+    "done_contract": "done:m1-tool-approval",
+    "allowed_capabilities": [
+      "capability:shell-test"
+    ],
+    "policy": "policy:approval-fixture",
+    "rubric": "rubric:approval-plan-bound",
+    "required_events": [
+      "ToolCallProposed",
+      "ApprovalRequested",
+      "ApprovalResolved",
+      "VerificationFinished"
+    ],
+    "forbidden_events": [
+      "ActionOutcomeUnknown",
+      "CandidatePromoted"
+    ]
+  },
+  {
+    "schema_version": 1,
+    "case_ref": "case:m1-long-context",
+    "kind": "LongContext",
+    "request": {
+      "schema_version": 1,
+      "source": "UserTurn",
+      "session": "eval:m1-long-context",
+      "agent_profile": "agent:eval",
+      "input": "Complete the long-context fixture while preserving governance lineage.",
+      "budget": "units:100",
+      "idempotency_key": "eval:m1-long-context:v1"
+    },
+    "workspace": "workspace:default",
+    "done_contract": "done:m1-long-context",
+    "allowed_capabilities": [
+      "capability:skill-selected",
+      "capability:mcp-selected"
+    ],
+    "policy": "policy:long-context-fixture",
+    "rubric": "rubric:lineage-preserved",
+    "required_events": [
+      "CompactionStarted",
+      "CompactionFinished",
+      "SkillBodyLoaded",
+      "VerificationFinished"
+    ],
+    "forbidden_events": [
+      "ActionOutcomeUnknown",
+      "CandidatePromoted"
+    ]
+  },
+  {
+    "schema_version": 1,
+    "case_ref": "case:m1-background-proactive",
+    "kind": "BackgroundProactive",
+    "request": {
+      "schema_version": 1,
+      "source": "Schedule",
+      "session": "eval:m1-background-proactive",
+      "agent_profile": "agent:eval",
+      "input": "Process the due commitment fixture through the proactive guard.",
+      "budget": "units:20",
+      "idempotency_key": "eval:m1-background-proactive:v1"
+    },
+    "workspace": "workspace:default",
+    "done_contract": "done:m1-background-proactive",
+    "allowed_capabilities": [
+      "capability:local-notification"
+    ],
+    "policy": "policy:background-fixture",
+    "rubric": "rubric:proactive-guarded",
+    "required_events": [
+      "RunAccepted",
+      "ObservationRecorded",
+      "ValueGateEvaluated",
+      "CompetenceGateEvaluated",
+      "DecisionTraceRecorded",
+      "ProactiveProposalEmitted",
+      "ProactiveProposalResolved",
+      "ToolCallProposed",
+      "ToolPolicyEvaluated",
+      "ActionPlanned",
+      "ActionStarted",
+      "ActionCompleted",
+      "VerificationFinished",
+      "RunComplete"
+    ],
+    "forbidden_events": [
+      "ActionOutcomeUnknown",
+      "CandidatePromoted"
+    ]
+  }
+]

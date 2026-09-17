@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "artifact_type": "forme-m5-publisher",
+  "digest": "sha256:975dd6c66021343d1c7bce4d419d69516d2b568eb42d734f364b495afcd6d22f",
+  "body": {
+    "schema_version": 1,
+    "grant": {
+      "schema_version": 1,
+      "reference": "grant:m5-distribution:v1",
+      "publisher": "publisher:m5-distribution",
+      "public_key_digest": "sha256:d90357debe6235c4bf196eb4460487f932ce3f84664351f41e2f9938ff66c354",
+      "allowed_kinds": [
+        "Skill"
+      ],
+      "scope": "workspace:m5-distribution",
+      "version": 1,
+      "status": "Active",
+      "valid_at_execution": true
+    },
+    "committed_version": {
+      "schema_version": 1,
+      "value": 1
+    }
+  }
+}

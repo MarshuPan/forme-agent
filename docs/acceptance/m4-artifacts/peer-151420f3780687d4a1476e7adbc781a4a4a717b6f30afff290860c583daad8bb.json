@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "artifact_type": "m4-federated-peer-manifest",
+  "digest": "sha256:151420f3780687d4a1476e7adbc781a4a4a717b6f30afff290860c583daad8bb",
+  "body": {
+    "schema_version": 1,
+    "peer": "peer:golden-executor",
+    "roles": [
+      "Executor"
+    ],
+    "scopes": [
+      "workspace:m4"
+    ],
+    "transport_identity": "sha256:a7831267e4b473989c1b646a0861a47446f637a2e04bfb6cecdaf81a0eb354a2",
+    "authority_epoch": 3,
+    "grant_version": 1,
+    "expires_at": 1784678705414,
+    "grant_ref": "sha256:0e8df7efa1154ddc9a97c41b4996e699dbc58186becd4eb98f19c5d69f065399"
+  }
+}

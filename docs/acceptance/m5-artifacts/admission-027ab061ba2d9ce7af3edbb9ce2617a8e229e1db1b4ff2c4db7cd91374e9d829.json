@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "artifact_type": "forme-m5-admission",
+  "digest": "sha256:027ab061ba2d9ce7af3edbb9ce2617a8e229e1db1b4ff2c4db7cd91374e9d829",
+  "body": {
+    "schema_version": 1,
+    "admission": {
+      "schema_version": 1,
+      "reference": "admission:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+      "package": "package:m5-distribution",
+      "release": "release:m5-distribution:v1",
+      "package_digest": "sha256:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+      "publisher_grant": "grant:m5-distribution:v1",
+      "publisher_version": 1,
+      "policy": "policy:ecosystem-default",
+      "policy_version": 1,
+      "checks": [
+        {
+          "schema_version": 1,
+          "kind": "Schema",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:84e7df6676c60b01d89b14c2512585fb58a0a673a21b29c010b9480528479bab"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Size",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:3e77c4e80dce8121a92cba33373c06635f3151fc55815b05108a88e24e445312"
+        },
+        {
+          "schema_version": 1,
+          "kind": "ClosedSet",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:dabb4a41fbceb1cce96dbb83fec1eeb86e84b7b96ef339b517c70c4a97e7433d"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Path",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:552a1368d6446844527b8f88eefcc1859954484316af01c45c0c75ae7fec1eda"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Digest",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:cb3d5369934e85f28de2b8391873ac2a022253830e5e50ee281862ffef610079"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Publisher",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:a5d7be26e364e3f2c4f521b5f875c972f514aa7565f77314c91b8b445ea9c22c"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Signature",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:e0a0f7db5cd048f923e8ebf34900e9601bdf7ffaf0c0bd559fbd1ac586a10e63"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Dependency",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:7d0998d12f95353672c2fb994cbfc7935bf0ed268d8a96bcf457b3cf004f9c0f"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Sbom",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:c0a5b51673ffee5f03e6f49c3109bb317413844fcbee4c1331ad104a0e423892"
+        },
+        {
+          "schema_version": 1,
+          "kind": "License",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:b72f45a7ce33b021d74fd59caf87adac898aae3d38eea71ba69826da27d244c4"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Secret",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:4895a7c7438ec1d6c82157a55df3bd4d04ac756a6bfe790fd432e1229d41142a"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Risk",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:856cf729e877ad24b95004a55e75118f3900ccb326de93e5d1121b707e70e6c6"
+        },
+        {
+          "schema_version": 1,
+          "kind": "Policy",
+          "verdict": "Pass",
+          "evidence": "admission-check-evidence:sha256:aba11d8e80a1d6ad362f69ce5e0e87e5c93e0533953c23fa918799db87d3a7ed"
+        }
+      ],
+      "dependencies": [],
+      "sbom_digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "license_expression": "Apache-2.0",
+      "verified": true
+    },
+    "catalog_receipt": "catalog-content:sha256:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+    "committed_version": {
+      "schema_version": 1,
+      "value": 2
+    }
+  }
+}

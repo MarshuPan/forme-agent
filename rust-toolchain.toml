@@ -1,0 +1,4 @@
+[toolchain]
+channel = "stable-x86_64-pc-windows-gnu"
+profile = "minimal"
+components = ["rustfmt"]

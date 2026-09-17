@@ -1,0 +1,932 @@
+{
+  "artifact_type": "replay-bundle",
+  "digest": "fnv64:72f6ae315f7c5aee",
+  "events": [
+    {
+      "digest": "fnv64:9e2740cd506f128f",
+      "envelope": {
+        "actor_class": "Owner",
+        "caused_by": null,
+        "event_id": "harness:1784266949196076100:1",
+        "event_schema": 1,
+        "kind": "RunAccepted",
+        "payload_digest": "fnv64:c9d88cbab1971498",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": "fnv64:908da31df5bf38f1",
+          "source": "UserTurn",
+          "status": "Accepted",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 1,
+        "transcript_delta": {
+          "schema_version": 1,
+          "text_digest": "fnv64:0ee88282301f6a9a"
+        },
+        "trust_tier": "OwnerInput",
+        "turn_id": null
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:c25ff6277a622c8f",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949196528600:2",
+        "event_schema": 1,
+        "kind": "SessionBound",
+        "payload_digest": "fnv64:62e76af42a9384ba",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": "fnv64:b6a1ceeb850a4a5e"
+        },
+        "source": "UserTurn",
+        "stream_seq": 2,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": null
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:a6fb0c7d72d98f28",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949197331100:3",
+        "event_schema": 1,
+        "kind": "TurnStarted",
+        "payload_digest": "fnv64:e8ca81129ea41bad",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 3,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:d8d9d5ba72c8991f",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949197526300:4",
+        "event_schema": 1,
+        "kind": "ContextBuildStarted",
+        "payload_digest": "fnv64:114f51e6613e468a",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 4,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:eece1aa4dc64356a",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949197642100:5",
+        "event_schema": 1,
+        "kind": "ContextBuildFinished",
+        "payload_digest": "fnv64:a3965f045b851355",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 5,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:b67079646934cfe3",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949197726800:6",
+        "event_schema": 1,
+        "kind": "ModelCallStarted",
+        "payload_digest": "fnv64:871c5f40666290a8",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 6,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:e838b4d9128550c4",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949197811800:7",
+        "event_schema": 1,
+        "kind": "ModelCallFinished",
+        "payload_digest": "fnv64:afe15af568a73fac",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 7,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:2e53e5a660c38746",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949197913700:8",
+        "event_schema": 1,
+        "kind": "OutputClassified",
+        "payload_digest": "fnv64:2b5c5d04631d0845",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 8,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:d86d521053db18ec",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949198063000:9",
+        "event_schema": 1,
+        "kind": "ToolCallProposed",
+        "payload_digest": "fnv64:51e9b5b6e5524961",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 9,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:5b5f3b096f583b1d",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949198835500:10",
+        "event_schema": 1,
+        "kind": "ToolPolicyEvaluated",
+        "payload_digest": "fnv64:9719cd9db1f4bc7c",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 10,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:bc682ee5bb202e22",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949199053800:11",
+        "event_schema": 1,
+        "kind": "ApprovalRequested",
+        "payload_digest": "fnv64:c0dc78aae37d86b5",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 11,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:4db95d1df653b477",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949199206200:12",
+        "event_schema": 1,
+        "kind": "RunWaiting",
+        "payload_digest": "fnv64:4e5eba8f08dad280",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": "fnv64:be55ffc8d81f799f",
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Waiting",
+          "stop_reason_digest": null,
+          "wait_reason_digest": "fnv64:288de97bb5b63af6",
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 12,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:2bd4cfcbb7142680",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949199460100:13",
+        "event_schema": 1,
+        "kind": "ApprovalResolved",
+        "payload_digest": "fnv64:4967598552a0af9a",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 13,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:cbafb246ccabd125",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949199578500:14",
+        "event_schema": 1,
+        "kind": "RunResumed",
+        "payload_digest": "fnv64:ef39cb94fe60433c",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": "fnv64:653e94055277ae45",
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": "fnv64:288de97bb5b63af6",
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 14,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:4d67740221f3abc7",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949199757700:15",
+        "event_schema": 1,
+        "kind": "ToolPolicyEvaluated",
+        "payload_digest": "fnv64:9719cd9db1f4bc7c",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 15,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:b0049dc3c34a8cb4",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949199890600:16",
+        "event_schema": 1,
+        "kind": "CompetenceGateEvaluated",
+        "payload_digest": "fnv64:d9c6db207bd5472c",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 16,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:61e2d02f5cd23a18",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949200117900:17",
+        "event_schema": 1,
+        "kind": "ActionPlanned",
+        "payload_digest": "fnv64:8a4b600ee90340ee",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 17,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:79b1148741e21885",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266949200348500:18",
+        "event_schema": 1,
+        "kind": "ActionStarted",
+        "payload_digest": "fnv64:54ba5fbacaaf51d8",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 18,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:b588c5965dc883e9",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952866459800:19",
+        "event_schema": 1,
+        "kind": "ActionOutputDelta",
+        "payload_digest": "fnv64:d9b54bae29f8a4ae",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "Internal",
+        "stream_seq": 19,
+        "transcript_delta": {
+          "schema_version": 1,
+          "text_digest": "fnv64:0ca59165c4af8263"
+        },
+        "trust_tier": "Untrusted",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:910fd25c3fa032a7",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952866874100:20",
+        "event_schema": 1,
+        "kind": "ActionCompleted",
+        "payload_digest": "fnv64:eca49e3850031626",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "Internal",
+        "stream_seq": 20,
+        "transcript_delta": null,
+        "trust_tier": "Untrusted",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:427df8e63e222abe",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952867024500:21",
+        "event_schema": 1,
+        "kind": "CapabilityEvidenceRecorded",
+        "payload_digest": "fnv64:51cee00ab07fadf4",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "Internal",
+        "stream_seq": 21,
+        "transcript_delta": null,
+        "trust_tier": "Untrusted",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:55b2f669270b1c60",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952867172200:22",
+        "event_schema": 1,
+        "kind": "VerificationStarted",
+        "payload_digest": "fnv64:bcf448249aefac8d",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 22,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:db452098380010b8",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952867990400:23",
+        "event_schema": 1,
+        "kind": "VerificationFinished",
+        "payload_digest": "fnv64:054f30d45fdfe76b",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 23,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:0"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:6db498b17259d4d4",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952868170100:24",
+        "event_schema": 1,
+        "kind": "TurnComplete",
+        "payload_digest": "fnv64:03f5eb95ab4353bd",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 24,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:08570e198182ac6b",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952868352100:25",
+        "event_schema": 1,
+        "kind": "TurnStarted",
+        "payload_digest": "fnv64:e16e58129ad789a6",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 25,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:8a0e36da69afe4bc",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952868460100:26",
+        "event_schema": 1,
+        "kind": "ContextBuildStarted",
+        "payload_digest": "fnv64:114f51e6613e468a",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 26,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:eef01d5d7ce5c01c",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952868692400:27",
+        "event_schema": 1,
+        "kind": "ContextBuildFinished",
+        "payload_digest": "fnv64:a3965f045b851355",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 27,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:86478ff00b3f1b98",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952868811000:28",
+        "event_schema": 1,
+        "kind": "ModelCallStarted",
+        "payload_digest": "fnv64:98a38a81e333d449",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 28,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:56e66e3856a8e1c6",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952868906800:29",
+        "event_schema": 1,
+        "kind": "ModelCallDelta",
+        "payload_digest": "fnv64:41759b560e0a9eca",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 29,
+        "transcript_delta": {
+          "schema_version": 1,
+          "text_digest": "fnv64:8db48f7c437b5d22"
+        },
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:8d3b8e6f45c586fe",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952869001300:30",
+        "event_schema": 1,
+        "kind": "ModelCallFinished",
+        "payload_digest": "fnv64:10fae3ae6d213fc5",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 30,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:57b5ccba2a40a40f",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952869101100:31",
+        "event_schema": 1,
+        "kind": "OutputClassified",
+        "payload_digest": "fnv64:6d91e85b824822d5",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 31,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:7fc31560623ddf01",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952869200600:32",
+        "event_schema": 1,
+        "kind": "VerificationStarted",
+        "payload_digest": "fnv64:bcf448249aefac8d",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 32,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:58d8df26f603691e",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952869921300:33",
+        "event_schema": 1,
+        "kind": "VerificationFinished",
+        "payload_digest": "fnv64:054f30d45fdfe76b",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": null,
+        "source": "UserTurn",
+        "stream_seq": 33,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:e3574a18837aa1de",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952870109600:34",
+        "event_schema": 1,
+        "kind": "TurnComplete",
+        "payload_digest": "fnv64:fc99c295a776c1b6",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": null,
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Running",
+          "stop_reason_digest": null,
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 34,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": "turn:run:1784266949195980100:1:1"
+      },
+      "schema_version": 1
+    },
+    {
+      "digest": "fnv64:83f9f0fa5e0d2d57",
+      "envelope": {
+        "actor_class": "System",
+        "caused_by": null,
+        "event_id": "harness:1784266952870229200:35",
+        "event_schema": 1,
+        "kind": "RunComplete",
+        "payload_digest": "fnv64:e90d7e0ffd5b356b",
+        "run_id": "run:1784266949195980100:1",
+        "schema_version": 1,
+        "session_delta": {
+          "result_ref": "result:run:1784266949195980100:1",
+          "resume_ref_digest": null,
+          "schema_version": 1,
+          "session_ref_digest": null,
+          "source": null,
+          "status": "Complete",
+          "stop_reason_digest": "fnv64:20df48e256ffb0b6",
+          "wait_reason_digest": null,
+          "workspace_digest": null
+        },
+        "source": "UserTurn",
+        "stream_seq": 35,
+        "transcript_delta": null,
+        "trust_tier": "VerifiedProcess",
+        "turn_id": null
+      },
+      "schema_version": 1
+    }
+  ],
+  "manifest": {
+    "bundle": "bundle:m3-a:real-browser",
+    "cases": [
+      "case:m2-a-real-browser-mutation"
+    ],
+    "content_digest": "fnv64:72f6ae315f7c5aee",
+    "effect_mode": "ExactReplay",
+    "event_refs": [
+      "harness:1784266949196076100:1",
+      "harness:1784266949196528600:2",
+      "harness:1784266949197331100:3",
+      "harness:1784266949197526300:4",
+      "harness:1784266949197642100:5",
+      "harness:1784266949197726800:6",
+      "harness:1784266949197811800:7",
+      "harness:1784266949197913700:8",
+      "harness:1784266949198063000:9",
+      "harness:1784266949198835500:10",
+      "harness:1784266949199053800:11",
+      "harness:1784266949199206200:12",
+      "harness:1784266949199460100:13",
+      "harness:1784266949199578500:14",
+      "harness:1784266949199757700:15",
+      "harness:1784266949199890600:16",
+      "harness:1784266949200117900:17",
+      "harness:1784266949200348500:18",
+      "harness:1784266952866459800:19",
+      "harness:1784266952866874100:20",
+      "harness:1784266952867024500:21",
+      "harness:1784266952867172200:22",
+      "harness:1784266952867990400:23",
+      "harness:1784266952868170100:24",
+      "harness:1784266952868352100:25",
+      "harness:1784266952868460100:26",
+      "harness:1784266952868692400:27",
+      "harness:1784266952868811000:28",
+      "harness:1784266952868906800:29",
+      "harness:1784266952869001300:30",
+      "harness:1784266952869101100:31",
+      "harness:1784266952869200600:32",
+      "harness:1784266952869921300:33",
+      "harness:1784266952870109600:34",
+      "harness:1784266952870229200:35"
+    ],
+    "schema_version": 1,
+    "snapshot": {
+      "driver_profiles": [
+        "headless-chrome-real-process"
+      ],
+      "event_schema": 1,
+      "evolution": {
+        "aggregates": [
+          {
+            "aggregate": "evolution:owner:workspace",
+            "schema_version": 1,
+            "value": 1
+          }
+        ],
+        "digest": "fnv64:3d6dfa8495b860a0",
+        "schema_version": 1,
+        "snapshot": "evolution-snapshot:fnv64:3d6dfa8495b860a0",
+        "strategies": [
+          {
+            "activation_event": "run:1784266949195980100:1:m3-seed-activation-v1",
+            "aggregate": "evolution:owner:workspace",
+            "domain": "Loop",
+            "id": "active:run:1784266949195980100:1:m3-seed-activation-v1",
+            "schema_version": 1,
+            "scope": "workspace:m2-a-browser-golden",
+            "spec_digest": "digest:loop:m3-a-browser:v1",
+            "spec_ref": "content:loop:m3-a-browser:v1",
+            "version": "loop:m3-a-browser:v1"
+          }
+        ]
+      },
+      "loop_spec": "loop:m3-a-browser:v1",
+      "migration_graph_digest": "digest:m3-a-upcasters:v1",
+      "model": "scripted-m2-a-browser-golden",
+      "policy": "policy:m2-a-external-default-ask",
+      "schema_version": 1,
+      "tool_schema": "digest:toolset:m2-a-browser-only"
+    },
+    "source_runs": [
+      "run:1784266949195980100:1"
+    ]
+  },
+  "schema_version": 1
+}

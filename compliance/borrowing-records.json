@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "source": "Model Context Protocol public specification",
+      "license": "MIT",
+      "copy_risk": "none",
+      "implementation_rule": "Implement protocol-compatible behavior from the public specification; do not copy an SDK implementation or fixture.",
+      "notice_action": "Record protocol compatibility in project compliance documentation.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "Chat Completions HTTP API contract",
+      "license": "public API interoperability",
+      "copy_risk": "none",
+      "implementation_rule": "Implement the documented wire contract with project-owned types and tests; do not copy provider client source.",
+      "notice_action": "Document interoperability; no copied implementation notice is required.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "headless_chrome 1.0.22 public crate API",
+      "license": "MIT",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public CDP client API behind a project-owned BrowserDriver; do not copy source, examples, flags, errors, fixtures, or naming.",
+      "notice_action": "Review the locked dependency license and transitive notices before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "portable-pty 0.9.0 public crate API",
+      "license": "MIT",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public PTY API with repository-owned lifecycle code and fixtures; do not copy source, examples, errors, or tests.",
+      "notice_action": "Review the locked dependency license and transitive notices before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "url 2.5.8 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public URL and origin parsing API; do not copy source, examples, tests, errors, or naming.",
+      "notice_action": "Review LICENSE and NOTICE obligations before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "ureq 3.3.0 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public blocking HTTP client API behind the project-owned AppApiDriver; do not copy source, examples, tests, errors, or naming.",
+      "notice_action": "Review LICENSE, NOTICE, and enabled TLS features before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "enigo 0.6.1 public crate API",
+      "license": "MIT",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the Windows public input API behind a bounded project-owned ComputerDriver; do not copy source, examples, errors, fixtures, or naming.",
+      "notice_action": "Review the locked dependency license and platform notices before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "xcap 0.9.6 public crate API",
+      "license": "Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public monitor capture API behind a scoped artifact boundary; do not copy source, examples, errors, fixtures, or naming.",
+      "notice_action": "Preserve the Apache-2.0 notice and review transitive notices before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "httparse 1.10.1 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public bounded HTTP/1 parser API inside the project-owned TLS transport; do not copy source, examples, fixtures, errors, or naming.",
+      "notice_action": "Review LICENSE and NOTICE obligations before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "rustls 0.23.42 public crate API",
+      "license": "Apache-2.0 OR ISC OR MIT",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public TLS client and server APIs behind project-owned transport traits; do not copy source, examples, fixtures, errors, protocol names, or naming.",
+      "notice_action": "Review the enabled provider, LICENSE, NOTICE, and reachable advisories before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "rustls-pki-types 1.15.0 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public certificate and private-key wrapper types at local identity-loading boundaries; do not copy source, examples, fixtures, errors, or naming.",
+      "notice_action": "Review LICENSE and NOTICE obligations before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "rcgen 0.14.8 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public certificate generation API for repository-owned loopback test identities; do not copy source, examples, fixtures, certificate material, errors, or naming.",
+      "notice_action": "Review LICENSE and NOTICE obligations and never ship generated test private keys.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "ed25519-dalek 2.2.0 public crate API",
+      "license": "BSD-3-Clause",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public Ed25519 verification API behind project-owned publisher and admission contracts; do not copy source, examples, fixtures, errors, test vectors, or naming.",
+      "notice_action": "Preserve the BSD notice and review locked transitive notices before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    }
+  ]
+}

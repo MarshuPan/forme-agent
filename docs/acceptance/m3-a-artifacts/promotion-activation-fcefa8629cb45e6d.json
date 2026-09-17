@@ -1,0 +1,92 @@
+{
+  "activation": {
+    "aggregate": "evolution:owner:workspace",
+    "committed_version": {
+      "aggregate": "evolution:owner:workspace",
+      "schema_version": 1,
+      "value": 2
+    },
+    "domain": "Loop",
+    "evaluation": "evaluation:m3-a-browser:v2",
+    "expected_version": {
+      "aggregate": "evolution:owner:workspace",
+      "schema_version": 1,
+      "value": 1
+    },
+    "from": "loop:m3-a-browser:v1",
+    "impact": "Bounded",
+    "owner_confirmation": "owner-control:m3-a-browser:v2",
+    "promotion": "m3-control:run:1784266949195980100:1:m3-promotion-v2:record:3",
+    "schema_version": 1,
+    "scope": "workspace:m2-a-browser-golden",
+    "spec_digest": "digest:loop:m3-a-browser:v2",
+    "spec_ref": "content:loop:m3-a-browser:v2",
+    "to": "loop:m3-a-browser:v2"
+  },
+  "artifact_type": "promotion-activation",
+  "candidate": {
+    "baseline": "loop:m3-a-browser:v1",
+    "candidate": "candidate:m3-a-browser:v2",
+    "domain": "Loop",
+    "evidence": [
+      "ground-truth:m2-a-real-browser-mutation"
+    ],
+    "impact": "Bounded",
+    "proposed_version": "loop:m3-a-browser:v2",
+    "provenance": {
+      "actor": "System",
+      "caused_by": null,
+      "source": "Internal",
+      "trust_tier": "VerifiedProcess"
+    },
+    "rollback_policy": {
+      "known_good": "loop:m3-a-browser:v1",
+      "owner_on_unverifiable": true,
+      "rollback_on_hard_regression": true,
+      "schema_version": 1
+    },
+    "schema_version": 1,
+    "scope": "workspace:m2-a-browser-golden",
+    "spec_digest": "digest:loop:m3-a-browser:v2",
+    "spec_ref": "content:loop:m3-a-browser:v2",
+    "target_tier": "Stable"
+  },
+  "evaluation": {
+    "baseline": "loop:m3-a-browser:v1",
+    "bundle": "bundle:m3-a:real-browser",
+    "candidate": "loop:m3-a-browser:v2",
+    "case_set_digest": "digest:m3-a-browser:baseline-cases",
+    "evaluation": "evaluation:m3-a-browser:v2",
+    "ground_truth": [
+      "ground-truth:m2-a-real-browser-mutation"
+    ],
+    "hard_invariants": [
+      {
+        "evidence": [
+          "ground-truth:m2-a-real-browser-mutation"
+        ],
+        "name": "m2_external_governance_preserved",
+        "outcome": "Pass",
+        "reference": "invariant:m3-a-browser-governance",
+        "schema_version": 1
+      }
+    ],
+    "holdout_digest": "digest:m3-a-browser:holdout-cases",
+    "independent_verifier": true,
+    "metrics": [
+      {
+        "dimension": "Verification",
+        "evidence": [
+          "ground-truth:m2-a-real-browser-mutation"
+        ],
+        "measured": 1,
+        "outcome": "Pass",
+        "schema_version": 1,
+        "unit": "Count"
+      }
+    ],
+    "schema_version": 1,
+    "verdict": "Pass"
+  },
+  "schema_version": 1
+}

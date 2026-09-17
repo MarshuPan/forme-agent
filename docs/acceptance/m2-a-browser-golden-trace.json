@@ -1,0 +1,242 @@
+{
+  "action": {
+    "approval_ref": "approval:run:1784201579952916300:1:0",
+    "backend": "Browser",
+    "plan_digest": "sha256:0da99b99b13aa0e6ca830c48788b5ff2cb6756fcb4c53f88d12db9f14ed6e8f0",
+    "receipt_effect": "Committed",
+    "receipt_trust": "Untrusted"
+  },
+  "case_ref": "case:m2-a-real-browser-mutation",
+  "driver_profile": "headless-chrome-real-process",
+  "eval_ref": "eval:m2-a-real-browser-mutation",
+  "events": [
+    {
+      "event_id": "harness:1784201579953000100:1",
+      "kind": "RunAccepted",
+      "provenance_trust": "OwnerInput",
+      "stream_seq": 1
+    },
+    {
+      "event_id": "harness:1784201579953308800:2",
+      "kind": "SessionBound",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 2
+    },
+    {
+      "event_id": "harness:1784201579953959800:3",
+      "kind": "TurnStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 3
+    },
+    {
+      "event_id": "harness:1784201579954085300:4",
+      "kind": "ContextBuildStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 4
+    },
+    {
+      "event_id": "harness:1784201579954185200:5",
+      "kind": "ContextBuildFinished",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 5
+    },
+    {
+      "event_id": "harness:1784201579954264600:6",
+      "kind": "ModelCallStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 6
+    },
+    {
+      "event_id": "harness:1784201579954344500:7",
+      "kind": "ModelCallFinished",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 7
+    },
+    {
+      "event_id": "harness:1784201579954431400:8",
+      "kind": "OutputClassified",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 8
+    },
+    {
+      "event_id": "harness:1784201579954539200:9",
+      "kind": "ToolCallProposed",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 9
+    },
+    {
+      "event_id": "harness:1784201579955252600:10",
+      "kind": "ToolPolicyEvaluated",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 10
+    },
+    {
+      "event_id": "harness:1784201579955405000:11",
+      "kind": "ApprovalRequested",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 11
+    },
+    {
+      "event_id": "harness:1784201579955528000:12",
+      "kind": "RunWaiting",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 12
+    },
+    {
+      "event_id": "harness:1784201579955712100:13",
+      "kind": "ApprovalResolved",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 13
+    },
+    {
+      "event_id": "harness:1784201579955819000:14",
+      "kind": "RunResumed",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 14
+    },
+    {
+      "event_id": "harness:1784201579955959200:15",
+      "kind": "ToolPolicyEvaluated",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 15
+    },
+    {
+      "event_id": "harness:1784201579956073100:16",
+      "kind": "CompetenceGateEvaluated",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 16
+    },
+    {
+      "event_id": "harness:1784201579956260000:17",
+      "kind": "ActionPlanned",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 17
+    },
+    {
+      "event_id": "harness:1784201579956462300:18",
+      "kind": "ActionStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 18
+    },
+    {
+      "event_id": "harness:1784201583666801200:19",
+      "kind": "ActionOutputDelta",
+      "payload_trust": "Untrusted",
+      "provenance_trust": "Untrusted",
+      "stream_seq": 19
+    },
+    {
+      "event_id": "harness:1784201583667250600:20",
+      "kind": "ActionCompleted",
+      "provenance_trust": "Untrusted",
+      "stream_seq": 20
+    },
+    {
+      "event_id": "harness:1784201583667431000:21",
+      "kind": "CapabilityEvidenceRecorded",
+      "provenance_trust": "Untrusted",
+      "stream_seq": 21
+    },
+    {
+      "event_id": "harness:1784201583667584400:22",
+      "kind": "VerificationStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 22
+    },
+    {
+      "event_id": "harness:1784201583668405700:23",
+      "kind": "VerificationFinished",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 23
+    },
+    {
+      "event_id": "harness:1784201583668655900:24",
+      "kind": "TurnComplete",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 24
+    },
+    {
+      "event_id": "harness:1784201583668861800:25",
+      "kind": "TurnStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 25
+    },
+    {
+      "event_id": "harness:1784201583668966900:26",
+      "kind": "ContextBuildStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 26
+    },
+    {
+      "event_id": "harness:1784201583669057100:27",
+      "kind": "ContextBuildFinished",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 27
+    },
+    {
+      "event_id": "harness:1784201583669141400:28",
+      "kind": "ModelCallStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 28
+    },
+    {
+      "event_id": "harness:1784201583669227600:29",
+      "kind": "ModelCallDelta",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 29
+    },
+    {
+      "event_id": "harness:1784201583669316300:30",
+      "kind": "ModelCallFinished",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 30
+    },
+    {
+      "event_id": "harness:1784201583669410400:31",
+      "kind": "OutputClassified",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 31
+    },
+    {
+      "event_id": "harness:1784201583669502200:32",
+      "kind": "VerificationStarted",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 32
+    },
+    {
+      "event_id": "harness:1784201583670066900:33",
+      "kind": "VerificationFinished",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 33
+    },
+    {
+      "event_id": "harness:1784201583670226200:34",
+      "kind": "TurnComplete",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 34
+    },
+    {
+      "event_id": "harness:1784201583670332000:35",
+      "kind": "RunComplete",
+      "provenance_trust": "VerifiedProcess",
+      "stream_seq": 35
+    }
+  ],
+  "forbidden_events_absent": [
+    "ActionOutcomeUnknown",
+    "CandidateCreated",
+    "CandidatePromoted",
+    "MemoryNodeAppended",
+    "MemoryEdgeAppended"
+  ],
+  "ground_truth": {
+    "fixture_ref": "fixture:m2-a-loopback-mutation-v1",
+    "mutation_count": 1
+  },
+  "report_outcome": "Pass",
+  "run": "run:1784201579952916300:1",
+  "run_status": "Complete",
+  "schema_version": 1,
+  "snapshot": "snapshot:m2-a-real-browser-mutation:v1",
+  "snapshot_upper_bound": 35
+}

@@ -1,0 +1,41 @@
+{
+  "artifact_type": "evolution-evaluation",
+  "evaluation": {
+    "baseline": "loop:m3-a-browser:v1",
+    "bundle": "bundle:m3-a:real-browser",
+    "candidate": "loop:m3-a-browser:v2",
+    "case_set_digest": "digest:m3-a-browser:baseline-cases",
+    "evaluation": "evaluation:m3-a-browser:v2",
+    "ground_truth": [
+      "ground-truth:m2-a-real-browser-mutation"
+    ],
+    "hard_invariants": [
+      {
+        "evidence": [
+          "ground-truth:m2-a-real-browser-mutation"
+        ],
+        "name": "m2_external_governance_preserved",
+        "outcome": "Pass",
+        "reference": "invariant:m3-a-browser-governance",
+        "schema_version": 1
+      }
+    ],
+    "holdout_digest": "digest:m3-a-browser:holdout-cases",
+    "independent_verifier": true,
+    "metrics": [
+      {
+        "dimension": "Verification",
+        "evidence": [
+          "ground-truth:m2-a-real-browser-mutation"
+        ],
+        "measured": 1,
+        "outcome": "Pass",
+        "schema_version": 1,
+        "unit": "Count"
+      }
+    ],
+    "schema_version": 1,
+    "verdict": "Pass"
+  },
+  "schema_version": 1
+}

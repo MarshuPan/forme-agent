@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>forme control</title>
+    <link rel="stylesheet" href="/app.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">forme</div>
+      <div class="connection" data-state="locked" id="connection-state">Locked</div>
+      <label class="token-field">
+        <span>Access token</span>
+        <input id="token-input" type="password" autocomplete="off" spellcheck="false">
+      </label>
+    </header>
+
+    <div class="app-shell">
+      <aside class="run-rail">
+        <form id="run-form" class="run-form">
+          <h1>New run</h1>
+          <label>
+            <span>Session</span>
+            <input id="session-input" value="session:local-web" required>
+          </label>
+          <label>
+            <span>Request</span>
+            <textarea id="request-input" rows="5" required></textarea>
+          </label>
+          <button class="primary-command" type="submit">Run</button>
+        </form>
+
+        <div class="rail-heading">
+          <h2>Runs</h2>
+          <button class="quiet-command" id="refresh-runs" type="button">Refresh</button>
+        </div>
+        <div class="run-list" id="run-list">
+          <p class="empty-state">No runs in this browser session.</p>
+        </div>
+      </aside>
+
+      <main class="workbench">
+        <header class="workbench-header">
+          <div>
+            <p class="eyebrow">ACTIVE RUN</p>
+            <h2 id="run-title">No run selected</h2>
+            <p class="run-status" id="run-status">Idle</p>
+          </div>
+          <div class="command-row">
+            <button class="quiet-command" id="refresh-active" type="button">Refresh</button>
+            <button class="danger-command" id="cancel-run" type="button" disabled>Cancel</button>
+          </div>
+        </header>
+
+        <nav class="view-tabs" aria-label="Run views">
+          <button type="button" data-view="timeline" aria-selected="true">Timeline</button>
+          <button type="button" data-view="approvals" aria-selected="false">Approvals</button>
+          <button type="button" data-view="trace" aria-selected="false">Trace</button>
+          <button type="button" data-view="jobs" aria-selected="false">Jobs</button>
+          <button type="button" data-view="evals" aria-selected="false">Evals</button>
+        </nav>
+
+        <section class="view-panel" id="view-timeline" data-view-panel="timeline">
+          <div class="timeline" id="timeline">
+            <p class="empty-state">Select or create a run.</p>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-approvals" data-view-panel="approvals" hidden>
+          <div class="section-heading">
+            <h3>Pending approvals</h3>
+            <button class="quiet-command" id="refresh-approvals" type="button">Refresh</button>
+          </div>
+          <div class="approval-list" id="approval-list">
+            <p class="empty-state">No pending approvals.</p>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-trace" data-view-panel="trace" hidden>
+          <div class="section-heading">
+            <h3>Trace</h3>
+            <button class="quiet-command" id="refresh-trace" type="button">Refresh</button>
+          </div>
+          <dl class="trace-summary" id="trace-summary"></dl>
+          <div class="trace-list" id="trace-list">
+            <p class="empty-state">No trace loaded.</p>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-jobs" data-view-panel="jobs" hidden>
+          <div class="section-heading">
+            <h3>Scheduled jobs</h3>
+            <button class="quiet-command" id="refresh-jobs" type="button">Refresh</button>
+          </div>
+          <form id="job-form" class="job-form">
+            <label>
+              <span>Session</span>
+              <input id="job-session" value="session:local-web" required>
+            </label>
+            <label>
+              <span>Due</span>
+              <input id="job-due" type="datetime-local" required>
+            </label>
+            <label>
+              <span>Risk</span>
+              <select id="job-risk">
+                <option value="Low">Low</option>
+                <option value="High">High</option>
+              </select>
+            </label>
+            <label class="job-message">
+              <span>Reminder</span>
+              <input id="job-message" required>
+            </label>
+            <button class="primary-command" type="submit">Schedule</button>
+          </form>
+          <div class="job-list" id="job-list">
+            <p class="empty-state">No scheduled jobs.</p>
+          </div>
+        </section>
+
+        <section class="view-panel" id="view-evals" data-view-panel="evals" hidden>
+          <div class="section-heading">
+            <h3>Golden tasks</h3>
+            <button class="quiet-command" id="refresh-evals" type="button">Refresh</button>
+          </div>
+          <div class="eval-list" id="eval-list">
+            <p class="empty-state">No eval cases loaded.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="candidate-dialog">
+      <form method="dialog" id="candidate-form">
+        <div class="dialog-heading">
+          <h2>Candidate review</h2>
+          <button class="quiet-command" value="cancel" type="submit">Close</button>
+        </div>
+        <input id="candidate-id" type="hidden">
+        <label>
+          <span>Expected state</span>
+          <select id="candidate-state">
+            <option>Candidate</option>
+            <option>Promoted</option>
+            <option>Downgraded</option>
+          </select>
+        </label>
+        <label>
+          <span>Decision</span>
+          <select id="candidate-decision">
+            <option>Promote</option>
+            <option>Reject</option>
+            <option>Downgrade</option>
+            <option>Retract</option>
+          </select>
+        </label>
+        <label>
+          <span>Evidence ref</span>
+          <input id="candidate-evidence" required>
+        </label>
+        <label>
+          <span>Retraction target</span>
+          <input id="retraction-target">
+        </label>
+        <label>
+          <span>Lineage ref</span>
+          <input id="retraction-lineage">
+        </label>
+        <label>
+          <span>Derived ref</span>
+          <input id="retraction-derived">
+        </label>
+        <button class="primary-command" value="default" type="submit">Apply review</button>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

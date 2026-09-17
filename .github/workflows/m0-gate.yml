@@ -1,0 +1,60 @@
+name: M0 Gate
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: m0-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    name: S1-S22 and compliance
+    # The pinned toolchain is x86_64-pc-windows-gnu; this image ships MinGW-w64 at C:\mingw64.
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Put MinGW-w64 on PATH
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\mingw64\bin\gcc.exe")) { throw "MinGW-w64 gcc not found at C:\mingw64\bin" }
+          "C:\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install pinned Rust toolchain
+        shell: pwsh
+        run: rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal --component rustfmt
+
+      - name: Verify workspace toolchain
+        shell: pwsh
+        run: |
+          rustup show active-toolchain
+          cargo --version
+          gcc --version
+          ar --version
+          py -3 --version
+          bash --version
+
+      - name: Cache cargo registry and build output
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: m0-gate-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: m0-gate-${{ runner.os }}-
+
+      # The copy-detection corpus is a local, never-published snapshot, so hosted CI reports
+      # that scope as SKIP; upstream isolation and license checks remain blocking here.
+      - name: Run M0 acceptance gate
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m0.ps1 -AllowMissingCorpus

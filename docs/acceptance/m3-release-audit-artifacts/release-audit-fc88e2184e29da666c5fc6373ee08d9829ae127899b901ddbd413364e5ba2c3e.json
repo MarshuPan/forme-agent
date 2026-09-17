@@ -1,0 +1,105 @@
+{
+  "artifact_type": "forme-m3-release-audit",
+  "body": {
+    "blocking": false,
+    "checks": [
+      {
+        "blocking": false,
+        "check_id": "release_tree",
+        "findings": [],
+        "input_digest": "sha256:b7a84345caebe16b61575010a8166ca91f44fbcdc4e76265007810ff3113dc48",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "git",
+        "tool_version": "git version 2.54.0.windows.1"
+      },
+      {
+        "blocking": false,
+        "check_id": "license_notice",
+        "findings": [],
+        "input_digest": "sha256:130bf2eb35d883312df1869899b6c4612b425ea42aa6e908dc0e613ce7a8e090",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-license-review",
+        "tool_version": "forme-release-audit/3"
+      },
+      {
+        "blocking": false,
+        "check_id": "direct_dependencies",
+        "findings": [],
+        "input_digest": "sha256:59ce43c7a5cc5671535299cadee48b0565884fa4c997a4b3aba81bbc4d483ecc",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "cargo-metadata",
+        "tool_version": "cargo 1.97.0 (c980f4866 2026-06-30)"
+      },
+      {
+        "blocking": false,
+        "check_id": "borrowing_records",
+        "findings": [],
+        "input_digest": "sha256:33b7d6f6e6cfa5cc901b327726ee9a2db7840122bdd796b77213b5e45b36bf8e",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-borrowing-review",
+        "tool_version": "forme-release-audit/3"
+      },
+      {
+        "blocking": false,
+        "check_id": "upstream_copy",
+        "findings": [],
+        "input_digest": "sha256:bcf349e017654e36645bed6c1ba847264c94404872e693a3862da96e10be6e91",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "compliance-doctor",
+        "tool_version": "forme-compliance-doctor/2"
+      },
+      {
+        "blocking": false,
+        "check_id": "acceptance_artifacts",
+        "findings": [],
+        "input_digest": "sha256:39ce6f9eb89af8c3ec37d65ea99ba9f4c12972756b7561980b22b795c2e57fb1",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-artifact-scan",
+        "tool_version": "forme-release-audit/3"
+      },
+      {
+        "blocking": false,
+        "check_id": "vulnerability_audit",
+        "findings": [],
+        "input_digest": "sha256:eaa3994e9fb003b2649b41e5e886b7044f3e24a434dabdc02ad05802e336f128",
+        "observations": [
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0194 affects locked quick-xml 0.30.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0195 affects locked quick-xml 0.30.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0194 affects locked quick-xml 0.39.4 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0195 affects locked quick-xml 0.39.4 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          }
+        ],
+        "outcome": "pass",
+        "tool": "cargo-audit",
+        "tool_version": "cargo-audit 0.22.2"
+      }
+    ],
+    "outcome": "pass",
+    "root_digest": "sha256:92b83e18617c4631582216671393c554c6314133f65f02c784464b7d07ecae49",
+    "schema_version": 1,
+    "tool_version": "forme-release-audit/3"
+  },
+  "digest": "sha256:fc88e2184e29da666c5fc6373ee08d9829ae127899b901ddbd413364e5ba2c3e",
+  "schema_version": 1
+}

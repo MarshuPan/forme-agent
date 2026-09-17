@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "eval_ref": "eval:real:790e0d0068a24827bdb02bbc0889761d",
+  "case_ref": "case:m1-final-only",
+  "run": "run:1784050380441257600:1",
+  "trace_refs": [
+    "harness:1784050380442317300:1",
+    "harness:1784050380449576300:2",
+    "harness:1784050380456266000:3",
+    "harness:1784050380456922000:4",
+    "harness:1784050380457598000:5",
+    "harness:1784050380458368800:6",
+    "harness:1784050380459097100:7",
+    "harness:1784050383616617500:8",
+    "harness:1784050383617847600:9",
+    "harness:1784050383618992300:10",
+    "harness:1784050383619886300:11",
+    "harness:1784050383620678000:12",
+    "harness:1784050383621651300:13",
+    "harness:1784050383622484900:14",
+    "harness:1784050383623238000:15",
+    "harness:1784050383625619900:16",
+    "harness:1784050383626707600:17",
+    "harness:1784050383627640500:18"
+  ],
+  "outcome": "Pass",
+  "rubric": "rubric:verified-complete",
+  "snapshot": "snapshot:real:790e0d0068a24827bdb02bbc0889761d",
+  "profile": {
+    "schema_version": 1,
+    "eval_ref": "eval:real:790e0d0068a24827bdb02bbc0889761d",
+    "model": "configured-chat-provider:gpt-5.6-terra",
+    "policy": "policy:default-deny",
+    "toolset": "toolset:empty",
+    "workspace": "workspace:default",
+    "event_schema": 1,
+    "replay_snapshot": "snapshot:real:790e0d0068a24827bdb02bbc0889761d"
+  }
+}

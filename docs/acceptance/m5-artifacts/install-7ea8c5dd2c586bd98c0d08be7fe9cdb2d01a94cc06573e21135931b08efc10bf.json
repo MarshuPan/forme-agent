@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "artifact_type": "forme-m5-install",
+  "digest": "sha256:7ea8c5dd2c586bd98c0d08be7fe9cdb2d01a94cc06573e21135931b08efc10bf",
+  "body": {
+    "schema_version": 1,
+    "plan": {
+      "schema_version": 1,
+      "reference": "plan:enable:package:m5-distribution:release:m5-distribution:v1:3",
+      "operation": "Enable",
+      "package": "package:m5-distribution",
+      "release": "release:m5-distribution:v1",
+      "package_digest": "sha256:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+      "admission": "admission:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+      "scope": "workspace:m5-distribution",
+      "policy": "policy:ecosystem-default",
+      "policy_version": 1,
+      "expected_version": {
+        "schema_version": 1,
+        "value": 3
+      },
+      "rollback_boundary": "registry visibility only; prior external effects remain historical",
+      "digest": "sha256:23ce18510d566023c16590b38975c61d09629c248479e904826850829ee0d83e"
+    },
+    "approval": {
+      "schema_version": 1,
+      "approval": "approval:m5-golden-enable",
+      "plan_digest": "sha256:23ce18510d566023c16590b38975c61d09629c248479e904826850829ee0d83e",
+      "principal": "local-owner"
+    },
+    "state": {
+      "schema_version": 1,
+      "package": "package:m5-distribution",
+      "release": "release:m5-distribution:v1",
+      "package_digest": "sha256:10fe03dec08a5aeafaa6fa9926202107b16252d9d12f4dee16c55f3497315806",
+      "lifecycle": "Enabled",
+      "active_generation": 2,
+      "plan": "plan:enable:package:m5-distribution:release:m5-distribution:v1:3",
+      "approval": "approval:m5-golden-enable"
+    },
+    "committed_version": {
+      "schema_version": 1,
+      "value": 4
+    },
+    "registry_digest": "sha256:e8833131ebbd35fb63a9a819a67a826791b5c26758ebb745b43a7c5a1de0e49b"
+  }
+}

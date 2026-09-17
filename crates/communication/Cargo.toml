@@ -1,0 +1,11 @@
+[package]
+name = "forme-communication"
+version = "0.0.1"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+forme-protocol = { path = "../protocol" }
+forme-policy = { path = "../policy" }
+forme-harness = { path = "../harness" }
+url = "=2.5.8"

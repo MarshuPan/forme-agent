@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "artifact_type": "m4-remote-execution-receipt",
+  "digest": "sha256:5360463e64184e265899bbc7d66d0fbe91f6f04022041b63d91e5fba27d3b6ff",
+  "body": {
+    "schema_version": 1,
+    "receipt": "authority-receipt:sha256:0a699cc1917e4b9e4162c18307bc556994e4c0dbfaf6608c44260d3639725fd5",
+    "driver_receipt": "driver-receipt:dispatch:intent:m4-remote",
+    "driver_receipt_digest": "sha256:84ab67c9570c9762f6ab79ed240e9a0c3baed1702c319fea6824acb2ec50ed83",
+    "lease": "lease:intent:m4-remote",
+    "intent": "intent:m4-remote",
+    "plan_digest": "sha256:82c0638798db071790cce8c99afd21facb95a84c6290a78fa9b7d7af7aa833da",
+    "operation_digest": "sha256:370fbe080a6325582d9ae2d129437754fb9c95faf4f4e438b4a7ded4079a2e33",
+    "executor": "peer:golden-executor",
+    "rollback_boundary": "fixture-record-only",
+    "outcome": "Completed",
+    "verification": [
+      "verification:repository-state"
+    ],
+    "ground_truth": [
+      "ground-truth:mutation-ordinal:1"
+    ],
+    "authority_verified": true
+  }
+}

@@ -1,0 +1,10 @@
+[package]
+name = "forme-cognition"
+version = "0.0.1"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+forme-protocol = { path = "../protocol" }
+forme-memory = { path = "../memory" }
+forme-store = { path = "../store" }

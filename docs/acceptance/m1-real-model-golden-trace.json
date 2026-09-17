@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "case_ref": "case:m1-final-only",
+  "eval_ref": "eval:real:790e0d0068a24827bdb02bbc0889761d",
+  "run": "run:1784050380441257600:1",
+  "snapshot": "snapshot:real:790e0d0068a24827bdb02bbc0889761d",
+  "snapshot_upper_bound": 18,
+  "run_status": "Complete",
+  "report_outcome": "Pass",
+  "model_profile": "configured-chat-provider:gpt-5.6-terra",
+  "model_usage": {
+    "input_tokens": 4567,
+    "output_tokens": 10
+  },
+  "events": [
+    {
+      "stream_seq": 1,
+      "event_id": "harness:1784050380442317300:1",
+      "kind": "RunAccepted"
+    },
+    {
+      "stream_seq": 2,
+      "event_id": "harness:1784050380449576300:2",
+      "kind": "SessionBound"
+    },
+    {
+      "stream_seq": 3,
+      "event_id": "harness:1784050380456266000:3",
+      "kind": "GoalFramed"
+    },
+    {
+      "stream_seq": 4,
+      "event_id": "harness:1784050380456922000:4",
+      "kind": "ResourcePlanned"
+    },
+    {
+      "stream_seq": 5,
+      "event_id": "harness:1784050380457598000:5",
+      "kind": "DoneContractSet"
+    },
+    {
+      "stream_seq": 6,
+      "event_id": "harness:1784050380458368800:6",
+      "kind": "AutonomyEnvelopeSet"
+    },
+    {
+      "stream_seq": 7,
+      "event_id": "harness:1784050380459097100:7",
+      "kind": "DecisionTraceRecorded"
+    },
+    {
+      "stream_seq": 8,
+      "event_id": "harness:1784050383616617500:8",
+      "kind": "TurnStarted"
+    },
+    {
+      "stream_seq": 9,
+      "event_id": "harness:1784050383617847600:9",
+      "kind": "ContextBuildStarted"
+    },
+    {
+      "stream_seq": 10,
+      "event_id": "harness:1784050383618992300:10",
+      "kind": "ContextBuildFinished"
+    },
+    {
+      "stream_seq": 11,
+      "event_id": "harness:1784050383619886300:11",
+      "kind": "ModelCallStarted"
+    },
+    {
+      "stream_seq": 12,
+      "event_id": "harness:1784050383620678000:12",
+      "kind": "ModelCallDelta"
+    },
+    {
+      "stream_seq": 13,
+      "event_id": "harness:1784050383621651300:13",
+      "kind": "ModelCallFinished"
+    },
+    {
+      "stream_seq": 14,
+      "event_id": "harness:1784050383622484900:14",
+      "kind": "OutputClassified"
+    },
+    {
+      "stream_seq": 15,
+      "event_id": "harness:1784050383623238000:15",
+      "kind": "VerificationStarted"
+    },
+    {
+      "stream_seq": 16,
+      "event_id": "harness:1784050383625619900:16",
+      "kind": "VerificationFinished"
+    },
+    {
+      "stream_seq": 17,
+      "event_id": "harness:1784050383626707600:17",
+      "kind": "TurnComplete"
+    },
+    {
+      "stream_seq": 18,
+      "event_id": "harness:1784050383627640500:18",
+      "kind": "RunComplete"
+    }
+  ],
+  "forbidden_events_absent": [
+    "ActionStarted",
+    "CandidatePromoted",
+    "ActionOutcomeUnknown"
+  ]
+}

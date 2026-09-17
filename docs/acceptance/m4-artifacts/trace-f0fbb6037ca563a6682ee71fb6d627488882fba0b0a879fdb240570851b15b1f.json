@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "artifact_type": "m4-federated-trace-manifest",
+  "digest": "sha256:f0fbb6037ca563a6682ee71fb6d627488882fba0b0a879fdb240570851b15b1f",
+  "body": {
+    "schema_version": 1,
+    "run": "run:s83-federated-golden",
+    "owner_commands": [
+      "m4-event:sha256:b8b66ec7ce0197b85770c05df8016be31b91b3ea239e159d4e0e3346276dcef2",
+      "m4-event:sha256:a1d0314c9578b918b5c4fa45339f478bbf44fc0677f20b1cae0f4cb52b3026ec",
+      "m4-event:sha256:8584afdc4796ca825d4c2fe5940222747802247e72c1ea38cd7447bdf9199036"
+    ],
+    "approvals": [
+      "m4-event:sha256:3e85f220b478cee778616c9473713d45701fc025835d4ef1a6983fa4acb5ca85",
+      "m4-event:sha256:361a91c04263c8af439b5fb28ecef20da6e62df0f3606685d9a3844ba9f5a61f"
+    ],
+    "leases": [
+      "m4-event:sha256:a6bdea679a9d822804d51a49f8a6021ffadd95024f3f17b1478bc2df6b3494f3",
+      "m4-event:sha256:aa0c2b0ee842904233b97e1da7b63b0e2eea198f147bd570963567d63dfff863"
+    ],
+    "actions": [
+      "m4-sink-event:run:s83-federated-golden:1",
+      "m4-event:sha256:ddaa382053fde91ef6677ea5c175b1a9e97765a8c3311e3692eae9d73e4573ed",
+      "m4-event:sha256:71950e0e8bbf2c49c210162be0bc30e1c75db6019c561f08015da2a8c91c4ee7"
+    ],
+    "verifications": [
+      "m4-event:sha256:b7aa463eacf41ccea832553cb10010a1a99e34b4122068f3e0dd69e514e2a2b2",
+      "m4-event:sha256:1f59b89b63e34236b87af5bad52143a2d9f77899b9b18181b1277b75fd62f8c5"
+    ],
+    "replication": [
+      "m4-event:sha256:8e0f7b01bee95eb59522ff8204dfcc192845ca87adcd1c8dfbc0c96da699b807"
+    ],
+    "recovery": [
+      "m4-event:sha256:945a91f1d56af3a47188a34962ec0b4904f17d6c10773d042565c407eb29d69f",
+      "m4-event:sha256:8796df647481277adb4d22c5f4ad1cacd7caf05855e18c6510558cc99a89fb14"
+    ],
+    "revocations": [
+      "m4-event:sha256:7f419dbe833195a130db71dd4536b7ee848cb902d84d03aa44b6f7223414f98e"
+    ]
+  }
+}

@@ -1,0 +1,146 @@
+{
+  "artifact_type": "forme-m4-release-audit",
+  "body": {
+    "blocking": false,
+    "checks": [
+      {
+        "blocking": false,
+        "check_id": "release_tree",
+        "findings": [],
+        "input_digest": "sha256:2d54c8a170305a5f44d2b760490c363fcad026ef539f11b8a79d419762fbe7ae",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "git",
+        "tool_version": "git version 2.54.0.windows.1"
+      },
+      {
+        "blocking": false,
+        "check_id": "license_notice",
+        "findings": [],
+        "input_digest": "sha256:9c400deb510e3d1226eb2693e8763e01f6a7ead0588430c1a6f1037c7e720b72",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-license-review",
+        "tool_version": "forme-release-audit/4"
+      },
+      {
+        "blocking": false,
+        "check_id": "direct_dependencies",
+        "findings": [],
+        "input_digest": "sha256:2e2a9c4e81d3c6831b6a50326ea5ca160f50d6c16548016b3cd3773c618af1fd",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "cargo-metadata",
+        "tool_version": "cargo 1.97.0 (c980f4866 2026-06-30)"
+      },
+      {
+        "blocking": false,
+        "check_id": "borrowing_records",
+        "findings": [],
+        "input_digest": "sha256:0146708b60a4ccc02eff772b180019f6c91d7d96727f803d7ef459717887d506",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-borrowing-review",
+        "tool_version": "forme-release-audit/4"
+      },
+      {
+        "blocking": false,
+        "check_id": "upstream_copy",
+        "findings": [],
+        "input_digest": "sha256:11082756916daf5533e03ac72a00b5e9bbf6f153ab2df781219dc94a3ed974fd",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "compliance-doctor",
+        "tool_version": "forme-compliance-doctor/2"
+      },
+      {
+        "blocking": false,
+        "check_id": "acceptance_artifacts",
+        "findings": [],
+        "input_digest": "sha256:828fcaae5587d136a7cb529f371493060c4d90df0b3a80745cc4e7df89f37e4a",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-artifact-scan",
+        "tool_version": "forme-release-audit/4"
+      },
+      {
+        "blocking": false,
+        "check_id": "vulnerability_audit",
+        "findings": [],
+        "input_digest": "sha256:2888bdaeae3eec36322379a68514e12c2e6dcfde6bc7e33df27f4e7528d80955",
+        "observations": [
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0194 affects locked quick-xml 0.30.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0195 affects locked quick-xml 0.30.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0194 affects locked quick-xml 0.39.4 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0195 affects locked quick-xml 0.39.4 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          }
+        ],
+        "outcome": "pass",
+        "tool": "cargo-audit",
+        "tool_version": "cargo-audit 0.22.2"
+      },
+      {
+        "blocking": false,
+        "check_id": "federation_threat_profile",
+        "findings": [],
+        "input_digest": "sha256:cb45bd93631ae75272e66d94724eef80886cdeecd1dc2faddddb6eb152f56823",
+        "observations": [
+          {
+            "code": "FEDERATION_THREAT_FIXTURE_PASSED",
+            "detail": "typed federation threat fixture passed",
+            "path": "test -p forme-execution --test m4_tls_contract"
+          },
+          {
+            "code": "FEDERATION_THREAT_FIXTURE_PASSED",
+            "detail": "typed federation threat fixture passed",
+            "path": "test -p forme-store --test m4_federation_contract"
+          },
+          {
+            "code": "FEDERATION_THREAT_FIXTURE_PASSED",
+            "detail": "typed federation threat fixture passed",
+            "path": "test -p forme-store --test m4_replicad_process_contract"
+          },
+          {
+            "code": "FEDERATION_THREAT_FIXTURE_PASSED",
+            "detail": "typed federation threat fixture passed",
+            "path": "test -p forme-harness --test m4_federation_contract"
+          },
+          {
+            "code": "FEDERATION_THREAT_FIXTURE_PASSED",
+            "detail": "typed federation threat fixture passed",
+            "path": "test -p forme-gateway --lib"
+          },
+          {
+            "code": "FEDERATION_THREAT_FIXTURE_PASSED",
+            "detail": "typed federation threat fixture passed",
+            "path": "test -p forme-eval --test m4_artifact_contract"
+          }
+        ],
+        "outcome": "pass",
+        "tool": "cargo",
+        "tool_version": "cargo 1.97.0 (c980f4866 2026-06-30)"
+      }
+    ],
+    "outcome": "pass",
+    "root_digest": "sha256:ab4ef932e986a555bd9ce878b99a801f42db42c84ee099af7a903e15e58a9568",
+    "schema_version": 1,
+    "tool_version": "forme-release-audit/4"
+  },
+  "digest": "sha256:4ce2cc4b13ddfd0b15404ad7f6503347ec970f15f25afb25035da239d83239e2",
+  "schema_version": 1
+}

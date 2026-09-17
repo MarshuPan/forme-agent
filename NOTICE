@@ -1,0 +1,35 @@
+forme
+Copyright 2026 forme contributors
+
+This product is licensed under the Apache License, Version 2.0.
+
+The following direct third-party components are resolved from crates.io and
+used through their public APIs. Their own license terms continue to apply:
+
+serde 1.0.228 - MIT OR Apache-2.0 - https://crates.io/crates/serde
+serde_json 1.0.150 - MIT OR Apache-2.0 - https://crates.io/crates/serde_json
+rusqlite 0.40.1 - MIT - https://crates.io/crates/rusqlite
+sha2 0.10.9 - MIT OR Apache-2.0 - https://crates.io/crates/sha2
+axum 0.8.9 - MIT - https://crates.io/crates/axum
+tokio 1.52.3 - MIT - https://crates.io/crates/tokio
+tower-http 0.7.0 - MIT - https://crates.io/crates/tower-http
+getrandom 0.4.3 - MIT OR Apache-2.0 - https://crates.io/crates/getrandom
+headless_chrome 1.0.22 - MIT - https://crates.io/crates/headless_chrome
+portable-pty 0.9.0 - MIT - https://crates.io/crates/portable-pty
+url 2.5.8 - MIT OR Apache-2.0 - https://crates.io/crates/url
+ureq 3.3.0 - MIT OR Apache-2.0 - https://crates.io/crates/ureq
+enigo 0.6.1 - MIT - https://crates.io/crates/enigo
+xcap 0.9.6 - Apache-2.0 - https://crates.io/crates/xcap
+httparse 1.10.1 - MIT OR Apache-2.0 - https://crates.io/crates/httparse
+rustls 0.23.42 - Apache-2.0 OR ISC OR MIT - https://crates.io/crates/rustls
+rustls-pki-types 1.15.0 - MIT OR Apache-2.0 - https://crates.io/crates/rustls-pki-types
+rcgen 0.14.8 - MIT OR Apache-2.0 - https://crates.io/crates/rcgen
+ed25519-dalek 2.2.0 - BSD-3-Clause - https://crates.io/crates/ed25519-dalek
+
+The locked rusqlite build includes libsqlite3-sys and SQLite. SQLite is in the
+public domain; see https://www.sqlite.org/copyright.html. forme implements the
+Model Context Protocol and Chat Completions interoperability surfaces from
+public specifications without embedding third-party implementation source.
+
+The complete direct-dependency review and borrowing records are maintained in
+docs/compliance/third-party-dependencies.md and compliance/borrowing-records.json.

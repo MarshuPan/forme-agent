@@ -1,0 +1,29 @@
+{
+  "artifact_type": "rollback",
+  "rollback": {
+    "aggregate": "evolution:owner:workspace",
+    "committed_version": {
+      "aggregate": "evolution:owner:workspace",
+      "schema_version": 1,
+      "value": 3
+    },
+    "domain": "Loop",
+    "expected_version": {
+      "aggregate": "evolution:owner:workspace",
+      "schema_version": 1,
+      "value": 2
+    },
+    "external_effects_reverted": false,
+    "failed": "loop:m3-a-browser:v2",
+    "in_flight": "KeepPinned",
+    "restored": "loop:m3-a-browser:v1",
+    "restored_spec_digest": "digest:loop:m3-a-browser:v1",
+    "restored_spec_ref": "content:loop:m3-a-browser:v1",
+    "schema_version": 1,
+    "scope": "workspace:m2-a-browser-golden",
+    "triggers": [
+      "evidence:m3-a-browser-regression-injected"
+    ]
+  },
+  "schema_version": 1
+}

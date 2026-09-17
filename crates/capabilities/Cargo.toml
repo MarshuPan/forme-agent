@@ -1,0 +1,13 @@
+[package]
+name = "forme-capabilities"
+version = "0.0.1"
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["std"] }
+forme-protocol = { path = "../protocol" }
+forme-policy = { path = "../policy" }
+serde_json = "=1.0.150"
+sha2 = "=0.10.9"
+url = "=2.5.8"
