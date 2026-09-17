@@ -86,7 +86,7 @@
 |---|---|---|
 | `ToolCallProposed` | call_id, tool, args | §1, S2 |
 | `ToolPolicyEvaluated` | decision(allow/ask/deny), rule_source, reason | §1, S2 |
-| `ApprovalRequested` | approval_id, action_summary, risk, scope, rollback_boundary, expires_at, choices, plan_digest, normalized_action_digest, normalized_affected_resources, policy/tool-schema snapshot | D12, S2 |
+| `ApprovalRequested` | approval_id, action_summary, risk, scope, rollback_boundary, expires_at, choices, plan_digest, normalized_action_digest, affected_resources, policy/tool-schema snapshot | D12, S2 |
 | `ApprovalResolved` | outcome(granted/denied/expired), grant_ref | D12, S2 |
 | `HandoffRequested` / `HandoffResolved` | target, reason | §4.1 |
 

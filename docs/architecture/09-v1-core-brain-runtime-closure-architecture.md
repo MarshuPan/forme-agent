@@ -441,7 +441,7 @@ typed command
 1. `ActionIntent` 产生候选计划时，做一次初始 policy/competence/approval 判断；
 2. 形成不可变 `ExecutionPlan`、批准返回、driver 调用前，分别重新检查最终 plan digest、规范化 action/resource binding、参数、backend、scope、timeout、rollback、capability、policy snapshot、grant/envelope、owner epoch 和 schema；最终重查通过后再原子 claim one-shot nonce，claim 失败不得产生 `ActionStarted` 或 driver call。
 
-审批绑定的是最终计划，而不是“某类动作”的泛化许可。绑定 tuple 还必须包含 approver、`normalized_action_digest`、排序去重的 `normalized_affected_resources`、policy/tool-schema snapshot、nonce 和 expiry。任何 plan 字段、资源集合、审批身份或 backend-specific 参数变化都必须形成新 digest、新 approval ticket/nonce 和新审计链；one-shot 消费状态必须在 authority companion ledger 中跨重启保留。`Verifier` 不得以模型文本或动作自报为唯一证据；它必须按 `DoneContract` 的 selector/predicate/tolerance 读取事件段、动作结果、文件/外部 ground truth，并显式返回 `Pass`、`Fail` 或 `Unverifiable`。
+审批绑定的是最终计划，而不是“某类动作”的泛化许可。绑定 tuple 还必须包含 approver、`normalized_action_digest`、排序去重的 `affected_resources`、policy/tool-schema snapshot、nonce 和 expiry。任何 plan 字段、资源集合、审批身份或 backend-specific 参数变化都必须形成新 digest、新 approval ticket/nonce 和新审计链；one-shot 消费状态必须在 authority companion ledger 中跨重启保留。`Verifier` 不得以模型文本或动作自报为唯一证据；它必须按 `DoneContract` 的 selector/predicate/tolerance 读取事件段、动作结果、文件/外部 ground truth，并显式返回 `Pass`、`Fail` 或 `Unverifiable`。
 
 ### 12.4 文档与实现状态契约
 

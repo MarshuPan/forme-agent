@@ -41,7 +41,7 @@ pub struct PolicyContext { pub session: SessionId, pub toolset: ToolsetRef, pub 
 // 审批(Gateway-compatible;字段 = architecture §2.3)
 pub struct ApprovalRequest {
     pub approval_id: ApprovalId, pub action_summary: String, pub risk_level: RiskLevel,
-    pub scope: Scope, pub requested_permissions: Vec<Permission>, pub affected_resources: Vec<ResourceRef>,
+    pub scope: Scope, pub requested_permissions: Vec<Permission>,
     pub rollback_boundary: RollbackBoundary, pub expires_at: Timestamp, pub choices: Vec<ApprovalChoice>,
     pub normalized_action_digest: SchemaDigest,
     pub affected_resources: Vec<ResourceRef>, // 排序去重后的规范化集合
