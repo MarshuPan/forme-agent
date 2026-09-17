@@ -42,6 +42,7 @@ fn cli_question_reaches_http_model_and_prints_the_answer() {
         .env("FORME_MODEL_API_KEY", "local-e2e-secret")
         .env("FORME_MODEL_TIMEOUT_MS", "5000")
         .env("FORME_STORE_PATH", &store)
+        .env("FORME_OWNER_ID", "owner:cli-e2e")
         .output()
         .unwrap();
     server.join().unwrap();

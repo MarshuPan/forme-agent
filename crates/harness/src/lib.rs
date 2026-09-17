@@ -25,7 +25,7 @@ use forme_coordination as coordination;
 use forme_eval as eval;
 use forme_execution::{
     ActionResult, ActionStatus, AppApiBackend, CancelToken, EventSink, ExecutionBackendRegistry,
-    ExecutionPlan, HttpAppApiDriver, InMemoryContentResolver, NotificationBackend, OutputBudget,
+    ExecutionPlan, HttpAppApiDriver, InMemoryContentResolver, OutputBudget,
     RejectingSecretResolver,
 };
 use forme_loop::{
@@ -33,8 +33,8 @@ use forme_loop::{
     ReactiveLoopEngine, ResolvedOutcome, ResumeState, StopReason,
 };
 use forme_models::{
-    ChatCompletionsProvider, Cost, ModelCapability, ModelProfile, ModelProvider, ModelStrength,
-    RateLimit, ScriptedModelProvider, SecretString, Url,
+    Cost, ModelCapability, ModelProfile, ModelProvider, ModelStrength, RateLimit,
+    ScriptedModelProvider, Url,
 };
 use forme_policy::{
     ActionMatcher, ArgMatcher, DefaultPolicyEngine, DelegationGrant, DelegationSubject,
@@ -47,6 +47,7 @@ mod m3_a;
 mod m3_b;
 mod m4;
 mod m5;
+mod production;
 pub use m3_a::{
     EvolutionActivationResult, EvolutionEvaluationResult, ExactReplayAuditResult,
     M3EvolutionHarness,
@@ -65,6 +66,7 @@ pub use m5::{
     CapabilityPackageLedgerGroundTruth, CapabilityPackageReceiver, EcosystemGatewayControl,
     EcosystemHarnessRuntime, FileCapabilityPackageLedger, M5_PACKAGE_RECEIVER_LOGICAL_PATH,
 };
+pub use production::*;
 
 #[derive(Debug, Clone)]
 pub struct EventStream {
@@ -621,6 +623,8 @@ struct SchedulerRuntime {
 
 pub struct ReactiveHarness {
     store: SqliteEventStore,
+    authority_guard: Option<forme_store::AuthorityLeaseGuard>,
+    brain_services: Option<Arc<BrainServices>>,
     ingress_authority: IngressAuthority,
     model: Arc<dyn ModelProvider>,
     context_builder: Arc<dyn ContextBuilder + Send + Sync>,
@@ -676,6 +680,8 @@ impl ReactiveHarness {
         let ecosystem = Arc::new(EcosystemHarnessRuntime::local(store.clone()));
         let harness = Self {
             store,
+            authority_guard: None,
+            brain_services: None,
             ingress_authority: IngressAuthority::default(),
             model,
             context_builder,
@@ -720,6 +726,29 @@ impl ReactiveHarness {
 
     pub fn federation_runtime(&self) -> Arc<FederatedHarnessRuntime> {
         self.federation.clone()
+    }
+
+    /// Attaches the production authority fence. Test-only constructors remain
+    /// unfenced unless a production runtime explicitly supplies this guard.
+    pub fn with_authority_guard(mut self, guard: forme_store::AuthorityLeaseGuard) -> Self {
+        self.authority_guard = Some(guard);
+        self
+    }
+
+    /// Attaches the single production service bundle used by all entry
+    /// surfaces. The bundle is intentionally optional for legacy test
+    /// harnesses constructed with `new`.
+    pub fn with_brain_services(mut self, services: Arc<BrainServices>) -> Self {
+        self.brain_services = Some(services);
+        self
+    }
+
+    pub fn brain_services(&self) -> Option<Arc<BrainServices>> {
+        self.brain_services.clone()
+    }
+
+    pub fn has_production_composition(&self) -> bool {
+        self.authority_guard.is_some() && self.brain_services.is_some()
     }
 
     pub fn ecosystem_runtime(&self) -> Arc<EcosystemHarnessRuntime> {
@@ -930,104 +959,15 @@ impl ReactiveHarness {
     }
 
     pub fn from_environment(store: SqliteEventStore) -> p::Result<Self> {
-        let provider_id = std::env::var("FORME_MODEL_PROVIDER")
-            .unwrap_or_else(|_| "configured-chat-provider".into());
-        let model = required_env("FORME_MODEL_NAME")?;
-        let base_url = Url::parse(required_env("FORME_MODEL_BASE_URL")?)?;
-        let secret = SecretString::new(required_env("FORME_MODEL_API_KEY")?)?;
-        let profile = ModelProfile {
-            schema_version: p::SchemaVersion(1),
-            provider: p::ProviderId(provider_id),
-            model,
-            base_url,
-            capability: ModelCapability {
-                schema_version: p::SchemaVersion(1),
-                context_window: optional_env_u32("FORME_MODEL_CONTEXT_WINDOW", 32_768)?,
-                tool_use: false,
-                strength: ModelStrength::Standard,
-            },
-            cost: Cost {
-                schema_version: p::SchemaVersion(1),
-                input_microunits_per_million: 0,
-                output_microunits_per_million: 0,
-            },
-            rate_limit: RateLimit {
-                schema_version: p::SchemaVersion(1),
-                requests_per_minute: 60,
-                tokens_per_minute: 1_000_000,
-            },
-            credential_ref: p::CredentialRef("env:FORME_MODEL_API_KEY".into()),
-        };
-        let provider = Arc::new(ChatCompletionsProvider::new(
-            profile.clone(),
-            secret,
-            p::DurationMs(u64::from(optional_env_u32(
-                "FORME_MODEL_TIMEOUT_MS",
-                120_000,
-            )?)),
-        )?);
-        let intention_services = cognition::event_sourced_intention_services(
-            Arc::new(store.clone()),
-            p::RunId("memory:proactivity-intentions".into()),
-        )?;
-        let proactivity =
-            cognition::M0ProactivityEngine::new(cognition::ProactivityConfig::default())
-                .with_intention_store(intention_services.proactive.clone());
-        let notification_enabled = optional_env_bool("FORME_NOTIFICATION_ENABLED", true)?;
-        let backends = Arc::new(ExecutionBackendRegistry::default());
-        if notification_enabled {
-            backends.register(Arc::new(NotificationBackend::default()))?;
-        }
-        let config = HarnessConfig::for_model(&profile);
-        let governance = if notification_enabled {
-            local_notification_governance(&config.workspace, now_ms())
-        } else {
-            GovernanceConfig::default()
-        };
-        let scheduler_enabled = optional_env_bool("FORME_SCHEDULER_ENABLED", true)?;
-        let scheduler_config = p::SchedulerConfig {
-            schema_version: p::SchemaVersion(1),
-            tick: p::DurationMs(u64::from(optional_env_u32(
-                "FORME_SCHEDULER_TICK_MS",
-                1_000,
-            )?)),
-            lease: p::DurationMs(u64::from(optional_env_u32(
-                "FORME_SCHEDULER_LEASE_MS",
-                30_000,
-            )?)),
-            max_claims_per_tick: optional_env_u32("FORME_SCHEDULER_MAX_CLAIMS", 1)?,
-        };
-        let harness = Self::new(store, provider, backends, governance, config)?
-            .with_coordination(Arc::new(coordination::RuleBasedCoordinationReasoner))
-            .with_proactivity(Arc::new(proactivity))
-            .with_competence_gate(Arc::new(cognition::EvidenceCompetenceGate::default()));
-        if scheduler_enabled {
-            harness.with_scheduler(intention_services.scheduled, scheduler_config)
-        } else {
-            Ok(harness)
-        }
+        ProductionRuntimeBuilder::from_environment()?
+            .build_with_store(store)?
+            .into_harness()
     }
 
     pub fn from_environment_local() -> p::Result<Self> {
-        let path = std::env::var_os("FORME_STORE_PATH")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| std::path::PathBuf::from(".forme").join("forme.db"));
-        if let Some(parent) = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-        {
-            std::fs::create_dir_all(parent).map_err(|error| {
-                p::Error(format!("failed to create local store directory: {error}"))
-            })?;
-        }
-        let store = SqliteEventStore::open(
-            path,
-            StoreOptions {
-                fts_enabled: true,
-                ..StoreOptions::default()
-            },
-        )?;
-        Self::from_environment(store)
+        ProductionRuntimeBuilder::from_environment()?
+            .build()?
+            .into_harness()
     }
 
     pub fn with_context_builder(mut self, builder: Arc<dyn ContextBuilder + Send + Sync>) -> Self {
@@ -6309,34 +6249,4 @@ fn now_nanos() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or(0)
-}
-
-fn required_env(key: &str) -> p::Result<String> {
-    std::env::var(key)
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .ok_or_else(|| p::Error(format!("required configuration {key} is missing")))
-}
-
-fn optional_env_u32(key: &str, fallback: u32) -> p::Result<u32> {
-    match std::env::var(key) {
-        Ok(value) => value
-            .parse()
-            .map_err(|_| p::Error(format!("configuration {key} must be an unsigned integer"))),
-        Err(_) => Ok(fallback),
-    }
-}
-
-fn optional_env_bool(key: &str, fallback: bool) -> p::Result<bool> {
-    match std::env::var(key) {
-        Ok(value) => match value.trim().to_ascii_lowercase().as_str() {
-            "1" | "true" | "yes" | "on" => Ok(true),
-            "0" | "false" | "no" | "off" => Ok(false),
-            _ => Err(p::Error(format!("{key} must be a boolean"))),
-        },
-        Err(std::env::VarError::NotPresent) => Ok(fallback),
-        Err(std::env::VarError::NotUnicode(_)) => {
-            Err(p::Error(format!("{key} is not valid UTF-8")))
-        }
-    }
 }

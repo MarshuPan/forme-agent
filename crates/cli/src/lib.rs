@@ -124,7 +124,7 @@ impl<'a> CliClient<'a> {
             schema_version: p::SchemaVersion(1),
             source: p::Source::UserTurn,
             session: request.session,
-            agent_profile: p::AgentProfileRef("agent:forme-local".into()),
+            agent_profile: self.gateway.agent_profile(),
             input: p::RunInput(request.question),
             budget: None,
             idempotency_key: Some(p::IdempotencyKey(format!(

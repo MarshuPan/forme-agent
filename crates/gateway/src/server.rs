@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Write};
@@ -12,7 +13,10 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use forme_communication::AuthContext;
-use forme_harness::{ReactiveHarness, SchedulerService};
+use forme_harness::{
+    CompositionManifest, ProductionRuntime, ProductionRuntimeBuilder, ReactiveHarness,
+    RuntimeServiceState, RuntimeServiceStatus, SchedulerService,
+};
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 use tower_http::timeout::TimeoutLayer;
@@ -118,10 +122,10 @@ impl GatewayServerConfig {
             schema_version: p::SchemaVersion(1),
             bind,
             port,
-            owner: p::VerifiedPrincipal(
-                std::env::var("FORME_OWNER_ID").unwrap_or_else(|_| "local-owner".into()),
+            owner: p::VerifiedPrincipal(required_env("FORME_OWNER_ID")?),
+            agent_profile: p::AgentProfileRef(
+                std::env::var("FORME_AGENT_PROFILE").unwrap_or_else(|_| "agent:forme-local".into()),
             ),
-            agent_profile: p::AgentProfileRef("agent:forme-local".into()),
             max_body_bytes,
             request_timeout: Duration::from_millis(timeout_ms),
             max_requests_per_minute,
@@ -161,15 +165,29 @@ where
     F: FnOnce(SocketAddr),
 {
     config.validate()?;
-    let harness = Arc::new(ReactiveHarness::from_environment_local()?);
+    let runtime = Arc::new(ProductionRuntimeBuilder::from_environment()?.build()?);
+    if runtime.owner().0 != config.owner.0 {
+        return Err(p::Error(
+            "gateway owner does not match the production runtime owner".into(),
+        ));
+    }
+    if runtime.manifest().agent_profile != config.agent_profile {
+        return Err(p::Error(
+            "gateway agent profile does not match the production runtime profile".into(),
+        ));
+    }
+    if runtime.config().scheduler_enabled != config.scheduler_enabled
+        || runtime.config().scheduler != config.scheduler
+    {
+        return Err(p::Error(
+            "gateway scheduler configuration does not match the production runtime".into(),
+        ));
+    }
+    let harness = runtime.harness();
     if config.scheduler_enabled {
         SchedulerService::recover(harness.as_ref(), now_ms())?;
     }
-    let gateway = Arc::new(LocalGateway::new(
-        harness.clone(),
-        config.owner.clone(),
-        config.agent_profile.clone(),
-    )?);
+    let gateway = Arc::new(LocalGateway::from_production_runtime(runtime.clone())?);
     let listener = tokio::net::TcpListener::bind(SocketAddr::new(config.bind, config.port))
         .await
         .map_err(|error| p::Error(format!("failed to bind local gateway: {error}")))?;
@@ -183,6 +201,7 @@ where
     }
     let state = Arc::new(HttpState {
         gateway,
+        runtime: runtime.clone(),
         owner: config.owner.clone(),
         token: config.token.clone(),
         origin: format!("http://{address}"),
@@ -191,7 +210,7 @@ where
     });
     let app = router(state, &config);
     let scheduler_task = if config.scheduler_enabled {
-        let scheduler = harness.clone();
+        let scheduler = runtime.clone();
         let tick = Duration::from_millis(config.scheduler.tick.0);
         Some(tokio::spawn(async move {
             let mut interval = tokio::time::interval(tick);
@@ -200,7 +219,7 @@ where
                 interval.tick().await;
                 let scheduler = scheduler.clone();
                 let _ = tokio::task::spawn_blocking(move || {
-                    SchedulerService::tick(scheduler.as_ref(), now_ms())
+                    SchedulerService::tick(scheduler.harness().as_ref(), now_ms())
                 })
                 .await;
             }
@@ -225,6 +244,9 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/app.css", get(styles))
         .route("/app.js", get(script))
         .route("/healthz", get(health))
+        .route("/v1/runtime/manifest", get(runtime_manifest))
+        .route("/v1/runtime/doctor", get(runtime_doctor))
+        .route("/v1/runtime/tick", post(runtime_tick))
         .route("/v1/profile", get(control_profile))
         .route("/v1/runs", get(list_runs).post(submit_run))
         .route("/v1/runs/{run}", get(run_summary))
@@ -270,6 +292,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
 
 struct HttpState {
     gateway: Arc<LocalGateway<ReactiveHarness>>,
+    runtime: Arc<ProductionRuntime>,
     owner: p::VerifiedPrincipal,
     token: LocalBearerSecret,
     origin: String,
@@ -418,6 +441,137 @@ async fn script() -> Response {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+#[derive(Debug, Serialize)]
+struct RuntimeServiceStateView {
+    schema_version: p::SchemaVersion,
+    name: String,
+    status: String,
+    reason: Option<p::ReasonRef>,
+}
+
+#[derive(Debug, Serialize)]
+struct RuntimeManifestView {
+    schema_version: p::SchemaVersion,
+    owner_digest: p::SchemaDigest,
+    store_identity: p::SchemaDigest,
+    aggregate_refs: BTreeMap<String, p::RunId>,
+    workspace: p::WorkspaceRef,
+    agent_profile: p::AgentProfileRef,
+    policy_profile: p::PolicyProfileRef,
+    toolset_ref: p::ToolsetRef,
+    model_profiles: Vec<p::ModelProfileRef>,
+    capability_snapshot: p::SchemaDigest,
+    service_states: Vec<RuntimeServiceStateView>,
+    digest: p::SchemaDigest,
+}
+
+#[derive(Debug, Serialize)]
+struct RuntimeDoctorView {
+    schema_version: p::SchemaVersion,
+    checks: Vec<RuntimeServiceStateView>,
+    blocking: bool,
+    digest: p::SchemaDigest,
+}
+
+#[derive(Debug, Serialize)]
+struct RuntimeTickView {
+    schema_version: p::SchemaVersion,
+    ran: bool,
+    skipped_reason: Option<String>,
+    run: Option<p::RunId>,
+    candidate_events: Vec<p::EventId>,
+    proposal_events: Vec<p::EventId>,
+    workspace_snapshot: Option<p::AgentWorkspaceSnapshotRef>,
+}
+
+fn runtime_service_state_view(state: &RuntimeServiceState) -> RuntimeServiceStateView {
+    RuntimeServiceStateView {
+        schema_version: state.schema_version,
+        name: state.name.clone(),
+        status: match state.status {
+            RuntimeServiceStatus::Ready => "ready",
+            RuntimeServiceStatus::Disabled => "disabled",
+            RuntimeServiceStatus::Unsupported => "unsupported",
+            RuntimeServiceStatus::Blocking => "blocking",
+        }
+        .into(),
+        reason: state.reason.clone(),
+    }
+}
+
+fn runtime_manifest_view(manifest: &CompositionManifest) -> RuntimeManifestView {
+    RuntimeManifestView {
+        schema_version: manifest.schema_version,
+        owner_digest: manifest.owner_digest.clone(),
+        store_identity: manifest.store_identity.clone(),
+        aggregate_refs: manifest
+            .aggregate_refs
+            .as_map()
+            .into_iter()
+            .map(|(kind, run)| (kind.as_str().to_owned(), run))
+            .collect(),
+        workspace: manifest.workspace.clone(),
+        agent_profile: manifest.agent_profile.clone(),
+        policy_profile: manifest.policy_profile.clone(),
+        toolset_ref: manifest.toolset_ref.clone(),
+        model_profiles: manifest.model_profiles.clone(),
+        capability_snapshot: manifest.capability_snapshot.clone(),
+        service_states: manifest
+            .service_states
+            .iter()
+            .map(runtime_service_state_view)
+            .collect(),
+        digest: manifest.digest.clone(),
+    }
+}
+
+fn runtime_doctor_view(doctor: &forme_harness::ConfigDoctorSnapshot) -> RuntimeDoctorView {
+    RuntimeDoctorView {
+        schema_version: doctor.schema_version,
+        checks: doctor
+            .checks
+            .iter()
+            .map(runtime_service_state_view)
+            .collect(),
+        blocking: doctor.blocking,
+        digest: doctor.digest.clone(),
+    }
+}
+
+async fn runtime_manifest(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+) -> Result<Json<RuntimeManifestView>, ApiError> {
+    state.authorize(&headers, false)?;
+    Ok(Json(runtime_manifest_view(state.runtime.manifest())))
+}
+
+async fn runtime_doctor(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+) -> Result<Json<RuntimeDoctorView>, ApiError> {
+    state.authorize(&headers, false)?;
+    Ok(Json(runtime_doctor_view(&state.runtime.doctor())))
+}
+
+async fn runtime_tick(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+) -> Result<Json<RuntimeTickView>, ApiError> {
+    state.authorize(&headers, true)?;
+    let runtime = state.runtime.clone();
+    let report = blocking(move || runtime.tick_once()).await?;
+    Ok(Json(RuntimeTickView {
+        schema_version: report.schema_version,
+        ran: report.ran,
+        skipped_reason: report.skipped_reason,
+        run: report.run,
+        candidate_events: report.candidate_events,
+        proposal_events: report.proposal_events,
+        workspace_snapshot: report.workspace_snapshot,
+    }))
 }
 
 async fn control_profile(
@@ -1200,6 +1354,13 @@ fn env_bool(key: &str, fallback: bool) -> p::Result<bool> {
             Err(p::Error(format!("{key} is not valid UTF-8")))
         }
     }
+}
+
+fn required_env(key: &str) -> p::Result<String> {
+    std::env::var(key)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| p::Error(format!("required configuration {key} is missing")))
 }
 
 fn now_ms() -> p::Timestamp {

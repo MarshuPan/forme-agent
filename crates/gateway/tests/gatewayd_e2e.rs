@@ -85,6 +85,49 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
         p::VerifiedPrincipal("owner:gateway-e2e".into())
     );
 
+    let manifest_response = http(
+        gateway_address,
+        "GET",
+        "/v1/runtime/manifest",
+        &[authorization()],
+        None,
+    );
+    assert_status(&manifest_response, 200);
+    let manifest =
+        serde_json::from_str::<serde_json::Value>(response_body(&manifest_response)).unwrap();
+    assert_eq!(manifest["workspace"], "workspace:default");
+    assert_eq!(manifest["agent_profile"], "agent:forme-local");
+    assert!(!manifest["digest"].as_str().unwrap().is_empty());
+    assert!(!response_body(&manifest_response).contains(TOKEN));
+    assert!(!response_body(&manifest_response).contains("gateway.token"));
+
+    let doctor_response = http(
+        gateway_address,
+        "GET",
+        "/v1/runtime/doctor",
+        &[authorization()],
+        None,
+    );
+    assert_status(&doctor_response, 200);
+    let doctor =
+        serde_json::from_str::<serde_json::Value>(response_body(&doctor_response)).unwrap();
+    assert_eq!(doctor["blocking"], false);
+    assert!(doctor["checks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|check| { check["name"] == "mcp-registry" && check["status"] == "unsupported" }));
+
+    let tick = http(
+        gateway_address,
+        "POST",
+        "/v1/runtime/tick",
+        &mutation_headers(gateway_address),
+        Some(""),
+    );
+    assert_status(&tick, 200);
+    assert!(serde_json::from_str::<serde_json::Value>(response_body(&tick)).is_ok());
+
     let unauthenticated_evolution = http(
         gateway_address,
         "GET",
@@ -639,6 +682,10 @@ fn jobs_api_persists_across_daemon_restart_and_cancel_prevents_a_run() {
         None
     );
     stop(&mut first.0);
+    // The daemon is terminated by the test harness, so its in-process lease
+    // guard cannot run Drop.  Let the explicitly short production lease
+    // expire before exercising crash-recovery startup.
+    std::thread::sleep(Duration::from_millis(250));
 
     let second_address = free_address();
     let mut second = spawn_jobs_gateway(second_address, &store);
@@ -725,6 +772,7 @@ fn spawn_jobs_gateway(address: SocketAddr, store: &std::path::Path) -> ChildGuar
             .env("FORME_SCHEDULER_LEASE_MS", "200")
             .env("FORME_SCHEDULER_MAX_CLAIMS", "4")
             .env("FORME_NOTIFICATION_ENABLED", "true")
+            .env("FORME_BRAIN_LEASE_MS", "200")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()

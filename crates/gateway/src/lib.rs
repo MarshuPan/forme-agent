@@ -19,7 +19,8 @@ use forme_harness::{
     FederationActionGateway as HarnessFederationActionGateway, FederationControlResult,
     FederationGatewayControl as HarnessFederationGatewayControl,
     GatewayControl as HarnessGatewayControl, HarnessActionIngress, HarnessIngress,
-    IngressAuthority, ManualEvaluator as HarnessManualEvaluator, ReactiveHarness,
+    IngressAuthority, ManualEvaluator as HarnessManualEvaluator, ProductionRuntime,
+    ProductionRuntimeBuilder, ReactiveHarness,
     SchedulerGatewayControl as HarnessSchedulerGatewayControl,
     SchedulerService as HarnessSchedulerService,
 };
@@ -39,23 +40,24 @@ pub trait RunGateway: Send + Sync {
     fn stream_run(&self, run: p::RunId) -> EventStream;
     fn wait_run(&self, run: p::RunId) -> p::Result<p::RunResult>;
     fn answer(&self, run: p::RunId) -> p::Result<Option<String>>;
+
+    /// Returns the runtime-bound agent profile for clients that construct a
+    /// `RunRequest` (notably the CLI). Legacy test gateways retain the stable
+    /// default through this additive method.
+    fn agent_profile(&self) -> p::AgentProfileRef {
+        p::AgentProfileRef("agent:forme-local".into())
+    }
 }
 
 pub fn environment_gateway() -> p::Result<Box<dyn RunGateway>> {
-    let harness = Arc::new(ReactiveHarness::from_environment_local()?);
-    let owner = p::VerifiedPrincipal(
-        std::env::var("FORME_OWNER_ID").unwrap_or_else(|_| "local-owner".into()),
-    );
-    let gateway = LocalGateway::new(
-        harness,
-        owner,
-        p::AgentProfileRef("agent:forme-local".into()),
-    )?;
+    let runtime = Arc::new(ProductionRuntimeBuilder::from_environment()?.build()?);
+    let gateway = LocalGateway::from_production_runtime(runtime)?;
     Ok(Box::new(gateway))
 }
 
 pub struct LocalGateway<H: HarnessIngress + Send + Sync> {
     harness: Arc<H>,
+    production_runtime: Option<Arc<ProductionRuntime>>,
     ingress_authority: IngressAuthority,
     owner: p::VerifiedPrincipal,
     agent_profile: p::AgentProfileRef,
@@ -469,11 +471,16 @@ where
         let ingress_authority = harness.ingress_authority();
         Ok(Self {
             harness,
+            production_runtime: None,
             ingress_authority,
             owner,
             agent_profile,
             sequence: AtomicU64::new(1),
         })
+    }
+
+    pub fn production_runtime(&self) -> Option<Arc<ProductionRuntime>> {
+        self.production_runtime.clone()
     }
 
     pub fn normalize_and_submit<A: ChannelAdapter>(
@@ -791,6 +798,17 @@ where
         };
         self.harness
             .submit_action(request, prepared.intent, prepared.envelope, prelude)
+    }
+}
+
+impl LocalGateway<ReactiveHarness> {
+    pub fn from_production_runtime(runtime: Arc<ProductionRuntime>) -> p::Result<Self> {
+        let owner = p::VerifiedPrincipal(runtime.owner().0.clone());
+        let agent_profile = runtime.manifest().agent_profile.clone();
+        let harness = runtime.harness();
+        let mut gateway = Self::new(harness, owner, agent_profile)?;
+        gateway.production_runtime = Some(runtime);
+        Ok(gateway)
     }
 }
 
@@ -1309,6 +1327,10 @@ where
 
     fn answer(&self, run: p::RunId) -> p::Result<Option<String>> {
         LocalGateway::answer(self, run)
+    }
+
+    fn agent_profile(&self) -> p::AgentProfileRef {
+        self.agent_profile.clone()
     }
 }
 

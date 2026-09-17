@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use forme_memory as memory;
 use forme_memory::CandidateStore;
 use forme_protocol as p;
-use forme_store::EventStore;
+use forme_store::{EventStore, SqliteEventStore};
 
 mod temporal;
 pub use temporal::*;
@@ -21,6 +21,20 @@ pub use m3_a::{
 
 mod m3_c;
 pub use m3_c::*;
+
+/// Concrete persistent memory used by the production composition root.
+///
+/// The composition root remains in `harness`; this factory keeps the frozen
+/// crate graph intact while exposing the memory implementation through the
+/// cognition boundary that already owns the memory dependency.
+pub type PersistentMemory = memory::EventSourcedMemory<SqliteEventStore>;
+
+pub fn open_persistent_memory(
+    store: Arc<SqliteEventStore>,
+    aggregate_run: p::RunId,
+) -> p::Result<Arc<PersistentMemory>> {
+    Ok(Arc::new(PersistentMemory::open(store, aggregate_run)?))
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MapScope {
