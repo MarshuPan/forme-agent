@@ -551,7 +551,6 @@ fn validate_app_api(
     spec: &p::AppApiActionSpec,
 ) -> p::Result<()> {
     if context.external.schema_version.0 == 0
-        || !context.network_allowed
         || spec.schema_version.0 == 0
         || spec.connector.0.trim().is_empty()
         || spec.schema_digest.0.trim().is_empty()

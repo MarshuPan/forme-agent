@@ -86,7 +86,9 @@ fn context() -> PolicyContext {
                 max_timeout: p::DurationMs(2_000),
             }],
         },
-        network_allowed: true,
+        // App API network authority comes from the exact connector limit;
+        // this global flag remains reserved for shell/remote execution.
+        network_allowed: false,
         sandbox_available: true,
         delegation: None,
         envelope: None,
