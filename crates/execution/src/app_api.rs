@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -392,6 +392,86 @@ pub struct AppApiBackend {
     budget: OutputBudget,
     max_timeout: p::DurationMs,
     active: ActiveCancellations,
+}
+
+/// Routes one execution backend kind to the connector selected by the plan.
+///
+/// `ExecutionBackendRegistry` intentionally keys by `BackendKind`, while a
+/// production runtime may own many App API connectors.  Keeping this router
+/// in the execution crate preserves that registry contract without allowing a
+/// connector to accept a plan for another connector.
+pub struct CompositeAppApiBackend {
+    connectors: BTreeMap<p::ProviderId, Arc<AppApiBackend>>,
+}
+
+impl CompositeAppApiBackend {
+    pub fn new(connectors: Vec<(p::ProviderId, Arc<AppApiBackend>)>) -> p::Result<Self> {
+        let mut indexed = BTreeMap::new();
+        for (id, backend) in connectors {
+            if id.0.trim().is_empty() || backend.kind() != p::BackendKind::AppApi {
+                return Err(p::Error(
+                    "App API composite backend contains an invalid connector".into(),
+                ));
+            }
+            if indexed.insert(id, backend).is_some() {
+                return Err(p::Error(
+                    "App API composite backend contains a duplicate connector".into(),
+                ));
+            }
+        }
+        if indexed.is_empty() {
+            return Err(p::Error(
+                "App API composite backend requires at least one connector".into(),
+            ));
+        }
+        Ok(Self {
+            connectors: indexed,
+        })
+    }
+
+    fn connector_for_intent(&self, intent: &p::ActionIntent) -> p::Result<&Arc<AppApiBackend>> {
+        let p::ActionParameters::AppApi(spec) = &intent.parameters else {
+            return Err(p::Error(
+                "App API composite backend received non-App API parameters".into(),
+            ));
+        };
+        self.connectors.get(&spec.connector).ok_or_else(|| {
+            p::Error("App API connector is not registered in the composite backend".into())
+        })
+    }
+}
+
+impl ActionBackend for CompositeAppApiBackend {
+    fn kind(&self) -> BackendKind {
+        p::BackendKind::AppApi
+    }
+
+    fn plan(&self, intent: &p::ActionIntent) -> p::Result<ExecutionPlan> {
+        self.connector_for_intent(intent)?.plan(intent)
+    }
+
+    fn execute(
+        &self,
+        plan: ExecutionPlan,
+        sink: &EventSink,
+        cancel: CancelToken,
+    ) -> p::Result<ActionResult> {
+        self.connector_for_intent(&plan.intent)?
+            .execute(plan, sink, cancel)
+    }
+
+    fn cancel(&self, action: p::ActionId) -> p::Result<()> {
+        let mut last_error = None;
+        for backend in self.connectors.values() {
+            match backend.cancel(action.clone()) {
+                Ok(()) => return Ok(()),
+                Err(error) => last_error = Some(error),
+            }
+        }
+        Err(last_error.unwrap_or_else(|| {
+            p::Error("App API composite backend has no active connector".into())
+        }))
+    }
 }
 
 impl AppApiBackend {
