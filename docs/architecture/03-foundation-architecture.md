@@ -61,7 +61,7 @@
 | 事件 | 关键 payload | 服务 |
 |---|---|---|
 | `RunAccepted` | source, session_ref, input_ref | §1, S1 |
-| `SessionBound` | policy_profile, model_profile, toolset_ref, workspace, effect_mode?/evolution_snapshot?(M3-A additive), federation_snapshot?(M4-A additive) | §1/§25/§26, S1/S53-S84 |
+| `SessionBound` | policy_profile, model_profile, toolset_ref, workspace, effect_mode?/evolution_snapshot?(M3-A additive), federation_snapshot?(M4-A additive), composition_manifest?(V1 闭合 A additive) | §1/§25/§26/§28, S1/S53-S84, C1/C5 |
 | `RunComplete` / `RunAborted` / `RunFailed` / `RunLimited` | stop_reason, result_ref | §1, S2 |
 | `RunWaiting` / `RunResumed` | wait_reason, resume_ref(ApprovalGrant/ResumeState) | §1, S2 |
 

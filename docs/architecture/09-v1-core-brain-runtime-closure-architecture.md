@@ -112,6 +112,13 @@ impl ProductionRuntimeBuilder {
 - CLI 默认调用 Local Gateway。仅显式 embedded/test 模式可在进程内构建 runtime，但仍走同一 builder 与 manifest。
 - `CompositionManifest.digest` 对秘密值、绝对私有路径和易变时间不敏感；相同配置语义应稳定。
 
+### 2.4 入口等价的事件证据
+
+- 正式 runtime 的 Harness 为入口 run（CLI/Gateway/scheduler 提交并由 Loop 驱动的 run）在 `SessionBound` 中写入 `composition_manifest`（`CompositionManifest.digest`）。该字段是 `SessionBound` 的 serde optional additive 字段，排在 `federation_snapshot` 之后；测试专用 Harness、既有控制面专用 run（exact replay、federation owner control、ecosystem control）与历史事件解码为 `None`，序列化时省略，因此前 97 项 payload 字节与历史工件不变。`None` 不能被入口用来证明等价。
+- CLI、Gateway、scheduler 对同一 runtime 产生的 `SessionBound` 必须在 `composition_manifest`、`policy_profile`、`model_profile`、`toolset_ref`、`workspace` 上完全相同；差异只允许出现在 `RunAccepted.source` 与 provenance。
+- scheduler 只通过 runtime 的共享 scheduler pass 同时驱动到期 intention 与大脑 tick，不另建 Harness。
+- run 命令幂等以 authority store 的领域幂等账本为准：同键同义返回原 run，同键异义冲突且零写入，重启后同样成立；进程内 map 只是缓存。
+
 ## 3. Owner 大脑身份与持久 aggregate
 
 ### 3.1 稳定引用
