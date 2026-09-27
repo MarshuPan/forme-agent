@@ -52,6 +52,7 @@ mod m3_b;
 mod m4;
 mod m5;
 mod production;
+mod production_config;
 pub use m3_a::{
     EvolutionActivationResult, EvolutionEvaluationResult, ExactReplayAuditResult,
     M3EvolutionHarness,
@@ -71,6 +72,7 @@ pub use m5::{
     EcosystemHarnessRuntime, FileCapabilityPackageLedger, M5_PACKAGE_RECEIVER_LOGICAL_PATH,
 };
 pub use production::*;
+pub use production_config::*;
 
 #[derive(Debug, Clone)]
 pub struct EventStream {
@@ -630,6 +632,8 @@ pub struct ReactiveHarness {
     authority_guard: Option<forme_store::AuthorityLeaseGuard>,
     configured_owner: Option<p::VerifiedPrincipal>,
     brain_services: Option<Arc<BrainServices>>,
+    composition_manifest: Option<p::SchemaDigest>,
+    lease_heartbeat: Option<production::LeaseHeartbeat>,
     ingress_authority: IngressAuthority,
     model: Arc<dyn ModelProvider>,
     context_builder: Arc<dyn ContextBuilder + Send + Sync>,
@@ -706,6 +710,8 @@ impl ReactiveHarness {
             authority_guard: None,
             configured_owner: None,
             brain_services: None,
+            composition_manifest: None,
+            lease_heartbeat: None,
             ingress_authority: IngressAuthority::default(),
             model,
             context_builder,
@@ -765,6 +771,22 @@ impl ReactiveHarness {
         self.configured_owner = Some(p::VerifiedPrincipal(services.aggregates.owner.0.clone()));
         self.brain_services = Some(services);
         self
+    }
+
+    /// Binds the production composition manifest so every run bound by this
+    /// harness records which composition served it (architecture/09 §2.4).
+    pub(crate) fn with_composition_manifest(mut self, digest: p::SchemaDigest) -> Self {
+        self.composition_manifest = Some(digest);
+        self
+    }
+
+    pub(crate) fn with_lease_heartbeat(mut self, heartbeat: production::LeaseHeartbeat) -> Self {
+        self.lease_heartbeat = Some(heartbeat);
+        self
+    }
+
+    pub fn composition_manifest(&self) -> Option<&p::SchemaDigest> {
+        self.composition_manifest.as_ref()
     }
 
     pub fn brain_services(&self) -> Option<Arc<BrainServices>> {
@@ -1091,13 +1113,25 @@ impl ReactiveHarness {
     }
 
     pub fn output_text(&self, run: p::RunId) -> p::Result<Option<String>> {
-        Ok(self
-            .run_handle(&run)?
+        let handle = match self.run_handle(&run) {
+            Ok(handle) => handle,
+            // Model output text is process state, not an event fact; a run
+            // from an earlier process exists but has no retrievable text.
+            Err(error) => {
+                return if self.store.read_run(run).next().is_some() {
+                    Ok(None)
+                } else {
+                    Err(error)
+                };
+            }
+        };
+        let output = handle
             .record
             .lock()
             .map_err(|_| p::Error("run state is unavailable".into()))?
             .final_output
-            .clone())
+            .clone();
+        Ok(output)
     }
 
     pub fn pending_approvals(&self, session: p::SessionId) -> p::Result<Vec<ApprovalRequest>> {
@@ -1221,6 +1255,21 @@ impl ReactiveHarness {
             },
             payload,
         )
+    }
+
+    /// Continues tick numbering after the highest persisted tick stream, so a
+    /// restarted production brain never appends a new tick into an old run.
+    pub(crate) fn resume_tick_sequence(&self) -> p::Result<()> {
+        let next = self
+            .store
+            .run_ids()?
+            .iter()
+            .filter(|run| run.0.starts_with("tick:"))
+            .filter_map(|run| run.0.rsplit(':').next()?.parse::<u64>().ok())
+            .max()
+            .map_or(1, |highest| highest.saturating_add(1));
+        self.tick_sequence.fetch_max(next, Ordering::SeqCst);
+        Ok(())
     }
 
     pub fn tick(
@@ -2321,7 +2370,7 @@ impl ReactiveHarness {
                 effect_mode,
                 evolution_snapshot: record.evolution_snapshot.clone(),
                 federation_snapshot: record.federation_snapshot.clone(),
-                composition_manifest: None,
+                composition_manifest: self.composition_manifest.clone(),
             }),
         )?;
         record.loop_ctx.state = LoopState::SessionBound;
@@ -4265,21 +4314,59 @@ impl ReactiveHarness {
                 "run request or ingress prelude is incomplete".into(),
             ));
         }
-        if let Some(key) = &request.idempotency_key {
-            if let Some(run) = self
-                .idempotency
-                .lock()
-                .map_err(|_| p::Error("run idempotency state is unavailable".into()))?
-                .get(key)
-                .cloned()
-            {
-                return Ok(PreparedSubmission::Existing(run));
-            }
-        }
+        // The in-process claim is held for the whole preparation so two
+        // concurrent submissions of one command cannot both reach the store.
+        let mut idempotency = match &request.idempotency_key {
+            Some(_) => Some(
+                self.idempotency
+                    .lock()
+                    .map_err(|_| p::Error("run idempotency state is unavailable".into()))?,
+            ),
+            None => None,
+        };
         let run = forced_run
             .unwrap_or_else(|| new_run_id(self.run_sequence.fetch_add(1, Ordering::SeqCst)));
-        let context = (self.context_factory)(&request, &run, &self.config)?;
         let session = p::SessionId(request.session.0.clone());
+        let accepted = p::EventPayload::RunAccepted(p::RunAcceptedPayload {
+            source: request.source,
+            session_ref: session.clone(),
+            input_ref: p::InputRef(request.input.0.clone()),
+            idempotency_key: request.idempotency_key.clone(),
+        });
+        if let (Some(claims), Some(key)) = (idempotency.as_mut(), &request.idempotency_key) {
+            // The durable ledger survives restarts; consult it before the
+            // first write so a replayed command is answered with its original
+            // receipt and a reused key with new semantics writes nothing.
+            let probe = p::Event::new(
+                p::EventId("probe:run-request".into()),
+                run.clone(),
+                None,
+                accepted.clone(),
+                p::SchemaVersion(1),
+                now_ms(),
+                request_provenance(&request),
+            );
+            // The ledger decides semantics; the in-process map is only a
+            // cache of receipts this process has already bound.
+            match self.store.probe_domain_claim(&probe)? {
+                forme_store::DomainClaimProbe::Committed(existing) => {
+                    claims.insert(key.clone(), existing.clone());
+                    return Ok(PreparedSubmission::Existing(existing));
+                }
+                forme_store::DomainClaimProbe::Conflict(_) => {
+                    return Err(p::Error(
+                        "run idempotency key is already bound to a different request".into(),
+                    ));
+                }
+                forme_store::DomainClaimProbe::Unclaimed
+                | forme_store::DomainClaimProbe::NotIdempotent => {
+                    if let Some(existing) = claims.get(key).cloned() {
+                        return Ok(PreparedSubmission::Existing(existing));
+                    }
+                }
+            }
+        }
+        let context = (self.context_factory)(&request, &run, &self.config)?;
         let loop_ctx = forme_loop::RunCtx::new_with_input_provenance(
             session.clone(),
             request.input.clone(),
@@ -4315,27 +4402,24 @@ impl ReactiveHarness {
         for ingress in prelude {
             self.append(run.clone(), None, ingress.provenance, ingress.payload)?;
         }
-        self.append(
+        // A store-level deduplication here would mean another command won
+        // the key after the probe; the new run must then not be driven.
+        append_new_event(
+            &self.store,
+            &self.event_sequence,
             run.clone(),
             None,
             request_provenance(&request),
-            p::EventPayload::RunAccepted(p::RunAcceptedPayload {
-                source: request.source,
-                session_ref: session.clone(),
-                input_ref: p::InputRef(request.input.0.clone()),
-                idempotency_key: request.idempotency_key.clone(),
-            }),
+            accepted,
         )?;
         self.runs
             .lock()
             .map_err(|_| p::Error("run registry is unavailable".into()))?
             .insert(run.clone(), handle.clone());
-        if let Some(key) = request.idempotency_key {
-            self.idempotency
-                .lock()
-                .map_err(|_| p::Error("run idempotency state is unavailable".into()))?
-                .insert(key, run.clone());
+        if let (Some(claims), Some(key)) = (idempotency.as_mut(), request.idempotency_key) {
+            claims.insert(key, run.clone());
         }
+        drop(idempotency);
         Ok(PreparedSubmission::New {
             run,
             handle,
@@ -4400,7 +4484,28 @@ impl AgentHarness for ReactiveHarness {
     }
 
     fn wait(&self, run: p::RunId) -> p::Result<p::RunResult> {
-        let handle = self.run_handle(&run)?;
+        let handle = match self.run_handle(&run) {
+            Ok(handle) => handle,
+            // A run committed by an earlier process (for example the original
+            // receipt of a replayed command) is answered from its durable
+            // terminal fact; a non-terminal one needs explicit recovery.
+            Err(error) => {
+                let events = self
+                    .store
+                    .read_run(run.clone())
+                    .collect::<p::Result<Vec<_>>>()?;
+                if events.is_empty() {
+                    return Err(error);
+                }
+                return run_summary_from_events(run, &events)?
+                    .result
+                    .ok_or_else(|| {
+                        p::Error(
+                            "run is not active in this runtime and has no terminal result".into(),
+                        )
+                    });
+            }
+        };
         let mut record = handle
             .record
             .lock()
@@ -5994,6 +6099,39 @@ fn append_event(
     ))
 }
 
+/// Appends an event that must be new. The store answers a domain-level
+/// duplicate with the original event id; that is reported as an error so the
+/// caller never continues a command whose acceptance belongs to another run.
+fn append_new_event(
+    store: &SqliteEventStore,
+    sequence: &AtomicU64,
+    run: p::RunId,
+    turn: Option<p::TurnId>,
+    provenance: p::Provenance,
+    payload: p::EventPayload,
+) -> p::Result<p::EventId> {
+    let id = p::EventId(format!(
+        "harness:{}:{}",
+        now_nanos(),
+        sequence.fetch_add(1, Ordering::SeqCst)
+    ));
+    let stored = store.append(p::Event::new(
+        id.clone(),
+        run,
+        turn,
+        payload,
+        p::SchemaVersion(1),
+        now_ms(),
+        provenance,
+    ))?;
+    if stored != id {
+        return Err(p::Error(
+            "event was deduplicated against another committed command".into(),
+        ));
+    }
+    Ok(stored)
+}
+
 fn request_provenance(request: &p::RunRequest) -> p::Provenance {
     match request.source {
         p::Source::UserTurn => p::Provenance {
@@ -6223,74 +6361,6 @@ fn scope_within(child: &p::Scope, parent: &p::Scope) -> bool {
         || child.0.strip_prefix(&parent.0).is_some_and(|suffix| {
             suffix.starts_with(':') || suffix.starts_with('/') || suffix.starts_with('\\')
         })
-}
-
-fn local_notification_governance(
-    workspace: &p::WorkspaceRef,
-    now: p::Timestamp,
-) -> GovernanceConfig {
-    let scope = p::Scope(workspace.0.clone());
-    let capability = p::CapabilityRef("capability:local-notification".into());
-    let permission = p::PermissionRef("permission:local-notification".into());
-    let envelope = p::AutonomyEnvelope {
-        schema_version: p::SchemaVersion(1),
-        scope: scope.clone(),
-        capability: p::CapabilitySet {
-            schema_version: p::SchemaVersion(1),
-            capabilities: vec![capability.clone()],
-            permissions: vec![permission.clone()],
-        },
-        action_type: vec![p::ActionType::Deliver],
-        risk_limit: p::Risk::High,
-        approval_rule: p::ApprovalRule::Allow,
-        budget: p::Budget("units:100000".into()),
-        timebox: p::Timebox {
-            schema_version: p::SchemaVersion(1),
-            starts_at: now,
-            expires_at: now.saturating_add(365 * 24 * 60 * 60 * 1_000),
-            max_turns: u32::MAX,
-        },
-        rollback: p::RollbackReq {
-            schema_version: p::SchemaVersion(1),
-            required: false,
-            boundary: None,
-        },
-    };
-    GovernanceConfig {
-        schema_version: p::SchemaVersion(1),
-        layers: vec![PolicyLayer {
-            schema_version: p::SchemaVersion(1),
-            source: PolicyLayerSource::User,
-            rules: vec![PolicyRule {
-                schema_version: p::SchemaVersion(1),
-                matcher: ActionMatcher {
-                    backend: Some(p::BackendKind::Notification),
-                    capability: Some(capability.clone()),
-                    action_type: Some(p::ActionType::Deliver),
-                    parameters: ArgMatcher::Any,
-                },
-                effect: p::PolicyDecision::Allow,
-                scope: scope.clone(),
-            }],
-        }],
-        visible_capabilities: vec![capability],
-        granted_permissions: vec![permission],
-        allowed_scopes: vec![scope],
-        shell_allowlist: Vec::new(),
-        file_roots: Vec::new(),
-        mcp_allowlist: Vec::new(),
-        external: forme_policy::ExternalPolicyLimits::default(),
-        network_allowed: false,
-        sandbox_available: false,
-        delegation: Some(DelegationGrant {
-            schema_version: p::SchemaVersion(1),
-            subject: DelegationSubject::Agent,
-            envelope: envelope.clone(),
-            granted_by: p::Actor::Owner,
-            audit_ref: p::EventId("grant:local-notification".into()),
-        }),
-        envelope: Some(envelope),
-    }
 }
 
 impl FederationGatewayControl for ReactiveHarness {

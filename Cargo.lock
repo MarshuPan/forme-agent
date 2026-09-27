@@ -1163,6 +1163,7 @@ dependencies = [
  "forme-protocol",
  "forme-store",
  "rcgen",
+ "serde",
  "serde_json",
 ]
 

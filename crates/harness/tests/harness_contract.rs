@@ -2296,6 +2296,188 @@ fn s11_subagent_is_spawned_by_harness_with_fresh_context_and_scoped_denial() {
     assert!(!child_kinds.contains(&p::EventKind::MemoryNodeAppended));
 }
 
+fn app_api_read_intent(scope: &str) -> p::ActionIntent {
+    p::ActionIntent {
+        schema_version: p::SchemaVersion(1),
+        intent_id: p::ActionId("action-app-api-read".into()),
+        source: p::Source::UserTurn,
+        goal: p::GoalRef("read a connector record".into()),
+        backend_hint: p::BackendKind::AppApi,
+        capability_ref: p::CapabilityRef("capability:app-api:child-probe".into()),
+        action_type: p::ActionType::Observe,
+        scope: p::Scope(scope.into()),
+        risk_hint: p::Risk::Low,
+        expected_effect: p::ExpectedEffect::Outward,
+        rollback_expectation: p::RollbackBoundary("none".into()),
+        parameters: p::ActionParameters::AppApi(p::AppApiActionSpec {
+            schema_version: p::SchemaVersion(1),
+            connector: p::ProviderId("app-api:child-probe".into()),
+            endpoint: "http://127.0.0.1:9/child-probe/records/current".into(),
+            schema_digest: p::SchemaDigest(
+                "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc".into(),
+            ),
+            credential: None,
+            operation: p::AppApiOperation::Read,
+            timeout: p::DurationMs(1_000),
+            participant: None,
+            representation: None,
+            disclosure_request: None,
+        }),
+        requested_permissions: vec![p::PermissionRef("permission:app-api:child-probe".into())],
+        requested_at: now_ms(),
+        estimated_output_bytes: 100,
+        estimated_duration: p::DurationMs(100),
+    }
+}
+
+fn app_api_governance(intent: &p::ActionIntent) -> GovernanceConfig {
+    let mut governance = governance(intent);
+    governance.layers[0].rules[0].matcher = ActionMatcher {
+        backend: Some(p::BackendKind::AppApi),
+        capability: Some(intent.capability_ref.clone()),
+        action_type: Some(p::ActionType::Observe),
+        parameters: ArgMatcher::Any,
+    };
+    governance.layers[0].rules[0].effect = p::PolicyDecision::Allow;
+    governance.shell_allowlist = Vec::new();
+    governance.external = forme_policy::ExternalPolicyLimits {
+        schema_version: p::SchemaVersion(1),
+        app_api_connectors: vec![forme_policy::AppApiConnectorLimit {
+            schema_version: p::SchemaVersion(1),
+            connector: p::ProviderId("app-api:child-probe".into()),
+            base_url: "http://127.0.0.1:9/child-probe/".into(),
+            schema_digest: p::SchemaDigest(
+                "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc".into(),
+            ),
+            credential_ref: None,
+            allowed_mutations: Vec::new(),
+            max_timeout: p::DurationMs(1_000),
+        }],
+        ..forme_policy::ExternalPolicyLimits::default()
+    };
+    governance
+}
+
+fn denial_reasons(harness: &ReactiveHarness, run: p::RunId) -> Vec<String> {
+    harness
+        .stream_events(run)
+        .filter_map(|event| match event.payload {
+            p::EventPayload::ActionDenied(payload) => Some(payload.reason.0),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn child_route_never_inherits_app_api_connector_authority() {
+    // The parent holds an exact connector limit, so the same read intent is
+    // admissible at the parent level and only the child is fenced.
+    let parent_intent = app_api_read_intent("workspace:parent");
+    let parent = ReactiveHarness::new(
+        SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap(),
+        Arc::new(
+            ScriptedModelProvider::new(
+                profile(),
+                vec![
+                    final_response("parent complete"),
+                    tool_response(parent_intent.clone()),
+                ],
+            )
+            .unwrap(),
+        ),
+        Arc::new(ExecutionBackendRegistry::default()),
+        app_api_governance(&parent_intent),
+        HarnessConfig::for_model(&profile()),
+    )
+    .unwrap();
+    let parent_run = parent
+        .submit_run(request("session-app-api-parent", "read", "app-api-parent"))
+        .unwrap();
+    assert!(denial_reasons(&parent, parent_run)
+        .iter()
+        .all(|reason| !reason.contains("App API")));
+
+    let child_intent = app_api_read_intent("workspace:parent:child");
+    let mut scoped_governance = app_api_governance(&child_intent);
+    let mut parent_envelope = scoped_governance.envelope.clone().unwrap();
+    parent_envelope.budget = p::Budget("units:20".into());
+    scoped_governance.envelope = Some(parent_envelope.clone());
+    scoped_governance.delegation = Some(DelegationGrant {
+        schema_version: p::SchemaVersion(1),
+        subject: DelegationSubject::Agent,
+        envelope: parent_envelope,
+        granted_by: p::Actor::Owner,
+        audit_ref: p::EventId("delegation:child-app-api".into()),
+    });
+    let config = HarnessConfig::for_model(&profile());
+    let harness = ReactiveHarness::new(
+        SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap(),
+        Arc::new(
+            ScriptedModelProvider::new(
+                profile(),
+                vec![
+                    final_response("parent complete"),
+                    tool_response(child_intent.clone()),
+                ],
+            )
+            .unwrap(),
+        ),
+        Arc::new(ExecutionBackendRegistry::default()),
+        scoped_governance,
+        config.clone(),
+    )
+    .unwrap();
+    let mut parent_request = request("session-child-app-api", "parent goal", "child-app-api");
+    parent_request.budget = Some(p::Budget("units:20".into()));
+    let parent = harness.submit_run(parent_request).unwrap();
+    let toolset = Toolset {
+        schema_version: p::SchemaVersion(1),
+        toolset_ref: p::ToolsetRef("toolset:child-app-api".into()),
+        items: vec![forme_capabilities::ToolsetItem {
+            schema_version: p::SchemaVersion(1),
+            id: child_intent.capability_ref.clone(),
+            capability: forme_capabilities::Capability::AppApi(p::ProviderId(
+                "app-api:child-probe".into(),
+            )),
+            sources: Vec::new(),
+        }],
+        scope: child_intent.scope.clone(),
+        sources: Vec::new(),
+    };
+    let node = coordination::RouteNode {
+        schema_version: p::SchemaVersion(1),
+        subtask: coordination::Subtask {
+            schema_version: p::SchemaVersion(1),
+            id: "connector-reader".into(),
+            instruction: "read the connector record within the child scope".into(),
+            intent_id: child_intent.intent_id.clone(),
+        },
+        role: coordination::SubagentProfile {
+            schema_version: p::SchemaVersion(1),
+            role: p::RoleRef("role:connector-reader".into()),
+            toolset: toolset.clone(),
+            model: config.model_profile,
+            permission: child_intent.scope.clone(),
+            budget: p::Budget("units:5".into()),
+        },
+        resource_slice: toolset,
+        done: coordination::DoneContract::final_output(p::DoneContractRef(
+            "done:child-app-api".into(),
+        )),
+        retry: coordination::RetryPolicy {
+            schema_version: p::SchemaVersion(1),
+            max_attempts: 1,
+        },
+    };
+    let execution = harness.spawn_subagent(parent, &node).unwrap();
+    let child_kinds = event_kinds(&harness, execution.child_run.clone());
+    assert!(child_kinds.contains(&p::EventKind::ActionDenied));
+    assert!(!child_kinds.contains(&p::EventKind::ActionStarted));
+    assert!(denial_reasons(&harness, execution.child_run)
+        .iter()
+        .any(|reason| reason.contains("App API")));
+}
+
 #[test]
 fn startup_scan_marks_unknown_outcome_and_manual_resume_never_retries() {
     let store = SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap();
