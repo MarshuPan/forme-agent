@@ -469,6 +469,19 @@ impl Default for StoreOptions {
     }
 }
 
+/// Outcome of a read-only domain idempotency probe.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DomainClaimProbe {
+    /// The event carries no domain idempotency key.
+    NotIdempotent,
+    /// No command has claimed the key yet.
+    Unclaimed,
+    /// The same command semantics were already committed in this run.
+    Committed(p::RunId),
+    /// The key is bound to different command semantics in this run.
+    Conflict(p::RunId),
+}
+
 #[derive(Clone)]
 pub struct SqliteEventStore {
     core: Arc<StoreCore>,
@@ -500,6 +513,54 @@ impl SqliteEventStore {
             options.sync_peer.as_ref(),
         )?;
         Ok(Self::from_connection(connection, options))
+    }
+
+    /// Read-only probe of the durable domain idempotency ledger for a
+    /// would-be event. Command handlers call it before their first write so a
+    /// replayed command neither appends partial facts nor executes twice; the
+    /// append transaction still claims the key atomically.
+    pub fn probe_domain_claim(&self, event: &p::Event) -> p::Result<DomainClaimProbe> {
+        let Some((namespace, key)) = domain_idempotency_key(event) else {
+            return Ok(DomainClaimProbe::NotIdempotent);
+        };
+        let payload = serde_json::to_vec(&event.payload)
+            .map_err(|error| store_error("failed to serialize event payload", error))?;
+        let provenance = serde_json::to_vec(&event.provenance)
+            .map_err(|error| store_error("failed to serialize event provenance", error))?;
+        let semantics = domain_semantic_bytes(event, &payload, &provenance);
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let existing = connection
+            .query_row(
+                "SELECT run_id, semantic_bytes FROM idempotency_keys
+                 WHERE namespace = ?1 AND \"key\" = ?2",
+                params![namespace, key],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
+            )
+            .optional()
+            .map_err(|error| store_error("failed to probe domain idempotency key", error))?;
+        Ok(match existing {
+            None => DomainClaimProbe::Unclaimed,
+            Some((run, stored)) if stored == semantics => {
+                DomainClaimProbe::Committed(p::RunId(run))
+            }
+            Some((run, _)) => DomainClaimProbe::Conflict(p::RunId(run)),
+        })
+    }
+
+    /// Reports whether this store is backed by a database file that survives
+    /// the process. Temporary and in-memory databases report `false`, which
+    /// is how a production composition root refuses a non-durable brain.
+    pub fn is_file_backed(&self) -> p::Result<bool> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database connection is unavailable".into()))?;
+        Ok(connection.path().is_some_and(|path| !path.is_empty()))
     }
 
     /// Installs the process-wide production writer fence for this shared

@@ -28,7 +28,7 @@ pub use replay::{
 };
 pub use replica::ReplicaSqliteStore;
 pub use schema::{PayloadType, SchemaSnapshot, Upcaster};
-pub use sqlite::{SqliteEventStore, StoreOptions};
+pub use sqlite::{DomainClaimProbe, SqliteEventStore, StoreOptions};
 
 pub const APPROVAL_CONSUMPTION_SCHEMA_VERSION: p::SchemaVersion = p::SchemaVersion(1);
 
