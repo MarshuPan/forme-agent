@@ -1,6 +1,7 @@
 //! Trusted local gateway: authentication, provenance stamping, and harness routing (prd/14).
 #![forbid(unsafe_code)]
 
+mod client;
 mod server;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -27,6 +28,7 @@ use forme_harness::{
 pub use forme_harness::{EventStream, EvolutionActivationResult, EvolutionEvaluationResult};
 use forme_protocol as p;
 
+pub use client::HttpGatewayClient;
 pub use server::{serve_environment, GatewayServerConfig};
 
 pub trait Gateway {
@@ -46,6 +48,14 @@ pub trait RunGateway: Send + Sync {
     /// default through this additive method.
     fn agent_profile(&self) -> p::AgentProfileRef {
         p::AgentProfileRef("agent:forme-local".into())
+    }
+
+    /// Digest of the production composition manifest serving this gateway.
+    /// Additive: gateways without a production runtime report that fact.
+    fn runtime_manifest_digest(&self) -> p::Result<p::SchemaDigest> {
+        Err(p::Error(
+            "this gateway is not backed by a production runtime".into(),
+        ))
     }
 }
 
@@ -571,6 +581,19 @@ where
 
     pub fn answer(&self, run: p::RunId) -> p::Result<Option<String>> {
         self.harness.result_text(run)
+    }
+
+    /// Owner-authenticated read of a run's final model text for remote
+    /// clients. The text is process state, not an event fact, so a run from
+    /// an earlier daemon process reports `None`.
+    pub fn answer_for_owner(&self, run: p::RunId, auth: AuthContext) -> p::Result<Option<String>> {
+        auth.validate(now_ms())?;
+        match auth.principal {
+            AuthPrincipal::Owner(owner) if owner == self.owner => self.harness.result_text(run),
+            _ => Err(p::Error(
+                "run answers require the authenticated owner".into(),
+            )),
+        }
     }
 
     pub fn harness(&self) -> &Arc<H> {
@@ -1338,6 +1361,13 @@ where
 
     fn agent_profile(&self) -> p::AgentProfileRef {
         self.agent_profile.clone()
+    }
+
+    fn runtime_manifest_digest(&self) -> p::Result<p::SchemaDigest> {
+        self.production_runtime
+            .as_ref()
+            .map(|runtime| runtime.manifest().digest.clone())
+            .ok_or_else(|| p::Error("this gateway is not backed by a production runtime".into()))
     }
 }
 

@@ -209,19 +209,24 @@ where
         max_requests_per_minute: config.max_requests_per_minute,
     });
     let app = router(state, &config);
-    let scheduler_task = if config.scheduler_enabled {
+    // One background task drives the runtime's shared scheduler pass: due
+    // intentions and the owner-brain tick both run through the same harness.
+    let cognition = &runtime.config().cognition;
+    let scheduler_task = if config.scheduler_enabled || cognition.tick_enabled {
         let scheduler = runtime.clone();
-        let tick = Duration::from_millis(config.scheduler.tick.0);
+        let tick = Duration::from_millis(if config.scheduler_enabled {
+            config.scheduler.tick.0.min(cognition.tick_interval.0)
+        } else {
+            cognition.tick_interval.0
+        });
         Some(tokio::spawn(async move {
             let mut interval = tokio::time::interval(tick);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
                 interval.tick().await;
                 let scheduler = scheduler.clone();
-                let _ = tokio::task::spawn_blocking(move || {
-                    SchedulerService::tick(scheduler.harness().as_ref(), now_ms())
-                })
-                .await;
+                let _ =
+                    tokio::task::spawn_blocking(move || scheduler.scheduler_pass(now_ms())).await;
             }
         }))
     } else {
@@ -251,6 +256,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/runs", get(list_runs).post(submit_run))
         .route("/v1/runs/{run}", get(run_summary))
         .route("/v1/runs/{run}/events", get(run_events))
+        .route("/v1/runs/{run}/answer", get(run_answer))
         .route("/v1/sessions/{session}/approvals", get(approvals))
         .route("/v1/runs/{run}/control", post(control_run))
         .route("/v1/runs/{run}/trace", get(trace_view))
@@ -615,6 +621,32 @@ async fn run_summary(
     blocking(move || gateway.run_summary(p::RunId(run), auth))
         .await
         .map(Json)
+}
+
+#[derive(Debug, Serialize)]
+struct RunAnswerView {
+    schema_version: p::SchemaVersion,
+    run: p::RunId,
+    answer: Option<String>,
+}
+
+async fn run_answer(
+    State(state): State<Arc<HttpState>>,
+    Path(run): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<RunAnswerView>, ApiError> {
+    let auth = state.authorize(&headers, false)?;
+    let gateway = state.gateway.clone();
+    let run = p::RunId(run);
+    let answer = {
+        let run = run.clone();
+        blocking(move || gateway.answer_for_owner(run, auth)).await?
+    };
+    Ok(Json(RunAnswerView {
+        schema_version: p::SchemaVersion(1),
+        run,
+        answer,
+    }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1318,7 +1350,7 @@ fn generate_token() -> p::Result<String> {
     Ok(token)
 }
 
-fn default_token_path() -> PathBuf {
+pub(crate) fn default_token_path() -> PathBuf {
     #[cfg(windows)]
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         return PathBuf::from(local).join("forme").join("gateway.token");
