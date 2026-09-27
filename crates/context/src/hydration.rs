@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use forme_memory::{EventSourcedMemory, MemoryProjection, MemoryScope, MemorySummary, TimeSlice};
+use forme_memory::{
+    EventSourcedMemory, GraphQuery, MemoryGraph, MemoryProjection, MemoryScope, MemorySummary,
+    TimeSlice,
+};
 use forme_protocol as p;
 use forme_store::{EventStore, SqliteEventStore};
 
@@ -48,6 +51,16 @@ impl ContextHydrationRequest {
 
 pub trait ContextHydrator: Send + Sync {
     fn hydrate(&self, request: &ContextHydrationRequest) -> p::Result<RunCtx>;
+}
+
+/// Resolves the capability and skill catalog for one hydration request.
+///
+/// The catalog is deliberately resolved at hydration time rather than frozen
+/// in the composition root.  Capability lifecycle changes therefore become
+/// visible to the next run without giving `context` ownership of registries or
+/// a dependency back to `harness`.
+pub trait ContextCatalogSource: Send + Sync {
+    fn catalog(&self, request: &ContextHydrationRequest) -> p::Result<ContextCatalogSnapshot>;
 }
 
 pub trait ContextSliceSource: Send + Sync {
@@ -124,12 +137,32 @@ impl ContextCatalogSnapshot {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct StaticContextCatalogSource {
+    catalog: ContextCatalogSnapshot,
+}
+
+impl StaticContextCatalogSource {
+    pub fn new(catalog: ContextCatalogSnapshot) -> p::Result<Self> {
+        catalog.validate()?;
+        Ok(Self { catalog })
+    }
+}
+
+impl ContextCatalogSource for StaticContextCatalogSource {
+    fn catalog(&self, _request: &ContextHydrationRequest) -> p::Result<ContextCatalogSnapshot> {
+        Ok(self.catalog.clone())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ContextHydrationLimits {
     pub max_session_runs: usize,
     pub max_history_entries: usize,
     pub max_slices: usize,
     pub max_workspace_items: usize,
+    /// Upper bound on memory nodes recalled into one brain-level call.
+    pub max_recall_items: usize,
 }
 
 impl Default for ContextHydrationLimits {
@@ -139,6 +172,7 @@ impl Default for ContextHydrationLimits {
             max_history_entries: 64,
             max_slices: 32,
             max_workspace_items: 10,
+            max_recall_items: 8,
         }
     }
 }
@@ -147,7 +181,7 @@ pub struct EventBackedContextHydrator {
     store: Arc<SqliteEventStore>,
     memory: Arc<EventSourcedMemory<SqliteEventStore>>,
     slices: Arc<dyn ContextSliceSource>,
-    catalog: ContextCatalogSnapshot,
+    catalog_source: Arc<dyn ContextCatalogSource>,
     limits: ContextHydrationLimits,
 }
 
@@ -159,11 +193,22 @@ impl EventBackedContextHydrator {
         catalog: ContextCatalogSnapshot,
         limits: ContextHydrationLimits,
     ) -> p::Result<Self> {
-        catalog.validate()?;
+        let catalog_source = Arc::new(StaticContextCatalogSource::new(catalog)?);
+        Self::new_with_catalog_source(store, memory, slices, catalog_source, limits)
+    }
+
+    pub fn new_with_catalog_source(
+        store: Arc<SqliteEventStore>,
+        memory: Arc<EventSourcedMemory<SqliteEventStore>>,
+        slices: Arc<dyn ContextSliceSource>,
+        catalog_source: Arc<dyn ContextCatalogSource>,
+        limits: ContextHydrationLimits,
+    ) -> p::Result<Self> {
         if limits.max_session_runs == 0
             || limits.max_history_entries == 0
             || limits.max_slices == 0
             || limits.max_workspace_items == 0
+            || limits.max_recall_items == 0
         {
             return Err(p::Error("context hydration limits are invalid".into()));
         }
@@ -171,7 +216,7 @@ impl EventBackedContextHydrator {
             store,
             memory,
             slices,
-            catalog,
+            catalog_source,
             limits,
         })
     }
@@ -242,6 +287,51 @@ impl EventBackedContextHydrator {
         })
     }
 
+    /// Bounded recall of the owner's memory for a brain-level call. Nodes
+    /// keep their original provenance, so memory that came from external
+    /// content remains data rather than instruction. Until activation-based
+    /// relevance replaces it, the newest nodes in the request's scopes win.
+    fn memory_recall(&self, request: &ContextHydrationRequest) -> Vec<ContextSlice> {
+        if !request.brain_call {
+            return Vec::new();
+        }
+        let mut nodes = [TimeSlice::Session, TimeSlice::Daily, TimeSlice::LongTerm]
+            .into_iter()
+            .flat_map(|slice| {
+                self.memory.query(GraphQuery {
+                    schema_version: p::SchemaVersion(1),
+                    scope: Some(MemoryScope {
+                        schema_version: p::SchemaVersion(1),
+                        slice,
+                        workspace: Some(request.workspace.clone()),
+                        scope: request.scope.clone(),
+                    }),
+                    kind: None,
+                    content_contains: None,
+                })
+            })
+            .collect::<Vec<_>>();
+        nodes.sort_by(|left, right| {
+            right
+                .recency
+                .cmp(&left.recency)
+                .then_with(|| left.id.cmp(&right.id))
+        });
+        nodes.truncate(self.limits.max_recall_items);
+        nodes
+            .into_iter()
+            .map(|node| ContextSlice {
+                schema_version: p::SchemaVersion(1),
+                id: p::ContextSliceRef(format!("memory:recall:{}", node.id.0)),
+                content: format!(
+                    "recalled {:?} memory {} at tier {:?}: {}",
+                    node.kind, node.id.0, node.tier, node.content_ref.0
+                ),
+                provenance: node.provenance,
+            })
+            .collect()
+    }
+
     fn memory_summary(&self, request: &ContextHydrationRequest) -> MemorySummary {
         let scopes = [TimeSlice::Session, TimeSlice::Daily, TimeSlice::LongTerm];
         let summaries = scopes.map(|slice| {
@@ -284,7 +374,10 @@ impl EventBackedContextHydrator {
 impl ContextHydrator for EventBackedContextHydrator {
     fn hydrate(&self, request: &ContextHydrationRequest) -> p::Result<RunCtx> {
         request.validate()?;
+        let catalog = self.catalog_source.catalog(request)?;
+        catalog.validate()?;
         let mut slices = self.slices.slices(request)?;
+        slices.extend(self.memory_recall(request));
         if slices.iter().any(|slice| {
             slice.schema_version.0 == 0
                 || slice.id.0.trim().is_empty()
@@ -345,8 +438,7 @@ impl ContextHydrator for EventBackedContextHydrator {
             .iter()
             .cloned()
             .collect::<std::collections::BTreeSet<_>>();
-        let loaded_skill_bodies = self
-            .catalog
+        let loaded_skill_bodies = catalog
             .loaded_skill_bodies
             .iter()
             .filter(|body| selected.contains(&body.id))
@@ -354,12 +446,12 @@ impl ContextHydrator for EventBackedContextHydrator {
             .collect::<Vec<_>>();
         let sources = ContextSources {
             schema_version: p::SchemaVersion(1),
-            rules: self.catalog.rules.clone(),
+            rules: catalog.rules,
             history: self.history(request)?,
             memory_summary: self.memory_summary(request),
-            skills_metadata: self.catalog.skills_metadata.clone(),
+            skills_metadata: catalog.skills_metadata,
             loaded_skill_bodies,
-            tool_schema: self.catalog.tool_schema.clone(),
+            tool_schema: catalog.tool_schema,
             slices,
             agent_workspace,
         };
@@ -798,5 +890,104 @@ mod tests {
             .hydrate(&request())
             .unwrap_err();
         assert!(error.0.contains("no usable source"));
+    }
+
+    #[test]
+    fn brain_recall_is_bounded_newest_first_scoped_and_keeps_untrusted_data() {
+        let store = Arc::new(SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap());
+        let memory = Arc::new(
+            EventSourcedMemory::open(store.clone(), p::RunId("brain:memory".into())).unwrap(),
+        );
+        let scope = |workspace: &str| MemoryScope {
+            schema_version: p::SchemaVersion(1),
+            slice: TimeSlice::LongTerm,
+            workspace: Some(p::WorkspaceRef(workspace.into())),
+            scope: p::Scope(workspace.into()),
+        };
+        for (id, workspace, recency, trust) in [
+            (
+                "node:oldest",
+                "workspace:alpha",
+                10,
+                p::TrustTier::OwnerInput,
+            ),
+            (
+                "node:external",
+                "workspace:alpha",
+                30,
+                p::TrustTier::Untrusted,
+            ),
+            (
+                "node:newest",
+                "workspace:alpha",
+                40,
+                p::TrustTier::OwnerInput,
+            ),
+            (
+                "node:elsewhere",
+                "workspace:beta",
+                50,
+                p::TrustTier::OwnerInput,
+            ),
+        ] {
+            memory
+                .add_node(forme_memory::MemoryNode {
+                    schema_version: p::SchemaVersion(1),
+                    id: p::NodeId(id.into()),
+                    kind: forme_memory::NodeKind::Fact,
+                    content_ref: p::ContentRef(format!("content:{id}")),
+                    tier: p::StabilityTier::Working,
+                    confidence: p::Confidence(0.7),
+                    scope: scope(workspace),
+                    resting_activation: p::RestingActivation(0.1),
+                    recency,
+                    provenance: provenance(p::Source::Internal, p::Actor::System, trust),
+                })
+                .unwrap();
+        }
+        let limits = ContextHydrationLimits {
+            max_recall_items: 2,
+            ..ContextHydrationLimits::default()
+        };
+        let hydrator = EventBackedContextHydrator::new(
+            store,
+            memory,
+            Arc::new(StaticSliceSource::default()),
+            catalog(),
+            limits,
+        )
+        .unwrap();
+
+        let recalled = hydrator
+            .hydrate(&request())
+            .unwrap()
+            .sources
+            .slices
+            .into_iter()
+            .filter(|slice| slice.id.0.starts_with("memory:recall:"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            recalled
+                .iter()
+                .map(|slice| slice.id.0.as_str())
+                .collect::<Vec<_>>(),
+            vec!["memory:recall:node:external", "memory:recall:node:newest"],
+            "the two newest in-scope nodes, in stable slice order"
+        );
+        let external = recalled
+            .iter()
+            .find(|slice| slice.id.0.ends_with("node:external"))
+            .unwrap();
+        assert_eq!(external.provenance.trust_tier, p::TrustTier::Untrusted);
+
+        let mut execution_node = request();
+        execution_node.brain_call = false;
+        assert!(hydrator
+            .hydrate(&execution_node)
+            .unwrap()
+            .sources
+            .slices
+            .iter()
+            .all(|slice| !slice.id.0.starts_with("memory:recall:")));
     }
 }
