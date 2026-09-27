@@ -116,6 +116,7 @@ impl M3EvolutionHarness {
                     effect_mode: Some(p::EffectMode::ExactReplay),
                     evolution_snapshot: Some(bundle.snapshot.evolution.snapshot.clone()),
                     federation_snapshot: None,
+                    composition_manifest: None,
                 }),
             )?,
             self.append(

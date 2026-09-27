@@ -275,6 +275,7 @@ fn s53_exact_replay_writes_a_separate_effect_free_audit_run() {
             effect_mode: Some(p::EffectMode::LiveGoverned),
             evolution_snapshot: Some(snapshot.snapshot.clone()),
             federation_snapshot: None,
+            composition_manifest: None,
         }),
         p::EventPayload::VerificationFinished(p::VerificationFinishedPayload {
             verifier_kind: p::VerifierKind("recorded".into()),

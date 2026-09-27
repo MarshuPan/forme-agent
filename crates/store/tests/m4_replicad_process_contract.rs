@@ -121,6 +121,7 @@ fn session_bound_event(id: &str, run: &str) -> p::Event {
             effect_mode: None,
             evolution_snapshot: None,
             federation_snapshot: None,
+            composition_manifest: None,
         }),
         authority_provenance(),
     )

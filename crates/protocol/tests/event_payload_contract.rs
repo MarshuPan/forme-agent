@@ -189,6 +189,7 @@ fn all_payload_fixtures() -> Vec<EventPayload> {
             effect_mode: None,
             evolution_snapshot: None,
             federation_snapshot: None,
+            composition_manifest: None,
         }),
         EventPayload::RunComplete(RunCompletePayload {
             stop_reason: text!(StopReason, "complete"),

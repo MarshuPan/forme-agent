@@ -607,6 +607,7 @@ impl FederatedHarnessRuntime {
                 effect_mode: None,
                 evolution_snapshot: evolution_snapshot.clone(),
                 federation_snapshot: Some(snapshot_ref.clone()),
+                composition_manifest: None,
             }),
             internal_provenance(request.source),
         )?;
@@ -2280,6 +2281,7 @@ impl FederatedHarnessRuntime {
                 effect_mode: None,
                 evolution_snapshot: None,
                 federation_snapshot: Some(p::FederationSnapshotRef(snapshot.digest.0)),
+                composition_manifest: None,
             }),
             owner_provenance(),
         )?;

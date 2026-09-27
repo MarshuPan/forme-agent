@@ -1852,6 +1852,7 @@ fn s81_handoff_requires_a_verified_checkpoint_current_snapshot_and_new_segment()
             effect_mode: Some(p::EffectMode::LiveGoverned),
             evolution_snapshot: Some(source_evolution.clone()),
             federation_snapshot: Some(p::FederationSnapshotRef(source_federation.digest.0.clone())),
+            composition_manifest: None,
         }),
     );
     let verification_event = append_test_event(

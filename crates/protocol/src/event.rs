@@ -89,6 +89,11 @@ define_events! {
         evolution_snapshot: Option<EvolutionSnapshotRef>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         federation_snapshot: Option<FederationSnapshotRef>,
+        /// V1 closure A additive: digest of the production composition
+        /// manifest that bound this run. `None` marks a non-production
+        /// harness and never proves entry equivalence.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        composition_manifest: Option<SchemaDigest>,
     },
     RunComplete => RunCompletePayload {
         stop_reason: StopReason,

@@ -2321,6 +2321,7 @@ impl ReactiveHarness {
                 effect_mode,
                 evolution_snapshot: record.evolution_snapshot.clone(),
                 federation_snapshot: record.federation_snapshot.clone(),
+                composition_manifest: None,
             }),
         )?;
         record.loop_ctx.state = LoopState::SessionBound;

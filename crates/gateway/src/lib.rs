@@ -1858,6 +1858,7 @@ mod tests {
                     effect_mode: None,
                     evolution_snapshot: None,
                     federation_snapshot: None,
+                    composition_manifest: None,
                 }),
                 p::EventPayload::TurnStarted(p::TurnStartedPayload { turn_index: 0 }),
                 p::EventPayload::ContextBuildStarted(p::ContextBuildStartedPayload {

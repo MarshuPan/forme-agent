@@ -149,3 +149,37 @@ fn lifecycle_and_charter_payloads_reject_non_monotonic_versions() {
     };
     assert!(lifecycle_payload.validate().is_err());
 }
+
+#[test]
+fn session_bound_composition_manifest_is_optional_additive_and_byte_stable() {
+    let legacy = serde_json::json!({
+        "SessionBound": {
+            "policy_profile": "policy:default",
+            "model_profile": "model:default",
+            "toolset_ref": "toolset:default",
+            "workspace": "workspace:default"
+        }
+    });
+    let decoded = serde_json::from_value::<p::EventPayload>(legacy.clone()).unwrap();
+    let p::EventPayload::SessionBound(payload) = &decoded else {
+        panic!("legacy SessionBound must decode as SessionBound");
+    };
+    assert_eq!(payload.composition_manifest, None);
+    assert_eq!(
+        serde_json::to_value(&decoded).unwrap(),
+        legacy,
+        "a non-production binding serializes exactly like a historical event"
+    );
+
+    let mut bound = payload.clone();
+    bound.composition_manifest = Some(p::SchemaDigest(EMPTY_SHA256.into()));
+    let encoded = serde_json::to_value(p::EventPayload::SessionBound(bound.clone())).unwrap();
+    assert_eq!(
+        encoded["SessionBound"]["composition_manifest"],
+        serde_json::json!(EMPTY_SHA256)
+    );
+    assert_eq!(
+        serde_json::from_value::<p::EventPayload>(encoded).unwrap(),
+        p::EventPayload::SessionBound(bound)
+    );
+}

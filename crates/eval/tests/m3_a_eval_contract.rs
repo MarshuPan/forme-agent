@@ -90,6 +90,7 @@ fn append_replayable_run(store: &SqliteEventStore, run: &p::RunId) -> Vec<p::Eve
             effect_mode: Some(p::EffectMode::LiveGoverned),
             evolution_snapshot: Some(p::EvolutionSnapshotRef("snapshot:evolution:seed".into())),
             federation_snapshot: None,
+            composition_manifest: None,
         }),
         p::EventPayload::TurnStarted(p::TurnStartedPayload { turn_index: 0 }),
         p::EventPayload::ModelCallDelta(p::ModelCallDeltaPayload {
