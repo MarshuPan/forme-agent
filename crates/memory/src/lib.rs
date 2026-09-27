@@ -745,6 +745,105 @@ where
         self.create_candidate_spec_locked(&mut state, spec)
     }
 
+    /// Promotes a candidate and records, in the same `CandidatePromoted`
+    /// event, the stable cognition the promotion activates, so that the
+    /// promotion replays exactly as it was applied.
+    pub fn promote_with_record(
+        &self,
+        id: p::CandidateId,
+        by: p::Actor,
+        record: p::StableCognitionRecord,
+    ) -> p::Result<()> {
+        record.validate()?;
+        self.transition_recorded(id, CandidateState::Promoted, by, Some(record))
+    }
+
+    fn transition_recorded(
+        &self,
+        id: p::CandidateId,
+        to: CandidateState,
+        by: p::Actor,
+        stable: Option<p::StableCognitionRecord>,
+    ) -> p::Result<()> {
+        if stable.is_some() && to != CandidateState::Promoted {
+            return Err(p::Error(
+                "only a promotion can carry a stable cognition record".into(),
+            ));
+        }
+        let mut state = self.lock_state()?;
+        let current = state
+            .candidates
+            .get(&id)
+            .ok_or_else(|| p::Error("candidate is not registered".into()))?
+            .state;
+        if current == to {
+            return Ok(());
+        }
+        if !valid_candidate_transition(current, to) {
+            return Err(p::Error("candidate transition is not allowed".into()));
+        }
+        if to == CandidateState::Promoted && by != p::Actor::Owner {
+            return Err(p::Error(
+                "M0 stable promotion requires an authenticated owner decision".into(),
+            ));
+        }
+        let decision_actor = if by == p::Actor::Owner {
+            p::DecisionActor::User
+        } else {
+            p::DecisionActor::Auto
+        };
+        let reason = p::ReasonRef(format!("candidate transition {current:?} -> {to:?}"));
+        let payload = match to {
+            CandidateState::Candidate => {
+                return Err(p::Error(
+                    "candidate cannot transition back to candidate".into(),
+                ))
+            }
+            CandidateState::Promoted => {
+                p::EventPayload::CandidatePromoted(p::CandidatePromotedPayload {
+                    candidate_id: id.clone(),
+                    by: decision_actor,
+                    reason,
+                    stable,
+                })
+            }
+            CandidateState::Rejected => {
+                p::EventPayload::CandidateRejected(p::CandidateRejectedPayload {
+                    candidate_id: id.clone(),
+                    by: decision_actor,
+                    reason,
+                })
+            }
+            CandidateState::Downgraded => {
+                p::EventPayload::CandidateDowngraded(p::CandidateDowngradedPayload {
+                    candidate_id: id.clone(),
+                    by: decision_actor,
+                    reason,
+                })
+            }
+            CandidateState::Decayed => {
+                p::EventPayload::CandidateDecayed(p::CandidateDecayedPayload {
+                    candidate_id: id.clone(),
+                    by: decision_actor,
+                    reason,
+                })
+            }
+        };
+        self.append_payload(system_provenance(), payload)?;
+        let record = state
+            .candidates
+            .get_mut(&id)
+            .ok_or_else(|| p::Error("candidate disappeared during transition".into()))?;
+        record.state = to;
+        record.decided_by = Some(by);
+        if to == CandidateState::Promoted {
+            promote_user_candidate(&mut state, &id);
+        } else if matches!(to, CandidateState::Downgraded | CandidateState::Decayed) {
+            demote_user_candidate(&mut state, &id);
+        }
+        Ok(())
+    }
+
     pub fn candidate_record(&self, id: &p::CandidateId) -> Option<CandidateRecord> {
         self.lock_state()
             .ok()
@@ -1398,78 +1497,7 @@ where
     }
 
     fn transition(&self, id: p::CandidateId, to: CandidateState, by: p::Actor) -> p::Result<()> {
-        let mut state = self.lock_state()?;
-        let current = state
-            .candidates
-            .get(&id)
-            .ok_or_else(|| p::Error("candidate is not registered".into()))?
-            .state;
-        if current == to {
-            return Ok(());
-        }
-        if !valid_candidate_transition(current, to) {
-            return Err(p::Error("candidate transition is not allowed".into()));
-        }
-        if to == CandidateState::Promoted && by != p::Actor::Owner {
-            return Err(p::Error(
-                "M0 stable promotion requires an authenticated owner decision".into(),
-            ));
-        }
-        let decision_actor = if by == p::Actor::Owner {
-            p::DecisionActor::User
-        } else {
-            p::DecisionActor::Auto
-        };
-        let reason = p::ReasonRef(format!("candidate transition {current:?} -> {to:?}"));
-        let payload = match to {
-            CandidateState::Candidate => {
-                return Err(p::Error(
-                    "candidate cannot transition back to candidate".into(),
-                ))
-            }
-            CandidateState::Promoted => {
-                p::EventPayload::CandidatePromoted(p::CandidatePromotedPayload {
-                    candidate_id: id.clone(),
-                    by: decision_actor,
-                    reason,
-                    stable: None,
-                })
-            }
-            CandidateState::Rejected => {
-                p::EventPayload::CandidateRejected(p::CandidateRejectedPayload {
-                    candidate_id: id.clone(),
-                    by: decision_actor,
-                    reason,
-                })
-            }
-            CandidateState::Downgraded => {
-                p::EventPayload::CandidateDowngraded(p::CandidateDowngradedPayload {
-                    candidate_id: id.clone(),
-                    by: decision_actor,
-                    reason,
-                })
-            }
-            CandidateState::Decayed => {
-                p::EventPayload::CandidateDecayed(p::CandidateDecayedPayload {
-                    candidate_id: id.clone(),
-                    by: decision_actor,
-                    reason,
-                })
-            }
-        };
-        self.append_payload(system_provenance(), payload)?;
-        let record = state
-            .candidates
-            .get_mut(&id)
-            .ok_or_else(|| p::Error("candidate disappeared during transition".into()))?;
-        record.state = to;
-        record.decided_by = Some(by);
-        if to == CandidateState::Promoted {
-            promote_user_candidate(&mut state, &id);
-        } else if matches!(to, CandidateState::Downgraded | CandidateState::Decayed) {
-            demote_user_candidate(&mut state, &id);
-        }
-        Ok(())
+        self.transition_recorded(id, to, by, None)
     }
 }
 
