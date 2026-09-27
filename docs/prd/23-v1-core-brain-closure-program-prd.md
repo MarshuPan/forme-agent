@@ -300,6 +300,39 @@ builder 从同一 config 初始化已有 registry/lifecycle：File/Shell/MCP/Ski
 
 ## 4. B 波：持续认知运行（C7–C12）
 
+### B0 稳定认知晋升事件化（B 波前置）
+
+在 `protocol/src/v1_closure.rs` 增加：
+
+```rust
+pub struct StableCognitionEvidence {
+    pub reference: EvidenceRef,
+    pub observed_at: Timestamp,
+    pub verified_process: bool,
+}
+
+pub struct StableCognitionRecord {
+    pub schema_version: SchemaVersion,
+    pub object: ObjectRef,
+    pub scope: Scope,
+    pub kind: StableCognitionKindRef,
+    pub statement: String,
+    pub tier: StabilityTier,
+    pub confidence: Confidence,
+    pub evidence: Vec<StableCognitionEvidence>,
+    pub last_reproduced_at: Timestamp,
+}
+```
+
+`CandidatePromotedPayload` 追加 `#[serde(default, skip_serializing_if = "Option::is_none")] stable: Option<StableCognitionRecord>`。`memory` 提供携带记录的晋升命令；`cognition::CognitiveRuntime::govern_and_apply` 先校验目标与候选已记录事实一致，再追加事件，并用与重放相同的 fold 更新状态；降级/衰减/撤回按已记录对象 fold。
+
+测试（归入 C2/C12 的 R-FOLD 子断言）：
+
+- CognitiveMap、用户属性、AgentSelf、Partnership 四类晋升：在线状态与“删除内存状态后重放”的状态逐字段相等，重启后对象、置信度、证据时间、最近复现时间不变。
+- 重启后不因 `last_reproduced_at` 丢失而触发批量重评。
+- 目标与候选不一致时零事件、零状态变化。
+- 历史无记录事件可读、可重放；前 97 项 payload 字节与历史工件不变。
+
 ### B1 Tick claim 与三相状态机
 
 `store` 增加：

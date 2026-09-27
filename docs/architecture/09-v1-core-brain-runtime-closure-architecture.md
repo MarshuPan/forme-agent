@@ -441,6 +441,14 @@ typed command
 
 任何 `set_*`、`transition`、`decay`、edge-weight 更新或 lifecycle mutation 都只能是上述 command 的内部实现，不得直接写 projection/cache。瞬时 `current_activation` 可以由 event range + snapshot + 确定性衰减函数按读时派生；会影响 replay、召回或治理判断的边权、巩固、修剪和候选状态变化必须进入结构化事件/maintenance delta。在线 fold 与 replay fold 必须共享同一验证和应用语义。
 
+#### 12.2.1 稳定认知晋升的事件化
+
+- `CandidatePromoted.stable` 记录被激活的 `StableCognitionRecord`：对象引用、scope、种类、陈述、稳定层级、置信度、证据引用（含观察时间与是否经验证过程）、最近复现时间。
+- 晋升目标必须与被晋升候选的已记录事实一致：CognitiveMap 提案按其 frame/quality/blindspot/resource 引用，用户属性、AgentSelf、Partnership 按其已编码的候选目标，`stable:{object}` 规格候选按其对象；不一致时零写入拒绝。
+- 在线路径先追加事件，再以与重放相同的 fold 更新状态；`CognitiveRuntime` 不保留只在内存里的稳定对象。
+- 历史 `CandidatePromoted`（无记录）按原推导重放，仅作兼容；新的晋升一律携带记录。重放与在线状态不一致视为 R-FOLD 失败。
+- 记录不含秘密、凭据或私有路径；陈述长度有界。
+
 ### 12.3 最终计划、审批和验证契约
 
 执行路径至少有两次治理检查：

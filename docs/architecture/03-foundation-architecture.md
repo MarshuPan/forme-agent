@@ -119,7 +119,8 @@
 |---|---|---|
 | `CandidateCreated` | target, evidence_refs, confidence, provenance, target_tier, capability_update?(M2-C additive), strategy_candidate?(M3-A additive) | §4/§25, S8/S9/S50/S56 |
 | `CandidateConflictDetected` | conflict_with, kind | §8 |
-| `CandidatePromoted` / `CandidateRejected` / `CandidateDowngraded` / `CandidateDecayed` | by(auto/user), reason | §4, S8/S9 |
+| `CandidatePromoted` | by(auto/user), reason, stable?(V1 闭合 B additive：被激活的 `StableCognitionRecord`) | §4/§28, S8/S9, C2/C12 |
+| `CandidateRejected` / `CandidateDowngraded` / `CandidateDecayed` | by(auto/user), reason | §4, S8/S9 |
 | `RetractionEvent` / `RevocationEvent` | target_object, evidence_lineage | §8, S20 |
 | `ReevaluationTaskCreated` | derived_refs, trigger | §8, S20 |
 
