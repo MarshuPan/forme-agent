@@ -1,7 +1,7 @@
 # V1 核心大脑闭合 A 波（产品默认装配）验收报告
 
 - 日期：2026-09-27
-- 分支：`shu/v1-core-brain-a`（基线 `main` 94fe6f1；A 波既有 19 个提交之上另有本轮未提交改动，待 owner 审阅后按 prd/23 §12 分提交）
+- 分支：`shu/v1-core-brain-a`（基线 `main` 94fe6f1；A 波在基线之上共有既有 19 个提交与本轮按 crate 拆分的提交，未合入 `main`）
 - 范围：C1–C6（`requirements/16` §4），并永久回归 S1–S99
 - 权威规格：`requirements/15-16`、`architecture/canonical-contract.md` §28、`architecture/09` §2–4/§12、`prd/23` §1.4 与 §3 A1–A8
 - 结果：**自检 PASS，待 owner 验收**。本分支尚未合入 `main`；按 prd/23 §1.4 状态文档纪律，本报告不写“完成/闭合/永久基线”。
@@ -50,7 +50,8 @@
 - `tools/verify-core-brain-workspace-contract.ps1`：PASS（冻结 M5 workspace 契约、99-kind 与 97 exact prefix、SessionBound additive 字段、精确依赖锁定）。
 - `tools/verify-core-brain-closure.ps1 -Wave A`：PASS，43 个按名场景测试逐条运行且各恰好 1 个通过。
 - `tools/verify-core-brain-closure.ps1`（Final）：按设计 **fail closed**——B/C/D 尚无场景清单，不能宣称闭合。
-- `tools/verify-m5.ps1`：S1–S99 全部场景门、各阶段严格 Clippy、显式真实 golden 与 M4 历史 receipt 复核 PASS；唯一失败项为 S99 release audit 的 `RELEASE_TREE_DIRTY`（本轮改动尚未提交，release audit 设计上要求干净的已跟踪工作树）。其余 release audit 检查（license/NOTICE、直接依赖、借鉴记录、原创性、验收工件、漏洞审计、生态威胁基线）均 PASS。**提交后须在干净工作树上重跑 `tools/verify-m5.ps1` 作为本波最终回归证据。**
+- 本轮提交按 crate 拆分；其中 9 个实现提交逐个在独立 worktree 上通过 `fmt/check/test/compliance`，保证每个提交单独可编译、测试全绿；子代理 App API 围栏先于 policy 放宽落地，历史中不出现治理回退窗口。
+- `tools/verify-m5.ps1`：在提交后的干净工作树上运行。S1–S99 全部场景门、各阶段严格 Clippy、显式真实 golden、M4 历史 receipt 复核与当前树 M5 release audit（含干净树检查，license/NOTICE、直接依赖、借鉴记录、原创性、验收工件、漏洞审计、生态威胁基线）均 PASS。仓库内 M5 release receipt 记录的是“当前树满足 M5 发布策略”的审计结果，树变化后会过期；本波按 `main` 上 `94fe6f1` 的同一做法，在所有其他提交之后单独刷新该 receipt，随后全量复跑 `tools/verify-m5.ps1` PASS。
 
 ## 5. 残余边界（不在 A 波宣称）
 
