@@ -2851,6 +2851,10 @@ impl ReactiveHarness {
             .map(|path| vec![path.to_owned()])
             .unwrap_or_default();
         child_governance.network_allowed = false;
+        // App API reachability is authorized per connector rather than by the
+        // global network flag, so the connector limits must be withheld
+        // explicitly: a child route never inherits outward API authority.
+        child_governance.external.app_api_connectors.clear();
         child_governance.delegation = Some(child_grant);
         child_governance.envelope = Some(child_envelope);
         let mut child_config = self.config.clone();
