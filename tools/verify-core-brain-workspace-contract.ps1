@@ -68,7 +68,8 @@ try {
 
     foreach ($test in @(
             "closure_taxonomy_preserves_the_exact_m5_prefix_and_adds_only_two_events",
-            "session_bound_composition_manifest_is_optional_additive_and_byte_stable"
+            "session_bound_composition_manifest_is_optional_additive_and_byte_stable",
+            "candidate_promoted_record_is_optional_additive_and_byte_stable"
         )) {
         & cargo test -p forme-protocol --test v1_closure_contract $test -- --exact
         if ($LASTEXITCODE -ne 0) {
@@ -79,6 +80,7 @@ try {
     Write-Host "[PASS] frozen-m5-workspace-contract"
     Write-Host "[PASS] closure-99-kind-taxonomy-with-exact-m5-prefix"
     Write-Host "[PASS] closure-session-bound-additive-field"
+    Write-Host "[PASS] closure-candidate-promoted-additive-field"
     Write-Host "[PASS] closure-exact-dependency-pins"
     Write-Host "core-brain-workspace-contract: PASS"
 }
