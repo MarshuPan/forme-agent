@@ -157,7 +157,9 @@ fn promotion_requires_owner_confirmation_and_uses_asymmetric_thresholds() {
         .create_candidate_spec(CandidateSpec {
             schema_version: p::SchemaVersion(1),
             id: cautious_id.clone(),
-            target: p::CandidateTargetRef("caution:test".into()),
+            // The candidate records the object it may promote; B0 replays
+            // a promotion only from recorded facts.
+            target: p::CandidateTargetRef("stable:blindspot:caution".into()),
             evidence_refs: vec![p::EvidenceRef("evidence:1".into())],
             confidence: p::Confidence(0.5),
             provenance: provenance(p::TrustTier::OwnerInput, p::Actor::Owner),

@@ -1471,7 +1471,7 @@ where
             .collect::<p::Result<Vec<_>>>()?;
         let mut state = CognitionState::default();
         for event in &events {
-            fold_event(&mut state, event);
+            fold_event(&mut state, &memory, event);
         }
         let next = events
             .iter()
@@ -1553,16 +1553,19 @@ where
         let decision = self.govern(&candidate);
         match decision {
             GovernanceDecision::Promote => {
-                self.memory.transition(
-                    candidate.candidate_id.clone(),
-                    memory::CandidateState::Promoted,
-                    p::Actor::Owner,
-                )?;
+                self.ensure_recorded_target(&candidate)?;
                 let mut target = candidate.target;
                 target.active = true;
-                self.lock_state()?
-                    .stable
-                    .insert(target.object.clone(), target);
+                let record = stable_record(&target);
+                record.validate()?;
+                // The event carries the record; the online state is then the
+                // same fold a replay performs, never the caller's object.
+                self.memory.promote_with_record(
+                    candidate.candidate_id,
+                    p::Actor::Owner,
+                    record.clone(),
+                )?;
+                apply_promotion(&mut *self.lock_state()?, &record);
             }
             GovernanceDecision::Reject => {
                 self.memory.transition(
@@ -1572,20 +1575,36 @@ where
                 )?;
             }
             GovernanceDecision::Downgrade => {
+                self.ensure_recorded_target(&candidate)?;
                 self.memory.transition(
                     candidate.candidate_id,
                     memory::CandidateState::Downgraded,
                     p::Actor::Owner,
                 )?;
-                if let Some(stable) = self.lock_state()?.stable.get_mut(&candidate.target.object) {
-                    stable.active = false;
-                }
+                apply_downgrade(&mut *self.lock_state()?, &candidate.target.object);
             }
             GovernanceDecision::Confirm
             | GovernanceDecision::Rollback
             | GovernanceDecision::Decay => {}
         }
         Ok(decision)
+    }
+
+    /// A governed change may only name the object its candidate recorded;
+    /// otherwise the change could not be replayed and nothing is written.
+    fn ensure_recorded_target(&self, candidate: &GovernanceCandidate) -> p::Result<()> {
+        let recorded = recorded_target(&*self.lock_state()?, &self.memory, &candidate.candidate_id);
+        match recorded {
+            Some((object, kind))
+                if object == candidate.target.object
+                    && kind.is_none_or(|kind| kind == candidate.target.kind) =>
+            {
+                Ok(())
+            }
+            _ => Err(p::Error(
+                "governance target does not match the candidate's recorded object".into(),
+            )),
+        }
     }
 
     pub fn record_lineage(&self, source: p::ObjectRef, derived: p::ObjectRef) -> p::Result<()> {
@@ -2070,7 +2089,13 @@ fn is_map_kind(kind: StableCognitionKind) -> bool {
     )
 }
 
-fn fold_event(state: &mut CognitionState, event: &p::Event) {
+fn fold_event<S>(
+    state: &mut CognitionState,
+    memory: &memory::EventSourcedMemory<S>,
+    event: &p::Event,
+) where
+    S: EventStore,
+{
     match &event.payload {
         p::EventPayload::CognitiveMapUpdateProposed(payload) => {
             state.proposals.insert(
@@ -2106,10 +2131,20 @@ fn fold_event(state: &mut CognitionState, event: &p::Event) {
                 }
             }
         }
-        p::EventPayload::CandidatePromoted(payload) => {
-            if let Some(proposal) = state.proposals.get(&payload.candidate_id).cloned() {
-                let stable = stable_from_proposal(&proposal);
-                state.stable.insert(stable.object.clone(), stable);
+        p::EventPayload::CandidatePromoted(payload) => match &payload.stable {
+            Some(record) => apply_promotion(state, record),
+            // Promotions recorded before the stable record existed keep their
+            // original derivation so historical logs replay unchanged.
+            None => {
+                if let Some(proposal) = state.proposals.get(&payload.candidate_id).cloned() {
+                    let stable = stable_from_proposal(&proposal);
+                    state.stable.insert(stable.object.clone(), stable);
+                }
+            }
+        },
+        p::EventPayload::CandidateDowngraded(payload) => {
+            if let Some((object, _)) = recorded_target(state, memory, &payload.candidate_id) {
+                apply_downgrade(state, &object);
             }
         }
         p::EventPayload::RetractionEvent(payload) => {
@@ -2133,6 +2168,132 @@ fn fold_event(state: &mut CognitionState, event: &p::Event) {
         }
         _ => {}
     }
+}
+
+/// Inserts the stable cognition a promotion recorded. Shared by the online
+/// governance path and replay, so both produce the same state.
+fn apply_promotion(state: &mut CognitionState, record: &p::StableCognitionRecord) {
+    if let Some(stable) = stable_from_record(record) {
+        state.stable.insert(stable.object.clone(), stable);
+    }
+}
+
+fn apply_downgrade(state: &mut CognitionState, object: &p::ObjectRef) {
+    if let Some(stable) = state.stable.get_mut(object) {
+        stable.active = false;
+    }
+}
+
+/// The object (and, where it is encoded, the kind) a candidate refers to,
+/// derived only from recorded facts: map proposals, user-attribute
+/// candidates, temporal semantic targets, and `stable:`/`downgrade:` specs.
+fn recorded_target<S>(
+    state: &CognitionState,
+    memory: &memory::EventSourcedMemory<S>,
+    candidate: &p::CandidateId,
+) -> Option<(p::ObjectRef, Option<StableCognitionKind>)>
+where
+    S: EventStore,
+{
+    if let Some(proposal) = state.proposals.get(candidate) {
+        let stable = stable_from_proposal(proposal);
+        return Some((stable.object, Some(stable.kind)));
+    }
+    if let Some(user) = memory.user_candidate(candidate) {
+        return Some((
+            p::ObjectRef(format!(
+                "user-attribute:{}:{}",
+                user.attribute.0, user.scope.0
+            )),
+            Some(StableCognitionKind::UserAttribute),
+        ));
+    }
+    let record = memory.candidate_record(candidate)?;
+    let target = &record.spec.target.0;
+    if let Some(object) = target
+        .strip_prefix("stable:")
+        .or_else(|| target.strip_prefix("downgrade:"))
+        .filter(|object| !object.trim().is_empty())
+    {
+        return Some((p::ObjectRef(object.to_owned()), None));
+    }
+    temporal::semantic_target_object(&record.spec.target).map(|(object, kind)| (object, Some(kind)))
+}
+
+fn stable_kind_name(kind: StableCognitionKind) -> &'static str {
+    match kind {
+        StableCognitionKind::Frame => "frame",
+        StableCognitionKind::Quality => "quality",
+        StableCognitionKind::BlindSpot => "blind-spot",
+        StableCognitionKind::ResourceRelation => "resource-relation",
+        StableCognitionKind::UserAttribute => "user-attribute",
+        StableCognitionKind::AgentSelf => "agent-self",
+        StableCognitionKind::Trust => "trust",
+        StableCognitionKind::Partnership => "partnership",
+    }
+}
+
+fn stable_kind_from_name(name: &str) -> Option<StableCognitionKind> {
+    Some(match name {
+        "frame" => StableCognitionKind::Frame,
+        "quality" => StableCognitionKind::Quality,
+        "blind-spot" => StableCognitionKind::BlindSpot,
+        "resource-relation" => StableCognitionKind::ResourceRelation,
+        "user-attribute" => StableCognitionKind::UserAttribute,
+        "agent-self" => StableCognitionKind::AgentSelf,
+        "trust" => StableCognitionKind::Trust,
+        "partnership" => StableCognitionKind::Partnership,
+        _ => return None,
+    })
+}
+
+fn stable_record(stable: &StableCognition) -> p::StableCognitionRecord {
+    p::StableCognitionRecord {
+        schema_version: stable.schema_version,
+        object: stable.object.clone(),
+        scope: stable.scope.scope.clone(),
+        kind: p::StableCognitionKindRef(stable_kind_name(stable.kind).into()),
+        statement: stable.statement.clone(),
+        tier: stable.tier,
+        confidence: stable.confidence,
+        evidence: stable
+            .evidence
+            .iter()
+            .map(|evidence| p::StableCognitionEvidence {
+                reference: evidence.reference.clone(),
+                observed_at: evidence.observed_at,
+                verified_process: evidence.verified_process,
+            })
+            .collect(),
+        last_reproduced_at: stable.last_reproduced_at,
+    }
+}
+
+fn stable_from_record(record: &p::StableCognitionRecord) -> Option<StableCognition> {
+    Some(StableCognition {
+        schema_version: record.schema_version,
+        object: record.object.clone(),
+        scope: MapScope {
+            schema_version: p::SchemaVersion(1),
+            scope: record.scope.clone(),
+        },
+        kind: stable_kind_from_name(&record.kind.0)?,
+        statement: record.statement.clone(),
+        tier: record.tier,
+        confidence: record.confidence,
+        evidence: record
+            .evidence
+            .iter()
+            .map(|evidence| GovernanceEvidence {
+                schema_version: p::SchemaVersion(1),
+                reference: evidence.reference.clone(),
+                observed_at: evidence.observed_at,
+                verified_process: evidence.verified_process,
+            })
+            .collect(),
+        last_reproduced_at: record.last_reproduced_at,
+        active: true,
+    })
 }
 
 fn stable_from_proposal(proposal: &CognitiveMapUpdateProposal) -> StableCognition {

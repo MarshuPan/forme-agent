@@ -841,6 +841,34 @@ fn parse_trust(record: &memory::CandidateRecord) -> Option<TrustProfile> {
     })
 }
 
+/// The stable object a temporal semantic candidate refers to, derived from
+/// its recorded target exactly as the review methods build their governance
+/// targets, so a promotion or downgrade can be validated and replayed
+/// without process state.
+pub(crate) fn semantic_target_object(
+    target: &p::CandidateTargetRef,
+) -> Option<(p::ObjectRef, StableCognitionKind)> {
+    if let Some(fields) = fields(target, "agent-self", 8) {
+        return Some((
+            p::ObjectRef(format!("agent-self:{}", unescape(fields[0]))),
+            StableCognitionKind::AgentSelf,
+        ));
+    }
+    if let Some(fields) = fields(target, "partnership", 6) {
+        return Some((
+            p::ObjectRef(format!("partnership:{}", unescape(fields[0]))),
+            StableCognitionKind::Partnership,
+        ));
+    }
+    if let Some(fields) = fields(target, "trust", 6) {
+        return Some((
+            p::ObjectRef(format!("trust:{}", unescape(fields[0]))),
+            StableCognitionKind::Trust,
+        ));
+    }
+    None
+}
+
 fn fields<'a>(
     target: &'a p::CandidateTargetRef,
     prefix: &str,
