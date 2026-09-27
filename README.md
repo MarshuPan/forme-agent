@@ -191,11 +191,36 @@ FORME_OWNER_ID=owner-id
 ```
 
 Optional settings are `FORME_MODEL_PROVIDER`, `FORME_MODEL_CONTEXT_WINDOW`,
-`FORME_MODEL_TIMEOUT_MS`, and `FORME_STORE_PATH`. Run a question through the
-same Gateway/Harness protocol used by other entries:
+`FORME_MODEL_TIMEOUT_MS`, and `FORME_STORE_PATH`. Owner-configured MCP servers,
+skills, plugins, and App API connectors are declared in a JSON document named by
+`FORME_CAPABILITY_CONFIG` (`schema_version` 1 with `skills`, `mcp`, `plugins`,
+and `app_api` lists). The document names the environment variables that hold
+credentials and never the credential values; every provider stays invisible
+until it carries an explicit owner trust and grant binding.
+
+One store is served by exactly one runtime. Start the local gateway daemon, which
+owns that runtime and its scheduler:
+
+```text
+cargo run -p forme-gateway --bin forme-gatewayd
+```
+
+It prints `FORME_GATEWAY_URL` and the bearer-token file path. With
+`FORME_GATEWAY_URL` set (and `FORME_GATEWAY_TOKEN` or the printed token file),
+the CLI talks to that daemon by default:
 
 ```text
 cargo run -p forme-cli -- "your question"
+```
+
+When no daemon is running, `--embedded` composes the same runtime in-process
+through the same builder. `--manifest` prints the composition manifest digest,
+which is identical for the daemon and an embedded run over the same
+configuration:
+
+```text
+cargo run -p forme-cli -- --embedded "your question"
+cargo run -p forme-cli -- --manifest
 ```
 
 ## License

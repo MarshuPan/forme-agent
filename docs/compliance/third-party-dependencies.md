@@ -52,3 +52,13 @@ reachable `rustls 0.23.42` on the release target. The exact pin moves to the
 patched `rustls 0.23.45` within the same minor line; the enabled `ring` and
 `std` features, public API surface, license, and project-owned transport traits
 are unchanged, and no dependency source, example, fixture, or naming was copied.
+
+V1 core-brain closure A dependency check (2026-09-27): no new package enters
+the lockfile. `forme-harness` now depends directly on the already recorded
+`serde 1.0.228` (derive) to read the owner's typed capability document, and
+`forme-cli` adds the already recorded `serde_json 1.0.150` as a dev-only
+dependency for its gateway-entry contract. Both requirements stay exact-pinned
+and are asserted by `tools/verify-core-brain-workspace-contract.ps1`. The
+CLI's local gateway client is repository-owned and uses only the standard
+library over a loopback socket; no dependency source, example, fixture, error
+text, or naming was copied.
