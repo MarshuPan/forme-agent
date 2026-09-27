@@ -159,6 +159,43 @@ impl ModelRegistry {
         Ok(registry)
     }
 
+    /// Like [`ModelRegistry::from_config`], but a non-default profile whose
+    /// provider cannot be bound (missing credential, unusable endpoint) is
+    /// left out and reported instead of failing the whole registry. The
+    /// default profile is required: its failure still fails closed.
+    pub fn from_config_degrading(
+        config: ModelRegistryConfig,
+    ) -> p::Result<(Self, Vec<UnavailableModelProfile>)> {
+        config.validate()?;
+        let defaults = config
+            .profiles
+            .iter()
+            .filter(|profile| profile.default)
+            .map(|profile| p::ModelProfileRef(profile.id.clone()))
+            .collect::<Vec<_>>();
+        if defaults.len() != 1 {
+            return Err(p::Error(
+                "model configuration must declare exactly one default profile".into(),
+            ));
+        }
+        let mut registry = Self::new(defaults[0].clone())?;
+        let mut unavailable = Vec::new();
+        for profile in config.profiles {
+            let reference = p::ModelProfileRef(profile.id.clone());
+            let is_default = profile.default;
+            match profile.bind_provider() {
+                Ok(model) => registry.register(model)?,
+                Err(error) if is_default => return Err(error),
+                Err(_) => unavailable.push(UnavailableModelProfile {
+                    profile: reference,
+                    reason: "model provider binding is unavailable (credential or endpoint)".into(),
+                }),
+            }
+        }
+        registry.validate_ready()?;
+        Ok((registry, unavailable))
+    }
+
     pub fn register(&mut self, model: RegisteredModel) -> p::Result<()> {
         if self.models.contains_key(model.reference()) {
             return Err(p::Error(format!(
@@ -198,6 +235,14 @@ impl ModelRegistry {
     pub fn is_empty(&self) -> bool {
         self.models.is_empty()
     }
+}
+
+/// A configured, non-default model profile that could not be bound. The
+/// reason is a fixed, secret-free explanation for the doctor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnavailableModelProfile {
+    pub profile: p::ModelProfileRef,
+    pub reason: String,
 }
 
 /// Secret-free model configuration used by the production composition root.
@@ -717,6 +762,71 @@ mod tests {
         assert!(parse_profile_config(
             r#"[{"id":"x","provider":"p","model":"m","base_url":"https://x.invalid","credential_env":"KEY","default":true,"unknown":1}]"#
         )
+        .is_err());
+    }
+
+    fn runtime_profile(id: &str, credential_env: &str, default: bool) -> ModelRuntimeConfig {
+        ModelRuntimeConfig {
+            id: id.into(),
+            provider: "compatible".into(),
+            model: format!("model-{id}"),
+            base_url: "https://models.invalid/v1".into(),
+            credential_env: credential_env.into(),
+            context_window: 32_768,
+            tool_use: false,
+            strength: ModelStrength::Standard,
+            input_microunits_per_million: 0,
+            output_microunits_per_million: 0,
+            requests_per_minute: 60,
+            tokens_per_minute: 100_000,
+            timeout_ms: 1_000,
+            fallback_group: Some("group".into()),
+            default,
+            tool_schema_versions: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn optional_profile_binding_failure_degrades_but_default_fails_closed() {
+        std::env::set_var("FORME_REGISTRY_DEGRADE_PRESENT", "registry-test-value");
+        std::env::remove_var("FORME_REGISTRY_DEGRADE_ABSENT");
+        let (registry, unavailable) = ModelRegistry::from_config_degrading(ModelRegistryConfig {
+            schema_version: p::SchemaVersion(1),
+            profiles: vec![
+                runtime_profile("primary", "FORME_REGISTRY_DEGRADE_PRESENT", true),
+                runtime_profile("fallback", "FORME_REGISTRY_DEGRADE_ABSENT", false),
+            ],
+        })
+        .unwrap();
+        assert_eq!(
+            registry.profiles(),
+            vec![p::ModelProfileRef("primary".into())]
+        );
+        assert_eq!(
+            unavailable
+                .iter()
+                .map(|profile| profile.profile.0.as_str())
+                .collect::<Vec<_>>(),
+            vec!["fallback"]
+        );
+        assert!(!format!("{unavailable:?}").contains("FORME_REGISTRY_DEGRADE_ABSENT"));
+
+        assert!(ModelRegistry::from_config_degrading(ModelRegistryConfig {
+            schema_version: p::SchemaVersion(1),
+            profiles: vec![
+                runtime_profile("primary", "FORME_REGISTRY_DEGRADE_ABSENT", true),
+                runtime_profile("fallback", "FORME_REGISTRY_DEGRADE_PRESENT", false),
+            ],
+        })
+        .is_err());
+        // The strict constructor keeps its fail-closed contract.
+        assert!(ModelRegistry::from_config(ModelRegistryConfig {
+            schema_version: p::SchemaVersion(1),
+            profiles: vec![
+                runtime_profile("primary", "FORME_REGISTRY_DEGRADE_PRESENT", true),
+                runtime_profile("fallback", "FORME_REGISTRY_DEGRADE_ABSENT", false),
+            ],
+        })
         .is_err());
     }
 }
