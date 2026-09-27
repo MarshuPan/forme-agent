@@ -36,6 +36,7 @@ fn cli_question_reaches_http_model_and_prints_the_answer() {
         .as_nanos();
     let store = std::env::temp_dir().join(format!("forme-cli-e2e-{tag}.db"));
     let output = Command::new(env!("CARGO_BIN_EXE_forme-cli"))
+        .arg("--embedded")
         .arg("Does the reactive path work?")
         .env("FORME_MODEL_BASE_URL", format!("http://{address}/v1"))
         .env("FORME_MODEL_NAME", "local-e2e-model")
