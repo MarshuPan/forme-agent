@@ -383,6 +383,7 @@ fn all_payload_fixtures() -> Vec<EventPayload> {
             candidate_id: text!(CandidateId, "candidate-1"),
             by: DecisionActor::User,
             reason: text!(ReasonRef, "confirmed"),
+            stable: None,
         }),
         EventPayload::CandidateRejected(CandidateRejectedPayload {
             candidate_id: text!(CandidateId, "candidate-2"),

@@ -1219,6 +1219,7 @@ impl ReactiveHarness {
                             candidate_id: candidate,
                             by: p::DecisionActor::User,
                             reason,
+                            stable: None,
                         })
                     }
                     CandidateResolution::Reject => {
@@ -4860,6 +4861,7 @@ impl GatewayControl for ReactiveHarness {
                         candidate_id: command.candidate,
                         by: p::DecisionActor::User,
                         reason,
+                        stable: None,
                     }),
                 )?;
             }

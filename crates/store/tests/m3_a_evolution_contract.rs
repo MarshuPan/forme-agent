@@ -122,6 +122,7 @@ fn append_stable_strategy(store: &SqliteEventStore, number: u8, baseline: &str) 
                 candidate_id: candidate.candidate,
                 by: p::DecisionActor::Auto,
                 reason: p::ReasonRef("ground-truth-pass".into()),
+                stable: None,
             }),
         ))
         .unwrap();
@@ -286,6 +287,7 @@ fn s56_strategy_promotion_requires_a_recorded_passing_evaluation() {
                 candidate_id: primary.candidate.clone(),
                 by,
                 reason: p::ReasonRef("claimed-pass".into()),
+                stable: None,
             }),
         );
         event.provenance = provenance;

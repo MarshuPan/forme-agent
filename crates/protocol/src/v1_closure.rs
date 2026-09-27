@@ -147,6 +147,101 @@ impl DataLifecycleReceipt {
     }
 }
 
+/// Upper bound for the statement carried by a stable cognition record.
+pub const MAX_STABLE_COGNITION_STATEMENT_BYTES: usize = 4_096;
+
+/// The kind of stable cognition a promotion activates.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct StableCognitionKindRef(pub String);
+
+impl StableCognitionKindRef {
+    pub const KNOWN: [&'static str; 8] = [
+        "frame",
+        "quality",
+        "blind-spot",
+        "resource-relation",
+        "user-attribute",
+        "agent-self",
+        "trust",
+        "partnership",
+    ];
+
+    pub fn validate(&self) -> Result<()> {
+        if Self::KNOWN.contains(&self.0.as_str()) {
+            Ok(())
+        } else {
+            Err(Error("stable cognition kind is unknown".into()))
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StableCognitionEvidence {
+    pub reference: EvidenceRef,
+    pub observed_at: Timestamp,
+    pub verified_process: bool,
+}
+
+/// The stable cognition a candidate promotion activates. It is carried by
+/// `CandidatePromoted` so that the online projection and a replay of the event
+/// log are produced by one fold.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StableCognitionRecord {
+    pub schema_version: SchemaVersion,
+    pub object: ObjectRef,
+    pub scope: Scope,
+    pub kind: StableCognitionKindRef,
+    pub statement: String,
+    pub tier: StabilityTier,
+    pub confidence: Confidence,
+    pub evidence: Vec<StableCognitionEvidence>,
+    pub last_reproduced_at: Timestamp,
+}
+
+impl StableCognitionRecord {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version.0 == 0 {
+            return Err(Error("stable cognition record schema is invalid".into()));
+        }
+        validate_safe_reference(&self.object.0, "stable cognition object")?;
+        validate_safe_reference(&self.scope.0, "stable cognition scope")?;
+        self.kind.validate()?;
+        if self.statement.trim().is_empty()
+            || self.statement.len() > MAX_STABLE_COGNITION_STATEMENT_BYTES
+            || self.statement.chars().any(char::is_control)
+        {
+            return Err(Error(
+                "stable cognition statement is empty, unbounded, or not plain text".into(),
+            ));
+        }
+        validate_plain_statement(&self.statement)?;
+        if !self.confidence.0.is_finite() || !(0.0..=1.0).contains(&self.confidence.0) {
+            return Err(Error("stable cognition confidence is out of range".into()));
+        }
+        if self.last_reproduced_at < 0 {
+            return Err(Error(
+                "stable cognition reproduction time is invalid".into(),
+            ));
+        }
+        for evidence in &self.evidence {
+            validate_safe_reference(&evidence.reference.0, "stable cognition evidence")?;
+            if evidence.observed_at < 0 {
+                return Err(Error("stable cognition evidence time is invalid".into()));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl CandidatePromotedPayload {
+    pub fn validate_record(&self) -> Result<()> {
+        match &self.stable {
+            Some(record) => record.validate(),
+            None => Ok(()),
+        }
+    }
+}
+
 impl WorkspaceCharterChangedPayload {
     pub fn validate(&self) -> Result<()> {
         self.charter.validate()?;
@@ -223,6 +318,33 @@ fn validate_safe_reference(value: &str, name: &str) -> Result<()> {
         return Err(Error(format!(
             "{name} contains a secret, endpoint, or private-path marker"
         )));
+    }
+    Ok(())
+}
+
+/// Statements are free text, so only credential-shaped markers, endpoints,
+/// and absolute paths are refused; ordinary words stay usable.
+fn validate_plain_statement(value: &str) -> Result<()> {
+    let lowered = value.to_ascii_lowercase();
+    let credential_markers = [
+        "password",
+        "api_key",
+        "apikey",
+        "private_key",
+        "secret_key",
+        "access_token",
+        "bearer ",
+    ];
+    if credential_markers
+        .iter()
+        .any(|marker| lowered.contains(marker))
+        || lowered.contains("://")
+        || value.contains('\\')
+        || value.contains(":\\")
+    {
+        return Err(Error(
+            "stable cognition statement contains a credential, endpoint, or path marker".into(),
+        ));
     }
     Ok(())
 }

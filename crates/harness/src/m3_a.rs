@@ -305,6 +305,7 @@ impl M3EvolutionHarness {
                 candidate_id: candidate.candidate.clone(),
                 by: p::DecisionActor::Auto,
                 reason: p::ReasonRef("independent ground-truth evaluation passed".into()),
+                stable: None,
             }),
         )
     }

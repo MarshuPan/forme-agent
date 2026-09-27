@@ -183,3 +183,107 @@ fn session_bound_composition_manifest_is_optional_additive_and_byte_stable() {
         p::EventPayload::SessionBound(bound)
     );
 }
+
+fn stable_record() -> p::StableCognitionRecord {
+    p::StableCognitionRecord {
+        schema_version: p::V1_CLOSURE_SCHEMA_VERSION,
+        object: p::ObjectRef("frame:verify-first".into()),
+        scope: p::Scope("workspace:forme".into()),
+        kind: p::StableCognitionKindRef("frame".into()),
+        statement: "verify externally before declaring completion".into(),
+        tier: p::StabilityTier::Stable,
+        confidence: p::Confidence(0.9),
+        evidence: vec![p::StableCognitionEvidence {
+            reference: p::EvidenceRef("evidence:run-1".into()),
+            observed_at: 10,
+            verified_process: true,
+        }],
+        last_reproduced_at: 30,
+    }
+}
+
+#[test]
+fn stable_cognition_record_is_bounded_and_refuses_secrets_endpoints_and_paths() {
+    assert!(stable_record().validate().is_ok());
+    let invalid = [
+        {
+            let mut record = stable_record();
+            record.kind = p::StableCognitionKindRef("belief".into());
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.statement = " ".into();
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.statement = "x".repeat(p::MAX_STABLE_COGNITION_STATEMENT_BYTES + 1);
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.statement = "store the api_key next to the notes".into();
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.statement = "fetch https://example.invalid/private first".into();
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.object = p::ObjectRef(r"C:\Users\owner\notes".into());
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.confidence = p::Confidence(1.5);
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.evidence[0].observed_at = -1;
+            record
+        },
+        {
+            let mut record = stable_record();
+            record.schema_version = p::SchemaVersion(0);
+            record
+        },
+    ];
+    for record in invalid {
+        assert!(record.validate().is_err(), "{record:?} must be refused");
+    }
+}
+
+#[test]
+fn candidate_promoted_record_is_optional_additive_and_byte_stable() {
+    let legacy = serde_json::json!({
+        "CandidatePromoted": {
+            "candidate_id": "candidate-1",
+            "by": "User",
+            "reason": "confirmed"
+        }
+    });
+    let decoded = serde_json::from_value::<p::EventPayload>(legacy.clone()).unwrap();
+    let p::EventPayload::CandidatePromoted(payload) = &decoded else {
+        panic!("legacy CandidatePromoted must decode as CandidatePromoted");
+    };
+    assert_eq!(payload.stable, None);
+    assert!(payload.validate_record().is_ok());
+    assert_eq!(serde_json::to_value(&decoded).unwrap(), legacy);
+
+    let mut recorded = payload.clone();
+    recorded.stable = Some(stable_record());
+    let encoded =
+        serde_json::to_value(p::EventPayload::CandidatePromoted(recorded.clone())).unwrap();
+    assert_eq!(
+        encoded["CandidatePromoted"]["stable"]["object"],
+        serde_json::json!("frame:verify-first")
+    );
+    assert_eq!(
+        serde_json::from_value::<p::EventPayload>(encoded).unwrap(),
+        p::EventPayload::CandidatePromoted(recorded)
+    );
+}

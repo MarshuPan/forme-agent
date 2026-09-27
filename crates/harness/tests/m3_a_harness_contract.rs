@@ -105,6 +105,7 @@ fn seed_active_v1(store: &SqliteEventStore) -> p::EvolutionSnapshot {
                 candidate_id: candidate.candidate,
                 by: p::DecisionActor::Auto,
                 reason: p::ReasonRef("seed-reviewed".into()),
+                stable: None,
             }),
         ))
         .unwrap();

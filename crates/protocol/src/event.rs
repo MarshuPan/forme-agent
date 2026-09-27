@@ -311,6 +311,11 @@ define_events! {
         candidate_id: CandidateId,
         by: DecisionActor,
         reason: ReasonRef,
+        /// V1 closure B additive: the stable cognition this promotion
+        /// activates. Online state and replay are folded from this record;
+        /// historical promotions decode to `None`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        stable: Option<StableCognitionRecord>,
     },
     CandidateRejected => CandidateRejectedPayload {
         candidate_id: CandidateId,

@@ -1330,6 +1330,7 @@ fn seed_m3_browser_v1(
             candidate_id: candidate.candidate,
             by: p::DecisionActor::Auto,
             reason: p::ReasonRef("repository-owned known-good seed".into()),
+            stable: None,
         }),
     ))?;
 

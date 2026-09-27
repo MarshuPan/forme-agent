@@ -203,6 +203,7 @@ fn s63_conflict_retraction_and_decay_produce_governed_recommendations() {
                 candidate_id: p::CandidateId("candidate:left".into()),
                 by: p::DecisionActor::User,
                 reason: p::ReasonRef("owner-confirmed".into()),
+                stable: None,
             }),
         ),
         event(
@@ -299,6 +300,7 @@ fn s63_append_only_resolution_keeps_history_and_removes_active_v2() {
                 candidate_id: p::CandidateId("candidate:left".into()),
                 by: p::DecisionActor::User,
                 reason: p::ReasonRef("owner-confirmed".into()),
+                stable: None,
             }),
         ),
         event(

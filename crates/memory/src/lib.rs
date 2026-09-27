@@ -1432,6 +1432,7 @@ where
                     candidate_id: id.clone(),
                     by: decision_actor,
                     reason,
+                    stable: None,
                 })
             }
             CandidateState::Rejected => {

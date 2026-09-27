@@ -115,6 +115,7 @@ fn seed_baseline(store: &SqliteEventStore, domain: p::StrategyDomain, suffix: &s
                 candidate_id: candidate.candidate,
                 by: p::DecisionActor::Auto,
                 reason: p::ReasonRef("repository-owned seed baseline".into()),
+                stable: None,
             }),
         ))
         .unwrap();
