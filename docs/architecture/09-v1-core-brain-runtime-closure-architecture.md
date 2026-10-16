@@ -211,6 +211,8 @@ Claim tick
 - foreground session 存在时，重模型 reflection/maintenance defer；确定性的 intention 与安全检查仍可运行。
 - 无新 evidence、到期 intention、显著 diff 或 maintenance due 时不调用模型。
 - phase 读取固定 event range/snapshot；后台只追加 proposal/candidate/maintenance event，不能直接改前台 run、stable cognition 或执行真实动作。
+- claim 同时固定 memory/cognition aggregate head；维护读取该 head 的对象版本，晚到变更不混入当前窗口。重试沿用原 window 时间，defer 保留未处理输入；完成时校验落盘 claim 的 nonce/attempt/expiry/range 后再原子推进游标。
+- 维护链使用窗口与对象版本确定性身份，允许逐事实重试补齐；部分追加后崩溃不能造成重复降级或缺失 candidate。对象已经有更新版本时不使用旧快照使它失效。
 - 每相输出 typed report；前相失败时后相按 fail policy 跳过或只运行安全维护，不能假报成功。
 
 ## 6. AskToLearn、AgentWorkspace 与激活扩散

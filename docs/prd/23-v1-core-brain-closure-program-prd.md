@@ -358,6 +358,16 @@ pub trait CognitiveTickEngine { fn run(&self, input: CognitiveTickInput) -> Resu
 
 算法按 architecture/09 §5；固定 event range，phase 有序，foreground 优先，无 diff 不调模型。每次 append 仍经 store 单写者。
 
+B1 运行细节（不改冻结 trait）：
+
+- claim 记录每个输入 run 的起止 `stream_seq`；另固定 memory/cognition aggregate 的 head，供三相读取同一稳定认知快照。aggregate/tick 自身的输出不作为下一轮 failure observation，避免自激反馈。
+- 重试复用原 range 与原 window 的判断时间，晚到 evidence 留给新窗口；当前 foreground 状态在重相开始前再查，只能使后台让路。
+- `finish_tick` 必须与 authority 已记录的 owner/window/nonce/attempt/expiry/range 完全匹配，再同事务推进 consumed cursor。不得相信调用方改过的 claim；defer 不消费重相尚未处理的输入。
+- `ProductionRuntime::tick_once() -> Result<CognitiveTickReport>` 保持冻结签名。无窗口可 claim 时返回未运行错误；入口使用新增 companion `signal_cognitive_tick() -> Result<CognitiveTickOutcome>`，把 `NotClaimed` 显式映射为无运行回执。scheduler 使用同一 ledger，不强开窗口。
+- 稳定认知维护先根据固定 head 重建对象；若对象之后已改变则留给下一窗口。每个维护阶段事实和 downgrade candidate 以 window/object version 派生确定性身份；崩溃后补齐部分完成的链，不重复事实、不漏掉 candidate，在线 fold 与重放相同。
+- lease 为 10 分钟；同一窗口最多执行 3 次，持续失败的第 4 次只记录 skipped 报告并关闭该范围，让后续窗口继续。skipped 不得呈现为成功处理；原始失败证据与部分输出永久保留。
+- `FORME_STABLE_EVIDENCE_MAX_AGE_MS` 默认 30 天，必须为正且可表示为时间戳差；仅决定何时生成重评/降级候选，不直接提升置信或授权。
+
 ### B2 AskToLearn
 
 新增 internal `KnowledgeGap` / `AskToLearnProposal`（可落 cognition，不必新 protocol event）：
