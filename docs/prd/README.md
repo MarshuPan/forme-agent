@@ -43,7 +43,7 @@
 | `20-m3-program-prd.md` | M3 Program PRD：replay/eval/promotion/activation/rollback 控制面、Loop/Coordination/Selection 与 Self/Partnership/Trust/Proactivity 策略进化，以及 S53–S69 分波门。 | 完成：M3-A/B/C、S1-S69、真实 evolution golden 与 release audit 均 PASS。 |
 | `21-m4-program-prd.md` | M4 Program PRD：peer trust plane/RemoteExecutor、multi-peer read-only replication/OwnerClient control、checkpoint continuity，以及 S70–S84 分波门。 | M4-A/B/C 与 owner 最终验收 PASS，已封板。 |
 | `22-m5-program-prd.md` | M5 Program PRD：publisher/admission、plan-bound lifecycle/registry、federated distribution/release，以及 S85–S99 分波门。 | 完成：M5-A/B/C、S1-S99、真实 ecosystem golden、typed artifacts 与 release audit 均 PASS。 |
-| `23-v1-core-brain-closure-program-prd.md` | V1 核心大脑闭合 Program PRD：默认 composition、持续认知、长期项目/编排、多模型、dashboard、数据保护与 C1–C24。 | 文档与承重协议已冻结；A 波仅在功能分支施工，尚未通过独立验收或合入 `main`；B/C/D 未实施；明确不是 M6。 |
+| `23-v1-core-brain-closure-program-prd.md` | V1 核心大脑闭合 Program PRD：默认 composition、持续认知、长期项目/编排、多模型、dashboard、数据保护与 C1–C24。 | 文档与承重协议已冻结；A 波分支自检 PASS、待 owner 验收/main；B0/B1 已提交且 B1 模块验证 PASS，B2–B6 未完成，C/D 未实施；明确不是 M6。 |
 
 ## 实施状态
 
@@ -61,7 +61,7 @@ M4 已沿 `requirements/11-12 -> canonical §26 -> architecture/07 -> prd/21 -> 
 
 M5 已沿 `requirements/13-14 -> canonical §27 -> architecture/08 -> prd/22 -> acceptance` 完整闭合。A/B/C 已完成 publisher/admission、plan-bound lifecycle/registry 与 M4-bound distribution/release；S1-S99、97 EventKinds、18 crates、379+4 Rust tests、29 个 Python gates、真实三角色 golden、deterministic typed artifacts、strict Clippy 与 clean-tree release audit 全绿。最终报告见 `../acceptance/m5-acceptance-report.md`，并已合入 main。
 
-V1 核心大脑闭合已完成 `requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23` 文档冻结，并补齐实现前的恢复、并发幂等、事件唯一事实源、身份审批绑定、可执行验证、tick 潮线、数据生命周期和 route 运行契约。当前 A 波仅在功能分支施工，尚未通过独立验收或合入 `main`；B/C/D 尚未实施。每波必须复跑 S1-S99，最终 C1-C24、99 EventKinds、18 crates、真实 golden 与 release gate 全绿。
+V1 核心大脑闭合已完成 `requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23` 文档冻结，并补齐实现前的恢复、并发幂等、事件唯一事实源、身份审批绑定、可执行验证、tick 潮线、数据生命周期和 route 运行契约。A 波分支自检 PASS，待 owner 验收与合入 `main`；B0 稳定认知晋升/重放前置项与 B1 持久三相 tick 已提交，B1 模块验证见 `../acceptance/core-brain-b1-implementation-report.md`。B2–B6 尚未完成，C/D 未实施；模块测试通过不能替代 B 波整体验收。每波必须复跑 S1-S99，最终 C1-C24、99 EventKinds、18 crates、真实 golden 与 release gate 全绿。
 
 ## 写作边界
 
