@@ -14,6 +14,9 @@ use forme_store::{EventStore, SqliteEventStore};
 mod temporal;
 pub use temporal::*;
 
+mod brain_tick;
+pub use brain_tick::*;
+
 mod m3_a;
 pub use m3_a::{
     ConservativeStrategyEvolutionGovernor, EvolutionDecision, StrategyEvolutionGovernor,
@@ -28,6 +31,9 @@ pub use m3_c::*;
 /// crate graph intact while exposing the memory implementation through the
 /// cognition boundary that already owns the memory dependency.
 pub type PersistentMemory = memory::EventSourcedMemory<SqliteEventStore>;
+/// The intention records `ProspectiveIntentions` exchanges, re-exported so a
+/// caller of that trait needs no direct memory dependency.
+pub use memory::{IntentionState, IntentionTrigger, ProspectiveIntention};
 
 pub fn open_persistent_memory(
     store: Arc<SqliteEventStore>,
@@ -726,6 +732,19 @@ impl Proposal {
             }
             .into(),
         )
+    }
+
+    /// Re-identifies a proposal. A caller that must emit the same proposal
+    /// on a retried attempt derives the reference from its own identity.
+    pub fn with_reference(mut self, reference: p::ProposalRef) -> Self {
+        let core = match &mut self {
+            Self::Action(proposal) => &mut proposal.core,
+            Self::Communication(proposal) => &mut proposal.core,
+            Self::Learning(proposal) => &mut proposal.core,
+            Self::Delegation(proposal) => &mut proposal.core,
+        };
+        core.reference = reference;
+        self
     }
 
     pub fn downgraded(mut self, level: InterventionLevel) -> Self {
@@ -1427,6 +1446,9 @@ pub struct CognitiveRuntime<S: EventStore> {
     memory: Arc<memory::EventSourcedMemory<S>>,
     aggregate_run: p::RunId,
     state: Mutex<CognitionState>,
+    /// Serializes semantic commands across their append-and-fold boundary.
+    /// Foreground reads remain independent of background maintenance.
+    commands: Mutex<()>,
     event_sequence: AtomicU64,
     thresholds: PromotionAsymmetry,
     clock: Clock,
@@ -1484,6 +1506,7 @@ where
             memory,
             aggregate_run,
             state: Mutex::new(state),
+            commands: Mutex::new(()),
             event_sequence: AtomicU64::new(next),
             thresholds,
             clock: Arc::new(clock),
@@ -1550,6 +1573,7 @@ where
         &self,
         candidate: GovernanceCandidate,
     ) -> p::Result<GovernanceDecision> {
+        let _command = self.lock_command()?;
         let decision = self.govern(&candidate);
         match decision {
             GovernanceDecision::Promote => {
@@ -1608,6 +1632,7 @@ where
     }
 
     pub fn record_lineage(&self, source: p::ObjectRef, derived: p::ObjectRef) -> p::Result<()> {
+        let _command = self.lock_command()?;
         if source.0.trim().is_empty() || derived.0.trim().is_empty() || source == derived {
             return Err(p::Error("cognition lineage edge is invalid".into()));
         }
@@ -1662,6 +1687,25 @@ where
             .unwrap_or_default()
     }
 
+    /// Rebuilds the stable objects at the aggregate head a tick claimed.
+    /// Later events, including output of earlier phases, do not enter it.
+    pub fn stable_snapshot_at(&self, through: u64) -> p::Result<Vec<StableCognition>> {
+        let mut state = CognitionState::default();
+        let mut last = 0;
+        for event in self.store.read_run(self.aggregate_run.clone()) {
+            let event = event?;
+            if event.stream_seq > through {
+                break;
+            }
+            last = event.stream_seq;
+            fold_event(&mut state, &self.memory, &event);
+        }
+        if last != through {
+            return Err(p::Error("cognition snapshot head is unavailable".into()));
+        }
+        Ok(state.stable.into_values().collect())
+    }
+
     fn append_payload(
         &self,
         provenance: p::Provenance,
@@ -1688,6 +1732,12 @@ where
             .map_err(|_| p::Error("cognition state is unavailable".into()))
     }
 
+    fn lock_command(&self) -> p::Result<MutexGuard<'_, ()>> {
+        self.commands
+            .lock()
+            .map_err(|_| p::Error("cognition command state is unavailable".into()))
+    }
+
     fn transitive_derived(state: &CognitionState, source: &p::ObjectRef) -> Vec<p::ObjectRef> {
         let mut queue = VecDeque::from([source.clone()]);
         let mut visited = BTreeSet::from([source.clone()]);
@@ -1705,89 +1755,130 @@ where
         derived
     }
 
-    fn audit_stability(&self, tick: Tick) -> Vec<p::CandidateId> {
+    /// Marks stable cognition whose evidence was not reproduced within
+    /// `tick.stale_after_ms` for re-evaluation: a failure record, a
+    /// re-evaluation task that folds the object inactive exactly as replay
+    /// does, and a downgrade candidate governance decides on. Confidence and
+    /// autonomy never rise here. The first failed append stops the audit and
+    /// is returned; everything appended before it is already folded.
+    pub fn audit_stale_stability(&self, tick: Tick) -> p::Result<Vec<p::CandidateId>> {
+        let snapshot = self
+            .lock_state()?
+            .stable
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        self.audit_stale_snapshot(tick, &snapshot)
+    }
+
+    /// Audits only the objects present at the tick's fixed snapshot. Each
+    /// event and candidate has a window/version identity, so a crash between
+    /// invalidation and candidate creation can be resumed without a gap.
+    pub fn audit_stale_snapshot(
+        &self,
+        tick: Tick,
+        snapshot: &[StableCognition],
+    ) -> p::Result<Vec<p::CandidateId>> {
+        let _command = self.lock_command()?;
         if tick.schema_version.0 == 0 || tick.stale_after_ms <= 0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
-        let stale = match self.lock_state() {
-            Ok(state) => state
-                .stable
-                .values()
-                .filter(|stable| {
-                    stable.active
-                        && stable
-                            .last_reproduced_at
-                            .saturating_add(tick.stale_after_ms)
-                            <= tick.now
-                })
-                .cloned()
-                .collect::<Vec<_>>(),
-            Err(_) => return Vec::new(),
-        };
+        let stale = snapshot
+            .iter()
+            .filter(|stable| {
+                stable.active
+                    && stable
+                        .last_reproduced_at
+                        .saturating_add(tick.stale_after_ms)
+                        <= tick.now
+            })
+            .cloned()
+            .collect::<Vec<_>>();
         let mut candidates = Vec::new();
         for stable in stale {
+            // A newer object version must not be invalidated by an old
+            // snapshot. The same version already invalidated by this audit
+            // is allowed through so a partial chain can be completed.
+            {
+                let state = self.lock_state()?;
+                let Some(current) = state.stable.get(&stable.object) else {
+                    continue;
+                };
+                let mut version = current.clone();
+                version.active = stable.active;
+                if version != stable || state.retracted.contains(&stable.object) {
+                    continue;
+                }
+            }
+            let identity = p::canonical_digest(&(tick.now, stable_record(&stable)))?;
             let failure_ref = p::FailureEvidenceRef(format!(
                 "memory-misevolution:{}:{}",
                 stable.object.0, tick.now
             ));
-            if self
-                .append_payload(
-                    system_provenance(),
-                    p::EventPayload::FailureEvidenceRecorded(p::FailureEvidenceRecordedPayload {
-                        failure_ref: failure_ref.clone(),
-                        class: p::FailureClass::MemoryMisevolution,
-                        impact: p::Impact::Medium,
-                        scope: stable.scope.scope.clone(),
-                        related_refs: stable
-                            .evidence
-                            .iter()
-                            .map(|evidence| evidence.reference.clone())
-                            .collect(),
-                        suggested_fix: Some(p::SuggestedFixRef(
-                            "re-evaluate stale stable cognition".into(),
-                        )),
-                    }),
-                )
-                .is_err()
-            {
-                continue;
-            }
-            if self
-                .append_payload(
-                    system_provenance(),
-                    p::EventPayload::ReevaluationTaskCreated(p::ReevaluationTaskCreatedPayload {
-                        derived_refs: vec![stable.object.clone()],
-                        trigger: p::ReevaluationTriggerRef(format!("stale:{}", stable.object.0)),
-                    }),
-                )
-                .is_err()
-            {
-                continue;
-            }
-            let candidate_id = self.memory.reserve_candidate_id();
-            if self
-                .memory
-                .create_candidate_spec(memory::CandidateSpec {
-                    schema_version: p::SchemaVersion(1),
-                    id: candidate_id.clone(),
-                    target: p::CandidateTargetRef(format!("downgrade:{}", stable.object.0)),
-                    evidence_refs: vec![p::EvidenceRef(failure_ref.0)],
-                    confidence: p::Confidence(1.0),
-                    provenance: system_provenance(),
-                    target_tier: p::StabilityTier::Working,
-                })
-                .is_ok()
-            {
-                if let Ok(mut state) = self.lock_state() {
-                    if let Some(record) = state.stable.get_mut(&stable.object) {
-                        record.active = false;
-                    }
-                    state.invalidated.insert(stable.object.clone());
-                }
-                candidates.push(candidate_id);
-            }
+            self.append_stale_fact(
+                &identity,
+                tick.now,
+                p::EventPayload::FailureEvidenceRecorded(p::FailureEvidenceRecordedPayload {
+                    failure_ref: failure_ref.clone(),
+                    class: p::FailureClass::MemoryMisevolution,
+                    impact: p::Impact::Medium,
+                    scope: stable.scope.scope.clone(),
+                    related_refs: stable
+                        .evidence
+                        .iter()
+                        .map(|evidence| evidence.reference.clone())
+                        .collect(),
+                    suggested_fix: Some(p::SuggestedFixRef(
+                        "re-evaluate stale stable cognition".into(),
+                    )),
+                }),
+            )?;
+            self.append_stale_fact(
+                &identity,
+                tick.now,
+                p::EventPayload::ReevaluationTaskCreated(p::ReevaluationTaskCreatedPayload {
+                    derived_refs: vec![stable.object.clone()],
+                    trigger: p::ReevaluationTriggerRef(format!("stale:{}", stable.object.0)),
+                }),
+            )?;
+            let candidate_id = p::CandidateId(format!("candidate:stale:{}", identity.0));
+            self.memory.create_candidate_spec(memory::CandidateSpec {
+                schema_version: p::SchemaVersion(1),
+                id: candidate_id.clone(),
+                target: p::CandidateTargetRef(format!("downgrade:{}", stable.object.0)),
+                evidence_refs: vec![p::EvidenceRef(failure_ref.0)],
+                confidence: p::Confidence(1.0),
+                provenance: system_provenance(),
+                target_tier: p::StabilityTier::Working,
+            })?;
+            candidates.push(candidate_id);
         }
-        candidates
+        Ok(candidates)
+    }
+
+    fn append_stale_fact(
+        &self,
+        identity: &p::SchemaDigest,
+        now: p::Timestamp,
+        payload: p::EventPayload,
+    ) -> p::Result<()> {
+        let event = p::Event::new(
+            p::EventId(format!(
+                "stale-audit:{}:{}:{}",
+                self.aggregate_run.0,
+                identity.0,
+                payload.kind().as_str()
+            )),
+            self.aggregate_run.clone(),
+            None,
+            payload,
+            p::SchemaVersion(1),
+            now,
+            system_provenance(),
+        );
+        self.store.append(event.clone())?;
+        fold_event(&mut *self.lock_state()?, &self.memory, &event);
+        Ok(())
     }
 }
 
@@ -1880,13 +1971,36 @@ where
         &self,
         mut proposal: CognitiveMapUpdateProposal,
     ) -> p::Result<p::CandidateId> {
+        let _command = self.lock_command()?;
         validate_proposal(&proposal)?;
         let candidate_id = proposal
             .candidate_id
             .clone()
             .unwrap_or_else(|| self.memory.reserve_candidate_id());
         proposal.candidate_id = Some(candidate_id.clone());
-        if self.lock_state()?.proposals.contains_key(&candidate_id) {
+        let recorded = self.lock_state()?.proposals.get(&candidate_id).cloned();
+        if let Some(recorded) = recorded {
+            // A proposal recorded just before a crash may lack its candidate;
+            // completing it keeps a retried reflection whole without
+            // recording the proposal twice.
+            if recorded.kind != proposal.kind
+                || recorded.confidence != proposal.confidence
+                || recorded.evidence != proposal.evidence
+                || recorded.frame != proposal.frame
+                || recorded.quality != proposal.quality
+                || recorded.blindspot != proposal.blindspot
+                || recorded.resource != proposal.resource
+                || recorded.provenance != proposal.provenance
+            {
+                return Err(p::Error(
+                    "cognitive proposal id has different recorded facts".into(),
+                ));
+            }
+            self.memory
+                .create_candidate_spec(map_candidate_spec(&proposal, &candidate_id))?;
+            self.lock_state()?
+                .proposals
+                .insert(candidate_id.clone(), proposal);
             return Ok(candidate_id);
         }
         self.append_payload(
@@ -1909,20 +2023,8 @@ where
                 confidence: proposal.confidence,
             }),
         )?;
-        self.memory.create_candidate_spec(memory::CandidateSpec {
-            schema_version: proposal.schema_version,
-            id: candidate_id.clone(),
-            target: p::CandidateTargetRef(format!(
-                "cognitive-map|{}|{}|{}",
-                escape_component(&proposal.scope.scope.0),
-                proposal.kind.as_ref().0,
-                escape_component(&proposal.statement)
-            )),
-            evidence_refs: proposal.evidence.clone(),
-            confidence: proposal.confidence,
-            provenance: proposal.provenance.clone(),
-            target_tier: p::StabilityTier::Stable,
-        })?;
+        self.memory
+            .create_candidate_spec(map_candidate_spec(&proposal, &candidate_id))?;
         self.lock_state()?
             .proposals
             .insert(candidate_id.clone(), proposal);
@@ -1944,6 +2046,9 @@ where
     }
 
     fn on_retraction(&self, event: RetractionEvent) -> Vec<ReevaluationTask> {
+        let Ok(_command) = self.lock_command() else {
+            return Vec::new();
+        };
         if event.schema_version.0 == 0 || event.target_object.0.trim().is_empty() {
             return Vec::new();
         }
@@ -2017,7 +2122,7 @@ where
     }
 
     fn decay(&self, tick: Tick) -> Vec<p::CandidateId> {
-        self.audit_stability(tick)
+        self.audit_stale_stability(tick).unwrap_or_default()
     }
 }
 
@@ -2036,6 +2141,26 @@ fn validate_thresholds(thresholds: PromotionAsymmetry) -> p::Result<()> {
         ));
     }
     Ok(())
+}
+
+fn map_candidate_spec(
+    proposal: &CognitiveMapUpdateProposal,
+    candidate_id: &p::CandidateId,
+) -> memory::CandidateSpec {
+    memory::CandidateSpec {
+        schema_version: proposal.schema_version,
+        id: candidate_id.clone(),
+        target: p::CandidateTargetRef(format!(
+            "cognitive-map|{}|{}|{}",
+            escape_component(&proposal.scope.scope.0),
+            proposal.kind.as_ref().0,
+            escape_component(&proposal.statement)
+        )),
+        evidence_refs: proposal.evidence.clone(),
+        confidence: proposal.confidence,
+        provenance: proposal.provenance.clone(),
+        target_tier: p::StabilityTier::Stable,
+    }
 }
 
 fn validate_proposal(proposal: &CognitiveMapUpdateProposal) -> p::Result<()> {
@@ -2174,6 +2299,7 @@ fn fold_event<S>(
 /// governance path and replay, so both produce the same state.
 fn apply_promotion(state: &mut CognitionState, record: &p::StableCognitionRecord) {
     if let Some(stable) = stable_from_record(record) {
+        state.invalidated.remove(&stable.object);
         state.stable.insert(stable.object.clone(), stable);
     }
 }

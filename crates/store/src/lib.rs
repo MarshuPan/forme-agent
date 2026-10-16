@@ -14,8 +14,9 @@ use forme_protocol as p;
 
 pub use brain::{
     AuthorityLeaseGuard, AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding,
-    BrainAuthorityClaim, BrainAuthorityMetadata, BrainAuthorityStore,
-    BRAIN_AUTHORITY_SCHEMA_VERSION,
+    BrainAuthorityClaim, BrainAuthorityMetadata, BrainAuthorityStore, CognitiveTickClaim,
+    CognitiveTickClaimRequest, CognitiveTickLedger, CognitiveTickWindowState, TickEventCursor,
+    TickEventRange, BRAIN_AUTHORITY_SCHEMA_VERSION, COGNITIVE_TICK_SCHEMA_VERSION,
 };
 pub use cursor::EventCursor;
 pub use projection::{

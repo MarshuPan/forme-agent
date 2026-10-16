@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
 use forme_capabilities::{
@@ -18,8 +18,12 @@ use forme_capabilities::{
     PluginContribution, ProjectAppApiConnector, SkillRegistry, StdioMcpRegistry,
 };
 use forme_cognition::{
-    event_sourced_intention_services, AgentWorkspaceProjection, CognitiveRuntime,
-    EvidenceCompetenceGate, M0ProactivityEngine, ProactivityConfig,
+    event_sourced_intention_services, AgentWorkspaceProjection, CognitionSnapshot,
+    CognitiveRuntime, CognitiveTickEngine, CognitiveTickInput, EvidenceCompetenceGate,
+    M0ProactivityEngine, ProactivityConfig, TickSignalCollector,
+};
+pub use forme_cognition::{
+    CognitiveTickPhase, CognitiveTickPhaseReport, CognitiveTickPhaseStatus, CognitiveTickReport,
 };
 use forme_context::{
     ContextHydrationLimits, ContextHydrationRequest, ContextHydrator, ContextSlice,
@@ -45,11 +49,22 @@ use forme_protocol as p;
 use forme_protocol::ExternalProvider;
 use forme_store::{
     AuthorityLeaseGuard, BrainAggregateKind, BrainAuthorityBinding, BrainAuthorityClaim,
-    BrainAuthorityStore, EventStore, SqliteEventStore, StoreOptions,
+    BrainAuthorityStore, CognitiveTickClaim, CognitiveTickClaimRequest, CognitiveTickLedger,
+    CognitiveTickWindowState, EventStore, SqliteEventStore, StoreOptions, TickEventRange,
 };
 
+use super::brain_tick::{brain_tick_run, is_tick_input, HarnessCognitiveTick};
 use super::production_config::*;
 use super::{now_ms, GovernanceConfig, HarnessConfig, ReactiveHarness};
+
+/// A tick claim's lease. A crashed attempt's window is retried once the
+/// lease lapses; a live attempt is never shared.
+const COGNITIVE_TICK_LEASE: p::DurationMs = p::DurationMs(600_000);
+/// Attempts one window gets before it is closed without running, so a
+/// poisoned range can never stall every later window.
+const MAX_COGNITIVE_TICK_ATTEMPTS: u32 = 3;
+/// Runs one window reads; further advanced runs wait for later windows.
+const MAX_TICK_RANGE_RUNS: usize = 256;
 
 static NEXT_PROCESS_NONCE: AtomicU64 = AtomicU64::new(1);
 
@@ -57,10 +72,19 @@ static NEXT_PROCESS_NONCE: AtomicU64 = AtomicU64::new(1);
 /// dedicated capability snapshot DTO is needed by a later closure wave.
 pub type CapabilitySnapshotRef = p::SchemaDigest;
 
-/// A-wave tick compatibility alias.  The full three-phase cognitive tick is a
-/// B-wave concern; this alias deliberately exposes the existing bounded tick
-/// without claiming that B-wave semantics are already active.
-pub type CognitiveTickReport = super::TickReport;
+/// What one owner-brain tick signal achieved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CognitiveTickOutcome {
+    /// A window was claimed and its phases ran, or it was closed after
+    /// exhausting its attempts.
+    Ran(Box<CognitiveTickReport>),
+    /// No window was claimed: the cadence is not due, or the latest window
+    /// is held by a live claim.
+    NotClaimed {
+        reason: String,
+        latest_window: Option<p::Timestamp>,
+    },
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProductionRuntimeConfig {
@@ -1837,7 +1861,7 @@ pub struct ProductionRuntime {
     services: Arc<BrainServices>,
     manifest: CompositionManifest,
     config: ProductionRuntimeConfig,
-    next_cognitive_tick: AtomicI64,
+    tick_attempts: AtomicU64,
 }
 
 /// Keeps the sole-writer lease alive while the runtime exists, including idle
@@ -1925,42 +1949,208 @@ impl ProductionRuntime {
         self.services.doctor.clone()
     }
 
+    /// Signals the owner-brain tick now; the ledger decides whether a window
+    /// is due.
     pub fn tick_once(&self) -> p::Result<CognitiveTickReport> {
-        self.harness.tick(
-            p::SessionId(format!("brain:tick:{}", self.services.aggregates.owner.0)),
-            Some(forme_cognition::TickTrigger::Idle),
-        )
+        match self.signal_cognitive_tick()? {
+            CognitiveTickOutcome::Ran(report) => Ok(*report),
+            CognitiveTickOutcome::NotClaimed { reason, .. } => Err(p::Error(reason)),
+        }
+    }
+
+    /// Reports an unclaimed signal explicitly without inventing a tick report.
+    /// The frozen `tick_once` API returns a report only for a claimed window.
+    pub fn signal_cognitive_tick(&self) -> p::Result<CognitiveTickOutcome> {
+        self.cognitive_tick_at(now_ms())
+    }
+
+    /// Runs the owner-brain tick when its window is due (prd/23 B1). The
+    /// durable tick ledger is the only arbiter: a duplicate signal inside the
+    /// cadence, a finished window, or a live claim yields `NotClaimed`, and an
+    /// unfinished window is retried with its recorded inputs before any newer
+    /// window opens.
+    pub fn cognitive_tick_at(&self, now: p::Timestamp) -> p::Result<CognitiveTickOutcome> {
+        let store = self.services.store.as_ref();
+        let owner = self.services.authority.owner_digest.clone();
+        store.abandon_expired_tick(&owner, now)?;
+        let (window, range) = match store.latest_tick_window(&owner)? {
+            Some((window, CognitiveTickWindowState::Claimed { expires_at, .. }))
+                if expires_at > now =>
+            {
+                return Ok(CognitiveTickOutcome::NotClaimed {
+                    reason: "a tick of this owner is in progress".into(),
+                    latest_window: Some(window),
+                });
+            }
+            // An unfinished window retries with the range it recorded.
+            Some((
+                window,
+                CognitiveTickWindowState::Claimed { .. }
+                | CognitiveTickWindowState::Abandoned { .. },
+            )) => (window, TickEventRange::default()),
+            _ => (now, self.cognitive_tick_range(&owner)?),
+        };
+        // The claim time keeps a retry's nonce distinct from the attempt it
+        // replaces even across a restart, where the counter starts over.
+        let lease_nonce = p::Nonce(format!(
+            "tick:{window}:{now}:{}",
+            self.tick_attempts.fetch_add(1, Ordering::SeqCst)
+        ));
+        let Some(claim) = store.claim_tick(CognitiveTickClaimRequest {
+            owner_digest: owner.clone(),
+            window,
+            lease_nonce,
+            now_ms: now,
+            lease_ttl: COGNITIVE_TICK_LEASE,
+            range,
+            min_spacing: self.config.cognition.tick_interval,
+        })?
+        else {
+            return Ok(CognitiveTickOutcome::NotClaimed {
+                reason: "the tick cadence is not due".into(),
+                latest_window: store.latest_tick_window(&owner)?.map(|(window, _)| window),
+            });
+        };
+        let run = brain_tick_run(claim.window);
+        if claim.attempt > MAX_COGNITIVE_TICK_ATTEMPTS {
+            let phases = CognitiveTickPhase::ORDER
+                .into_iter()
+                .map(|phase| {
+                    CognitiveTickPhaseReport::skipped(
+                        phase,
+                        "the window exhausted its attempts and closed without running",
+                    )
+                })
+                .collect();
+            let report = CognitiveTickReport::seal(claim.clone(), run, phases)?;
+            store.finish_tick_consuming(&claim, report.digest.clone(), report.consumed.clone())?;
+            return Ok(CognitiveTickOutcome::Ran(Box::new(report)));
+        }
+        let stale_after_ms = i64::try_from(self.config.cognition.stable_evidence_max_age.0)
+            .map_err(|_| p::Error("stable evidence age bound is invalid".into()))?;
+        let input = self.cognitive_tick_input(claim.clone(), run)?;
+        let report = HarnessCognitiveTick {
+            harness: self.harness.as_ref(),
+            cognition: self.services.cognition.as_ref(),
+            cognition_stream: self.services.aggregates.memory_cognition.clone(),
+            stale_after_ms,
+        }
+        .run(input)?;
+        // A failed phase leaves the window unfinished: its lease lapses and
+        // the same window retries with the same inputs.
+        if !report.failed() {
+            store.finish_tick_consuming(&claim, report.digest.clone(), report.consumed.clone())?;
+        }
+        Ok(CognitiveTickOutcome::Ran(Box::new(report)))
+    }
+
+    /// The range a new window reads: every input stream that advanced past
+    /// the durable tick cursor, in run order, bounded per window.
+    fn cognitive_tick_range(&self, owner: &p::SchemaDigest) -> p::Result<TickEventRange> {
+        let store = self.services.store.as_ref();
+        let consumed = store.consumed_tick_cursor(owner)?;
+        let aggregates = self
+            .services
+            .aggregates
+            .as_map()
+            .into_values()
+            .collect::<BTreeSet<_>>();
+        let mut range = TickEventRange::default();
+        let mut heads = store.run_heads()?.0;
+        let cognition_stream = self.services.aggregates.memory_cognition.clone();
+        // This aggregate is a snapshot anchor, never a source of the tick's
+        // failure observations. Reserve its slot before bounding other runs.
+        if let Some(head) = heads.remove(&cognition_stream) {
+            let from = consumed.position(&cognition_stream);
+            if from > 0 {
+                range.from.0.insert(cognition_stream.clone(), from);
+            }
+            range.to.0.insert(cognition_stream, head);
+        }
+        for (run, head) in heads {
+            let from = consumed.position(&run);
+            if head <= from || !is_tick_input(&run, &aggregates) {
+                continue;
+            }
+            if range.to.0.len() == MAX_TICK_RANGE_RUNS {
+                break;
+            }
+            if from > 0 {
+                range.from.0.insert(run.clone(), from);
+            }
+            range.to.0.insert(run, head);
+        }
+        Ok(range)
+    }
+
+    /// Reads exactly the claimed range, streaming it into tick signals.
+    fn cognitive_tick_input(
+        &self,
+        claim: CognitiveTickClaim,
+        run: p::RunId,
+    ) -> p::Result<CognitiveTickInput> {
+        let store = self.services.store.as_ref();
+        let mut signals = TickSignalCollector::default();
+        let cognition_stream = &self.services.aggregates.memory_cognition;
+        for (stream, to) in &claim.range.to.0 {
+            if stream == cognition_stream {
+                continue;
+            }
+            for event in store
+                .read_run(stream.clone())
+                .after(claim.range.from.position(stream))
+            {
+                let event = event?;
+                if event.stream_seq > *to {
+                    break;
+                }
+                signals.observe(&event);
+            }
+        }
+        let now = claim.window;
+        let stable_objects = self
+            .services
+            .cognition
+            .stable_snapshot_at(claim.range.to.position(cognition_stream))?;
+        Ok(CognitiveTickInput {
+            schema_version: p::SchemaVersion(1),
+            claim,
+            run,
+            signals: signals.finish(),
+            stable_objects,
+            snapshot: CognitionSnapshot {
+                schema_version: p::SchemaVersion(1),
+                now,
+                observations: Vec::new(),
+                competence: self.harness.competence_snapshot.clone(),
+            },
+            foreground_active: self.harness.foreground_active()?,
+            now,
+        })
     }
 
     /// The single scheduler step every entry surface drives: due scheduled
-    /// intentions first, then the owner-brain tick once its cadence is due.
+    /// intentions first, then the owner-brain tick once its window is due.
     /// Both run through this runtime's harness; no surface builds its own.
+    /// A tick signal that claims no window reports nothing.
     pub fn scheduler_pass(&self, now: p::Timestamp) -> RuntimeSchedulerPass {
         let scheduled = self
             .config
             .scheduler_enabled
             .then(|| super::SchedulerService::tick(self.harness.as_ref(), now));
-        let cognitive = (self.config.cognition.tick_enabled && self.claim_cognitive_tick(now))
-            .then(|| self.tick_once());
+        let cognitive = if self.config.cognition.tick_enabled {
+            match self.cognitive_tick_at(now) {
+                Ok(CognitiveTickOutcome::NotClaimed { .. }) => None,
+                Ok(CognitiveTickOutcome::Ran(report)) => Some(Ok(*report)),
+                Err(error) => Some(Err(error)),
+            }
+        } else {
+            None
+        };
         RuntimeSchedulerPass {
             scheduled,
             cognitive,
         }
-    }
-
-    fn claim_cognitive_tick(&self, now: p::Timestamp) -> bool {
-        let interval = i64::try_from(self.config.cognition.tick_interval.0).unwrap_or(i64::MAX);
-        let due = self.next_cognitive_tick.load(Ordering::SeqCst);
-        now >= due
-            && self
-                .next_cognitive_tick
-                .compare_exchange(
-                    due,
-                    now.saturating_add(interval),
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                )
-                .is_ok()
     }
 
     pub fn owner(&self) -> &p::OwnerPrincipalRef {
@@ -2241,6 +2431,9 @@ fn compose(
     // can be converted into ActionOutcomeUnknown/RunWaiting events.
     harness.recover_unknown_outcomes()?;
     harness.resume_tick_sequence()?;
+    // Tick lease recovery: a window a crashed process left claimed becomes
+    // abandoned, so the next pass retries it with its recorded inputs.
+    store.abandon_expired_tick(&authority.owner_digest, now_ms())?;
 
     if config.scheduler_enabled {
         harness = harness.with_scheduler(intentions.scheduled.clone(), config.scheduler.clone())?;
@@ -2321,7 +2514,7 @@ fn compose(
         services,
         manifest,
         config,
-        next_cognitive_tick: AtomicI64::new(i64::MIN),
+        tick_attempts: AtomicU64::new(1),
     })
 }
 

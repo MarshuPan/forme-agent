@@ -163,6 +163,10 @@ pub struct CognitiveRuntimeConfig {
     pub tick_enabled: bool,
     /// Cadence of the owner-brain tick driven by the shared scheduler pass.
     pub tick_interval: p::DurationMs,
+    /// How long stable cognition may go without its evidence being
+    /// reproduced before the tick's maintenance phase marks it for
+    /// re-evaluation.
+    pub stable_evidence_max_age: p::DurationMs,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -214,12 +218,16 @@ impl Default for CapabilityRuntimeConfig {
     }
 }
 
+/// Thirty days without reproduction before stable cognition is re-evaluated.
+const DEFAULT_STABLE_EVIDENCE_MAX_AGE_MS: u64 = 30 * 24 * 60 * 60 * 1_000;
+
 impl Default for CognitiveRuntimeConfig {
     fn default() -> Self {
         Self {
             schema_version: p::SchemaVersion(1),
             tick_enabled: true,
             tick_interval: p::DurationMs(60_000),
+            stable_evidence_max_age: p::DurationMs(DEFAULT_STABLE_EVIDENCE_MAX_AGE_MS),
         }
     }
 }
@@ -363,13 +371,22 @@ impl CognitiveRuntimeConfig {
             schema_version: p::SchemaVersion(1),
             tick_enabled: optional_bool("FORME_COGNITIVE_TICK_ENABLED", true)?,
             tick_interval: p::DurationMs(optional_u64("FORME_COGNITIVE_TICK_MS", 60_000)?),
+            stable_evidence_max_age: p::DurationMs(optional_u64(
+                "FORME_STABLE_EVIDENCE_MAX_AGE_MS",
+                DEFAULT_STABLE_EVIDENCE_MAX_AGE_MS,
+            )?),
         };
         config.validate()?;
         Ok(config)
     }
 
     pub fn validate(&self) -> p::Result<()> {
-        if self.schema_version.0 == 0 || self.tick_interval.0 == 0 {
+        if self.schema_version.0 == 0
+            || self.tick_interval.0 == 0
+            || i64::try_from(self.tick_interval.0).is_err()
+            || self.stable_evidence_max_age.0 == 0
+            || i64::try_from(self.stable_evidence_max_age.0).is_err()
+        {
             return Err(p::Error(
                 "cognitive runtime configuration is invalid".into(),
             ));

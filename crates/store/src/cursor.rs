@@ -24,6 +24,13 @@ impl EventCursor {
             exhausted: false,
         }
     }
+
+    /// Skips every event at or before `stream_seq`, so a reader that already
+    /// consumed a prefix of the run reads only what follows it.
+    pub fn after(mut self, stream_seq: u64) -> Self {
+        self.next_seq = stream_seq.saturating_add(1);
+        self
+    }
 }
 
 impl Iterator for EventCursor {

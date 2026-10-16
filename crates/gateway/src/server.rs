@@ -14,8 +14,8 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use forme_communication::AuthContext;
 use forme_harness::{
-    CompositionManifest, ProductionRuntime, ProductionRuntimeBuilder, ReactiveHarness,
-    RuntimeServiceState, RuntimeServiceStatus, SchedulerService,
+    CognitiveTickOutcome, CompositionManifest, ProductionRuntime, ProductionRuntimeBuilder,
+    ReactiveHarness, RuntimeServiceState, RuntimeServiceStatus, SchedulerService,
 };
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
@@ -481,15 +481,73 @@ struct RuntimeDoctorView {
     digest: p::SchemaDigest,
 }
 
+/// One owner-brain tick signal: whether a window ran, and per phase what it
+/// appended. The report digest is the one the durable tick ledger records.
 #[derive(Debug, Serialize)]
 struct RuntimeTickView {
     schema_version: p::SchemaVersion,
     ran: bool,
     skipped_reason: Option<String>,
+    window: Option<p::Timestamp>,
+    attempt: Option<u32>,
     run: Option<p::RunId>,
-    candidate_events: Vec<p::EventId>,
-    proposal_events: Vec<p::EventId>,
-    workspace_snapshot: Option<p::AgentWorkspaceSnapshotRef>,
+    phases: Vec<RuntimeTickPhaseView>,
+    model_calls: u32,
+    report_digest: Option<p::SchemaDigest>,
+}
+
+#[derive(Debug, Serialize)]
+struct RuntimeTickPhaseView {
+    phase: &'static str,
+    status: &'static str,
+    event_refs: Vec<p::EventId>,
+    model_calls: u32,
+    deferred_reason: Option<p::ReasonRef>,
+    failure: Option<p::ReasonRef>,
+}
+
+fn runtime_tick_view(outcome: CognitiveTickOutcome) -> RuntimeTickView {
+    match outcome {
+        CognitiveTickOutcome::Ran(report) => {
+            let report = *report;
+            RuntimeTickView {
+                schema_version: report.schema_version,
+                ran: true,
+                skipped_reason: None,
+                window: Some(report.claim.window),
+                attempt: Some(report.claim.attempt),
+                model_calls: report.model_calls(),
+                report_digest: Some(report.digest.clone()),
+                run: Some(report.run),
+                phases: report
+                    .phases
+                    .into_iter()
+                    .map(|phase| RuntimeTickPhaseView {
+                        phase: phase.phase.as_str(),
+                        status: phase.status.as_str(),
+                        event_refs: phase.event_refs,
+                        model_calls: phase.model_calls,
+                        deferred_reason: phase.deferred_reason,
+                        failure: phase.failure,
+                    })
+                    .collect(),
+            }
+        }
+        CognitiveTickOutcome::NotClaimed {
+            reason,
+            latest_window,
+        } => RuntimeTickView {
+            schema_version: p::SchemaVersion(1),
+            ran: false,
+            skipped_reason: Some(reason),
+            window: latest_window,
+            attempt: None,
+            run: None,
+            phases: Vec::new(),
+            model_calls: 0,
+            report_digest: None,
+        },
+    }
 }
 
 fn runtime_service_state_view(state: &RuntimeServiceState) -> RuntimeServiceStateView {
@@ -568,16 +626,8 @@ async fn runtime_tick(
 ) -> Result<Json<RuntimeTickView>, ApiError> {
     state.authorize(&headers, true)?;
     let runtime = state.runtime.clone();
-    let report = blocking(move || runtime.tick_once()).await?;
-    Ok(Json(RuntimeTickView {
-        schema_version: report.schema_version,
-        ran: report.ran,
-        skipped_reason: report.skipped_reason,
-        run: report.run,
-        candidate_events: report.candidate_events,
-        proposal_events: report.proposal_events,
-        workspace_snapshot: report.workspace_snapshot,
-    }))
+    let outcome = blocking(move || runtime.signal_cognitive_tick()).await?;
+    Ok(Json(runtime_tick_view(outcome)))
 }
 
 async fn control_profile(

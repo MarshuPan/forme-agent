@@ -126,7 +126,40 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
         Some(""),
     );
     assert_status(&tick, 200);
-    assert!(serde_json::from_str::<serde_json::Value>(response_body(&tick)).is_ok());
+    let tick: serde_json::Value = serde_json::from_str(response_body(&tick)).unwrap();
+    assert_eq!(tick["model_calls"], 0);
+    if tick["ran"] == true {
+        let phases = tick["phases"].as_array().unwrap();
+        assert_eq!(
+            phases
+                .iter()
+                .map(|phase| phase["phase"].as_str().unwrap())
+                .collect::<Vec<_>>(),
+            [
+                "observe-and-propose",
+                "reflect-and-candidate",
+                "maintain-memory"
+            ]
+        );
+        assert!(tick["report_digest"]
+            .as_str()
+            .unwrap()
+            .starts_with("sha256:"));
+    } else {
+        assert!(tick["skipped_reason"].is_string());
+        assert!(tick["phases"].as_array().unwrap().is_empty());
+    }
+    let duplicate = http(
+        gateway_address,
+        "POST",
+        "/v1/runtime/tick",
+        &mutation_headers(gateway_address),
+        Some(""),
+    );
+    assert_status(&duplicate, 200);
+    let duplicate: serde_json::Value = serde_json::from_str(response_body(&duplicate)).unwrap();
+    assert_eq!(duplicate["ran"], false);
+    assert_eq!(duplicate["model_calls"], 0);
 
     let unauthenticated_evolution = http(
         gateway_address,

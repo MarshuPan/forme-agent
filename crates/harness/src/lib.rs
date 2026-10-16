@@ -47,6 +47,7 @@ use forme_store::{
     SqliteEventStore, StoreOptions,
 };
 
+mod brain_tick;
 mod m3_a;
 mod m3_b;
 mod m4;
@@ -513,6 +514,113 @@ impl cognition::ProactivityEngine for NoopProactivity {
     ) -> Option<cognition::Proposal> {
         None
     }
+}
+
+/// Identity scheme for what a tick path emits.
+enum TickLabels {
+    /// The bounded session tick numbers its outputs per tick.
+    Session {
+        tick_index: u64,
+        target: p::CandidateTargetRef,
+    },
+    /// The owner-brain tick derives outputs from each impulse's origin, so a
+    /// retried window re-derives the same proposal and candidate and can
+    /// recognise what an earlier attempt already emitted.
+    Brain { window: p::Timestamp },
+}
+
+impl TickLabels {
+    fn candidate(&self, index: usize, origin: &str) -> p::CandidateId {
+        match self {
+            Self::Session { tick_index, .. } => {
+                p::CandidateId(format!("tick-candidate:{tick_index}:{index}"))
+            }
+            Self::Brain { window } => p::CandidateId(format!(
+                "brain-tick-candidate:{window}:{}",
+                origin_digest(origin)
+            )),
+        }
+    }
+
+    fn candidate_target(&self) -> p::CandidateTargetRef {
+        match self {
+            Self::Session { target, .. } => target.clone(),
+            Self::Brain { window } => p::CandidateTargetRef(brain_tick::brain_tick_run(*window).0),
+        }
+    }
+
+    fn proposal(&self, origin: &str) -> Option<p::ProposalRef> {
+        match self {
+            Self::Session { .. } => None,
+            Self::Brain { .. } => Some(p::ProposalRef(format!(
+                "proposal:brain:{}",
+                origin_digest(origin)
+            ))),
+        }
+    }
+}
+
+/// The stream recording that a failure event received its follow-up.
+fn followup_link_run(source: &p::EventId) -> p::RunId {
+    p::RunId(format!("followup-link:{}", source.0))
+}
+
+fn origin_digest(origin: &str) -> String {
+    let digest = p::sha256_content_digest(origin.as_bytes());
+    digest
+        .0
+        .strip_prefix("sha256:")
+        .unwrap_or(&digest.0)
+        .chars()
+        .take(32)
+        .collect()
+}
+
+/// How a tick path writes events: unique ids for the bounded session tick,
+/// attempt-scoped sequential ids for the owner-brain tick so every event of a
+/// window attempt is attributable to it.
+enum TickAppender {
+    Unique,
+    Sequenced {
+        prefix: String,
+        ts: p::Timestamp,
+        next: std::cell::Cell<u64>,
+        /// Events appended successfully and not yet claimed by a phase.
+        log: std::cell::RefCell<Vec<p::EventId>>,
+    },
+}
+
+impl TickAppender {
+    fn sequenced(prefix: String, ts: p::Timestamp) -> Self {
+        Self::Sequenced {
+            prefix,
+            ts,
+            next: std::cell::Cell::new(1),
+            log: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+
+    /// Takes the events appended since the last drain, in append order.
+    fn drain(&self) -> Vec<p::EventId> {
+        match self {
+            Self::Unique => Vec::new(),
+            Self::Sequenced { log, .. } => log.take(),
+        }
+    }
+
+    fn has_pending(&self) -> bool {
+        match self {
+            Self::Unique => false,
+            Self::Sequenced { log, .. } => !log.borrow().is_empty(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct ImpulseOutcome {
+    proposal_event: Option<p::EventId>,
+    candidate_event: Option<p::EventId>,
+    workspace_snapshot: Option<p::AgentWorkspaceSnapshotRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1273,6 +1381,15 @@ impl ReactiveHarness {
         Ok(())
     }
 
+    /// True while any owner session is running a foreground turn.
+    pub(crate) fn foreground_active(&self) -> p::Result<bool> {
+        Ok(!self
+            .active_sessions
+            .lock()
+            .map_err(|_| p::Error("foreground activity state is unavailable".into()))?
+            .is_empty())
+    }
+
     pub fn tick(
         &self,
         session: p::SessionId,
@@ -1310,196 +1427,27 @@ impl ReactiveHarness {
         let tick_index = self.tick_sequence.fetch_add(1, Ordering::SeqCst);
         let run = p::RunId(format!("tick:{}:{tick_index}", session.0));
         let provenance = internal_provenance(p::Source::Internal);
+        let labels = TickLabels::Session {
+            tick_index,
+            target: p::CandidateTargetRef(format!("tick:{}", session.0)),
+        };
         let mut candidate_events = Vec::new();
         let mut proposal_events = Vec::new();
         let mut workspace_snapshot = None;
         for (index, impulse) in impulses.into_iter().enumerate() {
-            if self
-                .suppressed_origins
-                .lock()
-                .map_err(|_| p::Error("proactivity suppression state is unavailable".into()))?
-                .contains(&impulse.origin_key())
-            {
-                continue;
-            }
-            if impulse.source != cognition::ImpulseSource::Commitment {
-                self.append(
-                    run.clone(),
-                    None,
-                    provenance.clone(),
-                    p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
-                        source: impulse.observation_source,
-                        scope: impulse.scope.clone(),
-                        grant_ref: impulse.grant_ref.clone(),
-                    }),
-                )?;
-            }
-            if let Some(shape) = impulse.activation_shape {
-                self.append(
-                    run.clone(),
-                    None,
-                    provenance.clone(),
-                    p::EventPayload::OpportunityDetected(p::OpportunityDetectedPayload {
-                        seed: impulse.seed.clone(),
-                        activation_shape: Some(shape),
-                    }),
-                )?;
-            }
-            let value_passed = matches!(impulse.value, cognition::ValueDecision::Worth(_));
-            let value_reason = match &impulse.value {
-                cognition::ValueDecision::Worth(cognition::Value(value)) => p::ReasonRef(format!(
-                    "estimated value {value} passed the attention floor"
-                )),
-                cognition::ValueDecision::NotWorth(reason) => reason.clone(),
-            };
-            self.append(
-                run.clone(),
-                None,
-                provenance.clone(),
-                p::EventPayload::ValueGateEvaluated(p::ValueGateEvaluatedPayload {
-                    decision: p::GateDecision(if value_passed {
-                        "worth".into()
-                    } else {
-                        "not-worth".into()
-                    }),
-                    reason: value_reason,
-                }),
+            let outcome = self.govern_impulse(
+                &TickAppender::Unique,
+                &labels,
+                &run,
+                &provenance,
+                index,
+                impulse,
+                &snapshot,
             )?;
-            self.append(
-                run.clone(),
-                None,
-                provenance.clone(),
-                p::EventPayload::ImpulseRaised(p::ImpulseRaisedPayload {
-                    source: protocol_impulse_source(impulse.source),
-                    reach: protocol_reach(impulse.reach),
-                    seed: impulse.seed.clone(),
-                }),
-            )?;
-            let competence = self.competence.ceiling(
-                impulse.scope.clone(),
-                risk_for_level(impulse.requested_level),
-                &snapshot.competence,
-            );
-            let requested_level = impulse.requested_level;
-            self.append(
-                run.clone(),
-                None,
-                provenance.clone(),
-                p::EventPayload::CompetenceGateEvaluated(p::CompetenceGateEvaluatedPayload {
-                    scope: impulse.scope.clone(),
-                    risk: risk_for_level(impulse.requested_level),
-                    max_level: protocol_intervention(competence),
-                    reads: snapshot.competence.protocol_reads(),
-                }),
-            )?;
-            let guard = cognition::EmissionGuard {
-                schema_version: p::SchemaVersion(1),
-                value: impulse.value.clone(),
-                competence,
-            };
-            if let Some(mut proposal) = self.proactivity.emit(impulse, guard) {
-                let initially_allowed = self.proposal_policy_allows(&proposal);
-                if !initially_allowed {
-                    proposal = proposal.downgraded(cognition::InterventionLevel::L2Prepare);
-                }
-                let policy_allowed = self.proposal_policy_allows(&proposal);
-                if !policy_allowed {
-                    continue;
-                }
-                self.proposal_origins
-                    .lock()
-                    .map_err(|_| p::Error("proactivity proposal state is unavailable".into()))?
-                    .insert(proposal.reference(), proposal.core().origin_key.clone());
-                let current_events = self
-                    .store
-                    .read_run(run.clone())
-                    .collect::<p::Result<Vec<_>>>()?;
-                let workspace = cognition::AgentWorkspaceProjection::rebuild(&current_events, 10);
-                workspace_snapshot = Some(workspace.snapshot_ref.clone());
-                self.append(
-                    run.clone(),
-                    None,
-                    provenance.clone(),
-                    p::EventPayload::DecisionTraceRecorded(
-                        p::DecisionTraceRecordedPayload {
-                            trace_ref: p::DecisionTraceRef(format!(
-                                "proactive-trace:{}",
-                                proposal.reference().0
-                            )),
-                            refs: p::DecisionRefs {
-                                map: None,
-                                user: None,
-                                agent_self: snapshot
-                                    .competence
-                                    .self_model
-                                    .as_ref()
-                                    .map(|input| input.reference.clone()),
-                                trust: snapshot
-                                    .competence
-                                    .trust
-                                    .as_ref()
-                                    .map(|input| input.reference.clone()),
-                                failure: snapshot
-                                    .competence
-                                    .failure
-                                    .iter()
-                                    .map(|input| input.reference.clone())
-                                    .collect(),
-                            },
-                            rationale: p::Rationale(if competence < requested_level {
-                                "competence evidence lowered the intervention; add verified outcome evidence and review referenced failures"
-                                    .into()
-                            } else if initially_allowed {
-                                "impulse entered AgentWorkspace and passed the emission guard".into()
-                            } else {
-                                "policy or envelope lowered the proposal to a no-effect level"
-                                    .into()
-                            }),
-                            workspace_snapshot: workspace.snapshot_ref,
-                            resource_graph_snapshot: None,
-                            evolution_snapshot: None,
-                            federation_snapshot: None,
-                        },
-                    ),
-                )?;
-                let event_id = self.append(
-                    run.clone(),
-                    None,
-                    provenance.clone(),
-                    p::EventPayload::ProactiveProposalEmitted(p::ProactiveProposalEmittedPayload {
-                        proposal_ref: proposal.reference(),
-                        proposal_kind: proposal.kind_ref(),
-                        level: protocol_intervention(proposal.level()),
-                        guard: p::EmissionGuard {
-                            value_gate_passed: value_passed,
-                            competence_gate_passed: proposal.level() <= competence,
-                            policy_and_envelope_passed: policy_allowed,
-                        },
-                        delivery: protocol_delivery_mode(proposal.core().delivery),
-                        attention_cost: u32::from(
-                            proposal.core().delivery == cognition::DeliveryMode::Interrupt,
-                        ),
-                    }),
-                )?;
-                proposal_events.push(event_id);
-            } else {
-                let candidate_id = p::CandidateId(format!("tick-candidate:{tick_index}:{index}"));
-                let event_id = self.append(
-                    run.clone(),
-                    None,
-                    provenance.clone(),
-                    p::EventPayload::CandidateCreated(p::CandidateCreatedPayload {
-                        candidate_id,
-                        target: p::CandidateTargetRef(format!("tick:{}", session.0)),
-                        evidence_refs: Vec::new(),
-                        confidence: p::Confidence::new(0.1)?,
-                        provenance: provenance.clone(),
-                        target_tier: p::StabilityTier::Working,
-                        capability_update: None,
-                        strategy_candidate: None,
-                    }),
-                )?;
-                candidate_events.push(event_id);
+            proposal_events.extend(outcome.proposal_event);
+            candidate_events.extend(outcome.candidate_event);
+            if outcome.workspace_snapshot.is_some() {
+                workspace_snapshot = outcome.workspace_snapshot;
             }
         }
         Ok(TickReport {
@@ -1511,6 +1459,258 @@ impl ReactiveHarness {
             proposal_events,
             workspace_snapshot,
         })
+    }
+
+    /// Governs one impulse through the value, competence, policy, and
+    /// emission guards, writing through `appender`. Shared by the bounded
+    /// legacy tick and the owner-brain tick.
+    #[allow(clippy::too_many_arguments)]
+    fn govern_impulse(
+        &self,
+        appender: &TickAppender,
+        labels: &TickLabels,
+        run: &p::RunId,
+        provenance: &p::Provenance,
+        index: usize,
+        impulse: cognition::Impulse,
+        snapshot: &cognition::CognitionSnapshot,
+    ) -> p::Result<ImpulseOutcome> {
+        let run = run.clone();
+        let provenance = provenance.clone();
+        let mut outcome = ImpulseOutcome::default();
+        let origin = impulse.origin_key();
+        if self
+            .suppressed_origins
+            .lock()
+            .map_err(|_| p::Error("proactivity suppression state is unavailable".into()))?
+            .contains(&origin)
+        {
+            return Ok(outcome);
+        }
+        if impulse.source != cognition::ImpulseSource::Commitment {
+            self.tick_append(
+                appender,
+                run.clone(),
+                None,
+                provenance.clone(),
+                p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                    source: impulse.observation_source,
+                    scope: impulse.scope.clone(),
+                    grant_ref: impulse.grant_ref.clone(),
+                }),
+            )?;
+        }
+        if let Some(shape) = impulse.activation_shape {
+            self.tick_append(
+                appender,
+                run.clone(),
+                None,
+                provenance.clone(),
+                p::EventPayload::OpportunityDetected(p::OpportunityDetectedPayload {
+                    seed: impulse.seed.clone(),
+                    activation_shape: Some(shape),
+                }),
+            )?;
+        }
+        let value_passed = matches!(impulse.value, cognition::ValueDecision::Worth(_));
+        let value_reason = match &impulse.value {
+            cognition::ValueDecision::Worth(cognition::Value(value)) => p::ReasonRef(format!(
+                "estimated value {value} passed the attention floor"
+            )),
+            cognition::ValueDecision::NotWorth(reason) => reason.clone(),
+        };
+        self.tick_append(
+            appender,
+            run.clone(),
+            None,
+            provenance.clone(),
+            p::EventPayload::ValueGateEvaluated(p::ValueGateEvaluatedPayload {
+                decision: p::GateDecision(if value_passed {
+                    "worth".into()
+                } else {
+                    "not-worth".into()
+                }),
+                reason: value_reason,
+            }),
+        )?;
+        self.tick_append(
+            appender,
+            run.clone(),
+            None,
+            provenance.clone(),
+            p::EventPayload::ImpulseRaised(p::ImpulseRaisedPayload {
+                source: protocol_impulse_source(impulse.source),
+                reach: protocol_reach(impulse.reach),
+                seed: impulse.seed.clone(),
+            }),
+        )?;
+        let competence = self.competence.ceiling(
+            impulse.scope.clone(),
+            risk_for_level(impulse.requested_level),
+            &snapshot.competence,
+        );
+        let requested_level = impulse.requested_level;
+        self.tick_append(
+            appender,
+            run.clone(),
+            None,
+            provenance.clone(),
+            p::EventPayload::CompetenceGateEvaluated(p::CompetenceGateEvaluatedPayload {
+                scope: impulse.scope.clone(),
+                risk: risk_for_level(impulse.requested_level),
+                max_level: protocol_intervention(competence),
+                reads: snapshot.competence.protocol_reads(),
+            }),
+        )?;
+        let guard = cognition::EmissionGuard {
+            schema_version: p::SchemaVersion(1),
+            value: impulse.value.clone(),
+            competence,
+        };
+        if let Some(mut proposal) = self.proactivity.emit(impulse, guard) {
+            if let Some(reference) = labels.proposal(&origin) {
+                proposal = proposal.with_reference(reference);
+            }
+            let initially_allowed = self.proposal_policy_allows(&proposal);
+            if !initially_allowed {
+                proposal = proposal.downgraded(cognition::InterventionLevel::L2Prepare);
+            }
+            let policy_allowed = self.proposal_policy_allows(&proposal);
+            if !policy_allowed {
+                return Ok(outcome);
+            }
+            self.proposal_origins
+                .lock()
+                .map_err(|_| p::Error("proactivity proposal state is unavailable".into()))?
+                .insert(proposal.reference(), proposal.core().origin_key.clone());
+            let current_events = self
+                .store
+                .read_run(run.clone())
+                .collect::<p::Result<Vec<_>>>()?;
+            let workspace = cognition::AgentWorkspaceProjection::rebuild(&current_events, 10);
+            outcome.workspace_snapshot = Some(workspace.snapshot_ref.clone());
+            self.tick_append(appender,
+                run.clone(),
+                None,
+                provenance.clone(),
+                p::EventPayload::DecisionTraceRecorded(
+                    p::DecisionTraceRecordedPayload {
+                        trace_ref: p::DecisionTraceRef(format!(
+                            "proactive-trace:{}",
+                            proposal.reference().0
+                        )),
+                        refs: p::DecisionRefs {
+                            map: None,
+                            user: None,
+                            agent_self: snapshot
+                                .competence
+                                .self_model
+                                .as_ref()
+                                .map(|input| input.reference.clone()),
+                            trust: snapshot
+                                .competence
+                                .trust
+                                .as_ref()
+                                .map(|input| input.reference.clone()),
+                            failure: snapshot
+                                .competence
+                                .failure
+                                .iter()
+                                .map(|input| input.reference.clone())
+                                .collect(),
+                        },
+                        rationale: p::Rationale(if competence < requested_level {
+                            "competence evidence lowered the intervention; add verified outcome evidence and review referenced failures"
+                                .into()
+                        } else if initially_allowed {
+                            "impulse entered AgentWorkspace and passed the emission guard".into()
+                        } else {
+                            "policy or envelope lowered the proposal to a no-effect level"
+                                .into()
+                        }),
+                        workspace_snapshot: workspace.snapshot_ref,
+                        resource_graph_snapshot: None,
+                        evolution_snapshot: None,
+                        federation_snapshot: None,
+                    },
+                ),
+            )?;
+            let event_id = self.tick_append(
+                appender,
+                run.clone(),
+                None,
+                provenance.clone(),
+                p::EventPayload::ProactiveProposalEmitted(p::ProactiveProposalEmittedPayload {
+                    proposal_ref: proposal.reference(),
+                    proposal_kind: proposal.kind_ref(),
+                    level: protocol_intervention(proposal.level()),
+                    guard: p::EmissionGuard {
+                        value_gate_passed: value_passed,
+                        competence_gate_passed: proposal.level() <= competence,
+                        policy_and_envelope_passed: policy_allowed,
+                    },
+                    delivery: protocol_delivery_mode(proposal.core().delivery),
+                    attention_cost: u32::from(
+                        proposal.core().delivery == cognition::DeliveryMode::Interrupt,
+                    ),
+                }),
+            )?;
+            outcome.proposal_event = Some(event_id);
+        } else {
+            let candidate_id = labels.candidate(index, &origin);
+            let event_id = self.tick_append(
+                appender,
+                run.clone(),
+                None,
+                provenance.clone(),
+                p::EventPayload::CandidateCreated(p::CandidateCreatedPayload {
+                    candidate_id,
+                    target: labels.candidate_target(),
+                    evidence_refs: Vec::new(),
+                    confidence: p::Confidence::new(0.1)?,
+                    provenance: provenance.clone(),
+                    target_tier: p::StabilityTier::Working,
+                    capability_update: None,
+                    strategy_candidate: None,
+                }),
+            )?;
+            outcome.candidate_event = Some(event_id);
+        }
+        Ok(outcome)
+    }
+
+    /// Appends one tick event through the store's single writer.
+    fn tick_append(
+        &self,
+        appender: &TickAppender,
+        run: p::RunId,
+        turn: Option<p::TurnId>,
+        provenance: p::Provenance,
+        payload: p::EventPayload,
+    ) -> p::Result<p::EventId> {
+        match appender {
+            TickAppender::Unique => self.append(run, turn, provenance, payload),
+            TickAppender::Sequenced {
+                prefix,
+                ts,
+                next,
+                log,
+            } => {
+                let ordinal = next.get();
+                next.set(ordinal.saturating_add(1));
+                let id = self.store.append(p::Event::new(
+                    p::EventId(format!("{prefix}:event:{ordinal}")),
+                    run,
+                    turn,
+                    payload,
+                    p::SchemaVersion(1),
+                    *ts,
+                    provenance,
+                ))?;
+                log.borrow_mut().push(id.clone());
+                Ok(id)
+            }
+        }
     }
 
     pub fn resolve_proactive_proposal(
@@ -2012,7 +2212,7 @@ impl ReactiveHarness {
                 )?;
                 if let Some(run) = report.run {
                     self.append(
-                        p::RunId(format!("followup-link:{}", event.event_id.0)),
+                        followup_link_run(&event.event_id),
                         None,
                         p::Provenance {
                             source: p::Source::Internal,

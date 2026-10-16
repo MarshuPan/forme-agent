@@ -373,6 +373,27 @@ CREATE TABLE IF NOT EXISTS authority_writer_lease (
     FOREIGN KEY(store_identity) REFERENCES brain_authority(store_identity)
 );
 
+CREATE TABLE IF NOT EXISTS cognitive_tick_claims (
+    owner_digest  TEXT NOT NULL,
+    window_start  INTEGER NOT NULL CHECK(window_start >= 0),
+    lease_nonce   TEXT NOT NULL,
+    attempt       INTEGER NOT NULL CHECK(attempt > 0),
+    claimed_at    INTEGER NOT NULL CHECK(claimed_at >= 0),
+    expires_at    INTEGER NOT NULL CHECK(expires_at >= 0),
+    state         TEXT NOT NULL CHECK(state IN ('claimed', 'finished', 'abandoned')),
+    range_json    TEXT NOT NULL,
+    consumed_json TEXT,
+    report_digest TEXT,
+    PRIMARY KEY(owner_digest, window_start)
+);
+
+CREATE TABLE IF NOT EXISTS cognitive_tick_cursor (
+    owner_digest TEXT NOT NULL,
+    run_id       TEXT NOT NULL,
+    position     INTEGER NOT NULL CHECK(position >= 0),
+    PRIMARY KEY(owner_digest, run_id)
+);
+
 CREATE TABLE IF NOT EXISTS approval_consumptions (
     nonce                    TEXT PRIMARY KEY,
     owner_digest             TEXT NOT NULL,
@@ -635,6 +656,50 @@ impl SqliteEventStore {
         self.active_authority_guard()?.ok_or_else(|| {
             p::Error("approval consumption requires an installed authority lease guard".into())
         })
+    }
+
+    /// The current `stream_seq` head of one run; zero for a run with no events.
+    pub fn run_head(&self, run: &p::RunId) -> p::Result<u64> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let head = connection
+            .query_row(
+                "SELECT COALESCE(MAX(stream_seq), 0) FROM events WHERE run_id = ?1",
+                params![&run.0],
+                |row| row.get::<_, i64>(0),
+            )
+            .map_err(|error| store_error("failed to read the run head", error))?;
+        u64::try_from(head).map_err(|_| p::Error("stored stream sequence is invalid".into()))
+    }
+
+    /// The current `stream_seq` head of every run, read in one statement so
+    /// a tick can fix its event range against a single store snapshot.
+    pub fn run_heads(&self) -> p::Result<crate::TickEventCursor> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let mut statement = connection
+            .prepare("SELECT run_id, MAX(stream_seq) FROM events GROUP BY run_id")
+            .map_err(|error| store_error("failed to prepare run head scan", error))?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(|error| store_error("failed to scan run heads", error))?;
+        let mut heads = BTreeMap::new();
+        for row in rows {
+            let (run, head) =
+                row.map_err(|error| store_error("failed to decode run head", error))?;
+            let head = u64::try_from(head)
+                .map_err(|_| p::Error("stored stream sequence is invalid".into()))?;
+            heads.insert(p::RunId(run), head);
+        }
+        Ok(crate::TickEventCursor(heads))
     }
 
     pub fn run_ids(&self) -> p::Result<Vec<p::RunId>> {
@@ -1473,6 +1538,388 @@ impl ApprovalConsumptionLedger for SqliteEventStore {
             .commit()
             .map_err(|error| store_error("failed to commit approval consumption", error))?;
         Ok(true)
+    }
+}
+
+impl crate::CognitiveTickLedger for SqliteEventStore {
+    fn claim_tick(
+        &self,
+        request: crate::CognitiveTickClaimRequest,
+    ) -> p::Result<Option<crate::CognitiveTickClaim>> {
+        request.validate()?;
+        let guard = self.require_installed_tick_guard(&request.owner_digest)?;
+        let expires_at = request.expires_at()?;
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| store_error("failed to begin tick claim", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
+        let existing = transaction
+            .query_row(
+                "SELECT state, attempt, expires_at, range_json FROM cognitive_tick_claims
+                 WHERE owner_digest = ?1 AND window_start = ?2",
+                params![&guard.owner_digest.0, request.window],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, String>(3)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| store_error("failed to inspect tick claim", error))?;
+        let (attempt, range) = match existing {
+            None => {
+                let latest = transaction
+                    .query_row(
+                        "SELECT window_start, state FROM cognitive_tick_claims
+                         WHERE owner_digest = ?1 ORDER BY window_start DESC LIMIT 1",
+                        params![&guard.owner_digest.0],
+                        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+                    )
+                    .optional()
+                    .map_err(|error| store_error("failed to inspect the latest tick", error))?;
+                let spacing = i64::try_from(request.min_spacing.0)
+                    .map_err(|_| p::Error("tick claim cadence is invalid".into()))?;
+                // Windows are strictly sequential and move forward by at
+                // least the cadence; anything else is a duplicate signal.
+                let due = latest.is_none_or(|(latest_window, state)| {
+                    state == "finished"
+                        && request.window > latest_window
+                        && request.window.saturating_sub(latest_window) >= spacing
+                });
+                if !due {
+                    transaction
+                        .commit()
+                        .map_err(|error| store_error("failed to finish tick inspection", error))?;
+                    return Ok(None);
+                }
+                let encoded = request.range.encode()?;
+                transaction
+                    .execute(
+                        "INSERT INTO cognitive_tick_claims(
+                            owner_digest, window_start, lease_nonce, attempt,
+                            claimed_at, expires_at, state, range_json
+                         ) VALUES (?1, ?2, ?3, 1, ?4, ?5, 'claimed', ?6)",
+                        params![
+                            &guard.owner_digest.0,
+                            request.window,
+                            &request.lease_nonce.0,
+                            request.now_ms,
+                            expires_at,
+                            encoded,
+                        ],
+                    )
+                    .map_err(|error| store_error("failed to record tick claim", error))?;
+                (1_u32, request.range.clone())
+            }
+            Some((state, attempt, stored_expiry, stored_range)) => {
+                let reclaimable =
+                    state == "abandoned" || (state == "claimed" && stored_expiry <= request.now_ms);
+                if !reclaimable {
+                    transaction
+                        .commit()
+                        .map_err(|error| store_error("failed to finish tick inspection", error))?;
+                    return Ok(None);
+                }
+                let attempt = u32::try_from(attempt)
+                    .ok()
+                    .and_then(|attempt| attempt.checked_add(1))
+                    .ok_or_else(|| p::Error("tick claim attempts are exhausted".into()))?;
+                let range = crate::TickEventRange::decode(&stored_range)?;
+                transaction
+                    .execute(
+                        "UPDATE cognitive_tick_claims
+                         SET lease_nonce = ?3, attempt = ?4, claimed_at = ?5,
+                             expires_at = ?6, state = 'claimed'
+                         WHERE owner_digest = ?1 AND window_start = ?2",
+                        params![
+                            &guard.owner_digest.0,
+                            request.window,
+                            &request.lease_nonce.0,
+                            i64::from(attempt),
+                            request.now_ms,
+                            expires_at,
+                        ],
+                    )
+                    .map_err(|error| store_error("failed to take over tick claim", error))?;
+                (attempt, range)
+            }
+        };
+        transaction
+            .commit()
+            .map_err(|error| store_error("failed to commit tick claim", error))?;
+        Ok(Some(crate::CognitiveTickClaim {
+            schema_version: crate::COGNITIVE_TICK_SCHEMA_VERSION,
+            owner_digest: guard.owner_digest.clone(),
+            window: request.window,
+            lease_nonce: request.lease_nonce,
+            attempt,
+            expires_at,
+            range,
+        }))
+    }
+
+    fn finish_tick(
+        &self,
+        claim: &crate::CognitiveTickClaim,
+        report_digest: p::SchemaDigest,
+    ) -> p::Result<()> {
+        self.finish_tick_consuming(claim, report_digest, claim.range.to.clone())
+    }
+
+    fn finish_tick_consuming(
+        &self,
+        claim: &crate::CognitiveTickClaim,
+        report_digest: p::SchemaDigest,
+        consumed: crate::TickEventCursor,
+    ) -> p::Result<()> {
+        if claim.schema_version != crate::COGNITIVE_TICK_SCHEMA_VERSION {
+            return Err(p::Error("tick claim schema is invalid".into()));
+        }
+        let recorded_range = claim.range.encode()?;
+        p::sha256_digest_bytes(&report_digest)
+            .map_err(|_| p::Error("tick report digest is invalid".into()))?;
+        // A window may consume anything between the start and the end of its
+        // own range, never beyond what it read.
+        let consumed_range = crate::TickEventRange {
+            from: claim.range.from.clone(),
+            to: consumed.clone(),
+        };
+        consumed_range.validate()?;
+        if consumed
+            .0
+            .iter()
+            .any(|(run, position)| *position > claim.range.to.position(run))
+        {
+            return Err(p::Error(
+                "a tick cannot consume events beyond its own range".into(),
+            ));
+        }
+        let guard = self.require_installed_tick_guard(&claim.owner_digest)?;
+        let consumed_json = serde_json::to_string(&consumed)
+            .map_err(|_| p::Error("tick consumed cursor cannot be encoded".into()))?;
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| store_error("failed to begin tick finish", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
+        let changed = transaction
+            .execute(
+                "UPDATE cognitive_tick_claims
+                 SET state = 'finished', consumed_json = ?4, report_digest = ?5
+                 WHERE owner_digest = ?1 AND window_start = ?2 AND lease_nonce = ?3
+                   AND state = 'claimed' AND attempt = ?6 AND expires_at = ?7
+                   AND range_json = ?8",
+                params![
+                    &guard.owner_digest.0,
+                    claim.window,
+                    &claim.lease_nonce.0,
+                    consumed_json,
+                    &report_digest.0,
+                    i64::from(claim.attempt),
+                    claim.expires_at,
+                    recorded_range,
+                ],
+            )
+            .map_err(|error| store_error("failed to finish tick claim", error))?;
+        if changed != 1 {
+            return Err(p::Error(
+                "tick claim was lost, replaced, or already finished".into(),
+            ));
+        }
+        for (run, position) in &consumed.0 {
+            let position = i64::try_from(*position)
+                .map_err(|_| p::Error("tick consumed position is invalid".into()))?;
+            transaction
+                .execute(
+                    "INSERT INTO cognitive_tick_cursor(owner_digest, run_id, position)
+                     VALUES (?1, ?2, ?3)
+                     ON CONFLICT(owner_digest, run_id)
+                     DO UPDATE SET position = MAX(position, excluded.position)",
+                    params![&guard.owner_digest.0, &run.0, position],
+                )
+                .map_err(|error| store_error("failed to advance the tick cursor", error))?;
+        }
+        transaction
+            .commit()
+            .map_err(|error| store_error("failed to commit tick finish", error))
+    }
+
+    fn abandon_expired_tick(
+        &self,
+        owner_digest: &p::SchemaDigest,
+        now_ms: p::Timestamp,
+    ) -> p::Result<()> {
+        let guard = self.require_installed_tick_guard(owner_digest)?;
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|error| store_error("failed to begin tick recovery", error))?;
+        self.require_authority_writer_in_transaction(&transaction)?;
+        transaction
+            .execute(
+                "UPDATE cognitive_tick_claims SET state = 'abandoned'
+                 WHERE owner_digest = ?1 AND state = 'claimed' AND expires_at <= ?2",
+                params![&guard.owner_digest.0, now_ms],
+            )
+            .map_err(|error| store_error("failed to abandon expired ticks", error))?;
+        transaction
+            .commit()
+            .map_err(|error| store_error("failed to commit tick recovery", error))
+    }
+
+    fn tick_window(
+        &self,
+        owner_digest: &p::SchemaDigest,
+        window: p::Timestamp,
+    ) -> p::Result<Option<crate::CognitiveTickWindowState>> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let row = connection
+            .query_row(
+                "SELECT window_start, state, attempt, expires_at, consumed_json, report_digest
+                 FROM cognitive_tick_claims WHERE owner_digest = ?1 AND window_start = ?2",
+                params![&owner_digest.0, window],
+                StoredTickWindow::from_row,
+            )
+            .optional()
+            .map_err(|error| store_error("failed to read tick window", error))?;
+        row.map(|row| row.state()).transpose()
+    }
+
+    fn latest_tick_window(
+        &self,
+        owner_digest: &p::SchemaDigest,
+    ) -> p::Result<Option<(p::Timestamp, crate::CognitiveTickWindowState)>> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let row = connection
+            .query_row(
+                "SELECT window_start, state, attempt, expires_at, consumed_json, report_digest
+                 FROM cognitive_tick_claims WHERE owner_digest = ?1
+                 ORDER BY window_start DESC LIMIT 1",
+                params![&owner_digest.0],
+                StoredTickWindow::from_row,
+            )
+            .optional()
+            .map_err(|error| store_error("failed to read the latest tick window", error))?;
+        row.map(|row| Ok((row.window, row.state()?))).transpose()
+    }
+
+    fn consumed_tick_cursor(
+        &self,
+        owner_digest: &p::SchemaDigest,
+    ) -> p::Result<crate::TickEventCursor> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
+        let mut statement = connection
+            .prepare("SELECT run_id, position FROM cognitive_tick_cursor WHERE owner_digest = ?1")
+            .map_err(|error| store_error("failed to prepare the tick cursor read", error))?;
+        let rows = statement
+            .query_map(params![&owner_digest.0], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })
+            .map_err(|error| store_error("failed to read the tick cursor", error))?;
+        let mut cursor = BTreeMap::new();
+        for row in rows {
+            let (run, position) =
+                row.map_err(|error| store_error("failed to decode the tick cursor", error))?;
+            let position = u64::try_from(position)
+                .map_err(|_| p::Error("stored tick cursor is invalid".into()))?;
+            cursor.insert(p::RunId(run), position);
+        }
+        Ok(crate::TickEventCursor(cursor))
+    }
+}
+
+struct StoredTickWindow {
+    window: p::Timestamp,
+    state: String,
+    attempt: i64,
+    expires_at: i64,
+    consumed: Option<String>,
+    report: Option<String>,
+}
+
+impl StoredTickWindow {
+    fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+        Ok(Self {
+            window: row.get(0)?,
+            state: row.get(1)?,
+            attempt: row.get(2)?,
+            expires_at: row.get(3)?,
+            consumed: row.get(4)?,
+            report: row.get(5)?,
+        })
+    }
+
+    fn state(self) -> p::Result<crate::CognitiveTickWindowState> {
+        let attempt = u32::try_from(self.attempt)
+            .map_err(|_| p::Error("stored tick attempt is invalid".into()))?;
+        Ok(match self.state.as_str() {
+            "claimed" => crate::CognitiveTickWindowState::Claimed {
+                attempt,
+                expires_at: self.expires_at,
+            },
+            "finished" => crate::CognitiveTickWindowState::Finished {
+                attempt,
+                report_digest: p::SchemaDigest(
+                    self.report
+                        .ok_or_else(|| p::Error("finished tick has no report".into()))?,
+                ),
+                consumed: serde_json::from_str(
+                    &self
+                        .consumed
+                        .ok_or_else(|| p::Error("finished tick has no cursor".into()))?,
+                )
+                .map_err(|_| p::Error("stored tick cursor is invalid".into()))?,
+            },
+            "abandoned" => crate::CognitiveTickWindowState::Abandoned { attempt },
+            _ => return Err(p::Error("stored tick state is invalid".into())),
+        })
+    }
+}
+
+impl SqliteEventStore {
+    /// Tick claims are production authority facts: they require the
+    /// installed writer fence and the configured owner.
+    fn require_installed_tick_guard(
+        &self,
+        owner_digest: &p::SchemaDigest,
+    ) -> p::Result<Arc<AuthorityLeaseGuardInner>> {
+        let guard = self.active_authority_guard()?.ok_or_else(|| {
+            p::Error("tick claims require an installed authority lease guard".into())
+        })?;
+        if &guard.owner_digest != owner_digest {
+            return Err(p::Error(
+                "tick claim owner does not match the configured owner".into(),
+            ));
+        }
+        Ok(guard)
     }
 }
 
