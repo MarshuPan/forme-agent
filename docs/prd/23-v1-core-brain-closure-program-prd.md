@@ -531,6 +531,8 @@ hard incompatibility 先过滤；总分过 threshold 选已有模式；全不过
 - 复用 `DecisionTraceRecorded` 的 optional `orchestration` 载荷记录 versioned `OrchestrationFact`（项目声明、route 完整声明、节点迁移/预算、结果冲突/验证、监管 checkpoint、route outcome）。历史字段缺失仍为原语义，新增载荷 canonical digest 有界且经 store 校验。`OrchestrationRouteCreated` 继续标识 route 实例；不让事件名字代替节点状态。
 - route/node claim 必须经 store 的 expected aggregate version/CAS，先落 reserve/running fact 再 spawn；完成记录消费量，仅退回未使用额度。相同 node intent/attempt 重放不再产生 child；crash 后 Running 无可信 child terminal 只转 OutcomeUnknown。取消不把未知副作用洗成成功或可重试；重试只限可证明无副作用的 Failed 且不超过节点声明次数。
 - child 文件目录使用配置数据目录下的 route/node 隔离目录；路径仅在本地解析，事件保留安全 logical workspace/digest。文件工具根限制为该目录，shell/MCP/网络/外部连接器不隐式继承；需要这些能力时明确授权并继续每个 action 审批。上下文只包含该子任务、依赖 summary/已验证 result 与所需数据，禁止装载 owner 认知全量。
+- 正式模型返回的 tool name 必须经 composition 中已注册的 binding 解析；模型只提供 typed `ActionParameters`，不能自定 capability/backend/scope/risk/permission。子代理继承 binding 的受限子集与相同执行点重查，审批中的 child handle 必须保留并沿既有 Gateway resume/cancel 路径可达。目录校验拒绝链接/重解析跳转，不以“仍在父根目录内”放行兄弟目录别名。
+- `clarify-then-act` 仅声明待澄清 segment，未由 owner 修订明确目标并结束旧 segment 前不 claim 节点、不调用 driver；完成谓词只验证最后一个已完成的 final model call 和独立环境证据，不用多轮回答的拼接冒充最终交付。
 - 长期项目声明固定 workspace/goal/结构化 task signature/完成引用；新证据、失败、deadline、diff 或 cadence 只在 segment checkpoint 重规划。运行中、Waiting 或 OutcomeUnknown 的 segment 阻止热换；监管 tick 只建下一 route/trace/checkpoint，不执行外部动作。声明和 checkpoint 可 replay；无变化/未到期不制造新 route。
 - route outcome 无论成功/失败/取消/未知均回流同一 owner memory aggregate 的 episode 与 typed lineage 边。fitness 和策略建议只到 candidate；无独立验证不得把 model self-report 判为 Pass，真实事实/设计/质量冲突进入 unresolved conflict，由主脑/owner 显式裁决。
 
