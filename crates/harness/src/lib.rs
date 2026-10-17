@@ -47,7 +47,9 @@ use forme_store::{
     SqliteEventStore, StoreOptions,
 };
 
+mod brain_relevance;
 mod brain_tick;
+pub use brain_relevance::RelevanceCase;
 mod m3_a;
 mod m3_b;
 mod m4;
@@ -591,6 +593,11 @@ enum TickAppender {
 }
 
 impl TickAppender {
+    fn record_existing(&self, event: p::EventId) {
+        if let Self::Sequenced { log, .. } = self {
+            log.borrow_mut().push(event);
+        }
+    }
     fn sequenced(prefix: String, ts: p::Timestamp) -> Self {
         Self::Sequenced {
             prefix,

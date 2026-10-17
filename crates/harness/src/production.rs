@@ -2037,6 +2037,7 @@ impl ProductionRuntime {
             cognition: self.services.cognition.as_ref(),
             cognition_stream: self.services.aggregates.memory_cognition.clone(),
             stale_after_ms,
+            relevance_mode: self.config.cognition.relevance_mode,
         }
         .run(input)?;
         // A failed phase leaves the window unfinished: its lease lapses and
@@ -2133,7 +2134,54 @@ impl ProductionRuntime {
             .services
             .cognition
             .stable_snapshot_at(claim.range.to.position(cognition_stream))?;
+        let mut activation_seeds = BTreeMap::new();
+        for event in store
+            .read_run(cognition_stream.clone())
+            .after(claim.range.from.position(cognition_stream))
+        {
+            let event = event?;
+            if event.stream_seq > claim.range.to.position(cognition_stream) {
+                break;
+            }
+            if event.provenance.trust_tier == p::TrustTier::Untrusted {
+                continue;
+            }
+            match &event.payload {
+                p::EventPayload::MemoryNodeAppended(node) => {
+                    let shape = if node.kind.0 == "goal" {
+                        forme_cognition::ActivationShape::Pressure
+                    } else if node.confidence.0 < 0.5 {
+                        forme_cognition::ActivationShape::Gap
+                    } else {
+                        forme_cognition::ActivationShape::Change
+                    };
+                    activation_seeds.insert(node.node_id.clone(), shape);
+                }
+                p::EventPayload::MemoryEdgeAppended(edge) => {
+                    let shape = if edge.kind.0 == "contradicts" {
+                        forme_cognition::ActivationShape::Tension
+                    } else {
+                        forme_cognition::ActivationShape::Association
+                    };
+                    activation_seeds.insert(edge.from.clone(), shape);
+                    activation_seeds.insert(edge.to.clone(), shape);
+                }
+                _ => {}
+            }
+        }
+        let activation = if activation_seeds.is_empty() {
+            None
+        } else {
+            Some(forme_cognition::TickActivationInput {
+                graph: self
+                    .services
+                    .memory
+                    .graph_snapshot_at(Some(claim.range.to.position(cognition_stream)))?,
+                seeds: activation_seeds.into_iter().take(64).collect(),
+            })
+        };
         Ok(CognitiveTickInput {
+            activation,
             learning: forme_cognition::LearningSnapshot::rebuild(
                 &self.owner_brain_events_at(Some(&claim.range.to))?,
             ),
@@ -2316,7 +2364,7 @@ impl ProductionRuntime {
             .event_id)
     }
 
-    fn require_brain_owner(&self, owner: &p::VerifiedPrincipal) -> p::Result<()> {
+    pub(crate) fn require_brain_owner(&self, owner: &p::VerifiedPrincipal) -> p::Result<()> {
         if owner.0 != self.config.owner.0 {
             return Err(p::Error(
                 "brain control requires its configured owner".into(),

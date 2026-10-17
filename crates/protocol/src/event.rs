@@ -780,6 +780,11 @@ impl Event {
         let payload_kind = self.payload.kind();
         if self.kind == payload_kind {
             match &self.payload {
+                EventPayload::MemoryMaintenanceApplied(payload) => {
+                    if let Some(set) = MemoryMaintenanceDeltaSet::from_ref(&payload.deltas_ref)? {
+                        set.validate_actor(&self.provenance)?;
+                    }
+                }
                 EventPayload::GoalFramed(payload) => {
                     if let Some(knowledge) = &payload.knowledge {
                         knowledge.validate()?;

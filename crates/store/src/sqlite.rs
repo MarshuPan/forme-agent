@@ -4558,6 +4558,7 @@ fn append_prepared(
         false
     };
 
+    validate_graph_maintenance_in_transaction(transaction, &prepared.event)?;
     let previous_seq = aggregate_version_in_transaction(transaction, &prepared.event.run_id)?;
     let next_seq = previous_seq
         .checked_add(1)
@@ -7511,6 +7512,34 @@ fn capture_rebuild_events(
     Ok((events, token))
 }
 
+fn validate_graph_maintenance_in_transaction(
+    transaction: &Transaction<'_>,
+    event: &p::Event,
+) -> p::Result<()> {
+    let p::EventPayload::MemoryMaintenanceApplied(payload) = &event.payload else {
+        return Ok(());
+    };
+    let Some(set) = p::MemoryMaintenanceDeltaSet::from_ref(&payload.deltas_ref)? else {
+        return Ok(());
+    };
+    set.validate_actor(&event.provenance)?;
+    let mut statement = transaction.prepare(
+        "SELECT event_id, run_id, stream_seq, turn_id, kind, payload, schema_version, ts, provenance, checksum FROM events WHERE run_id = ?1 ORDER BY stream_seq"
+    ).map_err(|error| store_error("cannot prepare graph maintenance validation", error))?;
+    let rows = statement
+        .query_map(params![&event.run_id.0], StoredEvent::from_row)
+        .map_err(|error| store_error("cannot read graph maintenance history", error))?;
+    let mut graph = p::MemoryGraphLedger::default();
+    for stored in rows {
+        let stored =
+            stored.map_err(|error| store_error("cannot read graph maintenance event", error))?;
+        let decoded =
+            stored.decode_with_target(&UpcasterGraph::default(), |_, version| Ok(version))?;
+        graph.fold(&decoded)?;
+    }
+    graph.validate_set(&set)
+}
+
 fn read_all_stored_events(connection: &Connection) -> p::Result<Vec<StoredEvent>> {
     let mut statement = connection
         .prepare(
@@ -8242,6 +8271,19 @@ fn domain_idempotency_key(event: &p::Event) -> Option<(&'static str, String)> {
             .map(|key| ("run_request", key.0.clone())),
         p::EventPayload::ActionPlanned(payload) => {
             Some(("action_intent", payload.intent_id.0.clone()))
+        }
+        p::EventPayload::MemoryMaintenanceApplied(payload)
+            if payload.deltas_ref.0.starts_with("graph-deltas:v1:") =>
+        {
+            p::MemoryMaintenanceDeltaSet::from_ref(&payload.deltas_ref)
+                .ok()
+                .flatten()
+                .map(|set| {
+                    (
+                        "graph_maintenance",
+                        format!("{}:{}", event.run_id.0, set.command.0),
+                    )
+                })
         }
         p::EventPayload::MemoryMaintenanceApplied(payload) => payload
             .deltas_ref

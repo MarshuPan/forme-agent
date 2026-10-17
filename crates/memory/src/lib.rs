@@ -10,8 +10,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use forme_protocol as p;
 use forme_store::EventStore;
 
+mod activation;
 mod m2_c;
 mod m3_c;
+pub use activation::*;
 
 pub use m2_c::*;
 pub use m3_c::*;
@@ -711,7 +713,9 @@ where
             .collect::<p::Result<Vec<_>>>()?;
         let mut state = MemoryState::default();
         let mut max_stream_seq = 0;
+        let mut graph = p::MemoryGraphLedger::default();
         for event in &events {
+            graph.fold(event)?;
             max_stream_seq = max_stream_seq.max(event.stream_seq);
             fold_event(&mut state, event);
         }
@@ -1323,15 +1327,62 @@ where
         }
     }
 
-    fn spread(&self, _budget: ActivationBudget) -> Vec<Activated> {
-        // M0 intentionally keeps the schema and trait while diffusion remains dormant until M2.
-        Vec::new()
+    fn spread(&self, budget: ActivationBudget) -> Vec<Activated> {
+        let seed = self
+            .lock_state()
+            .ok()
+            .and_then(|mut state| state.dormant_seed.take());
+        let Some((seeds, shape)) = seed else {
+            return Vec::new();
+        };
+        let Ok(config) = ActivationConfig::from_budget(budget) else {
+            return Vec::new();
+        };
+        let Ok(snapshot) = self.graph_snapshot_at(None) else {
+            return Vec::new();
+        };
+        let Some(scope) = seeds
+            .first()
+            .and_then(|seed| snapshot.nodes.get(seed))
+            .map(|n| n.scope.clone())
+        else {
+            return Vec::new();
+        };
+        snapshot
+            .activate(&seeds, shape, &scope, &config, (self.clock)())
+            .map(|run| run.surfaced)
+            .unwrap_or_default()
     }
 
-    fn set_edge_weight(&self, _edge: p::EdgeId, _weight: f32) -> p::Result<()> {
-        Err(p::Error(
-            "activation learning is dormant in M0; edge weights are immutable".into(),
-        ))
+    fn set_edge_weight(&self, edge: p::EdgeId, weight: f32) -> p::Result<()> {
+        let graph = self.graph_snapshot_at(None)?;
+        let current = graph
+            .edges
+            .get(&edge)
+            .ok_or_else(|| p::Error("unknown memory edge".into()))?;
+        let scope = graph
+            .nodes
+            .get(&current.from)
+            .ok_or_else(|| p::Error("unknown memory endpoint".into()))?
+            .scope
+            .scope
+            .clone();
+        self.apply_maintenance(
+            p::MemoryMaintenanceDeltaSet {
+                schema_version: p::SchemaVersion(1),
+                command: p::IdempotencyKey(format!("edge-decay:{}:{}", edge.0, graph.version)),
+                expected_version: graph.version,
+                scope,
+                at: (self.clock)(),
+                deltas: vec![p::MemoryMaintenanceDelta::EdgeWeight {
+                    edge,
+                    expected: current.weight,
+                    next: p::Weight(weight),
+                }],
+            },
+            system_provenance(),
+        )
+        .map(|_| ())
     }
 
     fn query(&self, query: GraphQuery) -> Vec<MemoryNode> {
@@ -1647,7 +1698,9 @@ fn validate_node(node: &MemoryNode) -> p::Result<()> {
         || node.content_ref.0.trim().is_empty()
         || node.scope.scope.0.trim().is_empty()
         || !node.confidence.0.is_finite()
+        || !(0.0..=1.0).contains(&node.confidence.0)
         || !node.resting_activation.0.is_finite()
+        || !(0.0..=1.0).contains(&node.resting_activation.0)
     {
         return Err(p::Error("memory node is incomplete or non-finite".into()));
     }
@@ -1671,6 +1724,7 @@ fn validate_edge(edge: &MemoryEdge) -> p::Result<()> {
         || edge.to.0.trim().is_empty()
         || edge.from == edge.to
         || !edge.weight.0.is_finite()
+        || !(0.0..=1.0).contains(&edge.weight.0)
     {
         return Err(p::Error("memory edge is incomplete or non-finite".into()));
     }
@@ -2004,6 +2058,9 @@ fn fold_event(state: &mut MemoryState, event: &p::Event) {
             );
         }
         p::EventPayload::MemoryMaintenanceApplied(payload) => {
+            if let Ok(Some(set)) = p::MemoryMaintenanceDeltaSet::from_ref(&payload.deltas_ref) {
+                activation::fold_graph_delta(state, &set);
+            }
             if let Some((id, lease_until)) = parse_intention_lease(&payload.deltas_ref) {
                 if let Some(record) = state.intentions.get_mut(&id) {
                     record.lease_until = Some(lease_until);
@@ -2118,7 +2175,7 @@ mod tests {
     }
 
     #[test]
-    fn graph_projection_rebuilds_from_events_while_activation_stays_dormant() {
+    fn graph_projection_rebuilds_with_bounded_activation_and_governed_weights() {
         let store = Arc::new(SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap());
         let run = p::RunId("memory:graph-test".into());
         let memory = EventSourcedMemory::with_clock(store.clone(), run.clone(), || 100).unwrap();
@@ -2169,7 +2226,7 @@ mod tests {
             p::NodeId("node-b".into())
         );
         memory.seed(&[p::NodeId("node-a".into())], ActivationShape::Association);
-        assert!(memory
+        assert!(!memory
             .spread(ActivationBudget {
                 schema_version: p::SchemaVersion(1),
                 max_hops: 2,

@@ -5,6 +5,10 @@
 #![forbid(unsafe_code)]
 
 mod brain_learning;
+mod brain_memory;
+pub use brain_memory::*;
+mod brain_relevance;
+pub use brain_relevance::*;
 mod control;
 mod event;
 mod lifecycle;

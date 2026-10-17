@@ -42,6 +42,7 @@ pub(crate) struct HarnessCognitiveTick<'a> {
     pub(crate) cognition_stream: p::RunId,
     /// Age after which stable cognition without reproduction is re-evaluated.
     pub(crate) stale_after_ms: i64,
+    pub(crate) relevance_mode: p::RelevanceMode,
 }
 
 /// What earlier attempts of the same window already recorded in its stream.
@@ -107,13 +108,25 @@ impl CognitiveTickEngine for HarnessCognitiveTick<'_> {
                     }
                 };
                 events.extend(appender.drain());
-                match result {
+                let mut phase_report = match result {
                     Ok(ran) => CognitiveTickPhaseReport::completed(phase, ran, events),
                     Err(error) => {
                         failed = true;
                         CognitiveTickPhaseReport::failed(phase, events, error.0)
                     }
-                }
+                };
+                phase_report.model_calls = self
+                    .harness
+                    .store
+                    .read_run(input.run.clone())
+                    .collect::<p::Result<Vec<_>>>()?
+                    .into_iter()
+                    .filter(|event| {
+                        phase_report.event_refs.contains(&event.event_id)
+                            && event.kind == p::EventKind::ModelCallStarted
+                    })
+                    .count() as u32;
+                phase_report
             };
             phases.push(report);
         }
@@ -140,6 +153,136 @@ impl HarnessCognitiveTick<'_> {
         let mut observations = Vec::new();
         let mut learning = BTreeMap::new();
         if !input.foreground_active {
+            if let Some(activation) = &input.activation {
+                let config = cognition::ActivationConfig::default();
+                let mut surfaced = BTreeSet::new();
+                let mut remaining = config.per_tick_nodes;
+                for (seed, shape) in &activation.seeds {
+                    if remaining == 0 || surfaced.len() >= config.top_k_frontier {
+                        break;
+                    }
+                    let Some(node) = activation.graph.nodes.get(seed) else {
+                        continue;
+                    };
+                    let bounded = cognition::ActivationConfig {
+                        per_tick_nodes: remaining,
+                        ..config.clone()
+                    };
+                    let result = if self.relevance_mode == p::RelevanceMode::Diffusion {
+                        activation.graph.activate(
+                            std::slice::from_ref(seed),
+                            *shape,
+                            &node.scope,
+                            &bounded,
+                            input.now,
+                        )?
+                    } else {
+                        use cognition::RelevanceBaseline;
+                        let services = self.harness.brain_services().ok_or_else(|| {
+                            p::Error("relevance requires production brain".into())
+                        })?;
+                        let candidates = activation
+                            .graph
+                            .nodes
+                            .values()
+                            .filter(|candidate| {
+                                candidate.scope == node.scope
+                                    && candidate.provenance.trust_tier != p::TrustTier::Untrusted
+                            })
+                            .take(remaining.min(256))
+                            .cloned()
+                            .collect::<Vec<_>>();
+                        let model = services
+                            .model_registry
+                            .get(services.model_registry.default_ref())
+                            .ok_or_else(|| p::Error("no bound relevance model".into()))?;
+                        let baseline = crate::brain_relevance::ProviderRelevanceBaseline {
+                            model,
+                            store: &services.store,
+                            run: input.run.clone(),
+                            measurement: std::sync::Mutex::new(None),
+                            events: std::sync::Mutex::new(vec![]),
+                            reuse_completed: true,
+                        };
+                        let selected = baseline.select(
+                            &cognition::RecallCue {
+                                schema_version: p::SchemaVersion(1),
+                                scope: node.scope.clone(),
+                                query: format!(
+                                    "Find useful context for {:?}: {}",
+                                    shape, node.content_ref.0
+                                ),
+                            },
+                            &candidates,
+                            config.top_k_frontier,
+                        );
+                        for id in baseline
+                            .events
+                            .lock()
+                            .map_err(|_| p::Error("relevance receipts unavailable".into()))?
+                            .drain(..)
+                        {
+                            appender.record_existing(id);
+                        }
+                        let selected = selected?;
+                        cognition::ActivationRun {
+                            schema_version: p::SchemaVersion(1),
+                            snapshot: Some(activation.graph.digest.clone()),
+                            shape: *shape,
+                            considered: candidates.len().min(remaining),
+                            hops: 0,
+                            truncated: false,
+                            surfaced: selected
+                                .into_iter()
+                                .map(|node| cognition::Activated {
+                                    schema_version: p::SchemaVersion(1),
+                                    node,
+                                    level: p::Confidence(0.8),
+                                })
+                                .collect(),
+                        }
+                    };
+                    remaining = remaining.saturating_sub(result.considered);
+                    for active in result.surfaced {
+                        if surfaced.len() >= config.top_k_frontier {
+                            break;
+                        }
+                        if !surfaced.insert(active.node.clone()) {
+                            continue;
+                        }
+                        let target = &activation.graph.nodes[&active.node];
+                        let signal = match shape {
+                            cognition::ActivationShape::Association => {
+                                cognition::ImpulseSource::Association
+                            }
+                            cognition::ActivationShape::Change => cognition::ImpulseSource::Change,
+                            cognition::ActivationShape::Pressure => {
+                                cognition::ImpulseSource::Pressure
+                            }
+                            cognition::ActivationShape::Gap => cognition::ImpulseSource::Gap,
+                            cognition::ActivationShape::Tension => {
+                                cognition::ImpulseSource::Tension
+                            }
+                        };
+                        observations.push(cognition::Observation {
+                            schema_version: p::SchemaVersion(1),
+                            signal,
+                            scope: target.scope.scope.clone(),
+                            seed: vec![active.node],
+                            estimated_value: u64::from((active.level.0 * 90.0) as u8),
+                            urgency: 50,
+                            source: p::Source::Internal,
+                            grant_ref: None,
+                            authorized: true,
+                            proposal_intent: cognition::ProposalIntent::Communication(
+                                cognition::CommunicationPurpose::Insight,
+                            ),
+                            delivery: cognition::DeliveryMode::Hitchhike,
+                            requested_level: cognition::InterventionLevel::L1Suggest,
+                        });
+                    }
+                }
+            }
             let current_learning = self
                 .harness
                 .brain_services()

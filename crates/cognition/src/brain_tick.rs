@@ -465,6 +465,7 @@ impl TickSignalCollector {
 /// every attempt of the window reads the same inputs.
 #[derive(Debug, Clone)]
 pub struct CognitiveTickInput {
+    pub activation: Option<TickActivationInput>,
     pub learning: crate::LearningSnapshot,
     pub schema_version: p::SchemaVersion,
     pub claim: CognitiveTickClaim,
@@ -477,6 +478,12 @@ pub struct CognitiveTickInput {
     pub snapshot: CognitionSnapshot,
     pub foreground_active: bool,
     pub now: p::Timestamp,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TickActivationInput {
+    pub graph: crate::MemoryGraphSnapshot,
+    pub seeds: Vec<(p::NodeId, crate::ActivationShape)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

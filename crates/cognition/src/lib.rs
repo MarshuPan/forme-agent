@@ -35,6 +35,11 @@ pub use m3_c::*;
 /// crate graph intact while exposing the memory implementation through the
 /// cognition boundary that already owns the memory dependency.
 pub type PersistentMemory = memory::EventSourcedMemory<SqliteEventStore>;
+pub use memory::{
+    Activated, ActivationConfig, ActivationRun, ActivationShape, EdgeKind, MemoryEdge, MemoryGraph,
+    MemoryGraphSnapshot, MemoryNode, MemoryScope, NodeKind, RecallCue, RelevanceBaseline,
+    TimeSlice,
+};
 /// The intention records `ProspectiveIntentions` exchanges, re-exported so a
 /// caller of that trait needs no direct memory dependency.
 pub use memory::{IntentionState, IntentionTrigger, ProspectiveIntention};

@@ -159,6 +159,7 @@ pub struct AppApiRuntimeConfig {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CognitiveRuntimeConfig {
+    pub relevance_mode: p::RelevanceMode,
     pub schema_version: p::SchemaVersion,
     pub tick_enabled: bool,
     /// Cadence of the owner-brain tick driven by the shared scheduler pass.
@@ -224,6 +225,7 @@ const DEFAULT_STABLE_EVIDENCE_MAX_AGE_MS: u64 = 30 * 24 * 60 * 60 * 1_000;
 impl Default for CognitiveRuntimeConfig {
     fn default() -> Self {
         Self {
+            relevance_mode: p::RelevanceMode::DirectModel,
             schema_version: p::SchemaVersion(1),
             tick_enabled: true,
             tick_interval: p::DurationMs(60_000),
@@ -368,6 +370,13 @@ impl CapabilityRuntimeConfig {
 impl CognitiveRuntimeConfig {
     pub fn from_environment() -> p::Result<Self> {
         let config = Self {
+            relevance_mode: match std::env::var("FORME_RELEVANCE_MODE").as_deref() {
+                Ok("direct-model") | Err(std::env::VarError::NotPresent) => {
+                    p::RelevanceMode::DirectModel
+                }
+                Ok("diffusion") => p::RelevanceMode::Diffusion,
+                _ => return Err(p::Error("FORME_RELEVANCE_MODE is invalid".into())),
+            },
             schema_version: p::SchemaVersion(1),
             tick_enabled: optional_bool("FORME_COGNITIVE_TICK_ENABLED", true)?,
             tick_interval: p::DurationMs(optional_u64("FORME_COGNITIVE_TICK_MS", 60_000)?),
