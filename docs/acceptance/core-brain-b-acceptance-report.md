@@ -66,6 +66,8 @@ Gateway 场景 `c8_c9_learning_http_control_is_authenticated_scoped_durable_and_
 
 整波还必须在隔离的干净检出执行 `tools/verify-m5.ps1`：S1–S99、显式真实 Browser/三进程 golden、历史 M4 receipt、所有 Rust/Python 工程门、合规/漏洞/供应链与当前树 M5 release audit。此检出只含已提交的 B 波内容，不将工作目录中原有的六个许可证修改混入验收。
 
+首次 clean-tree audit 实际阻断了 `rustls 0.23.45` 的 `RUSTSEC-2026-0346/0347/0348/0349`（2026-10-14 公告），其他七组审计通过。修复采用同一 minor line 的 `0.23.46` 精确 pin，先登记依赖文档，再同步 execution manifest、lockfile 和冻结依赖门；不添加 advisory ignore，不放宽审计，也不改变内部 crate 图或 TLS 权限。最终回归必须包含该补丁。
+
 当前树 M5 receipt 位于 `m5-release-audit-artifacts/`，按既有流程在其他代码/文档提交之后独立刷新，再运行完整 M5 门并对比生成 receipt 与仓库 receipt。只有审计 clean-tree、typed receipt 独立验证和当前树比对同时通过才构成发布证据；专项 PASS 或历史 receipt 单独均不能替代。当前 receipt 是本报告之后的独立提交，不在此写自引用提交号或 digest。
 
 ## 5. 冻结契约与运行配置
