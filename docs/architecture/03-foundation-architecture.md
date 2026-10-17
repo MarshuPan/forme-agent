@@ -144,7 +144,7 @@
 |---|---|---|
 | `GoalFramed` | goal_frame, long_term?(M2-C additive), knowledge?(V1 B additive) | D7, S6/S49/C8 |
 | `ResourcePlanned` / `DoneContractSet` / `AutonomyEnvelopeSet` | plan / contract / envelope | D7/D10, S6 |
-| `DecisionTraceRecorded` | refs(map/user/self/trust/failure), rationale, workspace_snapshot, resource_graph_snapshot?(M2-C additive), evolution_snapshot?(M3-A additive), federation_snapshot?(M4-A additive) | D7/§25/§26, S6/S48/S58-S83 |
+| `DecisionTraceRecorded` | refs(map/user/self/trust/failure), rationale, workspace_snapshot, resource_graph_snapshot?(M2-C additive), evolution_snapshot?(M3-A additive), federation_snapshot?(M4-A additive), orchestration?(V1 C additive：有界、versioned、digest-bound 项目/route/node/checkpoint/outcome 事实，完整声明与迁移可 replay) | D7/§25/§26/§28, S6/S48/S58-S83, C13-C18 |
 | `OrchestrationRouteCreated` | pattern_ref, route(DAG), goal_frame?/checkpoint?(M2-C additive) | §13, S6/S49 |
 | `SubagentSpawned` | child_run, toolset/model/permission/budget 限制 | S11 |
 | `SubagentResultReturned` | summary/result, status | S11 |

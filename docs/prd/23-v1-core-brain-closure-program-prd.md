@@ -521,6 +521,19 @@ hard incompatibility 先过滤；总分过 threshold 选已有模式；全不过
 
 提交建议：`feat(coordination): close long-running workspace orchestration`。
 
+### C 波实施补充：可执行控制与恢复载荷
+
+本节细化既有 C13–C18，不新增事件或改变冻结 trait。
+
+- Charter 的原子写入覆盖所有 append 路径，而非只有 HTTP handler；同 command 同语义返回原事件，stale version/异义复用零写入。projection 可由 charter aggregate 重建。目标与 DoneContract 引用必须在同 workspace 的已记录声明中存在；无目标时可先建立约束，再登记项目。
+- `Constraint` 的可执行形式为 `deny-capability:<ref>`、`allow-capability:<ref>`、`scope:<scope>`、`max-nodes:<positive integer>`、`require-review`、`read-only`。禁止项支持 `deny-capability` 与 `read-only`；不认识的控制表达拒绝创建，不能把自然语言交给模型后声称已 enforce。所有规则仍送入正式 context；route 选择及最终 action 出口读取当前 charter，新增限制立即收紧，绝不扩大现有 policy。
+- 八套模式通过 companion `PatternIndexEntry` 暴露 purpose/roles/guide/anchors，保留既有构造与 trait。`PatternSelection` 记录六维得分、hard compatibility、anchor/active fitness、阈值与选择原因；规则只读结构化任务属性，不按任务字符串分流。未经 M3 激活的经验只作 evidence，不改变 active 排序。
+- 复用 `DecisionTraceRecorded` 的 optional `orchestration` 载荷记录 versioned `OrchestrationFact`（项目声明、route 完整声明、节点迁移/预算、结果冲突/验证、监管 checkpoint、route outcome）。历史字段缺失仍为原语义，新增载荷 canonical digest 有界且经 store 校验。`OrchestrationRouteCreated` 继续标识 route 实例；不让事件名字代替节点状态。
+- route/node claim 必须经 store 的 expected aggregate version/CAS，先落 reserve/running fact 再 spawn；完成记录消费量，仅退回未使用额度。相同 node intent/attempt 重放不再产生 child；crash 后 Running 无可信 child terminal 只转 OutcomeUnknown。取消不把未知副作用洗成成功或可重试；重试只限可证明无副作用的 Failed 且不超过节点声明次数。
+- child 文件目录使用配置数据目录下的 route/node 隔离目录；路径仅在本地解析，事件保留安全 logical workspace/digest。文件工具根限制为该目录，shell/MCP/网络/外部连接器不隐式继承；需要这些能力时明确授权并继续每个 action 审批。上下文只包含该子任务、依赖 summary/已验证 result 与所需数据，禁止装载 owner 认知全量。
+- 长期项目声明固定 workspace/goal/结构化 task signature/完成引用；新证据、失败、deadline、diff 或 cadence 只在 segment checkpoint 重规划。运行中、Waiting 或 OutcomeUnknown 的 segment 阻止热换；监管 tick 只建下一 route/trace/checkpoint，不执行外部动作。声明和 checkpoint 可 replay；无变化/未到期不制造新 route。
+- route outcome 无论成功/失败/取消/未知均回流同一 owner memory aggregate 的 episode 与 typed lineage 边。fitness 和策略建议只到 candidate；无独立验证不得把 model self-report 判为 Pass，真实事实/设计/质量冲突进入 unresolved conflict，由主脑/owner 显式裁决。
+
 ## 6. D 波：产品闭合（C19–C24）
 
 ### D1 模型 selection/fallback/adaptation
