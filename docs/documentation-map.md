@@ -107,7 +107,7 @@
 | `acceptance/m5-acceptance-report.md` | M5 最终验收报告。 | A/B/C、S1-S99、typed artifacts、strict gates 与 release audit。 | V1 核心大脑闭合永久回归基线。 | 工程结果已合入 main。 |
 | `requirements/15-v1-core-brain-closure-scope-decisions.md` | V1 核心大脑闭合范围。 | M5 final、完整设计审查。 | `requirements/16`、canonical §28、`architecture/09`。 | 已冻结 B1-B24；不是 M6。 |
 | `requirements/16-v1-core-brain-closure-verification-strategy.md` | V1 闭合验收策略。 | `requirements/15`、S1-S99。 | `architecture/09`、`prd/23`、closure acceptance。 | 已冻结 C1-C24、99-kind 与真实/重启/反向证据。 |
-| `architecture/09-v1-core-brain-runtime-closure-architecture.md` | V1 默认大脑运行闭合架构。 | `requirements/15-16`、canonical §28、M0-M5 architecture。 | `prd/23`、A-D runtime。 | 文档与承重协议冻结；A/B 分支实现及专项自检 PASS、均未合入 main，C/D 未实施；保持 18 crates，仅追加两个 R 事件。 |
+| `architecture/09-v1-core-brain-runtime-closure-architecture.md` | V1 默认大脑运行闭合架构。 | `requirements/15-16`、canonical §28、M0-M5 architecture。 | `prd/23`、A-D runtime。 | 文档与承重协议冻结；A/B 分支实现及整波自检 PASS、均未合入 main，C/D 未实施；保持 18 crates，仅追加两个 R 事件。 |
 | `prd/23-v1-core-brain-closure-program-prd.md` | V1 闭合 Program PRD。 | `requirements/15-16`、canonical §28、`architecture/09`。 | A/B/C/D 实现与 C1-C24 验收。 | 文档与模块契约冻结；A/B 待 owner 验收/main，B0–B6 的整波证据见 B 波报告，C/D 未实施；不得把分支提交写成正式完成。 |
 | `acceptance/core-brain-a-acceptance-report.md` | V1 闭合 A 波验收报告。 | `requirements/16` C1-C6、`prd/23` §3、S1-S99 回归、`tools/verify-core-brain-closure.ps1 -Wave A`。 | owner 验收与 B 波准入。 | 分支自检 PASS，待 owner 验收；记录 B0 前置项（稳定认知 R-FOLD）与残余边界。 |
 | `acceptance/core-brain-b1-implementation-report.md` | B1 持久 tick claim 与三相状态机模块验证报告。 | `prd/23` B1、C7 子断言、B0 晋升/重放、专项与工作区测试、A 波回归。 | B2–B6 实施与 B 波整体验收。 | 实现 `c6066d0`；22 项专项、472 项工作区测试与 A 波 43 场景 PASS；不代表 B 波、M5 发布门或 V1 final 通过。 |
