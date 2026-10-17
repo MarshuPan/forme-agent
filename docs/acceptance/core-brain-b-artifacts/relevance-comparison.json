@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "case_id": "relevance-negative-01",
+  "graph_snapshot": "sha256:ec2fa3a861f5f0a1e7679baa7c2ffc4068af3a918b76684cb4e87037d5d33ccd",
+  "task_digest": "sha256:002a00e3905f15ee3ef69d0ff9ceac2ddc6912bb5bf91112190a4bc0a93b75eb",
+  "strategy_snapshot": "sha256:017576785890351c1d068c2f97550ddc2aa8bb8ff756233b77b2426288e5d385",
+  "candidates": [
+    "other",
+    "topic",
+    "useful"
+  ],
+  "ground_truth": [
+    "useful"
+  ],
+  "label_source": "IndependentFixture",
+  "k": 1,
+  "diffusion": [
+    "topic"
+  ],
+  "direct_model": [
+    "useful"
+  ],
+  "diffusion_metrics": {
+    "hits": 0,
+    "selected": 1,
+    "relevant": 1,
+    "errors": 1,
+    "precision_bps": 0,
+    "recall_bps": 0,
+    "latency_us": 165,
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    "cost_microunits": 0
+  },
+  "direct_metrics": {
+    "hits": 1,
+    "selected": 1,
+    "relevant": 1,
+    "errors": 0,
+    "precision_bps": 10000,
+    "recall_bps": 10000,
+    "latency_us": 12164,
+    "usage": {
+      "input_tokens": 20,
+      "output_tokens": 4
+    },
+    "cost_microunits": 1
+  },
+  "model_profile": "core-b-provider:core-b-model",
+  "call_id": "relevance:sha256:85afec5b7b050b6ae69085d46863af267c5cb4828ef5d70e2e815456049887fd:1792224282630:0",
+  "evidence_level": "ControlledHttp",
+  "hard_invariants": [
+    [
+      "same-snapshot",
+      true
+    ],
+    [
+      "same-candidates",
+      true
+    ],
+    [
+      "same-task",
+      true
+    ],
+    [
+      "same-k",
+      true
+    ],
+    [
+      "scope-filtered",
+      true
+    ],
+    [
+      "governance-preserved",
+      true
+    ]
+  ],
+  "recommended": "DirectModel",
+  "digest": "sha256:eb17b673d07cd52667ef49277631d51472b31da71ae5af22b904362698bdd303"
+}
