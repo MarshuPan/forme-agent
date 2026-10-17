@@ -78,6 +78,6 @@ Gateway 场景 `c8_c9_learning_http_control_is_authenticated_scoped_durable_and_
 
 ## 6. 明确边界
 
-本波不是 M6，没有启动 C13–C18 的 charter/八套编排/长期项目重协调，也没有启动 D19–D24 的多模型深化、dashboard、备份/加密/真实删除或最终长期价值 golden。WorkspaceReview 在 B 波只作为到期注意力项，不替代 C 波项目监管。
+本波不是 M6，没有启动 C 波 C13–C18 的 charter/八套编排/长期项目重协调，也没有启动 D 波 C19–C24 的多模型深化、dashboard、备份/加密/真实删除或最终长期价值 golden。WorkspaceReview 在 B 波只作为到期注意力项，不替代 C 波项目监管。
 
 学习候选不等于正确知识，维护触发不等于已完成重评，受控 HTTP 对照不等于线上长期效果。工程自检与证据不替代 owner 验收和合入 main；历史 B1 报告仍只描述当时的模块结果。
