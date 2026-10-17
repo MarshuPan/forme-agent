@@ -1,0 +1,1670 @@
+{
+  "schema_version": 1,
+  "kind": "forme-core-brain-c",
+  "case": "Recovery",
+  "evidence_grade": "controlled-http-real-runtime-sqlite-files",
+  "source_commit": "db29cbb83f044eff8baf05f08e179295de229574",
+  "composition_digest": "sha256:6896967aece4ab709339eb66fe4f9f5d9abd1be7c58fe590195896b9d1ce2403",
+  "taxonomy_digest": "sha256:653675e926e44858cbe7a8ece29173a17a1ac1a7e2b0db961a3a2f0cd9249cbc",
+  "charter_stream": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+  "model_profiles": [
+    "core-b-provider:core-b-model"
+  ],
+  "model_bindings": {
+    "model:core-b": "core-b-provider:core-b-model"
+  },
+  "stream_heads": {
+    "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f": 6,
+    "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c": 29,
+    "child:project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1": 4,
+    "project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529": 4
+  },
+  "witnesses": [
+    {
+      "schema_version": 1,
+      "run": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+      "seq": 1,
+      "id": "charter-command:sha256:1ffe83b212eb0ec34d3da95fa4d5d6ec144d4ee706f52159230b43cf93d541b1",
+      "kind": "WorkspaceCharterChanged",
+      "digest": "sha256:2b1c26c35dfbbe3389b156bd211702019c6f747b1e6075d375a467f773b5be08",
+      "event": {
+        "event_id": "charter-command:sha256:1ffe83b212eb0ec34d3da95fa4d5d6ec144d4ee706f52159230b43cf93d541b1",
+        "run_id": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+        "stream_seq": 1,
+        "turn_id": null,
+        "kind": "WorkspaceCharterChanged",
+        "payload": {
+          "WorkspaceCharterChanged": {
+            "charter": {
+              "schema_version": 1,
+              "workspace": "workspace:core-b",
+              "version": 1,
+              "goals": [],
+              "constraints": [
+                "max-nodes:8"
+              ],
+              "prohibitions": [],
+              "done_contract": null,
+              "review_cadence": 60000,
+              "actor": "Owner",
+              "digest": "sha256:3e610feecaa87a00e622aefa2b36ee7e7a817f0f7f8372d89e3b2214c09ff41e"
+            },
+            "expected_version": 0,
+            "committed_version": 1
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982611,
+        "provenance": {
+          "source": "OwnerControl",
+          "actor": "Owner",
+          "trust_tier": "OwnerInput",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+      "seq": 2,
+      "id": "orchestration-command:sha256:35f45c5b94b947000d77cc70da7be147ae93645a320607a5ddaf44dd4c6fea2d",
+      "kind": "DecisionTraceRecorded",
+      "digest": "sha256:93cedacbc7d876c29c89178c0ccea5c5265e6b260e758b55aa7a7a48bc48c786",
+      "event": {
+        "event_id": "orchestration-command:sha256:35f45c5b94b947000d77cc70da7be147ae93645a320607a5ddaf44dd4c6fea2d",
+        "run_id": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+        "stream_seq": 2,
+        "turn_id": null,
+        "kind": "DecisionTraceRecorded",
+        "payload": {
+          "DecisionTraceRecorded": {
+            "trace_ref": "orchestration:sha256:ea00128d991e400df840ad4dcae4614fea1c3fa539d115142a349354107e4816",
+            "refs": {
+              "map": null,
+              "user": null,
+              "agent_self": null,
+              "trust": null,
+              "failure": []
+            },
+            "rationale": "owner-brain orchestration command with versioned executable evidence",
+            "workspace_snapshot": "orchestration-revision:0",
+            "orchestration": {
+              "schema_version": 1,
+              "workspace": "workspace:core-b",
+              "command": "project-1",
+              "expected_revision": 0,
+              "operation": {
+                "ProjectDeclared": {
+                  "schema_version": 1,
+                  "reference": "project:review",
+                  "workspace": "workspace:core-b",
+                  "goal": "goal:project",
+                  "done": "done:project",
+                  "summary": "Return the independently specified fixture result",
+                  "signature": {
+                    "schema_version": 1,
+                    "partition": "Whole",
+                    "dependency": "Independent",
+                    "verification": "SelfCheck",
+                    "clarity": "Clear",
+                    "extent": "Single",
+                    "reversibility": "LowRiskReversible",
+                    "anchors": []
+                  },
+                  "requirements": [
+                    {
+                      "OutputContains": "ground-truth"
+                    }
+                  ],
+                  "scope": "workspace:core-b",
+                  "capabilities": [],
+                  "model": "model:core-b",
+                  "budget_units": 8,
+                  "node_units": 2,
+                  "cadence_ms": 60000,
+                  "deadline": null
+                }
+              },
+              "digest": "sha256:ea00128d991e400df840ad4dcae4614fea1c3fa539d115142a349354107e4816"
+            }
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982612,
+        "provenance": {
+          "source": "OwnerControl",
+          "actor": "Owner",
+          "trust_tier": "OwnerInput",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+      "seq": 3,
+      "id": "orchestration-command:sha256:0f5526ea7e066a36db73a824f4a7f60d75b93a1381b938695ef6770b21cceae8",
+      "kind": "DecisionTraceRecorded",
+      "digest": "sha256:82b8bbff4079a676064daefbba59f87c6badcd44c56cdfbf4c8f8f79a62798d6",
+      "event": {
+        "event_id": "orchestration-command:sha256:0f5526ea7e066a36db73a824f4a7f60d75b93a1381b938695ef6770b21cceae8",
+        "run_id": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+        "stream_seq": 3,
+        "turn_id": null,
+        "kind": "DecisionTraceRecorded",
+        "payload": {
+          "DecisionTraceRecorded": {
+            "trace_ref": "orchestration:sha256:75af3b0ba98d7c853267224af5196abf3252040557ef3aa39373000854a7916c",
+            "refs": {
+              "map": null,
+              "user": null,
+              "agent_self": null,
+              "trust": null,
+              "failure": []
+            },
+            "rationale": "owner-brain orchestration command with versioned executable evidence",
+            "workspace_snapshot": "orchestration-revision:1",
+            "orchestration": {
+              "schema_version": 1,
+              "workspace": "workspace:core-b",
+              "command": "crashed-effect",
+              "expected_revision": 1,
+              "operation": {
+                "RouteDeclared": {
+                  "schema_version": 1,
+                  "route": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+                  "project": "project:review",
+                  "parent": "project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+                  "goal": "goal:project",
+                  "done": "done:project",
+                  "pattern": "pattern:generator-evaluator",
+                  "signature": {
+                    "schema_version": 1,
+                    "partition": "Sequential",
+                    "dependency": "Interdependent",
+                    "verification": "IndependentReview",
+                    "clarity": "Clear",
+                    "extent": "MultiStage",
+                    "reversibility": "LowRiskReversible",
+                    "anchors": []
+                  },
+                  "scores": [
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:generator-evaluator",
+                      "dimensions": [
+                        1000,
+                        1000,
+                        1000,
+                        1000,
+                        1000,
+                        1000
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 6100,
+                      "compatible": true
+                    },
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:long-running-harness",
+                      "dimensions": [
+                        0,
+                        1000,
+                        1000,
+                        1000,
+                        0,
+                        1000
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 4100,
+                      "compatible": true
+                    },
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:planner-builder-evaluator-integrator",
+                      "dimensions": [
+                        1000,
+                        1000,
+                        0,
+                        1000,
+                        1000,
+                        0
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 4100,
+                      "compatible": true
+                    },
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:tool-loop",
+                      "dimensions": [
+                        0,
+                        1000,
+                        0,
+                        1000,
+                        0,
+                        1000
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 3100,
+                      "compatible": true
+                    },
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:parallel-research-fanout",
+                      "dimensions": [
+                        0,
+                        0,
+                        0,
+                        0,
+                        1000,
+                        1000
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 2100,
+                      "compatible": true
+                    },
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:single-run",
+                      "dimensions": [
+                        0,
+                        0,
+                        0,
+                        1000,
+                        0,
+                        1000
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 2100,
+                      "compatible": true
+                    },
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:clarify-then-act",
+                      "dimensions": [
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1000
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 1100,
+                      "compatible": true
+                    },
+                    {
+                      "schema_version": 1,
+                      "pattern": "pattern:retrieve-then-answer",
+                      "dimensions": [
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1000
+                      ],
+                      "anchors": 0,
+                      "fitness": 100,
+                      "total": 1100,
+                      "compatible": true
+                    }
+                  ],
+                  "threshold": 5000,
+                  "confidence_millis": 953,
+                  "checkpoint_required": true,
+                  "budget_units": 8,
+                  "nodes": [
+                    {
+                      "schema_version": 1,
+                      "id": "node-0",
+                      "role": "generator",
+                      "instruction": "Role: generator. Address the owner goal within the supplied constraints. Report evidence and unresolved conflicts. Goal: Return the independently specified fixture result",
+                      "intent": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1",
+                      "scope": "workspace:core-b",
+                      "capabilities": [],
+                      "model": "model:core-b",
+                      "budget_units": 2,
+                      "max_attempts": 2,
+                      "requirements": [
+                        {
+                          "OutputContains": "ground-truth"
+                        }
+                      ]
+                    },
+                    {
+                      "schema_version": 1,
+                      "id": "node-1",
+                      "role": "evaluator",
+                      "instruction": "Role: evaluator. Address the owner goal within the supplied constraints. Report evidence and unresolved conflicts. Goal: Return the independently specified fixture result",
+                      "intent": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-1:attempt:1",
+                      "scope": "workspace:core-b",
+                      "capabilities": [],
+                      "model": "model:core-b",
+                      "budget_units": 2,
+                      "max_attempts": 2,
+                      "requirements": [
+                        {
+                          "OutputContains": "ground-truth"
+                        }
+                      ]
+                    }
+                  ],
+                  "main": {
+                    "schema_version": 1,
+                    "id": "main",
+                    "role": "owner-brain",
+                    "instruction": "Return the independently specified fixture result",
+                    "intent": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:main:attempt:1",
+                    "scope": "workspace:core-b",
+                    "capabilities": [],
+                    "model": "model:core-b",
+                    "budget_units": 2,
+                    "max_attempts": 2,
+                    "requirements": [
+                      {
+                        "OutputContains": "ground-truth"
+                      }
+                    ]
+                  },
+                  "dependencies": [
+                    {
+                      "schema_version": 1,
+                      "from": "node-0",
+                      "to": "node-1",
+                      "on_failure": "Abort"
+                    }
+                  ],
+                  "charter_digest": "sha256:3e610feecaa87a00e622aefa2b36ee7e7a817f0f7f8372d89e3b2214c09ff41e",
+                  "input_digest": "sha256:617a7c16240c268901fd1615daea018aae32aa5dd83962cbafee84df603cf36f",
+                  "review_digest": "sha256:cf76fa4eb70bd8d76fdf692902f1321670fc0821eed68055a08a73d38eaf4309",
+                  "created_at": 1792246982614
+                }
+              },
+              "digest": "sha256:75af3b0ba98d7c853267224af5196abf3252040557ef3aa39373000854a7916c"
+            }
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+      "seq": 4,
+      "id": "raw:crash-node",
+      "kind": "DecisionTraceRecorded",
+      "digest": "sha256:1bcca3c09a4bc055cd2f5cc3f99e91eb2abb00fe500232bb3744edbac70f8b4a",
+      "event": {
+        "event_id": "raw:crash-node",
+        "run_id": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+        "stream_seq": 4,
+        "turn_id": null,
+        "kind": "DecisionTraceRecorded",
+        "payload": {
+          "DecisionTraceRecorded": {
+            "trace_ref": "trace:crash-node",
+            "refs": {
+              "map": null,
+              "user": null,
+              "agent_self": null,
+              "trust": null,
+              "failure": []
+            },
+            "rationale": "self-authored store adversarial test",
+            "workspace_snapshot": "snapshot:test",
+            "orchestration": {
+              "schema_version": 1,
+              "workspace": "workspace:core-b",
+              "command": "crash-node",
+              "expected_revision": 2,
+              "operation": {
+                "NodeStarted": {
+                  "route": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+                  "node": "node-0",
+                  "intent": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1"
+                }
+              },
+              "digest": "sha256:9b850b737a45b5495b0cf216a1a1c59219ecb0f2d21a8f12cff374bad0790c90"
+            }
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982622,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+      "seq": 5,
+      "id": "orchestration-command:sha256:be0bee1d9829664ea4894cec7ec814c5cb2d5e9dd8ad8d19150ed5f522822713",
+      "kind": "DecisionTraceRecorded",
+      "digest": "sha256:8619e572f763d2ebbd2cb7947d62d8b71a6872e008f45dc1ba6ef24255029822",
+      "event": {
+        "event_id": "orchestration-command:sha256:be0bee1d9829664ea4894cec7ec814c5cb2d5e9dd8ad8d19150ed5f522822713",
+        "run_id": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+        "stream_seq": 5,
+        "turn_id": null,
+        "kind": "DecisionTraceRecorded",
+        "payload": {
+          "DecisionTraceRecorded": {
+            "trace_ref": "orchestration:sha256:331c7599a4c36a4e66dcb9c9f1eba9a16cf7831e577fc69664d9b0fac138fea7",
+            "refs": {
+              "map": null,
+              "user": null,
+              "agent_self": null,
+              "trust": null,
+              "failure": []
+            },
+            "rationale": "owner-brain orchestration command with versioned executable evidence",
+            "workspace_snapshot": "orchestration-revision:3",
+            "orchestration": {
+              "schema_version": 1,
+              "workspace": "workspace:core-b",
+              "command": "finish:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:1:4",
+              "expected_revision": 3,
+              "operation": {
+                "NodeFinished": {
+                  "route": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+                  "node": "node-0",
+                  "status": "OutcomeUnknown",
+                  "consumed": 0,
+                  "result": null,
+                  "summary": "",
+                  "verification": "Fail",
+                  "evidence": [
+                    "crash:accepted",
+                    "crash:started",
+                    "harness:1792246982635423900:1",
+                    "harness:1792246982636668600:2"
+                  ],
+                  "effects_absent": false
+                }
+              },
+              "digest": "sha256:331c7599a4c36a4e66dcb9c9f1eba9a16cf7831e577fc69664d9b0fac138fea7"
+            }
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982641,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+      "seq": 6,
+      "id": "orchestration-command:sha256:359ec6e01406fbe5d4b8a8f79e33707bb363bf3aca2c5eabd6c7c0ceafffae19",
+      "kind": "DecisionTraceRecorded",
+      "digest": "sha256:aba29f8caeec0a42bf5f9b8c35eb8ac74b0ba5db0026503bc25be837b6182488",
+      "event": {
+        "event_id": "orchestration-command:sha256:359ec6e01406fbe5d4b8a8f79e33707bb363bf3aca2c5eabd6c7c0ceafffae19",
+        "run_id": "brain:charter:1338c231c29ff3101f0dfac4802bd3b00efdcc936edcb867b3eed85934863f2f",
+        "stream_seq": 6,
+        "turn_id": null,
+        "kind": "DecisionTraceRecorded",
+        "payload": {
+          "DecisionTraceRecorded": {
+            "trace_ref": "orchestration:sha256:8a48beccf237e6cc8ed0d9d098fb518c465cb23a184b5168743b724a0046a12e",
+            "refs": {
+              "map": null,
+              "user": null,
+              "agent_self": null,
+              "trust": null,
+              "failure": []
+            },
+            "rationale": "owner-brain orchestration command with versioned executable evidence",
+            "workspace_snapshot": "orchestration-revision:4",
+            "orchestration": {
+              "schema_version": 1,
+              "workspace": "workspace:core-b",
+              "command": "close:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+              "expected_revision": 4,
+              "operation": {
+                "RouteClosed": {
+                  "route": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+                  "status": "OutcomeUnknown"
+                }
+              },
+              "digest": "sha256:8a48beccf237e6cc8ed0d9d098fb518c465cb23a184b5168743b724a0046a12e"
+            }
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982645,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 1,
+      "id": "runtime-doctor:sha256:6e6575577e4b2769f4880edabfed79c7ab22717a36207bcd62895cbc3dec942a",
+      "kind": "ConfigDoctorReport",
+      "digest": "sha256:543fa3d714cecd3b5258808a9595ab12b30bc62728b6f2a8d6a9b9f1e0b214d1",
+      "event": null
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 2,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:0",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:f41dbb154e96451667ef155dbbe943f8fd5531434857edd4c6a7996040dbf9e9",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:0",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 2,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "kind": "episodic",
+            "content_ref": "route outcome OutcomeUnknown; input sha256:617a7c16240c268901fd1615daea018aae32aa5dd83962cbafee84df603cf36f; spent 0; unresolved conflicts 0",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 3,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:1",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:f3f62f955bcea7149bd41d123e222dd1894536796422e13e34e0f51fbb04cf93",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:1",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 3,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
+            "kind": "event",
+            "content_ref": "goal:project",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 4,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:2",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:d16a9cfb5e99d11e99e7db648aa19147bbab2bb0e832f557f048ae74a140f8a0",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:2",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 4,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 5,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:3",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:bcf93c7504cc4e42a9d1e46989bacc078642c49ea438bb9822711c45221f3694",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:3",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 5,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
+            "kind": "event",
+            "content_ref": "pattern:generator-evaluator",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 6,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:4",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:1ff2f57a16e755642405e6a532ed88e7a9c22aeb3e0ce50cc7ff8e9ed3aa4be9",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:4",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 6,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 7,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:5",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:2a961c7bb7bef64cc21e4e0b456638f23b8375775f80da91d9fd25b41a6e3b52",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:5",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 7,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+            "kind": "event",
+            "content_ref": "[Fail, Unverifiable(ReasonRef(\"not executed\"))]",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 8,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:6",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:ebc98978e630a53080de1c27ed92fbaea3d9c5ef58f8f1fe7fcfaf39b1f8d9d2",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:6",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 8,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 9,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:7",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:cb87e649412d4124957d96ca18a2952d5aa1202ea1891b7015076c9bc9cbb405",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:7",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 9,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
+            "kind": "event",
+            "content_ref": "OutcomeUnknown",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 10,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:8",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:e56f155f7a3dcfdcbf904387316b8505ff0d12544289e41075704f0e5c8d8973",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:8",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 10,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
+            "kind": "causal",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 11,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:9",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:b9ffedd32067949ce9c76cd5e3c5ac5f5e2edfb93a97627c614376d91accead6",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:9",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 11,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:8f7284600ff3a21df625a4e679f4a6ff5aa76c0442d8ec49ed9ce9ad0b3182f7",
+            "kind": "event",
+            "content_ref": "node-0:OutcomeUnknown:1",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 12,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:10",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:b3f052b688076580bdd4b3ddf8c03dd97c5bb5ee2f3f4e8b61adbbf76a240683",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:10",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 12,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:8f7284600ff3a21df625a4e679f4a6ff5aa76c0442d8ec49ed9ce9ad0b3182f7",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:8f7284600ff3a21df625a4e679f4a6ff5aa76c0442d8ec49ed9ce9ad0b3182f7",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 13,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:11",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:6b618ee1bba85e8faac03817be7708f11fd0a856b2c01d6a807df4afbb028dea",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:11",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 13,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:631f6e81d4dcc82e02203a8266ca23f3c2a8530612079c692a998914d3982f49",
+            "kind": "event",
+            "content_ref": "no-result",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 14,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:12",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:36373e5c974a2683357bcb9369be7404bfca7d6844cc6b1ac584d3db3953c22b",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:12",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 14,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:631f6e81d4dcc82e02203a8266ca23f3c2a8530612079c692a998914d3982f49",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:631f6e81d4dcc82e02203a8266ca23f3c2a8530612079c692a998914d3982f49",
+            "kind": "causal",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 15,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:13",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:dc94b3f1577ed0704b35f04f7daf085f313ca8e7b286a4839af959827b57787c",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:13",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 15,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:d86b6ee4389aae933faac47b165bda760520f33e4e06216bd0026f6f701d1859",
+            "kind": "event",
+            "content_ref": "crash:accepted",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 16,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:14",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:8cf7ab839cd1fad4608f0246da0291a01faf4137383d7291fd8ce3b22125fb41",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:14",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 16,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:d86b6ee4389aae933faac47b165bda760520f33e4e06216bd0026f6f701d1859",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:d86b6ee4389aae933faac47b165bda760520f33e4e06216bd0026f6f701d1859",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 17,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:15",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:3bba04ab8271187b86a7b6802cfbd3e8d465ef93e053867f78e826f2bfa6b8ac",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:15",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 17,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:1c9434a3b9a9bd2ed8bc9bfc7130c44e59ba0e427bdb1ed61d7e58e6e318bb57",
+            "kind": "event",
+            "content_ref": "crash:started",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 18,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:16",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:24cc478b7704c12fb5bea5482181d53f5bd5f85c63cf6304a247436e5c8b7ed9",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:16",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 18,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:1c9434a3b9a9bd2ed8bc9bfc7130c44e59ba0e427bdb1ed61d7e58e6e318bb57",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:1c9434a3b9a9bd2ed8bc9bfc7130c44e59ba0e427bdb1ed61d7e58e6e318bb57",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 19,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:17",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:d180bacedb1cd62270d517c2688558e1ed40521959c53b0a9020e2a3f53b9f3e",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:17",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 19,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:ba038f47065d718ca3c4bc171743319db5599e941993377dfe8d63a622be13f8",
+            "kind": "event",
+            "content_ref": "harness:1792246982635423900:1",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 20,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:18",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:db70f7dacab39b88edb9a221f69a7b156b629b61df9e907dee606334bfaa9200",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:18",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 20,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:ba038f47065d718ca3c4bc171743319db5599e941993377dfe8d63a622be13f8",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:ba038f47065d718ca3c4bc171743319db5599e941993377dfe8d63a622be13f8",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 21,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:19",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:ae0ce200e3a51868349d0d290ed25bfba42543e9918c91f6366f9b813b41e63e",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:19",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 21,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:ea112677912f9a6710a19d2b6c91a0acfd9d6dd1aeac992ba3a30351aa3ef9b9",
+            "kind": "event",
+            "content_ref": "harness:1792246982636668600:2",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 22,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:20",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:a3d4aa0255a6f5bff95f296cda2c63b3035a331ca3663925947192f77ee22fed",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:20",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 22,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:ea112677912f9a6710a19d2b6c91a0acfd9d6dd1aeac992ba3a30351aa3ef9b9",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:ea112677912f9a6710a19d2b6c91a0acfd9d6dd1aeac992ba3a30351aa3ef9b9",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 23,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:21",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:8f0e6100507ce013560cb91faa1bc48bd75ed20250929cd6af9fc3928b56d83a",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:21",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 23,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:914fd6c244b785fea925727afe8bae543e975464412ae7b717b664d45d121e0f",
+            "kind": "event",
+            "content_ref": "node-1:Cancelled:0",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 24,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:22",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:8d30652197ea50c7768ba5c652881625f16d1fe79d50b5de44fae7bc28aecf18",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:22",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 24,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:914fd6c244b785fea925727afe8bae543e975464412ae7b717b664d45d121e0f",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:914fd6c244b785fea925727afe8bae543e975464412ae7b717b664d45d121e0f",
+            "kind": "part-of",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 25,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:23",
+      "kind": "MemoryNodeAppended",
+      "digest": "sha256:5927a46a947b5e5a4169413911938a8aa1ab089aa469319054fdafdd0907488e",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:23",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 25,
+        "turn_id": null,
+        "kind": "MemoryNodeAppended",
+        "payload": {
+          "MemoryNodeAppended": {
+            "node_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:81a65ac0cb4672bf3f3da0bb839905e925c40d2b67edd42da025cafbc69bcbb6",
+            "kind": "event",
+            "content_ref": "no-result",
+            "tier": "Working",
+            "confidence": 0.4,
+            "scope": "workspace:core-b",
+            "resting_activation": 0.1,
+            "recency": 1792246982614
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 26,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:24",
+      "kind": "MemoryEdgeAppended",
+      "digest": "sha256:368d04ceaaeb70de86abd11fc89462e2ec1735092a431b451c152c88273d1258",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:24",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 26,
+        "turn_id": null,
+        "kind": "MemoryEdgeAppended",
+        "payload": {
+          "MemoryEdgeAppended": {
+            "edge_id": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:81a65ac0cb4672bf3f3da0bb839905e925c40d2b67edd42da025cafbc69bcbb6",
+            "from": "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "to": "route-lineage:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:sha256:81a65ac0cb4672bf3f3da0bb839905e925c40d2b67edd42da025cafbc69bcbb6",
+            "kind": "causal",
+            "weight": 0.7
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 27,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:25",
+      "kind": "CandidateCreated",
+      "digest": "sha256:34da0ceda985625df5678a46dc0cb17f3653016a5d5eb1e4976040c8ef76c9ef",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:25",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 27,
+        "turn_id": null,
+        "kind": "CandidateCreated",
+        "payload": {
+          "CandidateCreated": {
+            "candidate_id": "route-strategy:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "target": "strategy:coordination:route-proposal:sha256:17ff6eecdb3c578dc4c5b703afccabe9225b3a30d262d03e0ebf08cb85d3711f",
+            "evidence_refs": [
+              "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+              "route-outcome:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:OutcomeUnknown"
+            ],
+            "confidence": 0.4,
+            "provenance": {
+              "source": "Internal",
+              "actor": "System",
+              "trust_tier": "VerifiedProcess",
+              "caused_by": null
+            },
+            "target_tier": "Stable",
+            "strategy_candidate": {
+              "schema_version": 1,
+              "candidate": "route-strategy:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+              "domain": "Coordination",
+              "scope": "workspace:core-b",
+              "target_tier": "Stable",
+              "proposed_version": "route-proposal:sha256:17ff6eecdb3c578dc4c5b703afccabe9225b3a30d262d03e0ebf08cb85d3711f",
+              "baseline": "coordination:seed-v1",
+              "spec_ref": "orchestration-evidence:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+              "spec_digest": "sha256:17ff6eecdb3c578dc4c5b703afccabe9225b3a30d262d03e0ebf08cb85d3711f",
+              "evidence": [
+                "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+                "route-outcome:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:OutcomeUnknown"
+              ],
+              "provenance": {
+                "source": "Internal",
+                "actor": "System",
+                "trust_tier": "VerifiedProcess",
+                "caused_by": null
+              },
+              "impact": "Cautious",
+              "rollback_policy": {
+                "schema_version": 1,
+                "known_good": "coordination:seed-v1",
+                "rollback_on_hard_regression": true,
+                "owner_on_unverifiable": true
+              }
+            }
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 28,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:26",
+      "kind": "FailureEvidenceRecorded",
+      "digest": "sha256:88150639a6177be5b2688759de5b0354201e654204461d70207f3ea20e28bb2d",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:26",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 28,
+        "turn_id": null,
+        "kind": "FailureEvidenceRecorded",
+        "payload": {
+          "FailureEvidenceRecorded": {
+            "failure_ref": "route-failure:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "class": "ResourceSelectionFailure",
+            "impact": "High",
+            "scope": "workspace:core-b",
+            "related_refs": [
+              "route-episode:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529"
+            ],
+            "suggested_fix": null
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+      "seq": 29,
+      "id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:27",
+      "kind": "FailureDigestUpdated",
+      "digest": "sha256:7c2dac2f61c5c0f8da20326c5276f3efda153e109f926c497f69814cbeaa4cf6",
+      "event": {
+        "event_id": "route-learning:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:27",
+        "run_id": "brain:memory_cognition:dabb9aee6398cb2b08107ade6e25fd9a1b1904b929728963889a1d8d5dafaf8c",
+        "stream_seq": 29,
+        "turn_id": null,
+        "kind": "FailureDigestUpdated",
+        "payload": {
+          "FailureDigestUpdated": {
+            "digest_ref": "route-failure-digest:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+            "members": [
+              "route-failure:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529"
+            ],
+            "summary": "OutcomeUnknown"
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982614,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "child:project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1",
+      "seq": 1,
+      "id": "crash:accepted",
+      "kind": "RunAccepted",
+      "digest": "sha256:43f21bf9d163fd3757adcc53a03a4518d831592603bf1facecd7b1a84641e0cd",
+      "event": null
+    },
+    {
+      "schema_version": 1,
+      "run": "child:project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1",
+      "seq": 2,
+      "id": "crash:started",
+      "kind": "ActionStarted",
+      "digest": "sha256:faf25c456c3933660b81f4ed48dd27004f27a6ff1be02f6c173004ce334c949a",
+      "event": {
+        "event_id": "crash:started",
+        "run_id": "child:project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1",
+        "stream_seq": 2,
+        "turn_id": null,
+        "kind": "ActionStarted",
+        "payload": {
+          "ActionStarted": {
+            "intent_id": "crashed-child-file",
+            "backend": "File",
+            "scope": "workspace:core-b"
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982625,
+        "provenance": {
+          "source": "Subagent",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "child:project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1",
+      "seq": 3,
+      "id": "harness:1792246982635423900:1",
+      "kind": "ActionOutcomeUnknown",
+      "digest": "sha256:fee17be09a7be4984306c0042962f4b4c7271deb883b3443bdfaf2415eeea6c6",
+      "event": {
+        "event_id": "harness:1792246982635423900:1",
+        "run_id": "child:project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1",
+        "stream_seq": 3,
+        "turn_id": null,
+        "kind": "ActionOutcomeUnknown",
+        "payload": {
+          "ActionOutcomeUnknown": {
+            "intent_id": "crashed-child-file",
+            "probe_hint": "manual adjudication required; action was not retried"
+          }
+        },
+        "schema_version": 1,
+        "ts_unix_ms": 1792246982635,
+        "provenance": {
+          "source": "Internal",
+          "actor": "System",
+          "trust_tier": "VerifiedProcess",
+          "caused_by": null
+        }
+      }
+    },
+    {
+      "schema_version": 1,
+      "run": "child:project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:node-0:attempt:1",
+      "seq": 4,
+      "id": "harness:1792246982636668600:2",
+      "kind": "RunWaiting",
+      "digest": "sha256:26ba7b59ea084524235d4a529a07f7a4086f99e00babaa548f08694abf27ecf3",
+      "event": null
+    },
+    {
+      "schema_version": 1,
+      "run": "project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+      "seq": 1,
+      "id": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:goal",
+      "kind": "GoalFramed",
+      "digest": "sha256:04034a9a49fc7e4cc84c198d4f4e5d7e13dc398c88dd0160a7c71105e095ee0b",
+      "event": null
+    },
+    {
+      "schema_version": 1,
+      "run": "project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+      "seq": 2,
+      "id": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:done",
+      "kind": "DoneContractSet",
+      "digest": "sha256:c7c59ba6bd2cf09bbe836edd90ff1fac0c78aebb1c3e7f4f8215e66de0086e93",
+      "event": null
+    },
+    {
+      "schema_version": 1,
+      "run": "project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+      "seq": 3,
+      "id": "project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529:route",
+      "kind": "OrchestrationRouteCreated",
+      "digest": "sha256:c81a9602f59a1a6a031a657938c317b4240eb6242d30eda9aafe21472df7962a",
+      "event": null
+    },
+    {
+      "schema_version": 1,
+      "run": "project-segment:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+      "seq": 4,
+      "id": "route-parent-wait:project-route:sha256:5ccd0496e395d8c5e1f544726a3697faba32e7cc41ead97fba502bfd15959529",
+      "kind": "RunWaiting",
+      "digest": "sha256:11e324e70d067238f239219390ce240ef8273bd9859721518de38023c1527a59",
+      "event": null
+    }
+  ],
+  "online_ledger_digest": "sha256:096e0c0589a844e1d91b06efb62955937356ce69850ddf3772e808697945c9ac",
+  "files": [],
+  "digest": "sha256:7ec86a2d1cbaa3858885c23ae4859e6fb59bdfac5f33445513f35079737d5175"
+}
