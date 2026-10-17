@@ -8,6 +8,8 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$priorCArtifactRoot = $env:FORME_CORE_C_ARTIFACT_DIR
+$temporaryCArtifactRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("forme-core-c-gate-" + [Guid]::NewGuid().ToString("N"))
 Push-Location $repoRoot
 try {
     function Invoke-Checked {
@@ -187,6 +189,63 @@ try {
         }
     )
 
+    $cGroups = @(
+        @{ Id = "C13-charter"; Package = "forme-harness"; Target = "v1_core_brain_c_charter"; Tests = @(
+            "c13_charter_is_owner_bound_atomic_versioned_replayable_and_in_formal_context",
+            "c13_concurrent_charter_cas_has_one_winner_and_identical_commands_are_durable"
+        ) },
+        @{ Id = "C13-C18-formal-runtime"; Package = "forme-harness"; Target = "v1_core_brain_c_orchestration"; Tests = @(
+            "c13_changed_charter_overrides_a_waiting_child_approval_before_the_driver",
+            "c13_charter_references_and_live_resource_tightening_fail_without_admission",
+            "c13_direct_project_cannot_borrow_the_owner_brains_unassigned_file_capability",
+            "c14_all_eight_patterns_reach_the_formal_runtime_with_correct_child_counts",
+            "c15_clarification_blocks_admission_and_planning_retries_keep_the_original_segment",
+            "c15_unmatched_signature_executes_a_low_confidence_custom_review_route_without_activation",
+            "c16_checkpoint_is_required_and_cancellation_cannot_resurrect_failed_nodes",
+            "c16_concurrent_execute_has_one_driver_and_live_parent_cancel_reaches_children",
+            "c16_crashed_child_action_is_unknown_even_when_startup_restores_a_waiting_handle",
+            "c16_dependency_failure_modes_and_retry_limits_fold_without_partial_state",
+            "c16_failure_retry_requires_new_intent_and_only_reclaims_unused_units",
+            "c16_formal_dag_runs_in_distinct_real_directories_with_dependency_context",
+            "c16_formal_direct_route_is_idempotent_verified_and_rebuilds_after_restart",
+            "c16_parent_cancel_cascades_pending_work_and_preserves_real_conflicts",
+            "c16_parent_file_targets_and_cross_directory_aliases_cannot_escape_child_roots",
+            "c16_real_child_file_tools_wait_resume_and_keep_sibling_directories_isolated",
+            "c16_store_cas_reserves_parent_budget_once_and_rejects_forged_success",
+            "c16_unknown_claim_survives_restart_holds_budget_and_never_calls_a_driver_again",
+            "c16_waiting_child_approval_survives_restart_without_repeating_model_or_effect",
+            "c17_late_evidence_stays_out_of_the_current_review_baseline_and_is_seen_next_time",
+            "c17_no_change_cadence_deadline_and_failed_outcome_use_the_checkpoint_snapshot",
+            "c17_tick_plans_next_segment_after_checkpoint_and_never_executes_or_hot_swaps",
+            "c18_success_and_failure_form_episodes_lineage_and_only_strategy_candidates"
+        ) },
+        @{ Id = "C14-C15-library"; Package = "forme-coordination"; Target = "coordination_contract"; Tests = @(
+            "c14_eight_seed_patterns_have_operating_guides_and_executable_topologies",
+            "c15_signature_scores_are_explainable_hard_filtered_and_custom_is_conservative"
+        ) },
+        @{ Id = "C16-protocol"; Package = "forme-protocol"; Target = "v1_orchestration_contract"; Tests = @(
+            "c16_optional_orchestration_keeps_legacy_decision_bytes_and_taxonomy",
+            "c16_orchestration_digest_schema_and_bounds_fail_closed"
+        ) },
+        @{ Id = "C13-C16-gateway"; Package = "forme-gateway"; Target = "gatewayd_e2e"; Tests = @(
+            "c13_c16_projects_http_control_is_owner_authenticated_bounded_and_restart_durable"
+        ) },
+        @{ Id = "C13-C18-portable-evidence"; Package = "forme-eval"; Target = "v1_core_brain_c_artifacts"; Tests = @(
+            "c13_c18_six_portable_cases_replay_the_online_ledger_and_keep_actual_profiles",
+            "c16_portable_witness_gaps_missing_payloads_digest_and_false_budget_are_rejected",
+            "c16_portable_resealed_secret_private_path_model_and_schema_tampering_fail_closed",
+            "c16_portable_cli_verifies_a_real_file_and_rejects_unknown_fields"
+        ) }
+    )
+    $waveScenarios["C"] = @(
+        foreach ($group in $cGroups) {
+            foreach ($test in $group.Tests) {
+                @{ Id = $group.Id; Package = $group.Package; Target = @("--test", $group.Target); Test = $test }
+            }
+        }
+        @{ Id = "C16-final-output"; Package = "forme-harness"; Target = @("--lib"); Test = "brain_orchestration::tests::c16_final_verification_ignores_old_answers_and_unfinished_calls" }
+    )
+
     $requestedWaves = if ($Wave -ceq "Final") { @("A", "B", "C", "D") } else { @($Wave) }
     foreach ($requested in $requestedWaves) {
         if (-not $waveScenarios.ContainsKey($requested)) {
@@ -206,8 +265,20 @@ try {
         "build", "-p", "forme-gateway", "--bin", "forme-gatewayd"
     )
     foreach ($requested in $requestedWaves) {
+        if ($requested -ceq "C") {
+            $env:FORME_CORE_C_ARTIFACT_DIR = $temporaryCArtifactRoot
+        }
         foreach ($scenario in $waveScenarios[$requested]) {
             Invoke-Scenario $scenario
+        }
+        if ($requested -ceq "C") {
+            foreach ($name in @("patterns", "conflict", "recovery", "isolation", "supervision", "learning")) {
+                foreach ($root in @($temporaryCArtifactRoot, (Join-Path $repoRoot "docs/acceptance/core-brain-c-artifacts"))) {
+                    Invoke-Checked -Label "C13-C18 $name artifact independent verification" -Program "cargo" -Arguments @(
+                        "run", "-p", "forme-eval", "--bin", "forme-core-brain-c-artifact-verify", "--", (Join-Path $root "$name.json")
+                    )
+                }
+            }
         }
         if ($requested -ceq "B") {
             Invoke-Checked -Label "C11 repository relevance artifact independent verification" -Program "cargo" -Arguments @(
@@ -220,5 +291,15 @@ try {
     Write-Host "core-brain-closure ($Wave): PASS"
 }
 finally {
+    if ($null -eq $priorCArtifactRoot) {
+        Remove-Item Env:FORME_CORE_C_ARTIFACT_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:FORME_CORE_C_ARTIFACT_DIR = $priorCArtifactRoot
+    }
+    $tempParent = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
+    $resolvedC = [System.IO.Path]::GetFullPath($temporaryCArtifactRoot)
+    if ($resolvedC.StartsWith($tempParent, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $resolvedC)) {
+        Remove-Item -LiteralPath $resolvedC -Recurse -Force
+    }
     Pop-Location
 }
