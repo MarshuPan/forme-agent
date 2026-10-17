@@ -940,6 +940,7 @@ fn s46_no_raw_device_text_reaches_events_transcript_or_fts() {
                 ),
                 authority.stamp(
                     p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                        learning_reply: None,
                         source: p::Source::Communication,
                         scope: p::Scope("device:project".into()),
                         grant_ref: Some(p::GrantRef("device-grant:project".into())),
@@ -2566,6 +2567,7 @@ fn s24_event_page_reconnect_is_contiguous_deterministic_and_read_only() {
                 &format!("s24-observation-{index}"),
                 &run,
                 p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                    learning_reply: None,
                     source: p::Source::Internal,
                     scope: p::Scope("workspace:test".into()),
                     grant_ref: None,

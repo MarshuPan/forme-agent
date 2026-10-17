@@ -410,6 +410,7 @@ fn agent_workspace_is_a_bounded_rebuildable_event_projection() {
         &run,
         "goal",
         p::EventPayload::GoalFramed(p::GoalFramedPayload {
+            knowledge: None,
             goal_frame: p::GoalFrameRef("goal:workspace".into()),
             long_term: None,
         }),

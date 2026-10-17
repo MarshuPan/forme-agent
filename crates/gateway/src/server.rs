@@ -252,6 +252,9 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/runtime/manifest", get(runtime_manifest))
         .route("/v1/runtime/doctor", get(runtime_doctor))
         .route("/v1/runtime/tick", post(runtime_tick))
+        .route("/v1/brain/learning/goals", post(register_learning_goal))
+        .route("/v1/brain/learning/answer", post(answer_learning))
+        .route("/v1/brain/learning/resolve", post(resolve_learning))
         .route("/v1/profile", get(control_profile))
         .route("/v1/runs", get(list_runs).post(submit_run))
         .route("/v1/runs/{run}", get(run_summary))
@@ -628,6 +631,90 @@ async fn runtime_tick(
     let runtime = state.runtime.clone();
     let outcome = blocking(move || runtime.signal_cognitive_tick()).await?;
     Ok(Json(runtime_tick_view(outcome)))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LearningGoalRequest {
+    schema_version: p::SchemaVersion,
+    command: p::IdempotencyKey,
+    goal: p::GoalFrameRef,
+    knowledge: p::GoalKnowledge,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LearningAnswerRequest {
+    schema_version: p::SchemaVersion,
+    command: p::IdempotencyKey,
+    reply: p::LearningReplyRecord,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LearningResolveRequest {
+    schema_version: p::SchemaVersion,
+    command: p::IdempotencyKey,
+    proposal: p::ProposalRef,
+    outcome: p::ProposalOutcome,
+    defer_until: Option<p::Timestamp>,
+}
+
+fn learning_schema(version: p::SchemaVersion) -> Result<(), ApiError> {
+    if version != p::SchemaVersion(1) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "unsupported learning control schema",
+        ));
+    }
+    Ok(())
+}
+
+async fn register_learning_goal(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(request): Json<LearningGoalRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let auth = state.authorize(&headers, true)?;
+    learning_schema(request.schema_version)?;
+    let gateway = state.gateway.clone();
+    let event = blocking(move || {
+        gateway.register_learning_goal(request.command, request.goal, request.knowledge, auth)
+    })
+    .await?;
+    Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
+}
+async fn answer_learning(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(request): Json<LearningAnswerRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let auth = state.authorize(&headers, true)?;
+    learning_schema(request.schema_version)?;
+    let gateway = state.gateway.clone();
+    let candidate =
+        blocking(move || gateway.answer_learning(request.command, request.reply, auth)).await?;
+    Ok(Json(
+        serde_json::json!({"schema_version":1,"candidate":candidate}),
+    ))
+}
+async fn resolve_learning(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(request): Json<LearningResolveRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let auth = state.authorize(&headers, true)?;
+    learning_schema(request.schema_version)?;
+    let gateway = state.gateway.clone();
+    let event = blocking(move || {
+        gateway.resolve_learning(
+            request.command,
+            request.proposal,
+            request.outcome,
+            request.defer_until,
+            auth,
+        )
+    })
+    .await?;
+    Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
 }
 
 async fn control_profile(

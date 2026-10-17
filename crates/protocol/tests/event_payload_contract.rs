@@ -413,6 +413,7 @@ fn all_payload_fixtures() -> Vec<EventPayload> {
             trigger: text!(ReevaluationTriggerRef, "retraction"),
         }),
         EventPayload::ObservationRecorded(ObservationRecordedPayload {
+            learning_reply: None,
             source: Source::ProactiveJob,
             scope: text!(Scope, "workspace"),
             grant_ref: Some(text!(GrantRef, "grant-1")),
@@ -441,6 +442,7 @@ fn all_payload_fixtures() -> Vec<EventPayload> {
             candidate_refs: vec![text!(CandidateId, "candidate-1")],
         }),
         EventPayload::ProactiveProposalEmitted(ProactiveProposalEmittedPayload {
+            learning: None,
             proposal_ref: text!(ProposalRef, "proposal-1"),
             proposal_kind: text!(ProposalKind, "suggestion"),
             level: InterventionLevel::L1Suggest,
@@ -469,6 +471,7 @@ fn all_payload_fixtures() -> Vec<EventPayload> {
             outcome: IntentionOutcome::Done,
         }),
         EventPayload::GoalFramed(GoalFramedPayload {
+            knowledge: None,
             goal_frame: text!(GoalFrameRef, "goal-frame-1"),
             long_term: None,
         }),

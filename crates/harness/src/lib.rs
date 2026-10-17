@@ -1443,6 +1443,7 @@ impl ReactiveHarness {
                 index,
                 impulse,
                 &snapshot,
+                None,
             )?;
             proposal_events.extend(outcome.proposal_event);
             candidate_events.extend(outcome.candidate_event);
@@ -1474,6 +1475,7 @@ impl ReactiveHarness {
         index: usize,
         impulse: cognition::Impulse,
         snapshot: &cognition::CognitionSnapshot,
+        learning: Option<p::AskToLearnRecord>,
     ) -> p::Result<ImpulseOutcome> {
         let run = run.clone();
         let provenance = provenance.clone();
@@ -1494,6 +1496,7 @@ impl ReactiveHarness {
                 None,
                 provenance.clone(),
                 p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                    learning_reply: None,
                     source: impulse.observation_source,
                     scope: impulse.scope.clone(),
                     grant_ref: impulse.grant_ref.clone(),
@@ -1568,6 +1571,9 @@ impl ReactiveHarness {
             competence,
         };
         if let Some(mut proposal) = self.proactivity.emit(impulse, guard) {
+            if learning.is_some() && proposal.level() != cognition::InterventionLevel::L1Suggest {
+                return Ok(outcome);
+            }
             if let Some(reference) = labels.proposal(&origin) {
                 proposal = proposal.with_reference(reference);
             }
@@ -1641,6 +1647,7 @@ impl ReactiveHarness {
                 None,
                 provenance.clone(),
                 p::EventPayload::ProactiveProposalEmitted(p::ProactiveProposalEmittedPayload {
+                    learning,
                     proposal_ref: proposal.reference(),
                     proposal_kind: proposal.kind_ref(),
                     level: protocol_intervention(proposal.level()),
@@ -1971,6 +1978,7 @@ impl ReactiveHarness {
             None,
             provenance.clone(),
             p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                learning_reply: None,
                 source: p::Source::Schedule,
                 scope: claim.command.envelope.scope.clone(),
                 grant_ref: None,
@@ -2068,6 +2076,7 @@ impl ReactiveHarness {
             None,
             provenance.clone(),
             p::EventPayload::ProactiveProposalEmitted(p::ProactiveProposalEmittedPayload {
+                learning: None,
                 proposal_ref: proposal.clone(),
                 proposal_kind: p::ProposalKind("communication".into()),
                 level: protocol_intervention(cognition::InterventionLevel::L1Suggest.min(ceiling)),
@@ -2221,6 +2230,7 @@ impl ReactiveHarness {
                             caused_by: Some(event.event_id.clone()),
                         },
                         p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                            learning_reply: None,
                             source: p::Source::Internal,
                             scope: p::Scope(self.config.workspace.0.clone()),
                             grant_ref: None,
@@ -2600,6 +2610,7 @@ impl ReactiveHarness {
                     None,
                     internal_provenance(p::Source::Internal),
                     p::EventPayload::GoalFramed(p::GoalFramedPayload {
+                        knowledge: None,
                         goal_frame: pending.goal.goal_frame.clone(),
                         long_term: Some(pending.goal.clone()),
                     }),
@@ -6250,6 +6261,7 @@ fn coordination_events(
 ) -> Vec<p::EventPayload> {
     vec![
         p::EventPayload::GoalFramed(p::GoalFramedPayload {
+            knowledge: None,
             goal_frame: frame.reference.clone(),
             long_term: None,
         }),

@@ -350,6 +350,8 @@ define_events! {
         source: Source,
         scope: Scope,
         grant_ref: Option<GrantRef>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        learning_reply: Option<LearningReplyRecord>,
     },
     OpportunityDetected => OpportunityDetectedPayload {
         seed: Vec<NodeId>,
@@ -383,6 +385,8 @@ define_events! {
         delivery: DeliveryMode,
         #[serde(default)]
         attention_cost: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        learning: Option<AskToLearnRecord>,
     },
     ProactiveProposalResolved => ProactiveProposalResolvedPayload {
         proposal_ref: ProposalRef,
@@ -408,6 +412,8 @@ define_events! {
         goal_frame: GoalFrameRef,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         long_term: Option<LongTermGoal>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        knowledge: Option<GoalKnowledge>,
     },
     ResourcePlanned => ResourcePlannedPayload { plan: ResourcePlanRef },
     DoneContractSet => DoneContractSetPayload { contract: DoneContractRef },
@@ -773,6 +779,51 @@ impl Event {
     pub fn validate_payload_kind(&self) -> Result<()> {
         let payload_kind = self.payload.kind();
         if self.kind == payload_kind {
+            match &self.payload {
+                EventPayload::GoalFramed(payload) => {
+                    if let Some(knowledge) = &payload.knowledge {
+                        knowledge.validate()?;
+                        if payload.goal_frame.0.trim().is_empty()
+                            || self.provenance.trust_tier == TrustTier::Untrusted
+                        {
+                            return Err(Error(
+                                "untrusted input cannot declare goal dependencies".into(),
+                            ));
+                        }
+                    }
+                }
+                EventPayload::ProactiveProposalEmitted(payload) => {
+                    if let Some(learning) = &payload.learning {
+                        learning.validate()?;
+                        if payload.proposal_kind.0 != "ask-to-learn"
+                            || payload.level != InterventionLevel::L1Suggest
+                            || payload.delivery != DeliveryMode::Hitchhike
+                            || !payload.guard.value_gate_passed
+                            || !payload.guard.competence_gate_passed
+                            || !payload.guard.policy_and_envelope_passed
+                            || self.provenance.trust_tier == TrustTier::Untrusted
+                        {
+                            return Err(Error(
+                                "learning proposal violates its emission boundary".into(),
+                            ));
+                        }
+                    }
+                }
+                EventPayload::ObservationRecorded(payload) => {
+                    if let Some(reply) = &payload.learning_reply {
+                        reply.validate()?;
+                        if self.provenance.actor != Actor::Owner
+                            || self.provenance.trust_tier != TrustTier::OwnerInput
+                            || payload.source != Source::UserTurn
+                        {
+                            return Err(Error(
+                                "learning reply requires authenticated owner provenance".into(),
+                            ));
+                        }
+                    }
+                }
+                _ => {}
+            }
             Ok(())
         } else {
             Err(Error(format!(

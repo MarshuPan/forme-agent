@@ -138,7 +138,34 @@ impl HarnessCognitiveTick<'_> {
         // skips a failure the tick handled first.
         let mut sources = BTreeMap::new();
         let mut observations = Vec::new();
+        let mut learning = BTreeMap::new();
         if !input.foreground_active {
+            let current_learning = self
+                .harness
+                .brain_services()
+                .map(|services| {
+                    let mut events = Vec::new();
+                    for run in services.store.run_ids()? {
+                        events.extend(
+                            services
+                                .store
+                                .read_run(run)
+                                .collect::<p::Result<Vec<_>>>()?,
+                        );
+                    }
+                    Ok::<_, p::Error>(cognition::LearningSnapshot::rebuild(&events))
+                })
+                .transpose()?;
+            for gap in input.learning.gaps(&input.stable_objects)? {
+                if current_learning
+                    .as_ref()
+                    .is_some_and(|current| current.origin_seen(&gap.record.origin))
+                {
+                    continue;
+                }
+                observations.push(gap.observation());
+                learning.insert(gap.record.seed(), gap.record);
+            }
             for failure in &input.signals.failures {
                 if self.followed_up(&failure.source)? {
                     continue;
@@ -160,6 +187,10 @@ impl HarnessCognitiveTick<'_> {
             .tick(cognition::TickTrigger::Schedule, &snapshot);
         let mut ran = false;
         for (index, impulse) in impulses.into_iter().enumerate() {
+            let learning_record = impulse
+                .seed
+                .iter()
+                .find_map(|seed| learning.get(seed).cloned());
             let provenance = p::Provenance {
                 caused_by: impulse
                     .seed
@@ -185,6 +216,7 @@ impl HarnessCognitiveTick<'_> {
                 index,
                 impulse,
                 &snapshot,
+                learning_record,
             )?;
             ran |= outcome.proposal_event.is_some() || outcome.candidate_event.is_some();
         }

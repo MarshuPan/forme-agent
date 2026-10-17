@@ -4,6 +4,7 @@
 //! architecture contract before changing an event name or adding an event.
 #![forbid(unsafe_code)]
 
+mod brain_learning;
 mod control;
 mod event;
 mod lifecycle;
@@ -17,6 +18,7 @@ mod normalization;
 mod primitives;
 mod provider;
 mod v1_closure;
+pub use brain_learning::*;
 
 pub use control::*;
 pub use event::*;

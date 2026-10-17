@@ -1862,6 +1862,7 @@ pub struct ProductionRuntime {
     manifest: CompositionManifest,
     config: ProductionRuntimeConfig,
     tick_attempts: AtomicU64,
+    learning_commands: Mutex<()>,
 }
 
 /// Keeps the sole-writer lease alive while the runtime exists, including idle
@@ -2058,6 +2059,21 @@ impl ProductionRuntime {
         let mut range = TickEventRange::default();
         let mut heads = store.run_heads()?.0;
         let cognition_stream = self.services.aggregates.memory_cognition.clone();
+        // Auxiliary streams are snapshot anchors only; they never become
+        // observation input. They preserve learning feedback across retries.
+        let auxiliary = heads
+            .keys()
+            .filter(|run| !is_tick_input(run, &aggregates))
+            .cloned()
+            .collect::<Vec<_>>();
+        for run in auxiliary {
+            let head = heads.remove(&run).expect("the enumerated head exists");
+            let from = consumed.position(&run);
+            if from > 0 {
+                range.from.0.insert(run.clone(), from);
+            }
+            range.to.0.insert(run, head);
+        }
         // This aggregate is a snapshot anchor, never a source of the tick's
         // failure observations. Reserve its slot before bounding other runs.
         if let Some(head) = heads.remove(&cognition_stream) {
@@ -2067,14 +2083,16 @@ impl ProductionRuntime {
             }
             range.to.0.insert(cognition_stream, head);
         }
+        let mut input_runs = 0;
         for (run, head) in heads {
             let from = consumed.position(&run);
             if head <= from || !is_tick_input(&run, &aggregates) {
                 continue;
             }
-            if range.to.0.len() == MAX_TICK_RANGE_RUNS {
+            if input_runs == MAX_TICK_RANGE_RUNS {
                 break;
             }
+            input_runs += 1;
             if from > 0 {
                 range.from.0.insert(run.clone(), from);
             }
@@ -2092,8 +2110,9 @@ impl ProductionRuntime {
         let store = self.services.store.as_ref();
         let mut signals = TickSignalCollector::default();
         let cognition_stream = &self.services.aggregates.memory_cognition;
+        let aggregate_ids = self.services.aggregates.as_map().into_values().collect();
         for (stream, to) in &claim.range.to.0 {
-            if stream == cognition_stream {
+            if !is_tick_input(stream, &aggregate_ids) {
                 continue;
             }
             for event in store
@@ -2113,6 +2132,9 @@ impl ProductionRuntime {
             .cognition
             .stable_snapshot_at(claim.range.to.position(cognition_stream))?;
         Ok(CognitiveTickInput {
+            learning: forme_cognition::LearningSnapshot::rebuild(
+                &self.owner_brain_events_at(Some(&claim.range.to))?,
+            ),
             schema_version: p::SchemaVersion(1),
             claim,
             run,
@@ -2127,6 +2149,230 @@ impl ProductionRuntime {
             foreground_active: self.harness.foreground_active()?,
             now,
         })
+    }
+
+    pub(crate) fn owner_brain_events_at(
+        &self,
+        cursor: Option<&forme_store::TickEventCursor>,
+    ) -> p::Result<Vec<p::Event>> {
+        let heads = match cursor {
+            Some(cursor) => cursor.0.clone(),
+            None => self.services.store.run_heads()?.0,
+        };
+        let mut events = Vec::new();
+        for (run, head) in heads {
+            for event in self.services.store.read_run(run) {
+                let event = event?;
+                if event.stream_seq > head {
+                    break;
+                }
+                events.push(event);
+            }
+        }
+        Ok(events)
+    }
+
+    /// The owner declares only dependencies that affect an actual goal.
+    /// Gateway authenticates the principal; the runtime rechecks its binding.
+    pub fn register_learning_goal(
+        &self,
+        owner: &p::VerifiedPrincipal,
+        command: p::IdempotencyKey,
+        goal: p::GoalFrameRef,
+        knowledge: p::GoalKnowledge,
+    ) -> p::Result<p::EventId> {
+        self.require_brain_owner(owner)?;
+        knowledge.validate()?;
+        if !scope_contains(&p::Scope(self.config.workspace.0.clone()), &knowledge.scope) {
+            return Err(p::Error(
+                "learning goal is outside the configured workspace".into(),
+            ));
+        }
+        let _guard = self
+            .learning_commands
+            .lock()
+            .map_err(|_| p::Error("learning control is unavailable".into()))?;
+        Ok(self
+            .append_learning_fact(
+                &command,
+                p::EventPayload::GoalFramed(p::GoalFramedPayload {
+                    goal_frame: goal,
+                    long_term: None,
+                    knowledge: Some(knowledge),
+                }),
+                None,
+            )?
+            .event_id)
+    }
+
+    pub fn answer_learning(
+        &self,
+        owner: &p::VerifiedPrincipal,
+        command: p::IdempotencyKey,
+        reply: p::LearningReplyRecord,
+    ) -> p::Result<p::CandidateId> {
+        self.require_brain_owner(owner)?;
+        reply.validate()?;
+        let _guard = self
+            .learning_commands
+            .lock()
+            .map_err(|_| p::Error("learning control is unavailable".into()))?;
+        let learning =
+            forme_cognition::LearningSnapshot::rebuild(&self.owner_brain_events_at(None)?);
+        let (ask, source) = learning
+            .proposals
+            .get(&reply.proposal)
+            .ok_or_else(|| p::Error("learning reply does not name an emitted question".into()))?;
+        if learning.resolved.get(&reply.proposal) == Some(&p::ProposalOutcome::Reject)
+            || learning
+                .replies
+                .get(&reply.proposal)
+                .is_some_and(|old| old != &reply)
+        {
+            return Err(p::Error(
+                "learning reply conflicts with recorded owner feedback".into(),
+            ));
+        }
+        let event = self.append_learning_fact(
+            &command,
+            p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                source: p::Source::UserTurn,
+                scope: ask.scope.clone(),
+                grant_ref: None,
+                learning_reply: Some(reply.clone()),
+            }),
+            Some(source.clone()),
+        )?;
+        self.services.cognition.propose_learning_reply(
+            ask,
+            &reply,
+            p::EvidenceRef(format!("event:{}", event.event_id.0)),
+            event.ts_unix_ms,
+        )
+    }
+
+    pub fn resolve_learning(
+        &self,
+        owner: &p::VerifiedPrincipal,
+        command: p::IdempotencyKey,
+        proposal: p::ProposalRef,
+        outcome: p::ProposalOutcome,
+        defer_until: Option<p::Timestamp>,
+    ) -> p::Result<p::EventId> {
+        self.require_brain_owner(owner)?;
+        let _guard = self
+            .learning_commands
+            .lock()
+            .map_err(|_| p::Error("learning control is unavailable".into()))?;
+        let learning =
+            forme_cognition::LearningSnapshot::rebuild(&self.owner_brain_events_at(None)?);
+        let (ask, source) = learning.proposals.get(&proposal).ok_or_else(|| {
+            p::Error("learning feedback does not name an emitted question".into())
+        })?;
+        if learning.replies.contains_key(&proposal)
+            || learning
+                .resolved
+                .get(&proposal)
+                .is_some_and(|old| old != &outcome)
+            || outcome == p::ProposalOutcome::Adopt
+        {
+            return Err(p::Error(
+                "learning feedback conflicts or requires an answer".into(),
+            ));
+        }
+        let feedback = match outcome {
+            p::ProposalOutcome::Defer => {
+                let at = defer_until
+                    .filter(|at| *at > 0)
+                    .ok_or_else(|| p::Error("deferred learning requires a trigger".into()))?;
+                self.services.intentions.proactive.create(
+                    forme_cognition::ProspectiveIntention {
+                        schema_version: p::SchemaVersion(1),
+                        id: p::IntentionId(format!("learning-deferred:{}", proposal.0)),
+                        source: p::IntentionSource::DeferredProposal,
+                        trigger: forme_cognition::IntentionTrigger::At(at),
+                        state: forme_cognition::IntentionState::Pending,
+                        seed: p::SeedRef(ask.seed().0),
+                        provenance: trusted_provenance(),
+                        expires_at: None,
+                    },
+                )?;
+                Some(p::FeedbackRef(format!("learning-defer-until:{at}")))
+            }
+            _ => {
+                if defer_until.is_some() {
+                    return Err(p::Error("only deferred learning has a trigger".into()));
+                }
+                None
+            }
+        };
+        Ok(self
+            .append_learning_fact(
+                &command,
+                p::EventPayload::ProactiveProposalResolved(p::ProactiveProposalResolvedPayload {
+                    proposal_ref: proposal,
+                    outcome,
+                    feedback,
+                }),
+                Some(source.clone()),
+            )?
+            .event_id)
+    }
+
+    fn require_brain_owner(&self, owner: &p::VerifiedPrincipal) -> p::Result<()> {
+        if owner.0 != self.config.owner.0 {
+            return Err(p::Error(
+                "brain control requires its configured owner".into(),
+            ));
+        }
+        self.services.authority_guard.ensure(now_ms()).map(|_| ())
+    }
+
+    fn append_learning_fact(
+        &self,
+        command: &p::IdempotencyKey,
+        payload: p::EventPayload,
+        caused_by: Option<p::EventId>,
+    ) -> p::Result<p::Event> {
+        if command.0.trim().is_empty() {
+            return Err(p::Error(
+                "learning control requires command identity".into(),
+            ));
+        }
+        let id = p::EventId(format!(
+            "learning-command:{}",
+            p::canonical_digest(command)?.0
+        ));
+        let run = self.services.aggregates.memory_cognition.clone();
+        for event in self.services.store.read_run(run.clone()) {
+            let event = event?;
+            if event.event_id == id {
+                return if event.payload == payload && event.provenance.caused_by == caused_by {
+                    Ok(event)
+                } else {
+                    Err(p::Error(
+                        "learning command identity was reused with different facts".into(),
+                    ))
+                };
+            }
+        }
+        let mut event = p::Event::new(
+            id,
+            run,
+            None,
+            payload,
+            p::SchemaVersion(1),
+            now_ms(),
+            p::Provenance {
+                source: p::Source::UserTurn,
+                actor: p::Actor::Owner,
+                trust_tier: p::TrustTier::OwnerInput,
+                caused_by,
+            },
+        );
+        self.services.store.append(event.clone())?;
+        event.stream_seq = self.services.store.run_head(&event.run_id)?;
+        Ok(event)
     }
 
     /// The single scheduler step every entry surface drives: due scheduled
@@ -2230,7 +2476,7 @@ impl ContextSliceSource for ProductionContextSliceSource {
         };
         let run_count = self.store.run_ids()?.len();
         let provenance = trusted_provenance();
-        Ok(vec![
+        let mut slices = vec![
             ContextSlice {
                 schema_version: p::SchemaVersion(1),
                 id: p::ContextSliceRef("brain:identity".into()),
@@ -2257,7 +2503,38 @@ impl ContextSliceSource for ProductionContextSliceSource {
                 ),
                 provenance,
             },
-        ])
+        ];
+        let mut events = Vec::new();
+        for run in self.store.run_ids()? {
+            events.extend(self.store.read_run(run).collect::<p::Result<Vec<_>>>()?);
+        }
+        let learning = forme_cognition::LearningSnapshot::rebuild(&events);
+        let pending = learning
+            .pending()
+            .filter(|(_, record)| scope_contains(&request.scope, &record.scope))
+            .take(3)
+            .map(|(id, record)| {
+                format!(
+                    "question={} goal={} target={} reason={}",
+                    id.0,
+                    record.goal.0,
+                    record.target.key(),
+                    record.reason.0
+                )
+            })
+            .collect::<Vec<_>>();
+        if !pending.is_empty() {
+            slices.push(ContextSlice {
+                schema_version: p::SchemaVersion(1),
+                id: p::ContextSliceRef("brain:pending-learning".into()),
+                content: format!(
+                    "Pending scoped questions to raise alongside this exchange:\n{}",
+                    pending.join("\n")
+                ),
+                provenance: trusted_provenance(),
+            });
+        }
+        Ok(slices)
     }
 
     fn agent_workspace(
@@ -2515,6 +2792,7 @@ fn compose(
         manifest,
         config,
         tick_attempts: AtomicU64::new(1),
+        learning_commands: Mutex::new(()),
     })
 }
 

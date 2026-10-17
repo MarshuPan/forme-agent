@@ -465,6 +465,7 @@ impl TickSignalCollector {
 /// every attempt of the window reads the same inputs.
 #[derive(Debug, Clone)]
 pub struct CognitiveTickInput {
+    pub learning: crate::LearningSnapshot,
     pub schema_version: p::SchemaVersion,
     pub claim: CognitiveTickClaim,
     /// The stream the tick appends its own events to.

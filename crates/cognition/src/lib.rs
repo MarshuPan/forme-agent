@@ -16,6 +16,8 @@ pub use temporal::*;
 
 mod brain_tick;
 pub use brain_tick::*;
+mod learning;
+pub use learning::*;
 
 mod m3_a;
 pub use m3_a::{

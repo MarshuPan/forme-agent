@@ -1256,6 +1256,7 @@ impl LocalDeviceChannelAdapter {
             schema_version: p::SchemaVersion(1),
             event,
             observation: p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
+                learning_reply: None,
                 source: p::Source::Communication,
                 scope: grant.scope,
                 grant_ref: Some(grant.grant_ref.clone()),

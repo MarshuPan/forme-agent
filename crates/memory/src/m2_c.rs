@@ -331,6 +331,7 @@ where
         self.append_payload(
             provenance,
             p::EventPayload::GoalFramed(p::GoalFramedPayload {
+                knowledge: None,
                 goal_frame: goal.goal_frame.clone(),
                 long_term: Some(goal.clone()),
             }),

@@ -923,6 +923,48 @@ where
             )),
         }
     }
+
+    pub fn register_learning_goal(
+        &self,
+        command: p::IdempotencyKey,
+        goal: p::GoalFrameRef,
+        knowledge: p::GoalKnowledge,
+        auth: AuthContext,
+    ) -> p::Result<p::EventId> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("learning requires the production brain".into()))?
+            .register_learning_goal(&self.owner, command, goal, knowledge)
+    }
+
+    pub fn answer_learning(
+        &self,
+        command: p::IdempotencyKey,
+        reply: p::LearningReplyRecord,
+        auth: AuthContext,
+    ) -> p::Result<p::CandidateId> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("learning requires the production brain".into()))?
+            .answer_learning(&self.owner, command, reply)
+    }
+
+    pub fn resolve_learning(
+        &self,
+        command: p::IdempotencyKey,
+        proposal: p::ProposalRef,
+        outcome: p::ProposalOutcome,
+        defer_until: Option<p::Timestamp>,
+        auth: AuthContext,
+    ) -> p::Result<p::EventId> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("learning requires the production brain".into()))?
+            .resolve_learning(&self.owner, command, proposal, outcome, defer_until)
+    }
 }
 
 impl<H> LocalGateway<H>
