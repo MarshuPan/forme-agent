@@ -10,6 +10,8 @@ use forme_protocol as p;
 mod m2_c;
 mod m3_b;
 mod m4;
+mod patterns;
+pub use patterns::*;
 
 pub use m2_c::*;
 pub use m3_b::*;
@@ -428,6 +430,12 @@ pub enum RouteTopology {
     Direct,
     IndependentSlices,
     ReviewGate,
+    Retrieve,
+    ToolLoop,
+    Clarify,
+    PlannerIntegrator,
+    LongRunning,
+    Custom,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -827,147 +835,6 @@ pub trait OrchestrationLibrary {
 pub struct SeedOrchestrationLibrary {
     patterns: Vec<OrchestrationPattern>,
     threshold: u8,
-}
-
-impl Default for SeedOrchestrationLibrary {
-    fn default() -> Self {
-        Self {
-            patterns: vec![
-                seed_pattern(
-                    "direct",
-                    RouteTopology::Direct,
-                    Decomposability::Whole,
-                    DependencyShape::Independent,
-                    Verifiability::SelfCheck,
-                    TaskScale::Single,
-                ),
-                seed_pattern(
-                    "independent-slices",
-                    RouteTopology::IndependentSlices,
-                    Decomposability::Parallel,
-                    DependencyShape::Independent,
-                    Verifiability::Environment,
-                    TaskScale::MultiStage,
-                ),
-                seed_pattern(
-                    "review-gate",
-                    RouteTopology::ReviewGate,
-                    Decomposability::Sequential,
-                    DependencyShape::Interdependent,
-                    Verifiability::IndependentReview,
-                    TaskScale::MultiStage,
-                ),
-            ],
-            threshold: 4,
-        }
-    }
-}
-
-impl OrchestrationLibrary for SeedOrchestrationLibrary {
-    fn match_pattern(&self, sig: ApplicabilitySignature) -> Option<OrchestrationPattern> {
-        self.patterns
-            .iter()
-            .map(|pattern| (signature_score(&sig, &pattern.signature), pattern))
-            .filter(|(score, _)| *score >= self.threshold)
-            .max_by_key(|(score, _)| *score)
-            .map(|(_, pattern)| pattern.clone())
-    }
-
-    fn route(&self, pattern: Option<OrchestrationPattern>, frame: &GoalFrame) -> ExecutionRoute {
-        let topology = pattern
-            .as_ref()
-            .map(|pattern| pattern.spec.topology)
-            .unwrap_or(RouteTopology::Direct);
-        let mut profiles = frame.context.inventory.subagents.clone();
-        let take = match topology {
-            RouteTopology::Direct => 0,
-            RouteTopology::IndependentSlices => profiles.len(),
-            RouteTopology::ReviewGate => profiles.len().min(2),
-        };
-        profiles.truncate(take);
-        let nodes = profiles
-            .into_iter()
-            .enumerate()
-            .map(|(index, profile)| RouteNode {
-                schema_version: p::SchemaVersion(1),
-                subtask: Subtask {
-                    schema_version: p::SchemaVersion(1),
-                    id: format!("node-{index}"),
-                    instruction: frame.goal.summary.clone(),
-                    intent_id: p::ActionId(format!("route:{}:{index}", frame.goal.reference.0)),
-                },
-                resource_slice: profile.toolset.clone(),
-                role: profile,
-                done: frame.context.done_contract.clone(),
-                retry: RetryPolicy {
-                    schema_version: p::SchemaVersion(1),
-                    max_attempts: 1,
-                },
-            })
-            .collect::<Vec<_>>();
-        let edges = if topology == RouteTopology::ReviewGate && nodes.len() == 2 {
-            vec![RouteEdge {
-                schema_version: p::SchemaVersion(1),
-                from: nodes[0].subtask.id.clone(),
-                to: nodes[1].subtask.id.clone(),
-                on_failure: DependencyFailurePolicy::AbortRoute,
-            }]
-        } else {
-            Vec::new()
-        };
-        ExecutionRoute {
-            schema_version: p::SchemaVersion(1),
-            reference: p::ExecutionRouteRef(format!("route:{}", frame.goal.reference.0)),
-            pattern_ref: pattern.as_ref().map(|pattern| pattern.reference.clone()),
-            nodes,
-            edges,
-        }
-    }
-
-    fn sediment(&self, route: &ExecutionRoute, outcome: &RouteOutcome) -> Option<p::CandidateId> {
-        (outcome.status == RouteStatus::Completed)
-            .then(|| p::CandidateId(format!("orchestration-candidate:{}", route.reference.0)))
-    }
-}
-
-fn seed_pattern(
-    name: &str,
-    topology: RouteTopology,
-    decomposability: Decomposability,
-    dependency: DependencyShape,
-    verifiability: Verifiability,
-    scale: TaskScale,
-) -> OrchestrationPattern {
-    OrchestrationPattern {
-        schema_version: p::SchemaVersion(1),
-        reference: p::OrchestrationPatternRef(format!("pattern:{name}")),
-        spec: WorkPattern {
-            schema_version: p::SchemaVersion(1),
-            name: name.into(),
-            topology,
-        },
-        signature: ApplicabilitySignature {
-            schema_version: p::SchemaVersion(1),
-            decomposability,
-            dependency,
-            verifiability,
-            clarity: GoalClarity::Clear,
-            scale,
-            reversibility: Reversibility::LowRiskReversible,
-            case_anchors: Vec::new(),
-            fitness: p::Confidence(0.5),
-        },
-        fitness: p::Confidence(0.5),
-    }
-}
-
-fn signature_score(left: &ApplicabilitySignature, right: &ApplicabilitySignature) -> u8 {
-    u8::from(left.decomposability == right.decomposability)
-        + u8::from(left.dependency == right.dependency)
-        + u8::from(left.verifiability == right.verifiability)
-        + u8::from(left.clarity == right.clarity)
-        + u8::from(left.scale == right.scale)
-        + u8::from(left.reversibility == right.reversibility)
 }
 
 fn validate_route(route: &ExecutionRoute) -> p::Result<()> {

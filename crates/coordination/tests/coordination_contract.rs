@@ -100,6 +100,95 @@ fn context() -> CoordinationContext {
 }
 
 #[test]
+fn c14_eight_seed_patterns_have_operating_guides_and_executable_topologies() {
+    let library = SeedOrchestrationLibrary::default();
+    let index = library.index();
+    assert_eq!(index.len(), 8);
+    assert_eq!(
+        index
+            .iter()
+            .map(|p| p.pattern.spec.name.as_str())
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([
+            "single-run",
+            "retrieve-then-answer",
+            "tool-loop",
+            "clarify-then-act",
+            "generator-evaluator",
+            "parallel-research-fanout",
+            "planner-builder-evaluator-integrator",
+            "long-running-harness"
+        ])
+    );
+    let frame = RuleBasedCoordinationReasoner.frame(
+        GoalInput::new(p::GoalRef("goal:index".into()), "structured goal"),
+        &context(),
+    );
+    for entry in index {
+        assert!(!entry.purpose.is_empty() && entry.operation_guide.len() >= 2);
+        assert!(!entry.pattern.signature.case_anchors.is_empty());
+        let chosen = library.select(&entry.pattern.signature);
+        assert_eq!(
+            chosen.pattern.as_ref().unwrap().reference,
+            entry.pattern.reference
+        );
+        let route = library.route(chosen.pattern, &frame);
+        assert_eq!(route.nodes.len(), entry.roles.len());
+        RouteRuntime::new(route.clone(), 100).unwrap();
+        if entry.roles.is_empty() {
+            assert!(route.edges.is_empty());
+        } else {
+            assert!(entry.checkpoint_required && !route.edges.is_empty());
+        }
+    }
+}
+
+#[test]
+fn c15_signature_scores_are_explainable_hard_filtered_and_custom_is_conservative() {
+    let library = SeedOrchestrationLibrary::default();
+    let mut signature = library.index()[0].pattern.signature.clone();
+    let selection = library.select(&signature);
+    assert!(!selection.custom);
+    assert_eq!(selection.scores[0].dimensions, [1000; 6]);
+    signature.decomposability = Decomposability::Parallel;
+    signature.dependency = DependencyShape::Interdependent;
+    signature.verifiability = Verifiability::IndependentReview;
+    signature.clarity = GoalClarity::Clarify;
+    signature.scale = TaskScale::LongRunning;
+    signature.reversibility = Reversibility::HighRiskIrreversible;
+    let selection = library.select(&signature);
+    assert!(selection.custom && selection.pattern.is_none() && selection.checkpoint_required);
+    assert!(selection.confidence.0 <= 0.25);
+    let frame = RuleBasedCoordinationReasoner.frame(
+        GoalInput::new(p::GoalRef("goal:custom".into()), "no task-name routing"),
+        &context(),
+    );
+    let route = library.route(None, &frame);
+    assert_eq!(
+        route
+            .nodes
+            .iter()
+            .map(|n| n.role.role.0.as_str())
+            .collect::<Vec<_>>(),
+        vec!["generator", "evaluator"]
+    );
+    for status in [
+        RouteStatus::Completed,
+        RouteStatus::Failed,
+        RouteStatus::Cancelled,
+    ] {
+        let outcome = RouteOutcome {
+            schema_version: p::SchemaVersion(1),
+            status,
+            node_states: BTreeMap::new(),
+            result_refs: BTreeMap::new(),
+        };
+        assert!(library.sediment(&route, &outcome).is_some());
+    }
+    assert_eq!(library.index()[0].pattern.fitness, p::Confidence(0.5));
+}
+
+#[test]
 fn s6_reasoner_outputs_constraints_and_binds_trace_to_the_decision_snapshot() {
     let reasoner = RuleBasedCoordinationReasoner;
     let frame = reasoner.frame(
