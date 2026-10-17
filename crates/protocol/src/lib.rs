@@ -22,7 +22,9 @@ mod normalization;
 mod primitives;
 mod provider;
 mod v1_closure;
+mod workspace_charter;
 pub use brain_learning::*;
+pub use workspace_charter::*;
 
 pub use control::*;
 pub use event::*;

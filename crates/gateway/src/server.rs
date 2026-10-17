@@ -253,6 +253,10 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/runtime/doctor", get(runtime_doctor))
         .route("/v1/runtime/tick", post(runtime_tick))
         .route("/v1/brain/workspace", get(brain_workspace))
+        .route(
+            "/v1/workspaces/{id}/charter",
+            get(read_workspace_charter).put(write_workspace_charter),
+        )
         .route("/v1/brain/learning/goals", post(register_learning_goal))
         .route("/v1/brain/learning/answer", post(answer_learning))
         .route("/v1/brain/learning/resolve", post(resolve_learning))
@@ -702,6 +706,47 @@ fn learning_schema(version: p::SchemaVersion) -> Result<(), ApiError> {
         ));
     }
     Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CharterRequest {
+    schema_version: p::SchemaVersion,
+    command: p::IdempotencyKey,
+    change: p::WorkspaceCharterChangedPayload,
+}
+
+async fn read_workspace_charter(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Option<p::WorkspaceCharterRecord>>, ApiError> {
+    let auth = state.authorize(&headers, false)?;
+    let gateway = state.gateway.clone();
+    Ok(Json(
+        blocking(move || gateway.workspace_charter(p::WorkspaceRef(id), auth)).await?,
+    ))
+}
+
+async fn write_workspace_charter(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<CharterRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let auth = state.authorize(&headers, true)?;
+    learning_schema(request.schema_version)?;
+    if request.change.charter.workspace.0 != id {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "charter path and workspace disagree",
+        ));
+    }
+    let gateway = state.gateway.clone();
+    let event =
+        blocking(move || gateway.apply_workspace_charter(request.command, request.change, auth))
+            .await?;
+    Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
 }
 
 async fn register_learning_goal(

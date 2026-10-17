@@ -47,6 +47,7 @@ use forme_store::{
     SqliteEventStore, StoreOptions,
 };
 
+mod brain_charter;
 mod brain_relevance;
 mod brain_tick;
 pub use brain_relevance::RelevanceCase;
@@ -3485,6 +3486,16 @@ impl ReactiveHarness {
             record.bound_envelope.as_ref(),
         );
         let mut evaluation = self.policy.evaluate_detailed(&context, &intent);
+        if let Some(charter) = self.store.workspace_charter(&self.config.workspace)? {
+            let rules = p::CharterRules::parse(&charter)?;
+            if let Err(error) = rules.check_action(&intent) {
+                evaluation.decision = p::PolicyDecision::Deny;
+                evaluation.reason = p::ReasonRef(error.0);
+            } else if rules.require_review && evaluation.decision == p::PolicyDecision::Allow {
+                evaluation.decision = p::PolicyDecision::Ask;
+                evaluation.reason = p::ReasonRef("workspace charter requires owner review".into());
+            }
+        }
         if record.effect_mode == Some(p::EffectMode::CounterfactualDeny) {
             self.append(run.clone(), turn, provenance, evaluation.event_payload())?;
             record.loop_ctx.mark_policy(p::PolicyDecision::Deny);
@@ -3717,6 +3728,22 @@ impl ReactiveHarness {
         // driver-affecting fields from live state, so the plan captured before
         // approval cannot be trusted without this final comparison.
         plan.validate_digest()?;
+        // A charter may tighten while an approval is waiting. Re-read it at
+        // the final driver boundary; an old approval cannot override it.
+        if let Some(charter) = self.store.workspace_charter(&self.config.workspace)? {
+            let rules = p::CharterRules::parse(&charter)?;
+            if rules.check_action(&intent).is_err() || (rules.require_review && approval.is_none())
+            {
+                return self.deny_action(
+                    run,
+                    handle,
+                    record,
+                    &intent,
+                    p::ReasonRef("current workspace charter blocks dispatch".into()),
+                    StopReason::ApprovalDenied,
+                );
+            }
+        }
         if plan.intent != intent {
             return self.deny_action(
                 run,

@@ -510,6 +510,53 @@ pub struct SqliteEventStore {
 }
 
 impl SqliteEventStore {
+    pub fn workspace_charter(
+        &self,
+        workspace: &p::WorkspaceRef,
+    ) -> p::Result<Option<p::WorkspaceCharterRecord>> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("charter store is unavailable".into()))?;
+        crate::charter::read(&connection, workspace)
+    }
+
+    pub fn rebuild_charters(&self) -> p::Result<()> {
+        self.require_authority_writer()?;
+        let metadata = self
+            .brain_authority()?
+            .ok_or_else(|| p::Error("charter authority is missing".into()))?;
+        let stream = metadata
+            .aggregates
+            .get(&BrainAggregateKind::Charter)
+            .ok_or_else(|| p::Error("charter stream is missing".into()))?;
+        let events = self
+            .read_run(stream.clone())
+            .collect::<p::Result<Vec<_>>>()?;
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("charter store is unavailable".into()))?;
+        let tx = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| p::Error("charter rebuild transaction failed".into()))?;
+        self.require_authority_writer_in_transaction(&tx)?;
+        if aggregate_version_in_transaction(&tx, stream)?
+            != events.last().map_or(0, |e| e.stream_seq)
+        {
+            return Err(p::Error("charter changed during rebuild".into()));
+        }
+        tx.execute("DELETE FROM workspace_charter_state", [])
+            .map_err(|_| p::Error("charter rebuild reset failed".into()))?;
+        for event in &events {
+            crate::charter::fold(&tx, event)?;
+        }
+        tx.commit()
+            .map_err(|_| p::Error("charter rebuild commit failed".into()))
+    }
+
     pub fn open(path: impl AsRef<Path>, options: StoreOptions) -> p::Result<Self> {
         validate_options(&options)?;
         let mut connection = Connection::open(path.as_ref())
@@ -4559,6 +4606,7 @@ fn append_prepared(
     };
 
     validate_graph_maintenance_in_transaction(transaction, &prepared.event)?;
+    crate::charter::validate(transaction, &prepared.event)?;
     let previous_seq = aggregate_version_in_transaction(transaction, &prepared.event.run_id)?;
     let next_seq = previous_seq
         .checked_add(1)
@@ -4618,6 +4666,7 @@ fn append_prepared(
         }
     }
     update_builtin_projections(transaction, &prepared.event)?;
+    crate::charter::fold(transaction, &prepared.event)?;
     update_evolution_catalog(transaction, &prepared.event)?;
     if fts_enabled {
         if fts_was_current {
@@ -7706,6 +7755,9 @@ fn initialize_connection(
     transaction
         .execute_batch(SCHEMA)
         .map_err(|error| store_error("failed to initialize event database schema", error))?;
+    transaction
+        .execute_batch(crate::charter::CHARTER_SCHEMA)
+        .map_err(|error| store_error("failed to initialize charter projection", error))?;
     if fts_enabled {
         transaction
             .execute_batch(FTS_SCHEMA)

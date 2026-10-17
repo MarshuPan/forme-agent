@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 mod brain;
+mod charter;
 mod checksum;
 mod cursor;
 mod projection;

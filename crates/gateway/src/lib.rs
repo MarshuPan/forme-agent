@@ -938,6 +938,31 @@ where
             .register_learning_goal(&self.owner, command, goal, knowledge)
     }
 
+    pub fn workspace_charter(
+        &self,
+        workspace: p::WorkspaceRef,
+        auth: AuthContext,
+    ) -> p::Result<Option<p::WorkspaceCharterRecord>> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("charter requires the production brain".into()))?
+            .workspace_charter(&self.owner, &workspace)
+    }
+
+    pub fn apply_workspace_charter(
+        &self,
+        command: p::IdempotencyKey,
+        change: p::WorkspaceCharterChangedPayload,
+        auth: AuthContext,
+    ) -> p::Result<p::EventId> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("charter requires the production brain".into()))?
+            .apply_workspace_charter(&self.owner, command, change)
+    }
+
     pub fn agent_workspace(
         &self,
         query: forme_harness::AgentWorkspaceQuery,

@@ -2549,6 +2549,15 @@ impl ContextSliceSource for ProductionContextSliceSource {
                 provenance,
             },
         ];
+        if let Some(charter) = self.store.workspace_charter(&request.workspace)? {
+            p::CharterRules::parse(&charter)?;
+            slices.push(ContextSlice {
+                schema_version: p::SchemaVersion(1),
+                id: p::ContextSliceRef(format!("brain:charter:{}", charter.digest.0)),
+                content: format!("Owner workspace charter v{}: constraints={:?}; prohibitions={:?}; goals={:?}; done={:?}", charter.version, charter.constraints, charter.prohibitions, charter.goals, charter.done_contract),
+                provenance: p::Provenance { source: p::Source::OwnerControl, actor: p::Actor::Owner, trust_tier: p::TrustTier::OwnerInput, caused_by: None },
+            });
+        }
         let mut events = Vec::new();
         for run in self.store.run_ids()? {
             events.extend(self.store.read_run(run).collect::<p::Result<Vec<_>>>()?);
