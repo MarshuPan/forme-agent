@@ -17,13 +17,15 @@ use forme_capabilities::{
     CapabilitySource, InMemoryCapabilityRegistry, InMemorySkillRegistry, LocalPluginRegistry,
     PluginContribution, ProjectAppApiConnector, SkillRegistry, StdioMcpRegistry,
 };
+pub use forme_cognition::AgentWorkspaceProjection as OwnerAgentWorkspace;
 use forme_cognition::{
     event_sourced_intention_services, AgentWorkspaceProjection, CognitionSnapshot,
     CognitiveRuntime, CognitiveTickEngine, CognitiveTickInput, EvidenceCompetenceGate,
     M0ProactivityEngine, ProactivityConfig, TickSignalCollector,
 };
 pub use forme_cognition::{
-    CognitiveTickPhase, CognitiveTickPhaseReport, CognitiveTickPhaseStatus, CognitiveTickReport,
+    AgentWorkspaceQuery, CognitiveTickPhase, CognitiveTickPhaseReport, CognitiveTickPhaseStatus,
+    CognitiveTickReport,
 };
 use forme_context::{
     ContextHydrationLimits, ContextHydrationRequest, ContextHydrator, ContextSlice,
@@ -2155,21 +2157,16 @@ impl ProductionRuntime {
         &self,
         cursor: Option<&forme_store::TickEventCursor>,
     ) -> p::Result<Vec<p::Event>> {
-        let heads = match cursor {
-            Some(cursor) => cursor.0.clone(),
-            None => self.services.store.run_heads()?.0,
-        };
-        let mut events = Vec::new();
-        for (run, head) in heads {
-            for event in self.services.store.read_run(run) {
-                let event = event?;
-                if event.stream_seq > head {
-                    break;
-                }
-                events.push(event);
-            }
-        }
-        Ok(events)
+        collect_owner_brain_events(&self.services.store, cursor)
+    }
+
+    pub fn agent_workspace(
+        &self,
+        owner: &p::VerifiedPrincipal,
+        query: &AgentWorkspaceQuery,
+    ) -> p::Result<OwnerAgentWorkspace> {
+        self.require_brain_owner(owner)?;
+        AgentWorkspaceProjection::rebuild_scoped(&self.owner_brain_events_at(None)?, query)
     }
 
     /// The owner declares only dependencies that affect an actual goal.
@@ -2548,8 +2545,17 @@ impl ContextSliceSource for ProductionContextSliceSource {
                 "formal AgentWorkspace request is outside the configured workspace".into(),
             ));
         }
-        let events = collect_workspace_events(&self.store, request, &self.aggregates)?;
-        let projection = AgentWorkspaceProjection::rebuild(&events, 10);
+        let events = collect_owner_brain_events(&self.store, None)?;
+        let projection = AgentWorkspaceProjection::rebuild_scoped(
+            &events,
+            &AgentWorkspaceQuery {
+                schema_version: p::SchemaVersion(1),
+                scope: Some(request.scope.clone()),
+                capacity: 10,
+                now: now_ms(),
+                config_version: p::Version(1),
+            },
+        )?;
         let provenance_by_event = events
             .iter()
             .map(|event| (event.event_id.clone(), event.provenance.clone()))
@@ -2938,27 +2944,22 @@ fn append_doctor_event(
     store.append(event).map(|_| ())
 }
 
-fn collect_workspace_events(
+pub(crate) fn collect_owner_brain_events(
     store: &SqliteEventStore,
-    request: &ContextHydrationRequest,
-    aggregates: &BrainAggregateRefs,
+    cursor: Option<&forme_store::TickEventCursor>,
 ) -> p::Result<Vec<p::Event>> {
     let mut collected = Vec::new();
-    for run in store.run_ids()? {
-        let events = store.read_run(run.clone()).collect::<p::Result<Vec<_>>>()?;
-        let is_brain_aggregate = aggregates
-            .as_map()
-            .values()
-            .any(|aggregate| aggregate == &run);
-        let is_current = run == request.run;
-        let is_workspace = events.iter().any(|event| {
-            matches!(
-                &event.payload,
-                p::EventPayload::SessionBound(payload) if payload.workspace == request.workspace
-            )
-        });
-        if is_brain_aggregate || is_current || is_workspace {
-            collected.extend(events);
+    let heads = match cursor {
+        Some(cursor) => cursor.0.clone(),
+        None => store.run_heads()?.0,
+    };
+    for (run, head) in heads {
+        for event in store.read_run(run) {
+            let event = event?;
+            if event.stream_seq > head {
+                break;
+            }
+            collected.push(event);
         }
     }
     collected.sort_by(|left, right| {

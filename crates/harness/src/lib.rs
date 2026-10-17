@@ -1593,7 +1593,11 @@ impl ReactiveHarness {
                 .store
                 .read_run(run.clone())
                 .collect::<p::Result<Vec<_>>>()?;
-            let workspace = cognition::AgentWorkspaceProjection::rebuild(&current_events, 10);
+            let workspace = self.attention_projection(
+                &current_events,
+                Some(proposal.core().scope.clone()),
+                snapshot.now,
+            )?;
             outcome.workspace_snapshot = Some(workspace.snapshot_ref.clone());
             self.tick_append(appender,
                 run.clone(),
@@ -2033,7 +2037,11 @@ impl ReactiveHarness {
             .store
             .read_run(run.clone())
             .collect::<p::Result<Vec<_>>>()?;
-        let snapshot = cognition::AgentWorkspaceProjection::rebuild(&current, 10);
+        let snapshot = self.attention_projection(
+            &current,
+            Some(claim.command.envelope.scope.clone()),
+            now_ms(),
+        )?;
         self.append(
             run.clone(),
             None,
@@ -2815,11 +2823,27 @@ impl ReactiveHarness {
     }
 
     fn refresh_agent_workspace(&self, run: &p::RunId, record: &mut RunRecord) -> p::Result<()> {
-        let events = self
-            .store
-            .read_run(run.clone())
-            .collect::<p::Result<Vec<_>>>()?;
-        let projection = cognition::AgentWorkspaceProjection::rebuild(&events, 10);
+        let events = if self.brain_services.is_some() {
+            production::collect_owner_brain_events(&self.store, None)?
+        } else {
+            self.store
+                .read_run(run.clone())
+                .collect::<p::Result<Vec<_>>>()?
+        };
+        let projection = if self.brain_services.is_some() {
+            cognition::AgentWorkspaceProjection::rebuild_scoped(
+                &events,
+                &cognition::AgentWorkspaceQuery {
+                    schema_version: p::SchemaVersion(1),
+                    scope: Some(record.loop_ctx.context.scope.clone()),
+                    capacity: 10,
+                    now: now_ms(),
+                    config_version: p::Version(1),
+                },
+            )?
+        } else {
+            cognition::AgentWorkspaceProjection::rebuild(&events, 10)
+        };
         let by_id = events
             .iter()
             .map(|event| (event.event_id.clone(), event.provenance.clone()))
@@ -2845,6 +2869,31 @@ impl ReactiveHarness {
         });
         record.loop_ctx.context.brain_call = self.coordination.is_some();
         Ok(())
+    }
+
+    fn attention_projection(
+        &self,
+        legacy_events: &[p::Event],
+        scope: Option<p::Scope>,
+        now: p::Timestamp,
+    ) -> p::Result<cognition::AgentWorkspaceProjection> {
+        if self.brain_services.is_none() {
+            return Ok(cognition::AgentWorkspaceProjection::rebuild(
+                legacy_events,
+                10,
+            ));
+        }
+        let events = production::collect_owner_brain_events(&self.store, None)?;
+        cognition::AgentWorkspaceProjection::rebuild_scoped(
+            &events,
+            &cognition::AgentWorkspaceQuery {
+                schema_version: p::SchemaVersion(1),
+                scope,
+                capacity: 10,
+                now,
+                config_version: p::Version(1),
+            },
+        )
     }
 
     fn coordination_context(

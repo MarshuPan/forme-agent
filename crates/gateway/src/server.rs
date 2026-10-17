@@ -252,6 +252,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/runtime/manifest", get(runtime_manifest))
         .route("/v1/runtime/doctor", get(runtime_doctor))
         .route("/v1/runtime/tick", post(runtime_tick))
+        .route("/v1/brain/workspace", get(brain_workspace))
         .route("/v1/brain/learning/goals", post(register_learning_goal))
         .route("/v1/brain/learning/answer", post(answer_learning))
         .route("/v1/brain/learning/resolve", post(resolve_learning))
@@ -631,6 +632,41 @@ async fn runtime_tick(
     let runtime = state.runtime.clone();
     let outcome = blocking(move || runtime.signal_cognitive_tick()).await?;
     Ok(Json(runtime_tick_view(outcome)))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrainWorkspaceQuery {
+    scope: Option<String>,
+    capacity: Option<usize>,
+    at: Option<p::Timestamp>,
+}
+
+async fn brain_workspace(
+    State(state): State<Arc<HttpState>>,
+    Query(query): Query<BrainWorkspaceQuery>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let auth = state.authorize(&headers, false)?;
+    let gateway = state.gateway.clone();
+    let projection = blocking(move || {
+        gateway.agent_workspace(
+            forme_harness::AgentWorkspaceQuery {
+                schema_version: p::SchemaVersion(1),
+                scope: query.scope.map(p::Scope),
+                capacity: query.capacity.unwrap_or(10),
+                now: query.at.unwrap_or_else(now_ms),
+                config_version: p::Version(1),
+            },
+            auth,
+        )
+    })
+    .await?;
+    Ok(Json(
+        serde_json::json!({"schema_version":1,"snapshot_ref":projection.snapshot_ref,"capacity":projection.capacity,
+        "items":projection.items.iter().map(|item|serde_json::json!({"schema_version":1,"id":item.id,"kind":format!("{:?}",item.kind),
+            "scope":item.scope,"value":item.value,"urgency":item.urgency,"event_ref":item.event_ref,"run":item.run,"stream_seq":item.stream_seq})).collect::<Vec<_>>()}),
+    ))
 }
 
 #[derive(Deserialize)]

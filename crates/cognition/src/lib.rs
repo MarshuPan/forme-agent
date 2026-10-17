@@ -18,6 +18,8 @@ mod brain_tick;
 pub use brain_tick::*;
 mod learning;
 pub use learning::*;
+mod workspace;
+pub use workspace::*;
 
 mod m3_a;
 pub use m3_a::{
@@ -1264,6 +1266,7 @@ pub enum AgentWorkspaceItemKind {
     Impulse,
     Intention,
     Candidate,
+    WorkspaceReview,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1274,6 +1277,9 @@ pub struct AgentWorkspaceItem {
     pub value: u64,
     pub urgency: u64,
     pub event_ref: p::EventId,
+    pub scope: p::Scope,
+    pub run: p::RunId,
+    pub stream_seq: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1413,6 +1419,9 @@ fn workspace_item(
         value,
         urgency,
         event_ref: event.event_id.clone(),
+        scope: p::Scope("owner".into()),
+        run: event.run_id.clone(),
+        stream_seq: event.stream_seq,
     }
 }
 

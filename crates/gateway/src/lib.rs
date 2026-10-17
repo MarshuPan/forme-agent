@@ -938,6 +938,18 @@ where
             .register_learning_goal(&self.owner, command, goal, knowledge)
     }
 
+    pub fn agent_workspace(
+        &self,
+        query: forme_harness::AgentWorkspaceQuery,
+        auth: AuthContext,
+    ) -> p::Result<forme_harness::OwnerAgentWorkspace> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("attention requires the production brain".into()))?
+            .agent_workspace(&self.owner, &query)
+    }
+
     pub fn answer_learning(
         &self,
         command: p::IdempotencyKey,
