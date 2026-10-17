@@ -128,13 +128,13 @@
 
 | 事件 | 关键 payload | 服务 |
 |---|---|---|
-| `ObservationRecorded` | source, scope, grant_ref | D6, S7 |
+| `ObservationRecorded` | source, scope, grant_ref; learning_reply?(V1 B additive) | D6, S7/C8 |
 | `OpportunityDetected` | seed, activation_shape(optional; Commitment 为 `None`) | D6, S7/S32 |
 | `ValueGateEvaluated` | decision, reason | D6, S7 |
 | `CompetenceGateEvaluated` | scope, risk, max_level, reads(MapConfidence/AgentSelfModel/CapabilityEvidence/Trust/Failure/VerificationEvidence) | §6, S18/S32 |
 | `ImpulseRaised` | source(gap/change/tension/association/pressure/commitment), reach | §22, S7 |
 | `ReflectionProduced` | inputs(trace/feedback/failure), candidate_refs | S9 |
-| `ProactiveProposalEmitted` | proposal_kind, level, guard(ValueGate∧CompetenceGate∧Policy), delivery, attention_cost | D6, S7/S18/S32 |
+| `ProactiveProposalEmitted` | proposal_kind, level, guard(ValueGate∧CompetenceGate∧Policy), delivery, attention_cost; learning?(V1 B additive) | D6, S7/S18/S32/C8 |
 | `ProactiveProposalResolved` | outcome(adopt/reject/defer), feedback | S7 |
 | `ProspectiveIntentionCreated` / `ProspectiveIntentionResolved` | source(commitment/deferred/self), trigger(at/on_event/on_condition), optional schedule(session/envelope/budget), goal_frame?(M2-C additive) / outcome(fired/done/expired/cancelled) | §22, S7/S29-S31/S49 |
 
@@ -142,7 +142,7 @@
 
 | 事件 | 关键 payload | 服务 |
 |---|---|---|
-| `GoalFramed` | goal_frame, long_term?(M2-C additive) | D7, S6/S49 |
+| `GoalFramed` | goal_frame, long_term?(M2-C additive), knowledge?(V1 B additive) | D7, S6/S49/C8 |
 | `ResourcePlanned` / `DoneContractSet` / `AutonomyEnvelopeSet` | plan / contract / envelope | D7/D10, S6 |
 | `DecisionTraceRecorded` | refs(map/user/self/trust/failure), rationale, workspace_snapshot, resource_graph_snapshot?(M2-C additive), evolution_snapshot?(M3-A additive), federation_snapshot?(M4-A additive) | D7/§25/§26, S6/S48/S58-S83 |
 | `OrchestrationRouteCreated` | pattern_ref, route(DAG), goal_frame?/checkpoint?(M2-C additive) | §13, S6/S49 |

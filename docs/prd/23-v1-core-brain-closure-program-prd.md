@@ -379,6 +379,12 @@ pub trait KnowledgeGapDetector { fn detect(&self, snapshot: &CognitiveSnapshot) 
 
 gap 只有在会影响当前 goal/quality/risk 时生成 `ImpulseRaised{Gap}` 与 `ProactiveProposalEmitted{L1,Hitchhike}`。owner reply 通过既有 `ObservationRecorded`/`CandidateCreated`/User candidate 路径进入证据；禁止直接 stable write。
 
+B2 的可回放载荷为 additive optional 字段（缺省不序列化，历史载荷不变）：`GoalFramed.knowledge: GoalKnowledge` 声明目标的 scoped 判断依赖；`ProactiveProposalEmitted.learning: AskToLearnRecord` 绑定 goal/scope/target/reason/impact/origin；`ObservationRecorded.learning_reply: LearningReplyRecord` 绑定原提问和回答内容引用。这些是既有事件的载荷，不增加 EventKind，也不改变冻结 trait。缺口检测仅针对活跃目标明确声明的依赖，不把所有未知属性都当成问卷。
+
+owner-authenticated learning control surface 支持声明目标依赖、回答、拒绝和延后。回答引用只能变成低置信 User/CognitiveMap candidate；拒绝和延后状态从事件重建，重启后仍抑制同 origin。延后先持久化确定性 intention 再记反馈，失败可按同一 command 重试补齐。quiet 规则将提问留待后续窗口；pending/answered/rejected/deferred origin 不重复询问。提问内容经正式 context 的 pending-learning slice 搭车装载。
+
+tick range 除输入范围外固定辅助流 head（owner aggregates、此前 tick 的反馈/输出）；辅助流只用于重建学习/维护快照，不进入 failure observation，避免自激。重复尝试沿用这些 head，当前反馈只能收紧输出、不能给旧快照补新知识。
+
 ### B3 Owner AgentWorkspace
 
 扩展 `cognition::AgentWorkspaceProjection`：
@@ -391,6 +397,8 @@ gap 只有在会影响当前 goal/quality/risk 时生成 `ImpulseRaised{Gap}` �
 - snapshot ref/digest 包含 last event cursor 与 config version。
 
 `harness` 的 context slice adapter 把 cognition item 转成 `context::AgentWorkspaceItem`，保留 provenance，不塞 raw event。
+
+全局 cursor 为 `(run_id, stream_seq)` 向量，不把不同 run 的 seq 伪装成全局全序。跨 run 同分以 run_id/id 作最终 tie-break。`rebuild_scoped` companion 在容量竞争前过滤 scope；snapshot digest 绑定完整 cursor、query scope、capacity、判断时间和 config version。未来 intention 不入 due 面板，已终结 run 的任务 goal/已解决 impulse 移除；charter review 只显示已到期的监管项，不在 B 波执行 C 波监管。
 
 ### B4 激活扩散
 
@@ -412,6 +420,8 @@ pub trait RelevanceBaseline {
 ```
 
 `ActivationBudget` 必须映射所有硬限制。实现使用稳定排序/BTreeMap，禁止 hash iteration 导致 nondeterminism。edge delta 先形成 `MemoryMaintenanceDeltaSet` 内容对象与 digest/ref，再追加 `MemoryMaintenanceApplied`；fold/replay 应用同一 delta。
+
+冻结 `MemoryGraph::spread` 保留，新增显式 seeds/snapshot/config companion 供并发正式 tick 使用。维护 delta 使用有界、封闭、带 schema/digest 的 inline content-addressed `MemoryDeltasRef`，完整内容随事件携带，避免外置对象丢失导致无法 replay；store 在 append 事务内校验 provenance、expected graph version 与 delta 前值。自动维护只能衰减/修剪，边权或静息激活增加须 owner 命令。模型相关性基线通过 harness 绑定具体 provider、逐次记录实际 model profile/usage，输出只允许候选集合内至多 K 个唯一节点；无效/越界输出 FAIL，不能假造为成功。对照报告明确受控 HTTP/真实 provider 的证据等级，不以模型自选作为质量真值。
 
 ### B5 Maintenance 与重评
 
