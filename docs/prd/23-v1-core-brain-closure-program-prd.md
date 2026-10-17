@@ -425,6 +425,10 @@ pub trait RelevanceBaseline {
 
 ### B5 Maintenance 与重评
 
+B4 的策略退役不是纸面比较：`CognitiveRuntimeConfig.relevance_mode` 与 `FORME_RELEVANCE_MODE=direct-model|diffusion` 由 owner 配置，正式 tick 使用该选择；默认 `direct-model`，扩散作为显式选择的可替换实现。无 seed 时两种实现都不扫描/不调用模型。有 seed 时，候选集与输出 K 均受硬上限；baseline provider 在调用前绑定，逐 attempt 记录实际 profile。选择只影响相关性筛选，不绕过出口能力门或执行治理。
+
+对照 companion 使用固定 graph snapshot、scope、task、seeds、K 和独立 owner/fixture relevance labels，输出带 schema/digest 的 `RelevanceComparisonArtifact`。报告保存候选 ID、选中 ID、标签来源、两种策略版本、实际模型 profile、precision/recall/error、latency/token/cost 与 hard invariants，支持离线重算与篡改拒绝；真实 provider 与受控 HTTP 证据分开。模型自身的选择不能充当正确标签。若扩散未取得预先定义的质量优势，推荐 direct-model；不以速度/费用掩盖质量失败。
+
 maintenance detector 对 evidence age、conflict、long-unseen、low-value branch 生成：
 
 - `ReevaluationTaskCreated`；
