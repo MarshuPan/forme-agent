@@ -20,7 +20,7 @@
 | `requirements/` | 要做什么、不做什么、优先级、范围决策和验收方向。 | 早期规划（已归档）与各阶段验收结论。 | 需求范围、能力域、完整核心闭环、非目标、验收方向。 | M0-M5 已落地；`15`-`16` 冻结 V1 核心大脑闭合且不是 M6。 | 不写实现细节，不扩大 planning 未确认的范围。 |
 | `architecture/` | 如何实现 requirements。 | `requirements/` 与 canonical 契约。 | Rust 模块、协议、状态机、数据流、存储、安全和扩展设计。 | M0-M5 已实现；`09` 冻结 V1 闭合且保持 18 crates/single authority。 | `00/01` 不当作最终技术方案；新增范围必须从 requirements 下推。 |
 | `prd/` | 按什么功能和步骤实现。 | `requirements/` 与 `architecture/`。 | 可执行任务、接口/数据约束、测试和验收。 | `01`–`22` 已实现；`23` 是当前 A-D 实施契约。 | 不在 PRD 中新增需求或复制第三方实现。 |
-| `acceptance/` | 如何证明实现符合 requirements 与 PRD。 | 实现、场景测试、合规门。 | 逐场景证据、最终门结果、残余风险。 | M0-M5 均有 final 证据；V1 闭合 A/B 有分支报告与 B 波相关性工件、待 owner 验收；C/D 与 final 待产出。 | 不能只用最终回答或 happy path 代替事件序列和反向断言。 |
+| `acceptance/` | 如何证明实现符合 requirements 与 PRD。 | 实现、场景测试、合规门。 | 逐场景证据、最终门结果、残余风险。 | M0-M5 均有 final 证据；V1 闭合 A/B/C 有分支报告，B/C 有独立工件、待 owner 验收；D 与 final 待产出。 | 不能只用最终回答或 happy path 代替事件序列和反向断言。 |
 | `compliance/` | 依赖来源与许可证是否清楚。 | `Cargo.lock`、direct dependencies。 | 依赖清单。 | 随依赖维护。 | 发布审计读取，不能与实际依赖脱节。 |
 | `archive/` | 设计是如何演进过来的。 | 早期规划与架构基线。 | 无（只读）。 | 已归档。 | 不作为现行口径，冲突时以 canonical 与 requirements 为准。 |
 
@@ -107,12 +107,14 @@
 | `acceptance/m5-acceptance-report.md` | M5 最终验收报告。 | A/B/C、S1-S99、typed artifacts、strict gates 与 release audit。 | V1 核心大脑闭合永久回归基线。 | 工程结果已合入 main。 |
 | `requirements/15-v1-core-brain-closure-scope-decisions.md` | V1 核心大脑闭合范围。 | M5 final、完整设计审查。 | `requirements/16`、canonical §28、`architecture/09`。 | 已冻结 B1-B24；不是 M6。 |
 | `requirements/16-v1-core-brain-closure-verification-strategy.md` | V1 闭合验收策略。 | `requirements/15`、S1-S99。 | `architecture/09`、`prd/23`、closure acceptance。 | 已冻结 C1-C24、99-kind 与真实/重启/反向证据。 |
-| `architecture/09-v1-core-brain-runtime-closure-architecture.md` | V1 默认大脑运行闭合架构。 | `requirements/15-16`、canonical §28、M0-M5 architecture。 | `prd/23`、A-D runtime。 | 文档与承重协议冻结；A/B 分支实现及整波自检 PASS、均未合入 main，C/D 未实施；保持 18 crates，仅追加两个 R 事件。 |
-| `prd/23-v1-core-brain-closure-program-prd.md` | V1 闭合 Program PRD。 | `requirements/15-16`、canonical §28、`architecture/09`。 | A/B/C/D 实现与 C1-C24 验收。 | 文档与模块契约冻结；A/B 待 owner 验收/main，B0–B6 的整波证据见 B 波报告，C/D 未实施；不得把分支提交写成正式完成。 |
+| `architecture/09-v1-core-brain-runtime-closure-architecture.md` | V1 默认大脑运行闭合架构。 | `requirements/15-16`、canonical §28、M0-M5 architecture。 | `prd/23`、A-D runtime。 | 文档与承重协议冻结；A/B/C 分支实现及整波自检 PASS、均未合入 main，D 未实施；保持 18 crates，仅追加两个 R 事件。 |
+| `prd/23-v1-core-brain-closure-program-prd.md` | V1 闭合 Program PRD。 | `requirements/15-16`、canonical §28、`architecture/09`。 | A/B/C/D 实现与 C1-C24 验收。 | 文档与模块契约冻结；A/B/C 待 owner 验收/main，最新 C1–C6 模块及 C13–C18 整波证据见 C 波报告，D 未实施；不得把分支提交写成正式完成。 |
 | `acceptance/core-brain-a-acceptance-report.md` | V1 闭合 A 波验收报告。 | `requirements/16` C1-C6、`prd/23` §3、S1-S99 回归、`tools/verify-core-brain-closure.ps1 -Wave A`。 | owner 验收与 B 波准入。 | 分支自检 PASS，待 owner 验收；记录 B0 前置项（稳定认知 R-FOLD）与残余边界。 |
 | `acceptance/core-brain-b1-implementation-report.md` | B1 持久 tick claim 与三相状态机模块验证报告。 | `prd/23` B1、C7 子断言、B0 晋升/重放、专项与工作区测试、A 波回归。 | B2–B6 实施与 B 波整体验收。 | 实现 `c6066d0`；22 项专项、472 项工作区测试与 A 波 43 场景 PASS；不代表 B 波、M5 发布门或 V1 final 通过。 |
-| `acceptance/core-brain-b-acceptance-report.md` | B0–B6 / C7–C12 整波分支报告。 | PRD23 B 波、48 项按名场景、493 项工作区测试、A 波回归与 S1-S99/clean-tree 发布回归。 | owner 验收与 C 波准入。 | 分支整波自检与完整 M5 gate PASS，最终文档树另经当前 M5 receipt 审计；未合 main，C/D 未实施。 |
+| `acceptance/core-brain-b-acceptance-report.md` | B0–B6 / C7–C12 整波分支报告。 | PRD23 B 波、48 项按名场景、493 项工作区测试、A 波回归与 S1-S99/clean-tree 发布回归。 | owner 验收与 C 波准入。 | 历史 B 波整波自检与完整 M5 gate PASS；未合 main；当前 C 波另见最新报告，不回写当时 C/D 未实施的事实。 |
 | `acceptance/core-brain-b-artifacts/` | C11 直接模型/激活扩散对照工件。 | 同快照/任务/候选/K、独立 fixture 标签、实际 profile/usage。 | 离线指标/digest/推荐校验与 B 波永久门。 | ControlledHttp 负结果，推荐 DirectModel；不外推线上或长期质量。 |
+| `acceptance/core-brain-c-acceptance-report.md` | C1–C6 模块 / C13–C18 整波分支报告。 | 35 项按名场景、528 项 Rust 测试、A/B 与 S1-S99 回归、六份工件、clean-tree 发布门。 | owner 验收与 D 波准入。 | 分支整波自检及完整 M5 gate PASS；最终文档树 receipt 独立提交；未合 main，D 与 V1 Final 未实施。 |
+| `acceptance/core-brain-c-artifacts/` | 八模式、冲突、未知恢复、文件隔离、监管、经验回流六份 typed artifacts。 | 正式 runtime、受控 HTTP 模型、真实 SQLite/文件/进程与完整 stream hash 见证。 | 离线 ledger/预算/终态/候选校验和 C 波永久门。 | 源码 `db29cbb`，无凭证即可验证；不证明线上模型质量或编排优于直接模型。 |
 
 ## 依赖图
 
