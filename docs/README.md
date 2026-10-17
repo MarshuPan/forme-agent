@@ -33,7 +33,7 @@ M4 已沿 `requirements/11-12 -> canonical §26 -> architecture/07 -> prd/21 -> 
 
 M5 已沿 `requirements/13-14 -> canonical §27 -> architecture/08 -> prd/22 -> acceptance` 完整闭合。A/B/C 分别完成 publisher/admission、plan-bound lifecycle/既有 registry、M4-bound remote distribution/release；18 crates、97 EventKinds、379 个非忽略 Rust tests + 4 个显式真实 golden、29 个 Python gate、S1-S99、deterministic typed artifacts、strict Clippy 与 clean-tree release audit 全绿。最终报告见 `acceptance/m5-acceptance-report.md`；工程结果已合入 main。
 
-V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23`。它不是 M6，而是把 M0-M5 的能力装进同一个默认、持久、可恢复的大脑运行时。最终门为 S1-S99 + C1-C24、前 97 exact prefix 后追加 2 个 R 事件、18-crate 图、真实 golden 与 release audit。**A 波（C1-C6）与 B 波（B0–B6，C7-C12）已在 `shu/v1-core-brain-a` 分支实现并通过专项自检，待 owner 验收与合入 `main`**。A 波历史报告见 `acceptance/core-brain-a-acceptance-report.md`；B 波整体验收与发布回归依据见 `acceptance/core-brain-b-acceptance-report.md`，B1 模块报告保留为历史记录。C/D 未实施，V1 Final 尚未闭合。
+V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23`。它不是 M6，而是把 M0-M5 的能力装进同一个默认、持久、可恢复的大脑运行时。最终门为 S1-S99 + C1-C24、前 97 exact prefix 后追加 2 个 R 事件、18-crate 图、真实 golden 与 release audit。**A 波（C1-C6）与 B 波（B0–B6，C7-C12）已在 `shu/v1-core-brain-a` 分支实现并通过整波自检，待 owner 验收与合入 `main`**。A 波历史报告见 `acceptance/core-brain-a-acceptance-report.md`；B 波整体验收与发布回归依据见 `acceptance/core-brain-b-acceptance-report.md`，B1 模块报告保留为历史记录。C/D 未实施，V1 Final 尚未闭合。
 
 ## 目录职责
 

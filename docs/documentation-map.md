@@ -111,7 +111,7 @@
 | `prd/23-v1-core-brain-closure-program-prd.md` | V1 闭合 Program PRD。 | `requirements/15-16`、canonical §28、`architecture/09`。 | A/B/C/D 实现与 C1-C24 验收。 | 文档与模块契约冻结；A/B 待 owner 验收/main，B0–B6 的整波证据见 B 波报告，C/D 未实施；不得把分支提交写成正式完成。 |
 | `acceptance/core-brain-a-acceptance-report.md` | V1 闭合 A 波验收报告。 | `requirements/16` C1-C6、`prd/23` §3、S1-S99 回归、`tools/verify-core-brain-closure.ps1 -Wave A`。 | owner 验收与 B 波准入。 | 分支自检 PASS，待 owner 验收；记录 B0 前置项（稳定认知 R-FOLD）与残余边界。 |
 | `acceptance/core-brain-b1-implementation-report.md` | B1 持久 tick claim 与三相状态机模块验证报告。 | `prd/23` B1、C7 子断言、B0 晋升/重放、专项与工作区测试、A 波回归。 | B2–B6 实施与 B 波整体验收。 | 实现 `c6066d0`；22 项专项、472 项工作区测试与 A 波 43 场景 PASS；不代表 B 波、M5 发布门或 V1 final 通过。 |
-| `acceptance/core-brain-b-acceptance-report.md` | B0–B6 / C7–C12 整波分支报告。 | PRD23 B 波、48 项按名场景、493 项工作区测试、A 波回归与 S1-S99/clean-tree 发布回归。 | owner 验收与 C 波准入。 | 分支专项自检 PASS，发布证据以当前 M5 receipt 与完整 gate 为准；未合 main，C/D 未实施。 |
+| `acceptance/core-brain-b-acceptance-report.md` | B0–B6 / C7–C12 整波分支报告。 | PRD23 B 波、48 项按名场景、493 项工作区测试、A 波回归与 S1-S99/clean-tree 发布回归。 | owner 验收与 C 波准入。 | 分支整波自检与完整 M5 gate PASS，最终文档树另经当前 M5 receipt 审计；未合 main，C/D 未实施。 |
 | `acceptance/core-brain-b-artifacts/` | C11 直接模型/激活扩散对照工件。 | 同快照/任务/候选/K、独立 fixture 标签、实际 profile/usage。 | 离线指标/digest/推荐校验与 B 波永久门。 | ControlledHttp 负结果，推荐 DirectModel；不外推线上或长期质量。 |
 
 ## 依赖图

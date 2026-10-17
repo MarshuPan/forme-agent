@@ -3,7 +3,7 @@
 - 日期：2026-10-17。
 - 分支：`shu/v1-core-brain-a`；基线 `main@94fe6f1`，本波未合入 `main`。
 - 权威规格：`requirements/16` C7–C12、canonical §28、`architecture/09` §5、`prd/23` §4 B0–B6。
-- 结果：**B0–B6 分支实现及 C7–C12 专项自检 PASS；整波交付同时以 §4 的干净树 M5 回归与其后的独立 release receipt 为依据。待 owner 验收。** C/D 与 V1 Final 不在本报告的通过范围。
+- 结果：**B0–B6 分支实现及 C7–C12 整波自检 PASS，干净树 S1–S99 与发布门 PASS；待 owner 验收。** C/D 与 V1 Final 不在本报告的通过范围。
 
 ## 1. 模块与提交
 
@@ -61,14 +61,17 @@ Gateway 场景 `c8_c9_learning_http_control_is_authenticated_scoped_durable_and_
 | `tools/verify-core-brain-b1.ps1` | PASS：22 项 B1 模块场景 |
 | `tools/verify-core-brain-closure.ps1 -Wave A` | PASS：43 项按名场景，A 波未回退 |
 | `tools/verify-core-brain-closure.ps1 -Wave B` | PASS：48 项按名场景及仓库 C11 工件独立验证 |
+| `tools/verify-m5.ps1` | PASS：干净检出 `9e0ab49`，S1–S99、显式真实 golden、493 项 Rust 测试、31 项 Python 门、strict Clippy、typed artifacts、当前树供应链审计与 receipt 比对全绿 |
 | `tools/verify-core-brain-closure.ps1`（Final） | 预期拒绝：C/D 尚无实施清单，不允许提前闭合 |
 | `git diff --check` | PASS |
 
-整波还必须在隔离的干净检出执行 `tools/verify-m5.ps1`：S1–S99、显式真实 Browser/三进程 golden、历史 M4 receipt、所有 Rust/Python 工程门、合规/漏洞/供应链与当前树 M5 release audit。此检出只含已提交的 B 波内容，不将工作目录中原有的六个许可证修改混入验收。
+整波已在隔离的干净检出 `9e0ab49` 完整执行 `tools/verify-m5.ps1` 并 PASS：S1–S99、显式真实 Browser/三进程 golden、历史 M4 receipt、所有 Rust/Python 工程门、合规/漏洞/供应链与当前树 M5 release audit。此检出只含已提交的 B 波内容，不将工作目录中原有的六个许可证修改混入验收。完整输出保留于 `target/v1-b-m5-full.log`，干净检出的 A/B 专项输出为 `target/v1-b-clean-wave-A.log` 与 `target/v1-b-clean-wave-B.log`。
 
 首次 clean-tree audit 实际阻断了 `rustls 0.23.45` 的 `RUSTSEC-2026-0346/0347/0348/0349`（2026-10-14 公告），其他七组审计通过。修复采用同一 minor line 的 `0.23.46` 精确 pin，先登记依赖文档，再同步 execution manifest、lockfile 和冻结依赖门；不添加 advisory ignore，不放宽审计，也不改变内部 crate 图或 TLS 权限。最终回归必须包含该补丁。
 
-当前树 M5 receipt 位于 `m5-release-audit-artifacts/`，按既有流程在其他代码/文档提交之后独立刷新，再运行完整 M5 门并对比生成 receipt 与仓库 receipt。只有审计 clean-tree、typed receipt 独立验证和当前树比对同时通过才构成发布证据；专项 PASS 或历史 receipt 单独均不能替代。当前 receipt 是本报告之后的独立提交，不在此写自引用提交号或 digest。
+当前树 M5 receipt 位于 `m5-release-audit-artifacts/`。`9e0ab49` 已完成独立刷新回执后的完整 M5 门及生成/仓库 receipt 等值比对。本报告与索引随后只补记已验证结果，未改变源代码、配置、测试或验收门；这些文档补记导致的树 digest 变化，另在干净检出重跑完整供应链审计、独立校验和 receipt 比对，并在最后独立提交当前 receipt。只有审计 clean-tree、typed receipt 独立验证和当前树比对同时通过才构成发布证据；专项 PASS 或历史 receipt 单独均不能替代。当前 receipt 是本报告之后的独立提交，不在此写自引用提交号或 digest。
+
+安全补丁实现为 `6aba9d8`，NOTICE 版本同步为 `4a93407`。既有 NOTICE 许可证改动使用独立 hunk 保留为未提交修改，没有混入依赖版本提交。
 
 ## 5. 冻结契约与运行配置
 
