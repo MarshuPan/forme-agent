@@ -536,6 +536,16 @@ hard incompatibility 先过滤；总分过 threshold 选已有模式；全不过
 - 长期项目声明固定 workspace/goal/结构化 task signature/完成引用；新证据、失败、deadline、diff 或 cadence 只在 segment checkpoint 重规划。运行中、Waiting 或 OutcomeUnknown 的 segment 阻止热换；监管 tick 只建下一 route/trace/checkpoint，不执行外部动作。声明和 checkpoint 可 replay；无变化/未到期不制造新 route。
 - route outcome 无论成功/失败/取消/未知均回流同一 owner memory aggregate 的 episode 与 typed lineage 边。fitness 和策略建议只到 candidate；无独立验证不得把 model self-report 判为 Pass，真实事实/设计/质量冲突进入 unresolved conflict，由主脑/owner 显式裁决。
 
+#### C 波执行与可移植证据细节
+
+- `WorkRouteRecord.checkpointed` 只由 checkpoint 事实置位。仅有 `RouteClosed` 尚不能开启下一 segment；Unknown 不置位、不回收预留、不盲重试。已取消路线不能通过重试失败节点复活。checkpoint 的行政状态不参与 outcome candidate 的内容 digest，重放/补尾幂等。
+- `budget_units` 在本波明确为模型调用次数额度，不冒充 token、费用或脑力上限。每次 node attempt 先预留 `node_units`，真实 `ModelCallStarted` 计消费；Waiting/Unknown 保持预留，终态仅退未用部分。直接执行也受项目 capability/scope 约束，最终 driver 前重查，不能借用主脑较宽权限。
+- 监管使用 claim 固定游标的 charter/project/evidence/deadline 快照。`input_digest` 标识计划命令输入；独立 `review_digest` 标识已看过的监管依据，两者不可混用。晚到证据不得吸入当前基线，应留到下一次 review；运行中不可热换。
+- 模型工具 schema 仅来自实际进入上下文预算的注册目录。子代理审批恢复重建原 proposal、plan/policy/schema digest 和未消费 ticket，不调用模型或 driver；默认 envelope 有效期起点绑定持久 owner authority 创建时间，重启不刷新授权。配置漂移/过期或已开始副作用一律 fail closed。
+- Gateway `GET/POST /v1/brain/projects` 沿用 owner Bearer/Origin/CSRF。POST 为 `{schema_version:1, request:{operation:register|revise|plan|execute|cancel,...}}`，拒绝未知字段和跨 workspace；只包装同一 runtime，不建立第二调度器。
+- C 波 typed artifacts 分别保留八模式执行、冲突、未知恢复、真实文件隔离/审批、监管、经验回流场景。每份包含版本、源码提交、composition digest、各 stream 完整序号/事件 hash 见证、安全载荷白名单、在线 ledger digest 和相对路径文件 hash；离线 verifier 重放状态、核对预算/模型/终态/候选，拒绝篡改与秘密/本机路径。完整见证不代表被省略的敏感载荷可从工件恢复。
+- 工件证据等级固定为“受控 HTTP 模型 + 正式 runtime + 真实 SQLite/文件/进程”。测试只证明治理和执行链闭合，不证明编排效果优于直接模型，不替代 D 波长期价值/真实模型验收。
+
 ## 6. D 波：产品闭合（C19–C24）
 
 ### D1 模型 selection/fallback/adaptation
