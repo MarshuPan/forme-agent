@@ -20,6 +20,8 @@ mod learning;
 pub use learning::*;
 mod workspace;
 pub use workspace::*;
+mod maintenance;
+pub use maintenance::*;
 
 mod m3_a;
 pub use m3_a::{
@@ -1803,11 +1805,16 @@ where
             .iter()
             .filter(|stable| {
                 stable.active
+                    && !matches!(
+                        stable.tier,
+                        p::StabilityTier::Fixed | p::StabilityTier::Constitutional
+                    )
                     && stable
                         .last_reproduced_at
                         .saturating_add(tick.stale_after_ms)
                         <= tick.now
             })
+            .take(64)
             .cloned()
             .collect::<Vec<_>>();
         let mut candidates = Vec::new();
@@ -1853,7 +1860,12 @@ where
                 &identity,
                 tick.now,
                 p::EventPayload::ReevaluationTaskCreated(p::ReevaluationTaskCreatedPayload {
-                    derived_refs: vec![stable.object.clone()],
+                    derived_refs: {
+                        let state = self.lock_state()?;
+                        let mut affected = vec![stable.object.clone()];
+                        affected.extend(Self::transitive_derived(&state, &stable.object));
+                        affected
+                    },
                     trigger: p::ReevaluationTriggerRef(format!("stale:{}", stable.object.0)),
                 }),
             )?;

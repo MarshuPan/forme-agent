@@ -110,6 +110,15 @@ impl CognitiveTickEngine for HarnessCognitiveTick<'_> {
                 events.extend(appender.drain());
                 let mut phase_report = match result {
                     Ok(ran) => CognitiveTickPhaseReport::completed(phase, ran, events),
+                    Err(error)
+                        if phase == CognitiveTickPhase::ObserveAndPropose
+                            && error.0 == FOREGROUND_DEFERRAL =>
+                    {
+                        let mut deferred =
+                            CognitiveTickPhaseReport::deferred(phase, FOREGROUND_DEFERRAL);
+                        deferred.event_refs = events;
+                        deferred
+                    }
                     Err(error) => {
                         failed = true;
                         CognitiveTickPhaseReport::failed(phase, events, error.0)
@@ -152,12 +161,15 @@ impl HarnessCognitiveTick<'_> {
         let mut sources = BTreeMap::new();
         let mut observations = Vec::new();
         let mut learning = BTreeMap::new();
-        if !input.foreground_active {
+        if !input.foreground_active && !self.harness.foreground_active()? {
             if let Some(activation) = &input.activation {
                 let config = cognition::ActivationConfig::default();
                 let mut surfaced = BTreeSet::new();
                 let mut remaining = config.per_tick_nodes;
                 for (seed, shape) in &activation.seeds {
+                    if self.harness.foreground_active()? {
+                        return Err(p::Error(FOREGROUND_DEFERRAL.into()));
+                    }
                     if remaining == 0 || surfaced.len() >= config.top_k_frontier {
                         break;
                     }
@@ -438,13 +450,21 @@ impl HarnessCognitiveTick<'_> {
         events: &mut Vec<p::EventId>,
     ) -> p::Result<bool> {
         let head = self.harness.store.run_head(&self.cognition_stream)?;
-        let result = self.cognition.audit_stale_snapshot(
+        let services = self
+            .harness
+            .brain_services()
+            .ok_or_else(|| p::Error("maintenance requires production brain".into()))?;
+        let graph = services
+            .memory
+            .graph_snapshot_at(Some(input.claim.range.to.position(&self.cognition_stream)))?;
+        let result = self.cognition.audit_maintenance_snapshot(
             cognition::Tick {
                 schema_version: p::SchemaVersion(1),
                 now: input.now,
                 stale_after_ms: self.stale_after_ms,
             },
             &input.stable_objects,
+            &graph,
         );
         let targets = input
             .stable_objects
@@ -464,20 +484,38 @@ impl HarnessCognitiveTick<'_> {
         events.extend(self.cognition_events_after(head, |payload| match payload {
             p::EventPayload::FailureEvidenceRecorded(payload) => {
                 payload.class == p::FailureClass::MemoryMisevolution
-                    && failures.contains(&payload.failure_ref.0)
+                    && (failures.contains(&payload.failure_ref.0)
+                        || payload.failure_ref.0.starts_with("memory-maintenance:"))
             }
             p::EventPayload::ReevaluationTaskCreated(payload) => {
                 triggers.contains(&payload.trigger.0)
+                    || payload.trigger.0.starts_with("maintenance:")
             }
             p::EventPayload::CandidateCreated(payload) => {
-                payload.candidate_id.0.starts_with("candidate:stale:")
+                (payload.candidate_id.0.starts_with("candidate:stale:")
+                    || payload.candidate_id.0.starts_with("candidate:maintenance:"))
                     && targets.contains(&payload.target.0)
             }
             _ => false,
         })?);
         let downgrades = result?;
-        if downgrades.is_empty() {
+        let graph_receipt = services.memory.maintain_low_value_branches(
+            &graph,
+            input.now,
+            self.stale_after_ms,
+            p::IdempotencyKey(format!(
+                "brain-maintenance:{}:{}",
+                input.claim.window, graph.digest.0
+            )),
+        )?;
+        if let Some(receipt) = &graph_receipt {
+            events.push(receipt.clone());
+        }
+        if downgrades.is_empty() && graph_receipt.is_none() {
             return Ok(false);
+        }
+        if downgrades.is_empty() {
+            return Ok(true);
         }
         let deltas = maintenance_deltas(input.claim.window, &downgrades);
         if !prior.maintenance.contains(&deltas) {

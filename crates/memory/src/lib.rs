@@ -13,6 +13,7 @@ use forme_store::EventStore;
 mod activation;
 mod m2_c;
 mod m3_c;
+mod maintenance;
 pub use activation::*;
 
 pub use m2_c::*;
