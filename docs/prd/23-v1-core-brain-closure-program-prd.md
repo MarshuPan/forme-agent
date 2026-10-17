@@ -438,6 +438,10 @@ maintenance detector 对 evidence age、conflict、long-unseen、low-value branc
 
 不得直接提升 confidence/autonomy，不物理删除历史 event。所有 derived invalidation 继续走 lineage。
 
+B5 的检测输入是本窗口固定 head 的稳定对象和图：`long-unseen` 读取最近复现时间；`evidence-age` 读取独立 evidence 的 observed_at（重复使用旧判断不刷新证据日期）；`conflict` 读取可信 `Contradicts` 边且端点指向同 scope 的稳定认知对象。无可信新关系时不由模型猜测冲突。长期未复现沿 B1 的幂等链处理；其他原因合并为同一对象/版本/窗口的谨慎候选，已有新版本则跳过旧快照。根对象和全部传递派生引用一并标为待重评，历史与置信度保留。
+
+低价值分支只对过龄、低 confidence/低 resting 的非稳定、非 goal、非 cognitive-object 节点做有界 decay/prune；固定/宪法/稳定层不能被图修剪物理清掉。图 delta 在固定快照上计算；提交前只有在当前图内容仍相同时才可把 expected stream head 前移到非图事实之后，再由 store 事务 CAS。图已有新知识时留给下一窗口。同一窗口维护 command 有持久回执，崩溃重试只补未完成链，不重复衰减。
+
 ### B6 B 波测试与提交
 
 对应 C7–C12：tick order/duplicate/foreground defer/no-change zero-call；AskToLearn 正反/抑制/defer；AgentWorkspace restart/scope/order/capacity；activation 五 shape/bounds/replay/untrusted/no seed；baseline report；maintenance candidate-only。
