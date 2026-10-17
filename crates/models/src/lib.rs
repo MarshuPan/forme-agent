@@ -246,6 +246,45 @@ pub struct ToolDefinition {
     pub description: String,
     pub parameters: Value,
 }
+impl ToolDefinition {
+    /// Function-name grammar shared by compatible HTTP transports. The alias
+    /// is only a name; authority remains in the registered catalog binding.
+    pub fn catalog_alias(name: &str) -> p::Result<String> {
+        if name.trim().is_empty() || name.len() > 1024 {
+            return Err(p::Error("invalid registered tool reference".into()));
+        }
+        let digest = p::canonical_digest(&name)?;
+        Ok(format!("forme_{}", &digest.0[7..63]))
+    }
+    /// Decode a registered catalog schema; invalid text never creates a tool.
+    pub fn from_catalog(name: &str, schema: &str) -> p::Result<Self> {
+        let catalog: Value = serde_json::from_str(schema)
+            .map_err(|_| p::Error("registered tool schema is invalid JSON".into()))?;
+        if !catalog.is_object() || name.trim().is_empty() {
+            return Err(p::Error("registered tool schema is not an object".into()));
+        }
+        let parameters = catalog
+            .get("parameters")
+            .cloned()
+            .or_else(|| catalog.get("inputSchema").cloned())
+            .unwrap_or_else(|| {
+                if catalog.get("type").is_some() {
+                    catalog.clone()
+                } else {
+                    json!({"type":"object"})
+                }
+            });
+        if !parameters.is_object() {
+            return Err(p::Error("tool parameters are not an object".into()));
+        }
+        Ok(Self {
+            schema_version: p::SchemaVersion(1),
+            name: Self::catalog_alias(name)?,
+            description: "Owner-registered capability; arguments never confer authority".into(),
+            parameters,
+        })
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelRequest {

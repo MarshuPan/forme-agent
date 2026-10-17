@@ -440,6 +440,35 @@ impl LoopEngine for ReactiveLoopEngine {
         let assembled = self.context.build(&ctx.context, ctx.context_budget)?;
         let included_sources = assembled.included_sources();
         let included_slice_refs = assembled.included_slice_refs();
+        let catalog = if self.model.profile().capability.tool_use {
+            assembled
+                .assembled
+                .sections
+                .iter()
+                .filter(|section| section.kind == forme_context::ContextSectionKind::ToolSchema)
+                .filter_map(|section| {
+                    forme_models::ToolDefinition::from_catalog(
+                        &section.source_ref,
+                        &section.content,
+                    )
+                    .ok()
+                    .map(|definition| (definition, p::ToolRef(section.source_ref.clone())))
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let mut tool_aliases = std::collections::BTreeMap::new();
+        let mut tools = Vec::new();
+        for (definition, reference) in catalog {
+            if tool_aliases
+                .insert(definition.name.clone(), reference)
+                .is_some()
+            {
+                return Err(p::Error("visible tool aliases collide".into()));
+            }
+            tools.push(definition);
+        }
         ctx.events.push(p::EventPayload::ContextBuildFinished(
             p::ContextBuildFinishedPayload {
                 sources: included_sources,
@@ -492,7 +521,7 @@ impl LoopEngine for ReactiveLoopEngine {
         let response = self.model.call(ModelRequest {
             schema_version: p::SchemaVersion(1),
             messages,
-            tools: Vec::new(),
+            tools,
             max_output_tokens: ctx
                 .budget
                 .tokens
@@ -535,7 +564,10 @@ impl LoopEngine for ReactiveLoopEngine {
                 LoopEffect::Final(output),
                 LoopState::Verification,
             ),
-            ModelOutput::Tool(tool) => {
+            ModelOutput::Tool(mut tool) => {
+                if let Some(reference) = tool_aliases.get(&tool.tool.0) {
+                    tool.tool = reference.clone();
+                }
                 ctx.tool_calls = ctx.tool_calls.saturating_add(1);
                 (
                     p::OutputKind::Tool,

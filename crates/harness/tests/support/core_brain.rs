@@ -3,6 +3,7 @@ use forme_harness::*;
 use forme_models::{ModelRuntimeConfig, ModelStrength};
 use forme_protocol as p;
 use forme_store::EventStore;
+use std::collections::VecDeque;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
@@ -18,6 +19,9 @@ pub struct Fixture {
     pub config: ProductionRuntimeConfig,
     pub calls: Arc<AtomicU64>,
     pub answer: Arc<Mutex<String>>,
+    pub responses: Arc<Mutex<VecDeque<serde_json::Value>>>,
+    pub requests: Arc<Mutex<Vec<String>>>,
+    pub delay_ms: Arc<AtomicU64>,
     stop: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
     root: PathBuf,
@@ -33,19 +37,26 @@ impl Fixture {
         let stop = Arc::new(AtomicBool::new(false));
         let calls = Arc::new(AtomicU64::new(0));
         let answer = Arc::new(Mutex::new(String::from("[]")));
+        let responses = Arc::new(Mutex::new(VecDeque::<serde_json::Value>::new()));
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let delay_ms = Arc::new(AtomicU64::new(0));
+        let (queued, captured, delay) = (responses.clone(), requests.clone(), delay_ms.clone());
         let (flag, count, output) = (stop.clone(), calls.clone(), answer.clone());
         let thread = std::thread::spawn(move || {
             while !flag.load(Ordering::SeqCst) {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        stream.set_nonblocking(false).unwrap();
                         stream
                             .set_read_timeout(Some(Duration::from_secs(5)))
                             .unwrap();
-                        read_request(&mut stream);
+                        captured.lock().unwrap().push(read_request(&mut stream));
                         count.fetch_add(1, Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(delay.load(Ordering::SeqCst)));
                         let content = output.lock().unwrap().clone();
-                        let body = serde_json::json!({"choices":[{"message":{"content":content},"finish_reason":"stop"}],
-                            "usage":{"prompt_tokens":20,"completion_tokens":4}}).to_string();
+                        let body = queued.lock().unwrap().pop_front().unwrap_or_else(||
+                            serde_json::json!({"choices":[{"message":{"content":content},"finish_reason":"stop"}],
+                            "usage":{"prompt_tokens":20,"completion_tokens":4}})).to_string();
                         let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -107,6 +118,9 @@ impl Fixture {
             config,
             calls,
             answer,
+            responses,
+            requests,
+            delay_ms,
             stop,
             thread: Some(thread),
             root,
@@ -134,7 +148,7 @@ impl Drop for Fixture {
     }
 }
 
-fn read_request(stream: &mut TcpStream) {
+fn read_request(stream: &mut TcpStream) -> String {
     let mut bytes = Vec::new();
     loop {
         let mut buffer = [0; 8192];
@@ -158,6 +172,7 @@ fn read_request(stream: &mut TcpStream) {
             }
         }
     }
+    String::from_utf8(bytes).unwrap()
 }
 
 pub fn now() -> i64 {

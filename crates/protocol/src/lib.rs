@@ -6,7 +6,9 @@
 
 mod brain_learning;
 mod brain_memory;
+mod brain_orchestration;
 pub use brain_memory::*;
+pub use brain_orchestration::*;
 mod brain_relevance;
 pub use brain_relevance::*;
 mod control;

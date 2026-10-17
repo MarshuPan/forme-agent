@@ -458,7 +458,7 @@ const BUILTIN_CAPABILITY_SOURCE: &str = "builtin:forme-runtime";
 fn assemble_capabilities(
     config: &ProductionRuntimeConfig,
     workspace: &p::WorkspaceRef,
-    now: p::Timestamp,
+    authority_created_at: p::Timestamp,
 ) -> p::Result<CapabilityAssembly> {
     let capability_config = &config.capabilities;
     let capabilities = Arc::new(InMemoryCapabilityRegistry::default());
@@ -1230,7 +1230,7 @@ fn assemble_capabilities(
             workspace,
             capability_ids,
             permissions,
-            now,
+            authority_created_at,
             capability_config.envelope_budget.clone(),
             &grants,
         ),
@@ -1410,9 +1410,19 @@ fn add_builtin_capability(
         backend,
     );
     if let Some(tool) = tool {
+        let parameters = if backend == p::BackendKind::File {
+            serde_json::json!({"type":"object","required":["File"],"additionalProperties":false,
+                "properties":{"File":{"type":"object","required":["operation","path","content"],
+                    "additionalProperties":false,"properties":{
+                        "operation":{"type":"string","enum":["Read","Write","Delete"]},
+                        "path":{"type":"string","description":"Path within the granted working directory"},
+                        "content":{"type":["array","null"],"items":{"type":"integer","minimum":0,"maximum":255}}}}}})
+        } else {
+            serde_json::json!({"type":"object"})
+        };
         tool_schemas.insert(
             tool.clone(),
-            format!("{{\"tool\":\"{}\",\"backend\":\"{}\"}}", tool.0, label),
+            serde_json::json!({"tool":tool.0,"backend":label,"parameters":parameters}).to_string(),
         );
     }
 }
@@ -1865,6 +1875,8 @@ pub struct ProductionRuntime {
     config: ProductionRuntimeConfig,
     tick_attempts: AtomicU64,
     learning_commands: Mutex<()>,
+    pub(crate) orchestration_commands: Mutex<()>,
+    pub(crate) orchestration_active: Mutex<BTreeSet<p::ExecutionRouteRef>>,
 }
 
 /// Keeps the sole-writer lease alive while the runtime exists, including idle
@@ -2032,7 +2044,7 @@ impl ProductionRuntime {
         let stale_after_ms = i64::try_from(self.config.cognition.stable_evidence_max_age.0)
             .map_err(|_| p::Error("stable evidence age bound is invalid".into()))?;
         let input = self.cognitive_tick_input(claim.clone(), run)?;
-        let report = HarnessCognitiveTick {
+        let mut report = HarnessCognitiveTick {
             harness: self.harness.as_ref(),
             cognition: self.services.cognition.as_ref(),
             cognition_stream: self.services.aggregates.memory_cognition.clone(),
@@ -2040,6 +2052,22 @@ impl ProductionRuntime {
             relevance_mode: self.config.cognition.relevance_mode,
         }
         .run(input)?;
+        if !report.failed() && !report.deferred() {
+            match self.supervise_workspace_snapshot(&claim) {
+                Ok(refs) if !refs.is_empty() => {
+                    let phase = &mut report.phases[0];
+                    phase.event_refs.extend(refs);
+                    phase.status = forme_cognition::CognitiveTickPhaseStatus::Ran;
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    let phase = &mut report.phases[0];
+                    phase.status = forme_cognition::CognitiveTickPhaseStatus::Failed;
+                    phase.failure = Some(p::ReasonRef(error.to_string()));
+                }
+            }
+            report = CognitiveTickReport::seal(claim.clone(), report.run, report.phases)?;
+        }
         // A failed phase leaves the window unfinished: its lease lapses and
         // the same window retries with the same inputs.
         if !report.failed() {
@@ -2686,7 +2714,8 @@ fn compose(
     let intentions =
         event_sourced_intention_services(store.clone(), aggregates.intentions.clone())?;
 
-    let capability_assembly = assemble_capabilities(&config, &config.workspace, now)?;
+    let capability_assembly =
+        assemble_capabilities(&config, &config.workspace, authority.created_at)?;
     let capabilities = capability_assembly.capabilities.clone();
     let skills = capability_assembly.skills.clone();
     let mcp = capability_assembly.mcp.clone();
@@ -2765,6 +2794,23 @@ fn compose(
     .with_verifier(verifier.clone())
     .with_capability_rechecker(capability_assembly.rechecker.clone())
     .with_authority_guard(guard.clone());
+
+    harness.formal_tool_bindings = capability_assembly
+        .bindings
+        .values()
+        .map(|binding| {
+            (
+                p::ToolRef(binding.id.0.clone()),
+                super::formal_tools::FormalToolBinding {
+                    capability: binding.id.clone(),
+                    backend: binding.backend,
+                    scope: binding.scope.clone(),
+                    permissions: binding.permissions.clone(),
+                    risk: binding.risk,
+                },
+            )
+        })
+        .collect();
 
     // Startup recovery is a durable mutation boundary: the production
     // authority fence must already be installed before an incomplete action
@@ -2849,14 +2895,22 @@ fn compose(
     let harness = Arc::new(harness);
     // The production guard is also held by the harness, so the lease remains
     // alive for compatibility callers that unwrap the runtime into a harness.
-    Ok(ProductionRuntime {
+    let runtime = ProductionRuntime {
         harness,
         services,
         manifest,
         config,
         tick_attempts: AtomicU64::new(1),
         learning_commands: Mutex::new(()),
-    })
+        orchestration_commands: Mutex::new(()),
+        orchestration_active: Mutex::new(BTreeSet::new()),
+    };
+    for (route, record) in runtime.orchestration_snapshot()?.routes {
+        if !record.closed {
+            runtime.recover_route_nodes(&route)?;
+        }
+    }
+    Ok(runtime)
 }
 
 fn core_service_states(

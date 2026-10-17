@@ -1514,6 +1514,7 @@ mod tests {
                     resource_graph_snapshot: None,
                     evolution_snapshot: None,
                     federation_snapshot: None,
+                    orchestration: None,
                 }),
             ))
             .unwrap();
@@ -1610,6 +1611,7 @@ mod tests {
                     resource_graph_snapshot: None,
                     evolution_snapshot: None,
                     federation_snapshot: None,
+                    orchestration: None,
                 }),
             ),
             (

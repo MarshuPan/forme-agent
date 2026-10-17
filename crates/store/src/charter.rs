@@ -65,6 +65,20 @@ pub(crate) fn validate(transaction: &Transaction<'_>, event: &p::Event) -> p::Re
             "charter mutation names a different owner aggregate".into(),
         ));
     }
+    let projects = crate::orchestration::read(transaction, &event.run_id)?.projects;
+    if payload.charter.goals.iter().any(|goal| {
+        !projects
+            .values()
+            .any(|p| p.workspace == payload.charter.workspace && p.goal == *goal)
+    }) || payload.charter.done_contract.as_ref().is_some_and(|done| {
+        !projects
+            .values()
+            .any(|p| p.workspace == payload.charter.workspace && p.done == *done)
+    }) {
+        return Err(p::Error(
+            "charter goal or DoneContract is not declared in this workspace".into(),
+        ));
+    }
     let current = read(transaction, &payload.charter.workspace)?.map_or(0, |r| r.version);
     if current != payload.expected_version {
         return Err(p::Error("charter expected version conflict".into()));

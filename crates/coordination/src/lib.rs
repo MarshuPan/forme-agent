@@ -11,7 +11,9 @@ mod m2_c;
 mod m3_b;
 mod m4;
 mod patterns;
+mod supervision;
 pub use patterns::*;
+pub use supervision::*;
 
 pub use m2_c::*;
 pub use m3_b::*;

@@ -48,8 +48,12 @@ use forme_store::{
 };
 
 mod brain_charter;
+mod brain_orchestration;
+mod brain_project_learning;
 mod brain_relevance;
 mod brain_tick;
+mod brain_workspace_supervision;
+mod formal_tools;
 pub use brain_relevance::RelevanceCase;
 mod m3_a;
 mod m3_b;
@@ -768,6 +772,10 @@ pub struct ReactiveHarness {
     skill_registry: Option<Arc<InMemorySkillRegistry>>,
     skill_runtime_lock: Mutex<()>,
     runs: Mutex<BTreeMap<p::RunId, Arc<RunHandle>>>,
+    child_harnesses: Mutex<BTreeMap<p::RunId, (p::RunId, Arc<ReactiveHarness>)>>,
+    charter_workspace_override: Option<p::WorkspaceRef>,
+    formal_tool_bindings: BTreeMap<p::ToolRef, formal_tools::FormalToolBinding>,
+    project_directory: Option<std::path::PathBuf>,
     idempotency: Mutex<BTreeMap<p::IdempotencyKey, p::RunId>>,
     session_locks: Mutex<BTreeMap<p::SessionId, Arc<Mutex<()>>>>,
     active_sessions: Mutex<BTreeSet<p::SessionId>>,
@@ -848,6 +856,10 @@ impl ReactiveHarness {
             skill_registry: None,
             skill_runtime_lock: Mutex::new(()),
             runs: Mutex::new(BTreeMap::new()),
+            child_harnesses: Mutex::new(BTreeMap::new()),
+            charter_workspace_override: None,
+            formal_tool_bindings: BTreeMap::new(),
+            project_directory: None,
             idempotency: Mutex::new(BTreeMap::new()),
             session_locks: Mutex::new(BTreeMap::new()),
             active_sessions: Mutex::new(BTreeSet::new()),
@@ -1270,6 +1282,9 @@ impl ReactiveHarness {
                     .pending(ApprovalScope::Session(session.clone())),
             );
         }
+        for child in self.child_executors()? {
+            pending.extend(child.pending_approvals(session.clone())?);
+        }
         Ok(pending)
     }
 
@@ -1321,6 +1336,7 @@ impl ReactiveHarness {
                     resource_graph_snapshot: None,
                     evolution_snapshot: None,
                     federation_snapshot: None,
+                    orchestration: None,
                 }),
             ),
             SteeringCommand::ResolveCandidate {
@@ -1650,6 +1666,7 @@ impl ReactiveHarness {
                         resource_graph_snapshot: None,
                         evolution_snapshot: None,
                         federation_snapshot: None,
+                        orchestration: None,
                     },
                 ),
             )?;
@@ -2074,6 +2091,7 @@ impl ReactiveHarness {
                 resource_graph_snapshot: None,
                 evolution_snapshot: None,
                 federation_snapshot: None,
+                orchestration: None,
             }),
         )?;
         let proposal = p::ProposalRef(format!(
@@ -2799,6 +2817,7 @@ impl ReactiveHarness {
                     resource_graph_snapshot: None,
                     evolution_snapshot: Some(binding.snapshot.clone()),
                     federation_snapshot: record.federation_snapshot.clone(),
+                    orchestration: None,
                 }),
             )?;
         }
@@ -3077,6 +3096,15 @@ impl ReactiveHarness {
         parent: p::RunId,
         node: &coordination::RouteNode,
     ) -> p::Result<SubagentExecution> {
+        self.spawn_subagent_isolated(parent, node, None)
+    }
+
+    pub(crate) fn spawn_subagent_isolated(
+        &self,
+        parent: p::RunId,
+        node: &coordination::RouteNode,
+        directory: Option<&std::path::Path>,
+    ) -> p::Result<SubagentExecution> {
         let parent_handle = self.run_handle(&parent)?;
         let (parent_evolution, parent_snapshot_ref) = {
             let record = parent_handle
@@ -3130,22 +3158,26 @@ impl ReactiveHarness {
             "workspace:isolated:{}:{}",
             parent.0, node.subtask.id
         ));
-        self.append(
-            parent.clone(),
-            None,
-            internal_provenance(p::Source::Internal),
-            p::EventPayload::SubagentSpawned(p::SubagentSpawnedPayload {
-                child_run: child_run.clone(),
-                role: node.role.role.clone(),
-                toolset_ref: node.resource_slice.toolset_ref.clone(),
-                model_profile: node.role.model.clone(),
-                permission: p::PermissionProfileRef(format!(
-                    "subagent-scope:{}",
-                    node.role.permission.0
-                )),
-                budget: node.role.budget.clone(),
-            }),
-        )?;
+        let restoring =
+            directory.is_some() && self.store.read_run(child_run.clone()).next().is_some();
+        if !restoring {
+            self.append(
+                parent.clone(),
+                None,
+                internal_provenance(p::Source::Internal),
+                p::EventPayload::SubagentSpawned(p::SubagentSpawnedPayload {
+                    child_run: child_run.clone(),
+                    role: node.role.role.clone(),
+                    toolset_ref: node.resource_slice.toolset_ref.clone(),
+                    model_profile: node.role.model.clone(),
+                    permission: p::PermissionProfileRef(format!(
+                        "subagent-scope:{}",
+                        node.role.permission.0
+                    )),
+                    budget: node.role.budget.clone(),
+                }),
+            )?;
+        }
 
         let mut child_envelope = parent_envelope.clone();
         child_envelope.scope = node.role.permission.clone();
@@ -3169,6 +3201,19 @@ impl ReactiveHarness {
             .map(|path| vec![path.to_owned()])
             .unwrap_or_default();
         child_governance.network_allowed = false;
+        if let Some(directory) = directory {
+            let root = directory
+                .to_str()
+                .ok_or_else(|| p::Error("child directory encoding is unsupported".into()))?
+                .to_owned();
+            child_governance.file_roots = vec![root];
+            child_governance.shell_allowlist.clear();
+            child_governance.mcp_allowlist.clear();
+            child_governance.external.browser_origins.clear();
+            child_governance.external.computer_surfaces.clear();
+            child_governance.external.pty_programs.clear();
+            child_governance.external.pty_roots.clear();
+        }
         // App API reachability is authorized per connector rather than by the
         // global network flag, so the connector limits must be withheld
         // explicitly: a child route never inherits outward API authority.
@@ -3176,6 +3221,13 @@ impl ReactiveHarness {
         child_governance.delegation = Some(child_grant);
         child_governance.envelope = Some(child_envelope);
         let mut child_config = self.config.clone();
+        if directory.is_some() {
+            child_config.loop_budget.max_turns = child_config
+                .loop_budget
+                .max_turns
+                .min(u32::try_from(child_budget).unwrap_or(u32::MAX))
+                .max(1);
+        }
         child_config.model_profile = node.role.model.clone();
         child_config.toolset_ref = node.resource_slice.toolset_ref.clone();
         child_config.workspace = child_workspace;
@@ -3186,6 +3238,58 @@ impl ReactiveHarness {
             child_governance,
             child_config,
         )?;
+        if directory.is_some() {
+            child_harness.formal_tool_bindings = self.formal_tool_bindings.clone();
+            child_harness.project_directory = directory.map(std::path::Path::to_path_buf);
+            child_harness.configured_owner = self.configured_owner.clone();
+            child_harness.capability_rechecker = self.capability_rechecker.clone();
+            child_harness.charter_workspace_override = Some(self.config.workspace.clone());
+            if let Some(guard) = &self.authority_guard {
+                child_harness = child_harness.with_authority_guard(guard.clone());
+            }
+            if let Some(services) = &self.brain_services {
+                let hydrator = services.context_hydrator.clone();
+                let catalog_workspace = self.config.workspace.clone();
+                let permitted = node
+                    .resource_slice
+                    .items
+                    .iter()
+                    .map(|i| i.id.0.clone())
+                    .collect::<BTreeSet<_>>();
+                child_harness = child_harness
+                    .with_context_builder(self.context_builder.clone())
+                    .with_context_factory(move |request, run, config| {
+                        use forme_context::ContextHydrator;
+                        let mut ctx =
+                            hydrator.hydrate(&forme_context::ContextHydrationRequest {
+                                schema_version: p::SchemaVersion(1),
+                                run: run.clone(),
+                                session: p::SessionId(request.session.0.clone()),
+                                workspace: catalog_workspace.clone(),
+                                scope: p::Scope(catalog_workspace.0.clone()),
+                                brain_call: false,
+                                selected_skills: Vec::new(),
+                                model: config.model_profile.clone(),
+                                budget: config.context_budget,
+                            })?;
+                        ctx.scope = p::Scope(config.workspace.0.clone());
+                        ctx.sources.memory_summary.scope = ctx.scope.clone();
+                        ctx.sources.history.entries.clear();
+                        ctx.sources.memory_summary.text.clear();
+                        ctx.sources.memory_summary.source_refs.clear();
+                        ctx.sources.memory_summary.raw_event_count = 0;
+                        ctx.sources.slices.clear();
+                        ctx.sources.agent_workspace = None;
+                        ctx.sources.skills_metadata.clear();
+                        ctx.sources.loaded_skill_bodies.clear();
+                        ctx.sources
+                            .tool_schema
+                            .entries
+                            .retain(|entry| permitted.contains(&entry.tool.0));
+                        Ok(ctx)
+                    });
+            }
+        }
         if let Some(snapshot) = parent_evolution {
             child_harness = child_harness
                 .with_evolution_seed(snapshot)?
@@ -3206,12 +3310,38 @@ impl ReactiveHarness {
                 parent.0, node.subtask.intent_id.0
             ))),
         };
+        let child_harness = Arc::new(child_harness);
+        self.child_harnesses
+            .lock()
+            .map_err(|_| p::Error("child registry is unavailable".into()))?
+            .insert(child_run.clone(), (parent.clone(), child_harness.clone()));
+        if parent_handle.cancelled.load(Ordering::SeqCst) {
+            return Err(p::Error(
+                "parent was cancelled before child admission".into(),
+            ));
+        }
+        if restoring {
+            child_harness.restore_formal_approval(&child_run, child_budget)?;
+            return Ok(SubagentExecution {
+                schema_version: p::SchemaVersion(1),
+                child_run: child_run.clone(),
+                result: child_harness.subagent_result(&child_run)?,
+                summary: p::SummaryRef(format!("summary:{}", child_run.0)),
+                result_ref: p::ResultRef(format!("result:{}", child_run.0)),
+            });
+        }
         child_harness.submit_ingress_internal_as(
             child_request,
             Vec::new(),
             Some(child_run.clone()),
         )?;
-        let result = child_harness.wait(child_run.clone())?;
+        let result = child_harness.subagent_result(&child_run)?;
+        if result.status != p::RunStatus::Waiting {
+            self.child_harnesses
+                .lock()
+                .map_err(|_| p::Error("child registry is unavailable".into()))?
+                .remove(&child_run);
+        }
         let summary = p::SummaryRef(format!("summary:{}", child_run.0));
         let result_ref = p::ResultRef(format!("result:{}", child_run.0));
         self.append(
@@ -3260,6 +3390,7 @@ impl ReactiveHarness {
                 resource_graph_snapshot: None,
                 evolution_snapshot: parent_snapshot_ref,
                 federation_snapshot: None,
+                orchestration: None,
             }),
         )?;
         Ok(SubagentExecution {
@@ -3460,7 +3591,11 @@ impl ReactiveHarness {
                 args: tool.arguments.clone(),
             }),
         )?;
-        let Some(mut intent) = tool.intent.clone() else {
+        let Some(mut intent) = tool
+            .intent
+            .clone()
+            .or_else(|| self.resolve_formal_tool(run, &tool))
+        else {
             self.append(
                 run.clone(),
                 turn,
@@ -3486,7 +3621,15 @@ impl ReactiveHarness {
             record.bound_envelope.as_ref(),
         );
         let mut evaluation = self.policy.evaluate_detailed(&context, &intent);
-        if let Some(charter) = self.store.workspace_charter(&self.config.workspace)? {
+        if let Err(error) = self.check_project_action(run, &intent) {
+            evaluation.decision = p::PolicyDecision::Deny;
+            evaluation.reason = p::ReasonRef(error.0);
+        }
+        if let Some(charter) = self.store.workspace_charter(
+            self.charter_workspace_override
+                .as_ref()
+                .unwrap_or(&self.config.workspace),
+        )? {
             let rules = p::CharterRules::parse(&charter)?;
             if let Err(error) = rules.check_action(&intent) {
                 evaluation.decision = p::PolicyDecision::Deny;
@@ -3730,7 +3873,21 @@ impl ReactiveHarness {
         plan.validate_digest()?;
         // A charter may tighten while an approval is waiting. Re-read it at
         // the final driver boundary; an old approval cannot override it.
-        if let Some(charter) = self.store.workspace_charter(&self.config.workspace)? {
+        if let Err(error) = self.check_project_action(run, &intent) {
+            return self.deny_action(
+                run,
+                handle,
+                record,
+                &intent,
+                p::ReasonRef(error.0),
+                StopReason::ApprovalDenied,
+            );
+        }
+        if let Some(charter) = self.store.workspace_charter(
+            self.charter_workspace_override
+                .as_ref()
+                .unwrap_or(&self.config.workspace),
+        )? {
             let rules = p::CharterRules::parse(&charter)?;
             if rules.check_action(&intent).is_err() || (rules.require_review && approval.is_none())
             {
@@ -4820,9 +4977,13 @@ impl AgentHarness for ReactiveHarness {
     }
 
     fn cancel(&self, run: p::RunId) -> p::Result<()> {
+        if let Some(child) = self.child_executor(&run)? {
+            return AgentHarness::cancel(child.as_ref(), run);
+        }
         let handle = self.run_handle(&run)?;
         handle.cancelled.store(true, Ordering::SeqCst);
         handle.cancel_token.cancel();
+        self.cancel_child_runs(&run)?;
         if let Ok(mut record) = handle.record.try_lock() {
             if record.loop_ctx.state.is_suspended() && record.result.is_none() {
                 record
@@ -4835,6 +4996,9 @@ impl AgentHarness for ReactiveHarness {
     }
 
     fn resume(&self, run: p::RunId, input: ResumeInput) -> p::Result<()> {
+        if let Some(child) = self.child_executor(&run)? {
+            return child.resume(run, input);
+        }
         let handle = self.run_handle(&run)?;
         let session = {
             let record = handle
@@ -5041,6 +5205,12 @@ impl GatewayControl for ReactiveHarness {
                     .into_iter()
                     .map(|request| pending_approval(run.clone(), request)),
             );
+        }
+        for child in self.child_executors()? {
+            pending.extend(GatewayControl::pending_approvals(
+                child.as_ref(),
+                session.clone(),
+            )?);
         }
         pending.sort_by(|left, right| {
             (&left.run, &left.approval_id).cmp(&(&right.run, &right.approval_id))
@@ -6368,6 +6538,7 @@ fn coordination_events(
             resource_graph_snapshot: trace.resource_graph_snapshot.clone(),
             evolution_snapshot,
             federation_snapshot,
+            orchestration: None,
         }),
     ]
 }

@@ -916,6 +916,215 @@ fn c8_c9_learning_http_control_is_authenticated_scoped_durable_and_candidate_onl
     remove_sqlite_files(&store);
 }
 
+#[test]
+fn c13_c16_projects_http_control_is_owner_authenticated_bounded_and_restart_durable() {
+    let address = free_address();
+    let store = std::env::temp_dir().join(format!("forme-project-http-{}.db", now_ms()));
+    let spawn = || {
+        ChildGuard(
+            Command::new(env!("CARGO_BIN_EXE_forme-gatewayd"))
+                .env("FORME_MODEL_BASE_URL", "http://127.0.0.1:9/v1")
+                .env("FORME_MODEL_NAME", "project-http-fixture")
+                .env("FORME_MODEL_API_KEY", "project-http-fixture-key")
+                .env("FORME_STORE_PATH", &store)
+                .env("FORME_OWNER_ID", "owner:project-http")
+                .env("FORME_GATEWAY_BIND", "127.0.0.1")
+                .env("FORME_GATEWAY_PORT", address.port().to_string())
+                .env("FORME_GATEWAY_TOKEN", TOKEN)
+                .env("FORME_BRAIN_LEASE_MS", "200")
+                .env("FORME_SCHEDULER_ENABLED", "false")
+                .env("FORME_COGNITIVE_TICK_ENABLED", "false")
+                .env("FORME_GATEWAY_MAX_BODY_BYTES", "16384")
+                .env("FORME_GATEWAY_MAX_REQUESTS_PER_MINUTE", "1000")
+                .env_remove("FORME_CAPABILITY_CONFIG")
+                .env_remove("FORME_MODEL_PROFILES_JSON")
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap(),
+        )
+    };
+    let mut daemon = spawn();
+    wait_until_ready(&mut daemon.0, address);
+    assert_status(&http(address, "GET", "/v1/brain/projects", &[], None), 401);
+    let mut charter = p::WorkspaceCharterRecord {
+        schema_version: p::SchemaVersion(1),
+        workspace: p::WorkspaceRef("workspace:default".into()),
+        version: 1,
+        goals: vec![],
+        constraints: vec![p::Constraint("max-nodes:6".into())],
+        prohibitions: vec![],
+        done_contract: None,
+        review_cadence: Some(p::DurationMs(60_000)),
+        actor: p::Actor::Owner,
+        digest: p::SchemaDigest(String::new()),
+    };
+    charter.refresh_digest().unwrap();
+    let change =
+        serde_json::json!({"schema_version":1,"command":"http-charter","change":{"charter":charter,
+        "expected_version":0,"committed_version":1}})
+        .to_string();
+    let path = "/v1/workspaces/workspace:default/charter";
+    assert_status(
+        &http(
+            address,
+            "PUT",
+            path,
+            &[authorization(), ("Content-Type", "application/json".into())],
+            Some(&change),
+        ),
+        403,
+    );
+    let created = http(
+        address,
+        "PUT",
+        path,
+        &mutation_headers(address),
+        Some(&change),
+    );
+    assert_status(&created, 200);
+    assert_eq!(
+        response_body(&created),
+        response_body(&http(
+            address,
+            "PUT",
+            path,
+            &mutation_headers(address),
+            Some(&change)
+        ))
+    );
+    let manifest = http(
+        address,
+        "GET",
+        "/v1/runtime/manifest",
+        &[authorization()],
+        None,
+    );
+    let manifest: serde_json::Value = serde_json::from_str(response_body(&manifest)).unwrap();
+    let project = serde_json::json!({"schema_version":1,"reference":"project:http","workspace":"workspace:default",
+        "goal":"goal:http","done":"done:http","summary":"Return a verified result",
+        "signature":{"schema_version":1,"partition":"Whole","dependency":"Independent","verification":"SelfCheck",
+            "clarity":"Clear","extent":"Single","reversibility":"LowRiskReversible","anchors":[]},
+        "requirements":[{"OutputContains":"independent-result"}],"scope":"workspace:default","capabilities":[],
+        "model":manifest["model_profiles"][0],"budget_units":8,"node_units":2,"cadence_ms":60000,"deadline":null});
+    let register = serde_json::json!({"schema_version":1,"request":{"operation":"register","command":"http-project","project":project}});
+    let first = http(
+        address,
+        "POST",
+        "/v1/brain/projects",
+        &mutation_headers(address),
+        Some(&register.to_string()),
+    );
+    assert_status(&first, 200);
+    assert_eq!(
+        response_body(&first),
+        response_body(&http(
+            address,
+            "POST",
+            "/v1/brain/projects",
+            &mutation_headers(address),
+            Some(&register.to_string())
+        ))
+    );
+    let mut bad = register.clone();
+    bad["schema_version"] = serde_json::json!(0);
+    assert_status(
+        &http(
+            address,
+            "POST",
+            "/v1/brain/projects",
+            &mutation_headers(address),
+            Some(&bad.to_string()),
+        ),
+        400,
+    );
+    bad = register.clone();
+    bad["principal"] = serde_json::json!("owner:other");
+    assert_status(
+        &http(
+            address,
+            "POST",
+            "/v1/brain/projects",
+            &mutation_headers(address),
+            Some(&bad.to_string()),
+        ),
+        422,
+    );
+    bad = register.clone();
+    bad["request"]["command"] = serde_json::json!("foreign-workspace");
+    bad["request"]["project"]["workspace"] = serde_json::json!("workspace:other");
+    assert_status(
+        &http(
+            address,
+            "POST",
+            "/v1/brain/projects",
+            &mutation_headers(address),
+            Some(&bad.to_string()),
+        ),
+        400,
+    );
+    let plan = serde_json::json!({"schema_version":1,"request":{"operation":"plan","command":"http-route",
+        "project":"project:http","signature":project["signature"],"input_digest":p::canonical_digest(&"http-input").unwrap()}});
+    let planned = http(
+        address,
+        "POST",
+        "/v1/brain/projects",
+        &mutation_headers(address),
+        Some(&plan.to_string()),
+    );
+    assert_status(&planned, 200);
+    let route: p::RouteDeclaration = serde_json::from_str(response_body(&planned)).unwrap();
+    assert!(route.nodes.is_empty());
+    let cancel = serde_json::json!({"schema_version":1,"request":{"operation":"cancel","command":"http-cancel","route":route.route}});
+    assert_status(
+        &http(
+            address,
+            "POST",
+            "/v1/brain/projects",
+            &mutation_headers(address),
+            Some(&cancel.to_string()),
+        ),
+        200,
+    );
+    let execute = serde_json::json!({"schema_version":1,"request":{"operation":"execute","route":route.route}});
+    let closed = http(
+        address,
+        "POST",
+        "/v1/brain/projects",
+        &mutation_headers(address),
+        Some(&execute.to_string()),
+    );
+    assert_status(&closed, 200);
+    let closed: p::WorkRouteRecord = serde_json::from_str(response_body(&closed)).unwrap();
+    assert_eq!(closed.status, p::WorkRouteStatus::Cancelled);
+    assert!(closed.closed);
+    let before = http(
+        address,
+        "GET",
+        "/v1/brain/projects",
+        &[authorization()],
+        None,
+    );
+    assert_status(&before, 200);
+    assert!(!response_body(&before).contains(TOKEN));
+    assert!(!response_body(&before).contains("project-http-fixture-key"));
+    stop(&mut daemon.0);
+    std::thread::sleep(Duration::from_millis(250));
+    let mut restarted = spawn();
+    wait_until_ready(&mut restarted.0, address);
+    let after = http(
+        address,
+        "GET",
+        "/v1/brain/projects",
+        &[authorization()],
+        None,
+    );
+    assert_status(&after, 200);
+    assert_eq!(response_body(&before), response_body(&after));
+    stop(&mut restarted.0);
+    remove_sqlite_files(&store);
+}
+
 impl Drop for ChildGuard {
     fn drop(&mut self) {
         stop(&mut self.0);

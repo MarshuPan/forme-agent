@@ -5,6 +5,7 @@ mod brain;
 mod charter;
 mod checksum;
 mod cursor;
+mod orchestration;
 mod projection;
 mod replay;
 mod replica;

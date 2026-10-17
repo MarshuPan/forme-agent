@@ -254,6 +254,10 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/runtime/tick", post(runtime_tick))
         .route("/v1/brain/workspace", get(brain_workspace))
         .route(
+            "/v1/brain/projects",
+            get(project_ledger).post(project_command),
+        )
+        .route(
             "/v1/workspaces/{id}/charter",
             get(read_workspace_charter).put(write_workspace_charter),
         )
@@ -714,6 +718,93 @@ struct CharterRequest {
     schema_version: p::SchemaVersion,
     command: p::IdempotencyKey,
     change: p::WorkspaceCharterChangedPayload,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProjectRequest {
+    schema_version: p::SchemaVersion,
+    request: ProjectCommand,
+}
+#[derive(serde::Deserialize)]
+#[serde(tag = "operation", rename_all = "snake_case", deny_unknown_fields)]
+enum ProjectCommand {
+    Register {
+        command: p::IdempotencyKey,
+        project: p::WorkspaceProject,
+    },
+    Revise {
+        command: p::IdempotencyKey,
+        project: p::WorkspaceProject,
+        expected_digest: p::SchemaDigest,
+    },
+    Plan {
+        command: p::IdempotencyKey,
+        project: String,
+        signature: p::TaskSignature,
+        input_digest: p::SchemaDigest,
+    },
+    Execute {
+        route: p::ExecutionRouteRef,
+    },
+    Cancel {
+        command: p::IdempotencyKey,
+        route: p::ExecutionRouteRef,
+    },
+}
+async fn project_ledger(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+) -> Result<Json<p::OrchestrationLedger>, ApiError> {
+    let auth = state.authorize(&headers, false)?;
+    let gateway = state.gateway.clone();
+    Ok(Json(
+        blocking(move || gateway.orchestration_state(auth)).await?,
+    ))
+}
+async fn project_command(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(request): Json<ProjectRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let auth = state.authorize(&headers, true)?;
+    learning_schema(request.schema_version)?;
+    let gateway = state.gateway.clone();
+    let value =
+        blocking(move || match request.request {
+            ProjectCommand::Register { command, project } => gateway
+                .register_project(command, project, auth)
+                .map(|event| serde_json::json!({"event":event})),
+            ProjectCommand::Revise {
+                command,
+                project,
+                expected_digest,
+            } => gateway
+                .revise_project(command, project, expected_digest, auth)
+                .map(|event| serde_json::json!({"event":event})),
+            ProjectCommand::Plan {
+                command,
+                project,
+                signature,
+                input_digest,
+            } => gateway
+                .plan_project_route(command, project, signature, input_digest, auth)
+                .and_then(|route| {
+                    serde_json::to_value(route)
+                        .map_err(|_| p::Error("route response encoding failed".into()))
+                }),
+            ProjectCommand::Execute { route } => gateway
+                .execute_project_route(route, auth)
+                .and_then(|outcome| {
+                    serde_json::to_value(outcome)
+                        .map_err(|_| p::Error("route response encoding failed".into()))
+                }),
+            ProjectCommand::Cancel { command, route } => gateway
+                .cancel_project_route(command, route, auth)
+                .map(|_| serde_json::json!({"cancelled":true})),
+        })
+        .await?;
+    Ok(Json(value))
 }
 
 async fn read_workspace_charter(

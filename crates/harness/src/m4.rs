@@ -655,6 +655,7 @@ impl FederatedHarnessRuntime {
                 resource_graph_snapshot: None,
                 evolution_snapshot,
                 federation_snapshot: Some(snapshot_ref.clone()),
+                orchestration: None,
             }),
             internal_provenance(p::Source::Internal),
         )?;
@@ -904,6 +905,7 @@ impl FederatedHarnessRuntime {
                         federation_snapshot: Some(p::FederationSnapshotRef(
                             self.snapshot(request.scope.clone())?.digest.0,
                         )),
+                        orchestration: None,
                     }),
                     owner_provenance(),
                 )?;

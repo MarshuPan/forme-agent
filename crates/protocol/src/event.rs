@@ -429,6 +429,8 @@ define_events! {
         evolution_snapshot: Option<EvolutionSnapshotRef>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         federation_snapshot: Option<FederationSnapshotRef>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        orchestration: Option<OrchestrationFact>,
     },
     OrchestrationRouteCreated => OrchestrationRouteCreatedPayload {
         pattern_ref: Option<OrchestrationPatternRef>,

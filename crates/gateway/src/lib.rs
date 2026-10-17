@@ -950,6 +950,76 @@ where
             .workspace_charter(&self.owner, &workspace)
     }
 
+    pub fn orchestration_state(&self, auth: AuthContext) -> p::Result<p::OrchestrationLedger> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("projects require the production brain".into()))?
+            .orchestration_state(&self.owner)
+    }
+    pub fn register_project(
+        &self,
+        command: p::IdempotencyKey,
+        project: p::WorkspaceProject,
+        auth: AuthContext,
+    ) -> p::Result<p::EventId> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("projects require the production brain".into()))?
+            .register_project(&self.owner, command, project)
+    }
+    pub fn revise_project(
+        &self,
+        command: p::IdempotencyKey,
+        project: p::WorkspaceProject,
+        expected: p::SchemaDigest,
+        auth: AuthContext,
+    ) -> p::Result<p::EventId> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("projects require the production brain".into()))?
+            .revise_project(&self.owner, command, project, expected)
+    }
+    pub fn plan_project_route(
+        &self,
+        command: p::IdempotencyKey,
+        project: String,
+        signature: p::TaskSignature,
+        input: p::SchemaDigest,
+        auth: AuthContext,
+    ) -> p::Result<p::RouteDeclaration> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("projects require the production brain".into()))?
+            .plan_project_route(&self.owner, command, &project, signature, input, now_ms())
+    }
+    pub fn execute_project_route(
+        &self,
+        route: p::ExecutionRouteRef,
+        auth: AuthContext,
+    ) -> p::Result<p::WorkRouteRecord> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("projects require the production brain".into()))?
+            .execute_project_route(&self.owner, &route)
+    }
+    pub fn cancel_project_route(
+        &self,
+        command: p::IdempotencyKey,
+        route: p::ExecutionRouteRef,
+        auth: AuthContext,
+    ) -> p::Result<()> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("projects require the production brain".into()))?
+            .cancel_project_route(&self.owner, &route, command)
+    }
+
     pub fn apply_workspace_charter(
         &self,
         command: p::IdempotencyKey,

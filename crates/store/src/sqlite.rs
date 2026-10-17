@@ -510,6 +510,46 @@ pub struct SqliteEventStore {
 }
 
 impl SqliteEventStore {
+    pub fn orchestration_ledger(&self, stream: &p::RunId) -> p::Result<p::OrchestrationLedger> {
+        let connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("orchestration store is unavailable".into()))?;
+        crate::orchestration::read(&connection, stream)
+    }
+
+    pub fn rebuild_orchestration(&self, stream: &p::RunId) -> p::Result<()> {
+        self.require_authority_writer()?;
+        let events = self
+            .read_run(stream.clone())
+            .collect::<p::Result<Vec<_>>>()?;
+        let mut connection = self
+            .core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("orchestration store is unavailable".into()))?;
+        let tx = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| p::Error("orchestration rebuild transaction failed".into()))?;
+        self.require_authority_writer_in_transaction(&tx)?;
+        if aggregate_version_in_transaction(&tx, stream)?
+            != events.last().map_or(0, |e| e.stream_seq)
+        {
+            return Err(p::Error("orchestration changed during rebuild".into()));
+        }
+        tx.execute(
+            "DELETE FROM orchestration_state WHERE stream=?1",
+            params![stream.0],
+        )
+        .map_err(|_| p::Error("orchestration reset failed".into()))?;
+        for event in &events {
+            crate::orchestration::fold(&tx, event)?;
+        }
+        tx.commit()
+            .map_err(|_| p::Error("orchestration rebuild commit failed".into()))
+    }
+
     pub fn workspace_charter(
         &self,
         workspace: &p::WorkspaceRef,
@@ -4527,7 +4567,18 @@ fn append_prepared(
             ts_unix_ms: Some(ts),
             provenance: &stored_provenance,
         });
-        if stored_semantics != prepared.event_semantics {
+        let control_command = matches!(
+            prepared.event.payload,
+            p::EventPayload::WorkspaceCharterChanged(_)
+        ) || matches!(&prepared.event.payload, p::EventPayload::DecisionTraceRecorded(p) if p.orchestration.is_some());
+        let same_control = control_command
+            && run_id == prepared.event.run_id.0
+            && turn_id.as_deref() == prepared.event.turn_id.as_ref().map(|v| v.0.as_str())
+            && kind == prepared.event.kind.as_str()
+            && stored_payload == prepared.payload
+            && stored_provenance == prepared.provenance
+            && schema_version == prepared.event.schema_version.0;
+        if stored_semantics != prepared.event_semantics && !same_control {
             return Err(p::Error(format!(
                 "event idempotency collision for event_id {}: existing event semantics differ",
                 prepared.event.event_id.0
@@ -4607,6 +4658,7 @@ fn append_prepared(
 
     validate_graph_maintenance_in_transaction(transaction, &prepared.event)?;
     crate::charter::validate(transaction, &prepared.event)?;
+    crate::orchestration::validate(transaction, &prepared.event)?;
     let previous_seq = aggregate_version_in_transaction(transaction, &prepared.event.run_id)?;
     let next_seq = previous_seq
         .checked_add(1)
@@ -4667,6 +4719,7 @@ fn append_prepared(
     }
     update_builtin_projections(transaction, &prepared.event)?;
     crate::charter::fold(transaction, &prepared.event)?;
+    crate::orchestration::fold(transaction, &prepared.event)?;
     update_evolution_catalog(transaction, &prepared.event)?;
     if fts_enabled {
         if fts_was_current {
@@ -7758,6 +7811,9 @@ fn initialize_connection(
     transaction
         .execute_batch(crate::charter::CHARTER_SCHEMA)
         .map_err(|error| store_error("failed to initialize charter projection", error))?;
+    transaction
+        .execute_batch(crate::orchestration::SCHEMA)
+        .map_err(|error| store_error("failed to initialize orchestration projection", error))?;
     if fts_enabled {
         transaction
             .execute_batch(FTS_SCHEMA)
@@ -8317,6 +8373,14 @@ fn approval_consumption_semantic_digest(
 
 fn domain_idempotency_key(event: &p::Event) -> Option<(&'static str, String)> {
     match &event.payload {
+        p::EventPayload::DecisionTraceRecorded(payload) if payload.orchestration.is_some() => {
+            payload.orchestration.as_ref().map(|f| {
+                (
+                    "orchestration",
+                    format!("{}:{}", event.run_id.0, f.command.0),
+                )
+            })
+        }
         p::EventPayload::RunAccepted(payload) => payload
             .idempotency_key
             .as_ref()

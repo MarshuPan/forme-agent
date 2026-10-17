@@ -2695,6 +2695,7 @@ fn s26_trace_view_resolves_failure_and_verification_without_writing_history() {
                 resource_graph_snapshot: None,
                 evolution_snapshot: None,
                 federation_snapshot: None,
+                orchestration: None,
             }),
         ))
         .unwrap();

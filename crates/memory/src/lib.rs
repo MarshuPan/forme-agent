@@ -736,6 +736,29 @@ where
         &self.aggregate_run
     }
 
+    /// Synchronizes this cached projection after another governed producer
+    /// appended to the shared owner aggregate. No durable state is written.
+    pub fn refresh_projection(&self) -> p::Result<()> {
+        let mut state = self.lock_state()?;
+        let mut next = MemoryState::default();
+        let mut graph = p::MemoryGraphLedger::default();
+        let mut head = 0;
+        for event in self.store.read_run(self.aggregate_run.clone()) {
+            let event = event?;
+            graph.fold(&event)?;
+            fold_event(&mut next, &event);
+            head = event.stream_seq;
+        }
+        self.event_sequence
+            .fetch_max(head.saturating_add(1), Ordering::SeqCst);
+        self.candidate_sequence.fetch_max(
+            next_candidate_sequence(&self.aggregate_run, &next),
+            Ordering::SeqCst,
+        );
+        *state = next;
+        Ok(())
+    }
+
     pub fn reserve_candidate_id(&self) -> p::CandidateId {
         p::CandidateId(format!(
             "candidate:{}:{}",

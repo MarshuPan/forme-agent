@@ -492,6 +492,7 @@ fn all_payload_fixtures() -> Vec<EventPayload> {
             resource_graph_snapshot: None,
             evolution_snapshot: None,
             federation_snapshot: None,
+            orchestration: None,
         }),
         EventPayload::OrchestrationRouteCreated(OrchestrationRouteCreatedPayload {
             pattern_ref: Some(text!(OrchestrationPatternRef, "pattern-1")),
