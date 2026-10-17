@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:51d195ff4199f981099573aae71181e089d8a58101147ad4d4741dbe8d94d8a9",
+        "input_digest": "sha256:7886eaaf6e6473b7b2190dfcfbaf6e146b02e625a4af41533408c986805d6172",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:4c7369a4577b9276b551488ec5d51d11dce5950cdb4c859aa60d9869708fa478",
+        "input_digest": "sha256:b5a4729404473b327cdfe1128bbd34d9e9e7d75e524890036cd420780114a5c2",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -57,7 +57,7 @@
         "blocking": false,
         "check_id": "acceptance_artifacts",
         "findings": [],
-        "input_digest": "sha256:0646ee62b30213c57c0defb20830dd82fa5b4fc4b47046e758e302a231b552ce",
+        "input_digest": "sha256:4bf86c49b3055ff7ffaca8a180896a74993ff4d8a8c4fe73788f1a39e46c13fd",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-artifact-scan",
@@ -98,7 +98,7 @@
         "blocking": false,
         "check_id": "ecosystem_threat_profile",
         "findings": [],
-        "input_digest": "sha256:f4761c420f6e8f916aca0b0261ca74c91c5b8a0ddb7e743a42dffde188c6bdd2",
+        "input_digest": "sha256:a3587b72293f383a6959a845b5323fd1e601770235ea9ea5121e3d1a0288b476",
         "observations": [
           {
             "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
@@ -142,10 +142,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:22aa880b3b9b4278dfb50af1778702c9ea1f0f2b5dd723eb0d618f0b2922959d",
+    "root_digest": "sha256:30cc04d49a273c8e0c5151a00b40ffcc137e9a6a3df9d11b6b4ab3b1b83ad593",
     "schema_version": 1,
     "tool_version": "forme-release-audit/5"
   },
-  "digest": "sha256:6efb63e953c3fcebeb5a12e9ae6053848cf98e61da1364ecfb3e5113d93bed1a",
+  "digest": "sha256:4632b546d3885c89fb92d8b6ea835537fe8ff9719a715f8f7850e10ffa9fc755",
   "schema_version": 1
 }
