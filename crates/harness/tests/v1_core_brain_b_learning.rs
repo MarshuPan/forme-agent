@@ -1,5 +1,6 @@
 #[path = "support/core_brain.rs"]
 mod support;
+use forme_context::{ContextBudget, ContextHydrationRequest, ContextHydrator};
 use forme_harness::{CognitiveTickOutcome, CognitiveTickPhaseStatus};
 use forme_protocol as p;
 use std::sync::atomic::Ordering;
@@ -173,5 +174,97 @@ fn c8_low_value_quiet_unrelated_and_unauthenticated_learning_are_zero_emit_or_ze
     assert!(!events(&runtime)
         .iter()
         .any(|e| e.kind == p::EventKind::ProactiveProposalEmitted));
+    assert_eq!(f.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn c8_map_answers_stay_candidates_and_pending_questions_use_formal_scoped_context() {
+    let f = Fixture::new();
+    let runtime = f.build();
+    let mut dependency = knowledge("placeholder", p::Impact::High);
+    dependency.requirements[0].target =
+        p::LearningTarget::CognitiveMap(p::ObjectRef("frame:project-quality".into()));
+    runtime
+        .register_learning_goal(
+            &f.owner(),
+            p::IdempotencyKey("map-goal".into()),
+            p::GoalFrameRef("goal:quality".into()),
+            dependency,
+        )
+        .unwrap();
+    runtime.cognitive_tick_at(now()).unwrap();
+    let (proposal, _) = ask(&runtime);
+    let request = ContextHydrationRequest {
+        schema_version: p::SchemaVersion(1),
+        run: p::RunId("run:map-context".into()),
+        session: p::SessionId("session:map-context".into()),
+        workspace: f.config.workspace.clone(),
+        scope: p::Scope(f.config.workspace.0.clone()),
+        brain_call: true,
+        selected_skills: vec![],
+        model: p::ModelProfileRef("model:core-b".into()),
+        budget: ContextBudget {
+            schema_version: p::SchemaVersion(1),
+            max_tokens: 32768,
+            reserve: 1024,
+        },
+    };
+    let context = runtime
+        .services()
+        .context_hydrator
+        .hydrate(&request)
+        .unwrap();
+    let question = context
+        .sources
+        .slices
+        .iter()
+        .find(|slice| slice.id.0 == "brain:pending-learning")
+        .unwrap();
+    assert!(question.content.contains("frame:project-quality"));
+    assert_eq!(
+        question.provenance.trust_tier,
+        p::TrustTier::VerifiedProcess
+    );
+    let reply = p::LearningReplyRecord {
+        schema_version: p::SchemaVersion(1),
+        proposal,
+        value: p::UserAttributeValueRef("content:quality-answer".into()),
+    };
+    let candidate = runtime
+        .answer_learning(
+            &f.owner(),
+            p::IdempotencyKey("map-answer".into()),
+            reply.clone(),
+        )
+        .unwrap();
+    let all = events(&runtime);
+    assert!(all.iter().any(|event| matches!(&event.payload,
+        p::EventPayload::CognitiveMapUpdateProposed(payload)
+            if payload.candidate_id == candidate && payload.confidence == p::Confidence(0.4)
+    )));
+    assert!(runtime.services().cognition.stable_objects().is_empty());
+    assert!(!all.iter().any(|event| matches!(
+        event.kind,
+        p::EventKind::CandidatePromoted | p::EventKind::ActionStarted
+    )));
+    let context = runtime
+        .services()
+        .context_hydrator
+        .hydrate(&request)
+        .unwrap();
+    assert!(!context
+        .sources
+        .slices
+        .iter()
+        .any(|slice| slice.id.0 == "brain:pending-learning"));
+    drop(runtime);
+    let runtime = f.build();
+    assert_eq!(
+        candidate,
+        runtime
+            .answer_learning(&f.owner(), p::IdempotencyKey("map-answer".into()), reply,)
+            .unwrap()
+    );
+    assert_eq!(events(&runtime).len(), all.len());
     assert_eq!(f.calls.load(Ordering::SeqCst), 0);
 }

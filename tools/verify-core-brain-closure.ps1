@@ -101,6 +101,92 @@ try {
         )
     }
 
+    $bGroups = @(
+        @{ Id = "C7-stable-replay"; Package = "forme-cognition"; Target = "v1_b0_stable_replay"; Tests = @(
+            "promotions_replay_field_for_field_across_every_stable_family",
+            "restart_keeps_reproduction_time_so_nothing_turns_stale",
+            "a_target_that_is_not_the_recorded_object_writes_nothing",
+            "an_owner_downgrade_replays_on_the_recorded_object",
+            "a_historical_promotion_without_a_record_keeps_its_original_replay"
+        ) },
+        @{ Id = "C7-tick-ledger"; Package = "forme-store"; Target = "v1_b1_tick_ledger"; Tests = @(
+            "a_window_is_fulfilled_once_and_duplicate_signals_never_rerun_it",
+            "a_takeover_reads_the_recorded_range_and_fences_the_lost_attempt",
+            "abandoned_windows_retry_and_consumption_stays_inside_the_range",
+            "finishing_binds_the_recorded_range_attempt_expiry_and_schema",
+            "windows_are_sequential_and_honour_the_cadence",
+            "tick_claims_survive_restart_and_require_the_owner_fence",
+            "the_consumed_cursor_grows_by_run_and_never_moves_back",
+            "run_heads_snapshot_every_run_in_one_read"
+        ) },
+        @{ Id = "C7-tick-rules"; Package = "forme-cognition"; Target = "v1_b1_tick_rules"; Tests = @(
+            "signals_represent_each_failure_once_and_put_unknown_outcomes_first",
+            "failures_beyond_the_observation_bound_still_reach_reflection",
+            "reflections_are_deterministic_low_confidence_blind_spots",
+            "a_report_lists_its_phases_in_order_and_consumes_by_deferral"
+        ) },
+        @{ Id = "C7-tick-recovery"; Package = "forme-cognition"; Target = "v1_b1_tick_recovery"; Tests = @(
+            "maintenance_recovers_after_invalidation_before_candidate_without_duplicate_facts",
+            "an_old_snapshot_never_invalidates_a_newly_reproduced_object",
+            "maintenance_and_owner_promotion_commit_in_one_semantic_order",
+            "reflection_recovers_its_candidate_and_rejects_changed_recorded_facts"
+        ) },
+        @{ Id = "C7-formal-tick"; Package = "forme-harness"; Target = "v1_core_brain_b1_tick"; Tests = @(
+            "c7_one_window_observes_then_reflects_then_maintains_over_a_fixed_range",
+            "c7_duplicate_signals_and_restarts_never_rerun_a_window",
+            "c7_a_foreground_session_defers_heavy_phases_and_keeps_their_inputs",
+            "c7_a_crashed_window_retries_its_recorded_range_and_never_repeats_a_proposal",
+            "c7_a_recovered_window_keeps_its_cognition_snapshot_and_judgment_time",
+            "c7_an_unknown_action_outcome_is_surfaced_and_never_retried"
+        ) },
+        @{ Id = "C8-learning-contract"; Package = "forme-protocol"; Target = "v1_learning_contract"; Tests = @(
+            "learning_additions_keep_the_legacy_payload_bytes_and_taxonomy"
+        ) },
+        @{ Id = "C8-learning-rules"; Package = "forme-cognition"; Target = "v1_b2_learning_rules"; Tests = @(
+            "known_scoped_knowledge_closes_only_its_declared_gap",
+            "legacy_payloads_omit_new_fields_and_untrusted_or_forged_learning_is_rejected"
+        ) },
+        @{ Id = "C8-formal-learning"; Package = "forme-harness"; Target = "v1_core_brain_b_learning"; Tests = @(
+            "c8_goal_gap_questions_and_owner_answers_are_durable_candidates_only",
+            "c8_rejection_and_defer_survive_restart_and_never_repeat_the_origin",
+            "c8_low_value_quiet_unrelated_and_unauthenticated_learning_are_zero_emit_or_zero_write",
+            "c8_map_answers_stay_candidates_and_pending_questions_use_formal_scoped_context"
+        ) },
+        @{ Id = "C9-attention"; Package = "forme-cognition"; Target = "v1_b3_attention"; Tests = @(
+            "c9_owner_projection_filters_before_capacity_and_is_order_independent",
+            "c9_attention_digest_binds_full_cursor_time_config_and_rejects_conflicting_positions",
+            "c9_all_six_item_kinds_remove_terminal_work_and_exclude_future_intentions"
+        ) },
+        @{ Id = "C9-formal-context"; Package = "forme-harness"; Target = "v1_core_brain_b_workspace"; Tests = @(
+            "c9_owner_attention_and_formal_context_rebuild_across_workspace_restart"
+        ) },
+        @{ Id = "C8-C9-gateway-restart"; Package = "forme-gateway"; Target = "gatewayd_e2e"; Tests = @(
+            "c8_c9_learning_http_control_is_authenticated_scoped_durable_and_candidate_only"
+        ) },
+        @{ Id = "C10-activation"; Package = "forme-memory"; Target = "v1_b4_activation"; Tests = @(
+            "c10_five_shapes_converge_decay_and_obey_all_activation_bounds",
+            "c10_no_seed_has_no_snapshot_and_untrusted_or_out_of_scope_cannot_spread",
+            "c10_typed_maintenance_cas_replays_every_delta_and_rejects_poison"
+        ) },
+        @{ Id = "C10-C11-formal-relevance"; Package = "forme-harness"; Target = "v1_core_brain_b_activation"; Tests = @(
+            "c10_formal_tick_uses_explicit_bounded_diffusion_and_restart_does_not_self_trigger",
+            "c11_common_snapshot_provider_baseline_records_honest_metrics_and_negative_result",
+            "c11_formal_tick_can_use_direct_model_without_diffusion_or_hidden_profile"
+        ) },
+        @{ Id = "C12-maintenance"; Package = "forme-harness"; Target = "v1_core_brain_b_maintenance"; Tests = @(
+            "c12_formal_maintenance_covers_age_unseen_conflict_pruning_and_transitive_replay",
+            "c12_old_graph_cannot_decay_new_knowledge_and_window_receipts_are_idempotent",
+            "c12_healthy_prefix_cannot_hide_later_maintenance_issues"
+        ) }
+    )
+    $waveScenarios["B"] = @(
+        foreach ($group in $bGroups) {
+            foreach ($test in $group.Tests) {
+                @{ Id = $group.Id; Package = $group.Package; Target = @("--test", $group.Target); Test = $test }
+            }
+        }
+    )
+
     $requestedWaves = if ($Wave -ceq "Final") { @("A", "B", "C", "D") } else { @($Wave) }
     foreach ($requested in $requestedWaves) {
         if (-not $waveScenarios.ContainsKey($requested)) {
@@ -122,6 +208,12 @@ try {
     foreach ($requested in $requestedWaves) {
         foreach ($scenario in $waveScenarios[$requested]) {
             Invoke-Scenario $scenario
+        }
+        if ($requested -ceq "B") {
+            Invoke-Checked -Label "C11 repository relevance artifact independent verification" -Program "cargo" -Arguments @(
+                "run", "-p", "forme-eval", "--bin", "forme-core-brain-b-artifact-verify", "--",
+                "docs/acceptance/core-brain-b-artifacts/relevance-comparison.json"
+            )
         }
         Write-Host "[PASS] core-brain-wave-$requested"
     }

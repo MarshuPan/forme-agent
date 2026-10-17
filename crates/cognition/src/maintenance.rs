@@ -20,18 +20,16 @@ impl<S: EventStore> CognitiveRuntime<S> {
             return Err(p::Error("invalid cognitive maintenance bounds".into()));
         }
         let _guard = self.lock_command()?;
-        let remaining = 64usize.saturating_sub(candidates.len());
-        for stable in snapshot
-            .iter()
-            .filter(|stable| {
-                stable.active
-                    && !matches!(
-                        stable.tier,
-                        p::StabilityTier::Fixed | p::StabilityTier::Constitutional
-                    )
-            })
-            .take(remaining)
-        {
+        for stable in snapshot.iter().filter(|stable| {
+            stable.active
+                && !matches!(
+                    stable.tier,
+                    p::StabilityTier::Fixed | p::StabilityTier::Constitutional
+                )
+        }) {
+            if candidates.len() >= 64 {
+                break;
+            }
             let mut issues = BTreeSet::new();
             let mut refs = stable
                 .evidence

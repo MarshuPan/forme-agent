@@ -255,3 +255,41 @@ fn c12_old_graph_cannot_decay_new_knowledge_and_window_receipts_are_idempotent()
         graph
     );
 }
+
+#[test]
+fn c12_healthy_prefix_cannot_hide_later_maintenance_issues() {
+    let f = Fixture::new();
+    let runtime = f.build();
+    let at = now();
+    for index in 0..65 {
+        promote(&runtime, &format!("frame:healthy:{index:02}"), at, at);
+    }
+    promote(&runtime, "frame:z-aged", 1, at);
+    let cognition = runtime.services().cognition.clone();
+    let snapshot = cognition.stable_objects();
+    assert_eq!(snapshot.last().unwrap().object.0, "frame:z-aged");
+    let graph = runtime.services().memory.graph_snapshot_at(None).unwrap();
+    let candidates = cognition
+        .audit_maintenance_snapshot(
+            Tick {
+                schema_version: p::SchemaVersion(1),
+                now: at,
+                stale_after_ms: 100,
+            },
+            &snapshot,
+            &graph,
+        )
+        .unwrap();
+    assert_eq!(candidates.len(), 1);
+    let stable = cognition.stable_objects();
+    assert!(stable[..65].iter().all(|object| object.active));
+    assert!(!stable[65].active);
+    assert!(stable
+        .iter()
+        .all(|object| object.confidence == p::Confidence(0.9)));
+    assert!(events(&runtime).iter().any(|event| matches!(
+        &event.payload,
+        p::EventPayload::ReevaluationTaskCreated(payload)
+            if payload.trigger.0 == "maintenance:EvidenceAge:frame:z-aged"
+    )));
+}

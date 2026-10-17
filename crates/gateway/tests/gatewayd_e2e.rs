@@ -763,6 +763,159 @@ fn jobs_api_persists_across_daemon_restart_and_cancel_prevents_a_run() {
 
 struct ChildGuard(Child);
 
+#[test]
+fn c8_c9_learning_http_control_is_authenticated_scoped_durable_and_candidate_only() {
+    let address = free_address();
+    let store = std::env::temp_dir().join(format!("forme-brain-http-{}.db", now_ms()));
+    let spawn = || {
+        ChildGuard(
+            Command::new(env!("CARGO_BIN_EXE_forme-gatewayd"))
+                .env("FORME_MODEL_BASE_URL", "http://127.0.0.1:9/v1")
+                .env("FORME_MODEL_NAME", "brain-http-fixture")
+                .env("FORME_MODEL_API_KEY", "brain-http-fixture-key")
+                .env("FORME_STORE_PATH", &store)
+                .env("FORME_OWNER_ID", "owner:brain-http")
+                .env("FORME_GATEWAY_BIND", "127.0.0.1")
+                .env("FORME_GATEWAY_PORT", address.port().to_string())
+                .env("FORME_GATEWAY_TOKEN", TOKEN)
+                .env("FORME_SCHEDULER_ENABLED", "false")
+                .env("FORME_COGNITIVE_TICK_ENABLED", "false")
+                .env("FORME_COGNITIVE_TICK_MS", "1")
+                .env("FORME_BRAIN_LEASE_MS", "200")
+                .env("FORME_GATEWAY_MAX_BODY_BYTES", "8192")
+                .env("FORME_GATEWAY_MAX_REQUESTS_PER_MINUTE", "1000")
+                .env_remove("FORME_CAPABILITY_CONFIG")
+                .env_remove("FORME_MODEL_PROFILES_JSON")
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap(),
+        )
+    };
+    let mut daemon = spawn();
+    wait_until_ready(&mut daemon.0, address);
+    assert_status(&http(address, "GET", "/v1/brain/workspace", &[], None), 401);
+    assert_status(
+        &http(
+            address,
+            "GET",
+            "/v1/brain/workspace?capacity=65",
+            &[authorization()],
+            None,
+        ),
+        400,
+    );
+    let goal=serde_json::json!({"schema_version":1,"command":"declare-http-goal","goal":"goal:http",
+        "knowledge":{"schema_version":1,"scope":"workspace:default","allow_questions":true,"requirements":[{"schema_version":1,"target":{"UserAttribute":"risk"},"reason":"risk affects the goal","impact":"High","minimum_confidence":0.8}]}}).to_string();
+    assert_status(
+        &http(
+            address,
+            "POST",
+            "/v1/brain/learning/goals",
+            &[authorization(), ("Content-Type", "application/json".into())],
+            Some(&goal),
+        ),
+        403,
+    );
+    let created = http(
+        address,
+        "POST",
+        "/v1/brain/learning/goals",
+        &mutation_headers(address),
+        Some(&goal),
+    );
+    assert_status(&created, 200);
+    assert_eq!(
+        response_body(&created),
+        response_body(&http(
+            address,
+            "POST",
+            "/v1/brain/learning/goals",
+            &mutation_headers(address),
+            Some(&goal)
+        ))
+    );
+    let tick = http(
+        address,
+        "POST",
+        "/v1/runtime/tick",
+        &mutation_headers(address),
+        Some(""),
+    );
+    assert_status(&tick, 200);
+    let tick: serde_json::Value = serde_json::from_str(response_body(&tick)).unwrap();
+    assert_eq!(tick["model_calls"], 0);
+    assert_eq!(tick["ran"], true);
+    let run = tick["run"].as_str().unwrap();
+    let log = http(
+        address,
+        "GET",
+        &format!("/v1/runs/{run}/events"),
+        &[authorization()],
+        None,
+    );
+    assert_status(&log, 200);
+    let events = parse_sse(response_body(&log));
+    let proposal = events
+        .iter()
+        .find_map(|event| {
+            if let p::EventPayload::ProactiveProposalEmitted(payload) = &event.payload {
+                payload
+                    .learning
+                    .as_ref()
+                    .map(|_| payload.proposal_ref.clone())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let answer=serde_json::json!({"schema_version":1,"command":"answer-http-goal","reply":{"schema_version":1,"proposal":proposal,"value":"content:http-owner-answer"}}).to_string();
+    assert_status(
+        &http(
+            address,
+            "POST",
+            "/v1/brain/learning/answer",
+            &[("Content-Type", "application/json".into())],
+            Some(&answer),
+        ),
+        401,
+    );
+    let answered = http(
+        address,
+        "POST",
+        "/v1/brain/learning/answer",
+        &mutation_headers(address),
+        Some(&answer),
+    );
+    assert_status(&answered, 200);
+    let candidate: serde_json::Value = serde_json::from_str(response_body(&answered)).unwrap();
+    let at = now_ms();
+    let path = format!("/v1/brain/workspace?scope=workspace:default&capacity=64&at={at}");
+    let before = http(address, "GET", &path, &[authorization()], None);
+    assert_status(&before, 200);
+    assert!(response_body(&before).contains(candidate["candidate"].as_str().unwrap()));
+    assert!(!response_body(&before).contains(TOKEN));
+    stop(&mut daemon.0);
+    std::thread::sleep(Duration::from_millis(250));
+    let mut restarted = spawn();
+    wait_until_ready(&mut restarted.0, address);
+    let after = http(address, "GET", &path, &[authorization()], None);
+    assert_status(&after, 200);
+    assert_eq!(response_body(&before), response_body(&after));
+    assert_eq!(
+        response_body(&answered),
+        response_body(&http(
+            address,
+            "POST",
+            "/v1/brain/learning/answer",
+            &mutation_headers(address),
+            Some(&answer)
+        ))
+    );
+    stop(&mut restarted.0);
+    remove_sqlite_files(&store);
+}
+
 impl Drop for ChildGuard {
     fn drop(&mut self) {
         stop(&mut self.0);
