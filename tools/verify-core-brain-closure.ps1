@@ -1,7 +1,11 @@
 param(
     # A wave gate runs the implemented wave's scenarios; "Final" requires every
     # wave and is the only form that can support a closure claim.
-    [ValidateSet("A", "B", "C", "D", "Final")][string]$Wave = "Final"
+    [ValidateSet("A", "B", "C", "D", "Final")][string]$Wave = "Final",
+    # Runtime evidence alone never closes C24, wave D, or Final.
+    [switch]$RuntimeOnly,
+    # Read-only machine inventory, also used by the independent release audit.
+    [switch]$ListScenarios
 )
 
 $ErrorActionPreference = "Stop"
@@ -9,9 +13,18 @@ Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $priorCArtifactRoot = $env:FORME_CORE_C_ARTIFACT_DIR
+$priorTargetDirectory = $env:CARGO_TARGET_DIR
+$priorCliBinary = $env:FORME_CLI_BIN
+$priorGatewayBinary = $env:FORME_GATEWAYD_BIN
 $temporaryCArtifactRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("forme-core-c-gate-" + [Guid]::NewGuid().ToString("N"))
+$temporaryReleaseRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("forme-core-release-gate-" + [Guid]::NewGuid().ToString("N"))
+$gateExitCode = 1
 Push-Location $repoRoot
 try {
+    if ($RuntimeOnly -and $Wave -cne "D") {
+        throw "-RuntimeOnly is supported only with -Wave D; it cannot close D or Final"
+    }
+
     function Invoke-Checked {
         param(
             [Parameter(Mandatory = $true)][string]$Label,
@@ -22,6 +35,7 @@ try {
         Write-Host "==> $Label"
         & $Program @Arguments
         if ($LASTEXITCODE -ne 0) {
+            $script:gateExitCode = if ($LASTEXITCODE -eq 2) { 2 } else { 1 }
             throw "$Label failed with exit code $LASTEXITCODE"
         }
     }
@@ -32,6 +46,9 @@ try {
         param([Parameter(Mandatory = $true)]$Scenario)
 
         $arguments = @("test", "-p", $Scenario.Package) + $Scenario.Target + @($Scenario.Test, "--", "--exact")
+        if ($Scenario.ContainsKey("IncludeIgnored") -and $Scenario.IncludeIgnored) {
+            $arguments += "--include-ignored"
+        }
         Write-Host "==> [$($Scenario.Id)] $($Scenario.Package) $($Scenario.Test)"
         $previous = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
@@ -246,11 +263,166 @@ try {
         @{ Id = "C16-final-output"; Package = "forme-harness"; Target = @("--lib"); Test = "brain_orchestration::tests::c16_final_verification_ignores_old_answers_and_unfinished_calls" }
     )
 
+    $dGroups = @(
+        @{ Id = "C19-pinned-adaptation"; Package = "forme-harness"; Target = @("--test", "m3_b_harness_contract"); Tests = @(
+            "c19_selected_provider_cannot_inherit_another_models_measured_adaptation"
+        ) },
+        @{ Id = "C19-C23-formal-product"; Package = "forme-harness"; Target = @("--test", "v1_core_brain_d_product"); Tests = @(
+            "c19_actual_attempts_bind_distinct_providers_and_only_explicit_rejections_fallback",
+            "c19_unknown_timeout_and_incompatible_profiles_never_switch_models",
+            "c20_dashboard_is_workspace_scoped_replayable_and_counts_actual_fallbacks",
+            "c20_learning_scope_window_and_backlog_follow_the_original_proposal",
+            "c21_owner_restore_binds_exact_backup_plan_and_one_shot_without_switching_authority",
+            "c23_real_runtime_erases_derived_graph_and_cognition_evicts_cached_output_and_restarts",
+            "c23_pending_cleanup_fences_foreground_ticks_and_cached_reads_until_resume"
+        ) },
+        @{ Id = "C22-C23-data-protection"; Package = "forme-store"; Target = @("--test", "v1_data_protection"); Tests = @(
+            "c22_events_projections_idempotency_backup_and_restart_contain_no_plaintext",
+            "c22_missing_resolver_wrong_owner_and_historical_plaintext_fail_closed",
+            "c22_protected_sync_bootstrap_reopens_with_bound_metadata_and_no_plaintext",
+            "c23_scoped_cleanup_removes_real_content_caches_keys_and_survives_replay",
+            "c23_wrong_owner_scope_stale_and_changed_plan_have_zero_changes",
+            "c23_interrupted_key_destruction_has_no_success_and_resumes_its_immutable_plan",
+            "c23_retain_keeps_content_and_predeletion_backup_cannot_restore_destroyed_keys",
+            "c23_prefixed_evidence_and_transitive_aggregate_suffix_are_all_invalidated"
+        ) },
+        @{ Id = "C22-legacy-migration"; Package = "forme-store"; Target = @("--test", "v1_legacy_migration"); Tests = @(
+            "c22_legacy_migration_encrypts_real_store_and_free_pages_and_restarts",
+            "c22_migration_requires_owner_source_authority_and_exact_approved_plan",
+            "c22_migration_rechecks_source_after_approval_and_never_reuses_a_target",
+            "c22_migration_rejects_live_source_lease_and_target_sidecars",
+            "c22_migration_fails_closed_for_unknown_schema_and_unhandled_content",
+            "c22_failed_migration_retains_source_and_incomplete_target_then_recovers_to_new_path",
+            "c22_migrated_ciphertext_still_requires_the_real_owner_key_and_authentication",
+            "c22_migration_covers_every_auxiliary_blob_with_row_binding_history_and_lineage",
+            "c22_legacy_migration_checks_real_replay_and_checksums_before_any_target_write",
+            "c22_legacy_migration_encrypts_strategy_catalog_and_distinct_activation_history_bindings"
+        ) },
+        @{ Id = "C22-migration-operator"; Package = "forme-store"; Target = @("--test", "v1_data_migrate_operator"); Tests = @(
+            "c22_operator_plan_apply_preserves_source_and_restarts_protected_store",
+            "c22_operator_requires_environment_owner_bound_to_source_authority",
+            "c22_operator_rejects_changed_digest_bindings_expiry_and_stale_source_without_writes",
+            "c22_operator_rejects_rebound_paths_and_existing_target_or_key_vault",
+            "c22_operator_plan_input_is_required_bounded_and_strict",
+            "c22_operator_requires_cold_source_and_stopped_authority",
+            "c22_operator_apply_is_one_shot_and_does_not_overwrite_completed_target"
+        ) },
+        @{ Id = "C24-closed-evidence"; Package = "forme-eval"; Target = @("--test", "v1_core_brain_d_artifacts"); Tests = @(
+            "c24_closed_six_cases_and_unavailable_never_claim_live_success",
+            "c24_full_stream_provider_usage_and_workflow_evidence_cannot_be_replaced_by_text",
+            "c24_resealed_private_data_and_unknown_schema_are_rejected",
+            "c24_offline_verifier_requires_live_pass_and_rejects_unknown_fields"
+        ) },
+        @{ Id = "C20-C23-gateway-data"; Package = "forme-gateway"; Target = @("--test", "v1_data_controls"); Tests = @(
+            "c21_c23_every_data_route_requires_owner_bearer_origin_and_csrf_without_mutation",
+            "c21_exact_restore_verifies_real_files_audit_and_durable_one_shot_without_authority_switch",
+            "c23_exact_lifecycle_shreds_real_subject_keys_preserves_other_subject_and_replays_receipt",
+            "c21_restore_rejects_forged_nonce_digest_owner_expiry_and_recomputed_unissued_plan",
+            "c23_lifecycle_rejects_scope_subject_object_version_and_confirmation_forgery",
+            "c23_stale_lifecycle_version_is_zero_write_and_fresh_exact_plan_can_proceed",
+            "c23_subject_growth_after_preview_requires_new_cleanup_before_consuming_approval",
+            "c21_c23_data_dtos_reject_unknown_fields_schema_spoofing_and_cross_operation_plans",
+            "c21_opaque_paths_existing_files_and_stale_targets_reject_without_writes",
+            "c21_tampered_backup_bytes_manifest_and_changed_source_block_restore_without_mutation",
+            "c20_owner_dashboard_filters_workspace_time_and_replays_identically_after_restart"
+        ) },
+        @{ Id = "C22-C23-content"; Package = "forme-store"; Target = @("--lib"); Tests = @(
+            "content::tests::encrypt_decrypt_binds_owner_scope_object_and_schema",
+            "content::tests::wrong_key_missing_key_and_tamper_fail_closed",
+            "content::tests::destroying_key_makes_existing_envelope_unreadable",
+            "content::tests::rebinding_and_recomputing_public_digest_cannot_forge_authentication"
+        ) },
+        @{ Id = "C21-backup"; Package = "forme-store"; Target = @("--lib"); Tests = @(
+            "backup::tests::cold_backup_restore_and_tamper_verification_are_fail_closed"
+        ) },
+        @{ Id = "C22-at-rest"; Package = "forme-store"; Target = @("--lib"); Tests = @(
+            "at_rest::auxiliary_tests::c22_all_auxiliary_blob_writers_authenticate_insert_update_and_row_binding"
+        ) },
+        @{ Id = "C19-model-selection"; Package = "forme-models"; Target = @("--lib"); Tests = @(
+            "registry::tests::registry_rejects_duplicates_and_selects_deterministically",
+            "registry::tests::tool_incompatibility_is_a_blocking_selection_error",
+            "registry::tests::fallback_is_explicit_group_bounded_and_disabled_for_high_risk",
+            "registry::tests::json_config_is_bounded_closed_and_keeps_credentials_indirect",
+            "registry::tests::optional_profile_binding_failure_degrades_but_default_fails_closed",
+            "tests::endpoint_error_text_cannot_forge_retryability_or_escape_to_diagnostics"
+        ) },
+        @{ Id = "C20-dashboard"; Package = "forme-eval"; Target = @("--lib"); Tests = @(
+            "dashboard::tests::projection_is_replayable_and_marks_unverifiable_separately",
+            "dashboard::tests::model_window_uses_start_cohort_and_prior_profiles_without_future_finishes"
+        ) },
+        @{ Id = "C22-C23-protected-artifacts"; Package = "forme-harness"; Target = @("--lib"); Tests = @(
+            "production::protected_artifact_tests::c22_artifact_driver_encrypts_bytes_and_c23_source_cleanup_revokes_reads"
+        ) },
+        @{ Id = "C24-runner"; Package = "forme-harness"; Target = @("--bin", "forme-core-brain-d-golden"); Tests = @(
+            "product_golden_runner::tests::six_workflows_preserve_full_witnesses_files_restart_learning_and_failed_route",
+            "product_golden_runner::tests::failed_calls_keep_actual_profile_and_unknown_cost_without_fake_events",
+            "product_golden_runner::tests::wrong_model_answer_and_private_response_never_become_success",
+            "product_golden_runner::tests::live_opt_in_and_bounded_repeats_are_required",
+            "product_golden_runner::tests::production_classifier_never_upgrades_controlled_endpoints_but_allows_private_providers"
+        ) },
+        @{ Id = "C24-runner-cli"; Package = "forme-harness"; Target = @("--test", "v1_core_brain_d_runner"); Tests = @(
+            "runner_missing_model_credentials_emits_unavailable_exit2_and_refuses_overwrite"
+        ) }
+    )
+    $waveScenarios["D"] = @(
+        foreach ($group in $dGroups) {
+            foreach ($test in $group.Tests) {
+                @{ Id = $group.Id; Package = $group.Package; Target = $group.Target; Test = $test }
+            }
+        }
+        @{ Id = "C20-C23-cli-data"; Package = "forme-gateway"; Target = @("--test", "v1_data_controls"); Test = "c20_c21_c23_cli_data_and_brain_use_authenticated_real_daemon_without_local_writer"; IncludeIgnored = $true }
+    )
+
     $requestedWaves = if ($Wave -ceq "Final") { @("A", "B", "C", "D") } else { @($Wave) }
     foreach ($requested in $requestedWaves) {
         if (-not $waveScenarios.ContainsKey($requested)) {
             throw "V1 closure wave $requested has no implemented scenario inventory; the gate fails closed"
         }
+    }
+
+    if ($ListScenarios) {
+        $inventory = @(
+            foreach ($requested in $requestedWaves) {
+                foreach ($scenario in $waveScenarios[$requested]) {
+                    [ordered]@{
+                        wave = $requested
+                        id = $scenario.Id
+                        package = $scenario.Package
+                        target = @($scenario.Target)
+                        test = $scenario.Test
+                        include_ignored = ($scenario.ContainsKey("IncludeIgnored") -and [bool]$scenario.IncludeIgnored)
+                    }
+                }
+            }
+        )
+        ConvertTo-Json -InputObject ([ordered]@{ schema_version = 1; scenarios = $inventory }) -Depth 6
+        return
+    }
+
+    $localTarget = Join-Path $repoRoot "target"
+    if (($Wave -ceq "Final" -or ($Wave -ceq "D" -and -not $RuntimeOnly)) -and
+        -not [string]::IsNullOrEmpty($priorTargetDirectory) -and
+        [System.IO.Path]::GetFullPath($priorTargetDirectory) -ine [System.IO.Path]::GetFullPath($localTarget)) {
+        throw "release gates reject shared CARGO_TARGET_DIR; use this checkout's target/debug"
+    }
+    if (-not [string]::IsNullOrEmpty($env:CARGO_BUILD_TARGET)) {
+        throw "closure gates require native checkout-local target/debug, without CARGO_BUILD_TARGET"
+    }
+    $env:CARGO_TARGET_DIR = $localTarget
+
+    if ($Wave -ceq "Final") {
+        $status = @(& git status --porcelain=v1 --untracked-files=all)
+        if ($LASTEXITCODE -ne 0 -or $status.Count -ne 0) {
+            throw "Final requires a clean tracked, staged, and untracked release tree"
+        }
+        Invoke-Checked "Final workspace formatting" "cargo" @("fmt", "--all", "--", "--check")
+        Invoke-Checked "Final workspace check" "cargo" @("check", "--workspace", "--all-targets")
+        Invoke-Checked "Final complete workspace tests" "cargo" @("test", "--workspace", "--all-targets")
+        Invoke-Checked "Final strict Clippy" "cargo" @("clippy", "--workspace", "--all-targets", "--", "-D", "warnings")
+        Invoke-Checked "Final originality and compliance" "bash" @("tools/compliance-doctor.sh")
+        Invoke-Checked "Permanent S1-S99 regression" "powershell" @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "verify-m5.ps1")
+        )
     }
 
     Invoke-Checked -Label "V1 closure workspace contract" -Program "powershell" -Arguments @(
@@ -264,6 +436,11 @@ try {
     Invoke-Checked -Label "Build the local gateway daemon" -Program "cargo" -Arguments @(
         "build", "-p", "forme-gateway", "--bin", "forme-gatewayd"
     )
+    Invoke-Checked -Label "Build the local CLI for explicit ignored entry tests" -Program "cargo" -Arguments @(
+        "build", "-p", "forme-cli", "--bin", "forme-cli"
+    )
+    $env:FORME_CLI_BIN = (Resolve-Path (Join-Path $localTarget "debug/forme-cli.exe")).Path
+    $env:FORME_GATEWAYD_BIN = (Resolve-Path (Join-Path $localTarget "debug/forme-gatewayd.exe")).Path
     foreach ($requested in $requestedWaves) {
         if ($requested -ceq "C") {
             $env:FORME_CORE_C_ARTIFACT_DIR = $temporaryCArtifactRoot
@@ -286,20 +463,67 @@ try {
                 "docs/acceptance/core-brain-b-artifacts/relevance-comparison.json"
             )
         }
+        if ($requested -ceq "D") {
+            if ($RuntimeOnly) {
+                Write-Host "[PASS] core-brain-wave-D-runtime (C24 live evidence not evaluated; D/Final remain open)"
+                continue
+            }
+            Invoke-Checked -Label "C24 six-task live evidence and source commit (--require-pass)" -Program "py" -Arguments @(
+                "-3", (Join-Path $PSScriptRoot "core_brain_release_audit.py"), "--root", $repoRoot,
+                "--verify-product", (Join-Path $repoRoot "docs/acceptance/core-brain-d-artifacts/product-golden.json")
+            )
+        }
         Write-Host "[PASS] core-brain-wave-$requested"
+    }
+    if ($RuntimeOnly) {
+        Write-Host "core-brain-runtime (D): PASS (runtime only; not wave D or Final acceptance)"
+        return
+    }
+    if ($Wave -ceq "Final") {
+        $auditScript = Join-Path $PSScriptRoot "core_brain_release_audit.py"
+        $repositoryReleaseRoot = Join-Path $repoRoot "docs/acceptance/core-brain-closure-release-audit-artifacts"
+        Invoke-Checked "Current clean-tree core-brain release audit" "py" @(
+            "-3", $auditScript, "--root", $repoRoot, "--output", $temporaryReleaseRoot
+        )
+        Invoke-Checked "Generated core-brain release receipt" "py" @("-3", $auditScript, "--verify", $temporaryReleaseRoot)
+        Invoke-Checked "Repository core-brain release receipt" "py" @("-3", $auditScript, "--verify", $repositoryReleaseRoot)
+        Invoke-Checked "Core-brain release receipt matches current clean tree" "py" @(
+            "-3", $auditScript, "--compare", $temporaryReleaseRoot, $repositoryReleaseRoot
+        )
     }
     Write-Host "core-brain-closure ($Wave): PASS"
 }
+catch {
+    Write-Host "core-brain-closure ($Wave): FAIL CLOSED: $($_.Exception.Message)"
+    exit $gateExitCode
+}
 finally {
+    foreach ($entry in @(
+        @{ Name = "FORME_CLI_BIN"; Previous = $priorCliBinary },
+        @{ Name = "FORME_GATEWAYD_BIN"; Previous = $priorGatewayBinary }
+    )) {
+        if ($null -eq $entry.Previous) {
+            Remove-Item -LiteralPath ("Env:" + $entry.Name) -ErrorAction SilentlyContinue
+        } else {
+            Set-Item -LiteralPath ("Env:" + $entry.Name) -Value $entry.Previous
+        }
+    }
+    if ($null -eq $priorTargetDirectory) {
+        Remove-Item Env:CARGO_TARGET_DIR -ErrorAction SilentlyContinue
+    } else {
+        $env:CARGO_TARGET_DIR = $priorTargetDirectory
+    }
     if ($null -eq $priorCArtifactRoot) {
         Remove-Item Env:FORME_CORE_C_ARTIFACT_DIR -ErrorAction SilentlyContinue
     } else {
         $env:FORME_CORE_C_ARTIFACT_DIR = $priorCArtifactRoot
     }
     $tempParent = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
-    $resolvedC = [System.IO.Path]::GetFullPath($temporaryCArtifactRoot)
-    if ($resolvedC.StartsWith($tempParent, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $resolvedC)) {
-        Remove-Item -LiteralPath $resolvedC -Recurse -Force
+    foreach ($path in @($temporaryCArtifactRoot, $temporaryReleaseRoot)) {
+        $resolved = [System.IO.Path]::GetFullPath($path)
+        if ($resolved.StartsWith($tempParent, [StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $resolved)) {
+            Remove-Item -LiteralPath $resolved -Recurse -Force
+        }
     }
     Pop-Location
 }

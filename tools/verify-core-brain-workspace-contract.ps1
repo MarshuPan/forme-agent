@@ -60,7 +60,7 @@ try {
     # Typed capability configuration and the CLI's gateway-entry contract
     # reuse packages that are already exact-pinned and recorded.
     Assert-ExactDependency $harness "serde" "=1.0.228" "normal" | Out-Null
-    Assert-ExactDependency $cli "serde_json" "=1.0.150" "dev" | Out-Null
+    Assert-ExactDependency $cli "serde_json" "=1.0.150" "normal" | Out-Null
     $gatewayBins = @($gateway.targets | Where-Object { $_.kind -contains "bin" } | ForEach-Object name)
     $cliBins = @($cli.targets | Where-Object { $_.kind -contains "bin" } | ForEach-Object name)
     Assert-Condition ($gatewayBins -contains "forme-gatewayd") "forme-gatewayd target is missing"
