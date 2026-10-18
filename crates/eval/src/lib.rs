@@ -10,6 +10,7 @@ use forme_protocol as p;
 use forme_store::EventStore;
 
 mod core_brain_c;
+mod dashboard;
 mod m3_a;
 mod m3_b;
 mod m3_c;
@@ -17,6 +18,10 @@ mod m4;
 mod m5;
 pub use core_brain_c::{
     CoreBrainCArtifact, CoreBrainCCase, CoreBrainCEventWitness, CoreBrainCFileEvidence,
+};
+pub use dashboard::{
+    CognitiveDashboardMetrics, CognitiveDashboardProjection, CognitiveDashboardSnapshot,
+    DashboardWindow, MetricRatio,
 };
 
 pub use m3_a::{

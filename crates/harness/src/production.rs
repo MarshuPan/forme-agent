@@ -1964,6 +1964,24 @@ impl ProductionRuntime {
         self.services.doctor.clone()
     }
 
+    /// Rebuilds the disposable dashboard projection from the owner event
+    /// range.  No metric is authoritative outside the event log.
+    pub fn dashboard(
+        &self,
+        workspace: Option<p::WorkspaceRef>,
+        from: Option<p::Timestamp>,
+        to: Option<p::Timestamp>,
+    ) -> p::Result<forme_eval::CognitiveDashboardSnapshot> {
+        let events = collect_owner_brain_events(&self.services.store, None)?;
+        forme_eval::CognitiveDashboardProjection::from_events(
+            &events,
+            self.services.authority.owner_digest.clone(),
+            workspace,
+            from,
+            to,
+        )
+    }
+
     /// Signals the owner-brain tick now; the ledger decides whether a window
     /// is due.
     pub fn tick_once(&self) -> p::Result<CognitiveTickReport> {

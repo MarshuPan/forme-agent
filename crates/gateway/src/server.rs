@@ -253,6 +253,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/runtime/doctor", get(runtime_doctor))
         .route("/v1/runtime/tick", post(runtime_tick))
         .route("/v1/brain/workspace", get(brain_workspace))
+        .route("/v1/brain/dashboard", get(brain_dashboard))
         .route(
             "/v1/brain/projects",
             get(project_ledger).post(project_command),
@@ -675,6 +676,28 @@ async fn brain_workspace(
         "items":projection.items.iter().map(|item|serde_json::json!({"schema_version":1,"id":item.id,"kind":format!("{:?}",item.kind),
             "scope":item.scope,"value":item.value,"urgency":item.urgency,"event_ref":item.event_ref,"run":item.run,"stream_seq":item.stream_seq})).collect::<Vec<_>>()}),
     ))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrainDashboardQuery {
+    workspace: Option<String>,
+    from: Option<p::Timestamp>,
+    to: Option<p::Timestamp>,
+}
+
+async fn brain_dashboard(
+    State(state): State<Arc<HttpState>>,
+    Query(query): Query<BrainDashboardQuery>,
+    headers: HeaderMap,
+) -> Result<Json<forme_harness::CognitiveDashboardSnapshot>, ApiError> {
+    state.authorize(&headers, false)?;
+    let runtime = state.runtime.clone();
+    let snapshot = blocking(move || {
+        runtime.dashboard(query.workspace.map(p::WorkspaceRef), query.from, query.to)
+    })
+    .await?;
+    Ok(Json(snapshot))
 }
 
 #[derive(Deserialize)]

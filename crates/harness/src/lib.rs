@@ -61,6 +61,10 @@ mod m4;
 mod m5;
 mod production;
 mod production_config;
+pub use forme_eval::{
+    CognitiveDashboardMetrics, CognitiveDashboardProjection, CognitiveDashboardSnapshot,
+    DashboardWindow, MetricRatio,
+};
 pub use m3_a::{
     EvolutionActivationResult, EvolutionEvaluationResult, ExactReplayAuditResult,
     M3EvolutionHarness,
