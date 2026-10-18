@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "kind": "forme-core-brain-d",
+  "source_commit": "8589918b7dd8876788160bede591b1f2761d3ed4",
+  "grade": "Unavailable",
+  "taxonomy_digest": "sha256:653675e926e44858cbe7a8ece29173a17a1ac1a7e2b0db961a3a2f0cd9249cbc",
+  "configuration_digest": null,
+  "tasks": [
+    {
+      "schema_version": 1,
+      "case": "ColdDialogue",
+      "contract": [
+        {
+          "schema_version": 1,
+          "id": "answer",
+          "selector": "FinalOutput",
+          "predicate": {
+            "Exact": "47"
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:13+17+17=47"
+        },
+        {
+          "schema_version": 1,
+          "id": "completed",
+          "selector": {
+            "EventCount": "RunComplete"
+          },
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:runtime-event-contract"
+        }
+      ],
+      "forme": [],
+      "direct_model": []
+    },
+    {
+      "schema_version": 1,
+      "case": "ComplexTools",
+      "contract": [
+        {
+          "schema_version": 1,
+          "id": "answer",
+          "selector": "FinalOutput",
+          "predicate": {
+            "Exact": "47"
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:13+17+17=47"
+        },
+        {
+          "schema_version": 1,
+          "id": "file-driver",
+          "selector": {
+            "EventCount": "ActionCompleted"
+          },
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:runtime-event-contract"
+        },
+        {
+          "schema_version": 1,
+          "id": "file",
+          "selector": {
+            "File": "result.txt"
+          },
+          "predicate": {
+            "Exact": "47\n"
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:result-file-bytes"
+        }
+      ],
+      "forme": [],
+      "direct_model": []
+    },
+    {
+      "schema_version": 1,
+      "case": "LongWorkspace",
+      "contract": [
+        {
+          "schema_version": 1,
+          "id": "answer",
+          "selector": "FinalOutput",
+          "predicate": {
+            "Exact": "47"
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:13+17+17=47"
+        },
+        {
+          "schema_version": 1,
+          "id": "restart",
+          "selector": "Restart",
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:sqlite-restart-equality"
+        },
+        {
+          "schema_version": 1,
+          "id": "checkpoints",
+          "selector": "Checkpoints",
+          "predicate": {
+            "AtLeast": 2
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:two-independent-project-segments"
+        }
+      ],
+      "forme": [],
+      "direct_model": []
+    },
+    {
+      "schema_version": 1,
+      "case": "MultiAgent",
+      "contract": [
+        {
+          "schema_version": 1,
+          "id": "answer",
+          "selector": "FinalOutput",
+          "predicate": {
+            "Exact": "47"
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:13+17+17=47"
+        },
+        {
+          "schema_version": 1,
+          "id": "children",
+          "selector": {
+            "EventCount": "SubagentResultReturned"
+          },
+          "predicate": {
+            "AtLeast": 2
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:runtime-event-contract"
+        },
+        {
+          "schema_version": 1,
+          "id": "route",
+          "selector": "CompletedRoutes",
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:verified-node-ledger"
+        }
+      ],
+      "forme": [],
+      "direct_model": []
+    },
+    {
+      "schema_version": 1,
+      "case": "AskToLearn",
+      "contract": [
+        {
+          "schema_version": 1,
+          "id": "answer",
+          "selector": "FinalOutput",
+          "predicate": {
+            "Exact": "47"
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:13+17+17=47"
+        },
+        {
+          "schema_version": 1,
+          "id": "question",
+          "selector": {
+            "EventCount": "ProactiveProposalEmitted"
+          },
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:runtime-event-contract"
+        },
+        {
+          "schema_version": 1,
+          "id": "reply",
+          "selector": {
+            "EventCount": "ObservationRecorded"
+          },
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:runtime-event-contract"
+        },
+        {
+          "schema_version": 1,
+          "id": "candidate",
+          "selector": {
+            "EventCount": "UserAttributeCandidateCreated"
+          },
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:runtime-event-contract"
+        }
+      ],
+      "forme": [],
+      "direct_model": []
+    },
+    {
+      "schema_version": 1,
+      "case": "FailureRecoordination",
+      "contract": [
+        {
+          "schema_version": 1,
+          "id": "answer",
+          "selector": "FinalOutput",
+          "predicate": {
+            "Exact": "47"
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:13+17+17=47"
+        },
+        {
+          "schema_version": 1,
+          "id": "failure",
+          "selector": "FailedRoutes",
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:injected-missing-file-requirement"
+        },
+        {
+          "schema_version": 1,
+          "id": "recoordination",
+          "selector": "CompletedRoutes",
+          "predicate": {
+            "AtLeast": 1
+          },
+          "tolerance": 0,
+          "ground_truth": "ground-truth:revised-project-success"
+        }
+      ],
+      "forme": [],
+      "direct_model": []
+    }
+  ],
+  "digest": "sha256:9367f6f43292c61967d0fe9cd24be92c6ef300312fba095be701582929c7d340"
+}

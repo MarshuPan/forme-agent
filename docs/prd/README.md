@@ -43,7 +43,7 @@
 | `20-m3-program-prd.md` | M3 Program PRD：replay/eval/promotion/activation/rollback 控制面、Loop/Coordination/Selection 与 Self/Partnership/Trust/Proactivity 策略进化，以及 S53–S69 分波门。 | 完成：M3-A/B/C、S1-S69、真实 evolution golden 与 release audit 均 PASS。 |
 | `21-m4-program-prd.md` | M4 Program PRD：peer trust plane/RemoteExecutor、multi-peer read-only replication/OwnerClient control、checkpoint continuity，以及 S70–S84 分波门。 | M4-A/B/C 与 owner 最终验收 PASS，已封板。 |
 | `22-m5-program-prd.md` | M5 Program PRD：publisher/admission、plan-bound lifecycle/registry、federated distribution/release，以及 S85–S99 分波门。 | 完成：M5-A/B/C、S1-S99、真实 ecosystem golden、typed artifacts 与 release audit 均 PASS。 |
-| `23-v1-core-brain-closure-program-prd.md` | V1 核心大脑闭合 Program PRD：默认 composition、持续认知、长期项目/编排、多模型、dashboard、数据保护与 C1–C24。 | 文档与承重协议已冻结；A/B/C 分支实现及整波自检 PASS，待 owner 验收/main；C1–C6 模块与 C13–C18 证据见 C 波报告，D 未实施；明确不是 M6。 |
+| `23-v1-core-brain-closure-program-prd.md` | V1 核心大脑闭合 Program PRD：默认 composition、持续认知、长期项目/编排、多模型、dashboard、数据保护与 C1–C24。 | 文档与承重协议已冻结；A/B/C 分支自检、D 的 C19–C23 与 70 项运行场景 PASS；C24 UNVERIFIABLE，D/Final 未通过，未合 main；明确不是 M6。 |
 
 ## 实施状态
 
@@ -61,7 +61,7 @@ M4 已沿 `requirements/11-12 -> canonical §26 -> architecture/07 -> prd/21 -> 
 
 M5 已沿 `requirements/13-14 -> canonical §27 -> architecture/08 -> prd/22 -> acceptance` 完整闭合。A/B/C 已完成 publisher/admission、plan-bound lifecycle/registry 与 M4-bound distribution/release；S1-S99、97 EventKinds、18 crates、379+4 Rust tests、29 个 Python gates、真实三角色 golden、deterministic typed artifacts、strict Clippy 与 clean-tree release audit 全绿。最终报告见 `../acceptance/m5-acceptance-report.md`，并已合入 main。
 
-V1 核心大脑闭合已完成 `requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23` 文档冻结，并补齐实现前的恢复、并发幂等、事件唯一事实源、身份审批绑定、可执行验证、tick 潮线、数据生命周期和 route 运行契约。A/B/C 波在分支实现及整波自检 PASS，待 owner 验收与合入 `main`。最新 C1–C6 模块 / C13–C18 的 charter、八套编排、六维匹配、route 治理、长期监管与经验回流证据见 `../acceptance/core-brain-c-acceptance-report.md`，含 35 项专项、六份 typed artifacts 和完整 S1-S99/发布回归；A/B 报告保留为历史记录。D 未实施，V1 Final 尚未闭合。每波必须复跑 S1-S99，最终 C1-C24、99 EventKinds、18 crates、真实 golden 与 release gate 全绿。
+V1 核心大脑闭合已完成 `requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23` 文档冻结，并补齐恢复、并发幂等、事件唯一事实源、身份审批绑定、可执行验证、tick 潮线、数据生命周期和 route 运行契约。A/B/C 分支实现及整波自检 PASS，历史报告保留；D 的 C19–C23、多模型、看板、备份恢复、加密/迁移/真实删除及 70 项运行场景已有实现与自检依据，见 `../acceptance/core-brain-d-acceptance-report.md`。六任务 runner 已落地，但当前真实模型不可用，C24 工件为 Unavailable/UNVERIFIABLE；D 正式门和 V1 Final 不能通过，未合入 `main`。整体验收状态见 `../acceptance/core-brain-closure-acceptance-report.md`；最终仍要求 C1-C24、S1-S99、99 EventKinds、18 crates、真实 golden 与 current-tree release gate 全绿。
 
 ## 写作边界
 

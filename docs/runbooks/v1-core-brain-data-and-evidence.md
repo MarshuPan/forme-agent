@@ -15,6 +15,15 @@ $env:FORME_MODEL_API_KEY = Read-Host 'API Key' -MaskInput
 
 `-MaskInput` 需要 PowerShell 7。当前终端的 `$env:` 不会反向传播给已经运行的 Codex/daemon；如需另一个进程加载，可通过 Windows User 环境保存配置，在该进程内重新读取，或由 owner 提供本机受保护的配置加载方式。不要把密钥放进 JSON、Git、命令参数或验收工件。
 
+如果选择 Windows User 环境作为本机配置来源，在填好上述两个 `$env:` 后保存：
+
+```powershell
+[Environment]::SetEnvironmentVariable('FORME_MODEL_PROFILES_JSON', $env:FORME_MODEL_PROFILES_JSON, 'User')
+[Environment]::SetEnvironmentVariable('FORME_MODEL_API_KEY', $env:FORME_MODEL_API_KEY, 'User')
+```
+
+新启动的进程会继承配置；已运行进程的验收子进程应在内部用 `[Environment]::GetEnvironmentVariable(<变量名>, 'User')` 加载，禁止打印值。若 `credential_env` 使用其他变量名，加载相应变量，不能假定都叫 `FORME_MODEL_API_KEY`。这里不需要修改 Rust 源码，当前入口也不自动读取 `.env`。
+
 fallback 只有显式相同非空 `fallback_group` 的兼容 profile 才可参与，最多 primary + 2 fallback；高风险/L5、结果不明和链耗尽都停止。每次 attempt 记录实际 profile；配置过 fallback 不代表发生过 fallback。默认价格未知时费用为 unknown，不把零配置价格当作免费。
 
 ## 2. 备份、校验与恢复

@@ -43,7 +43,7 @@ V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-
 | `m3-c-protocol-compatibility.md` | M3-C StrategyMemory/Self/Partnership/Trust/Proactivity/Communication spec 边界。 | 已激活并通过 S63-S69；不新增 EventKind。 |
 | `07-m4-federated-runtime-architecture.md` | M4 增量架构，定义 single authority、peer grants、TLS RemoteExecutor、lease/fencing、read-only replication、OwnerClient control 和 checkpoint handoff。 | 已实现并通过 S70-S84 自验收；18-crate 图不变，EventKind 从 89 末尾 additive 到 93。 |
 | `08-m5-governed-capability-ecosystem-architecture.md` | M5 增量架构，定义 publisher grant、signed package admission、plan-bound lifecycle、registry 接入和 federated distribution。 | M5-A/B/C 已实现并验收；18-crate 图不变，EventKind 从 93 末尾 additive 到 97。 |
-| `09-v1-core-brain-runtime-closure-architecture.md` | V1 核心大脑运行闭合架构，定义唯一 production composition、持久 owner 大脑、默认 context、三相 tick、八套编排、多模型真实性、dashboard、备份/加密/删除。 | 文档已冻结；A/B/C 分支实现与整波自检 PASS、待 owner 验收/main，D 未实施；C13–C18 证据见 C 波报告；不是 M6，99 EventKinds 与 18-crate 图不变。 |
+| `09-v1-core-brain-runtime-closure-architecture.md` | V1 核心大脑运行闭合架构，定义唯一 production composition、持久 owner 大脑、默认 context、三相 tick、八套编排、多模型真实性、dashboard、备份/加密/删除。 | 文档已冻结；A/B/C 分支自检与 D 的 C19–C23/70 项运行场景 PASS；C24 UNVERIFIABLE，D/Final 尚未通过，未合 main。不是 M6，99 EventKinds 与 18-crate 图不变。 |
 | `m5-a-protocol-compatibility.md` | M5-A publisher/package/admission 与四个 Q 组事件的兼容边界。 | 已随 M5-A 激活；93-kind exact prefix、legacy/fail-closed contracts PASS。 |
 | `m5-b-protocol-compatibility.md` | M5-B install plan/lifecycle/approval 与 registry projection 的兼容边界。 | 已随 M5-B 激活；legacy admission 不产生 Installed/Enabled。 |
 | `m5-c-protocol-compatibility.md` | M5-C distribution receipt、M4 binding 与 portable evidence 的兼容边界。 | 已随 M5-C 激活；self-report/legacy receipt 不产生 verified distribution。 |
