@@ -11,7 +11,7 @@
 | A：C1–C6 | 默认 ProductionRuntime、持久 owner、context、能力与统一入口。 | 当前 D 源码复跑 43 项逐名场景 PASS。 |
 | B：C7–C12 | 三相 tick、AskToLearn、AgentWorkspace、扩散/直接模型基线、维护。 | 当前源码复跑 48 项 PASS；B 工件明确受控 HTTP，不能作为线上质量证明。 |
 | C：C13–C18 | Charter、八模式与六维匹配、route 治理、长期项目监管、经验回流。 | 当前源码复跑 35 项 PASS；六份受控模型/真实 runtime/SQLite/files 工件及新生成工件独立验证。 |
-| D：C19–C23 | 实际模型 attempt、看板、备份恢复、加密迁移与真实删除。 | 70 项运行门 PASS；工作区 593 passed、0 failed、5 默认 ignored；尚需与当前干净树发布回归共同核验。 |
+| D：C19–C23 | 实际模型 attempt、看板、备份恢复、加密迁移与真实删除。 | 70 项运行门 PASS；工作区 593 passed、0 failed、5 默认 ignored；M5/S1–S99 永久回归与干净树 M5 发布审计复核 PASS。 |
 | C24 | 六类真实任务、基线、typed artifact 与独立 selector。 | **Unavailable / UNVERIFIABLE**；正式 runner 与 verifier 都 exit 2。 |
 | Final | C1–C24、S1–S99、99-kind/97-prefix、18-crate graph、真实 golden、clean-tree release。 | **未通过**；不得由实现存在、受控测试或历史 receipt 推导完成。 |
 

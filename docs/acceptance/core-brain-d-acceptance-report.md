@@ -15,6 +15,7 @@
 | `e616713`、`786d323` | AEAD envelope、所有正式内容列保护、旧明文离线迁移、真实密钥销毁与可恢复 lifecycle。 |
 | `10b3115` | 同一 ProductionRuntime 的 owner data control/Gateway/CLI、清理 fence/cache 刷新、真实任务 runner。 |
 | `8589918` | D 的精确运行清单、live-only 正式门与独立 closure release audit。 |
+| `3289ed2` | 对齐 `chacha20poly1305` 许可证顺序与 Cargo metadata；干净检出 M5 release audit 复核通过。 |
 | `fd791e2` | 数据控制 companion、D 证据规则和操作手册；文档单独提交。 |
 
 保留 18 crates、既定内部依赖边和 99 EventKinds；前 97 项保持 M5 exact prefix。本波没有新增内核或里程碑编号。原工作区已有的许可证相关修改没有混入上述提交。
@@ -44,10 +45,10 @@ Gateway mutation 均经 owner Bearer、Origin、CSRF 与 closed DTO；CLI 经真
 | `verify-core-brain-closure.ps1 -Wave D -RuntimeOnly` | PASS：70 项逐名运行，包括默认忽略的真实 CLI/data case |
 | `tools.tests.test_core_brain_release_audit` | PASS：21 项 Python tests |
 | A/B/C 永久 closure 回归 | PASS：A 43、B 48、C 35 项逐名运行；B/C 仓库工件与新生成 C 工件独立校验通过 |
-| 干净检出 `verify-m5.ps1` / S1–S99 | 正在复跑；发布 receipt 需绑定最终树 |
+| 干净检出 `verify-m5.ps1` / S1–S99 | M5 永久回归与发布审计复核 PASS；M5 receipt：`sha256:54580676428efeb52a146dbc349a6dd4ac84eddf97680adf3634e5fc14ce67ba`。该 receipt 属于 M5 历史门，不等于 V1 Final。 |
 | C24 runner / `--require-pass` | exit 2：Unavailable / Unverifiable |
 
-Windows 首次全量并发构建触发系统 paging/metadata mmap 失败，不作为源码失败或通过。后续以 `CARGO_BUILD_JOBS=2` 完整运行成功；不得把前一次不完整日志作为 PASS。另一轮 Gateway fixture 临时目录碰撞已用 PID/time/AtomicU64 修复后重跑。
+Windows 首次全量并发构建触发系统 paging/metadata mmap 失败，不作为源码失败或通过。后续以 `CARGO_BUILD_JOBS=2` 完整运行成功；不得把前一次不完整日志作为 PASS。M5 首次发布审计发现 AEAD 许可证顺序漂移，已在 `3289ed2` 修正并用最新干净检出复核通过。另一轮 Gateway fixture 临时目录碰撞已用 PID/time/AtomicU64 修复后重跑。
 
 原工作区日志在 OS temp：`forme-d-workspace-2d9bdfa96145455f96a9d85852a32207.log` 与 `forme-d-runtime-a89f38d01859497984ad27079c7a7731.log`；这些本机日志不是便携工件或跨机器通过证明。正式发布检查使用独立干净检出及该 checkout 自己的 `target/debug`，清除共享 `CARGO_TARGET_DIR`。
 
