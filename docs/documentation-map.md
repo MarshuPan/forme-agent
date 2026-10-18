@@ -16,6 +16,7 @@
 
 | 目录 | 回答的问题 | 上游输入 | 下游输出 | 状态 | 风险控制 |
 |---|---|---|---|---|---|
+| `runbooks/` | operator 如何通过正式入口和离线工具执行受治理操作。 | `canonical §28`、`architecture/09`、`prd/23` 及生产接口。 | 数据控制与 C24 真实证据操作手册。 | 当前 `v1-core-brain-data-and-evidence.md`。 | 操作手册不授予权限、不替代审批/验收、不宣称未经验证的完成状态。 |
 | `planning/` | 仍在使用的规划设计。 | 早期规划（已归档）与 requirements 反馈。 | 多 Agent 编排的单脑模型与编排库。 | 当前仅 `15`。 | 规划结论必须再进入 requirements 固定。 |
 | `requirements/` | 要做什么、不做什么、优先级、范围决策和验收方向。 | 早期规划（已归档）与各阶段验收结论。 | 需求范围、能力域、完整核心闭环、非目标、验收方向。 | M0-M5 已落地；`15`-`16` 冻结 V1 核心大脑闭合且不是 M6。 | 不写实现细节，不扩大 planning 未确认的范围。 |
 | `architecture/` | 如何实现 requirements。 | `requirements/` 与 canonical 契约。 | Rust 模块、协议、状态机、数据流、存储、安全和扩展设计。 | M0-M5 已实现；`09` 冻结 V1 闭合且保持 18 crates/single authority。 | `00/01` 不当作最终技术方案；新增范围必须从 requirements 下推。 |

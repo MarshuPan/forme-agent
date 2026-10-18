@@ -45,6 +45,7 @@ V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> 
 | `prd/` | 形成可执行的实施型 PRD：功能描述、实施步骤、关键技术约束、测试和验收标准。 | M0-M5 `01`–`22` 已实现；`23` 是当前 A→D 实施契约。 |
 | `acceptance/` | 保存验收报告、逐场景证据和最终门结果。 | M0-M5 有 final 证据；V1 闭合 A/B/C 有分支报告，B/C 有独立工件，待 owner 验收；D 与 final 待产出。 |
 | `compliance/` | 直接依赖的来源、许可证与复制风险清单。 | 随依赖变化维护，发布审计读取。 |
+| `runbooks/` | 正式入口和离线 owner 操作手册。 | `v1-core-brain-data-and-evidence.md` 说明模型配置、备份/恢复、真实删除、旧明文迁移与 C24 证据运行。 |
 | `archive/` | 早期规划 `planning/01-14` 与早期架构基线 `architecture/00-01`。 | 已归档，不再更新，不作为现行口径。 |
 
 ## 跨目录规则

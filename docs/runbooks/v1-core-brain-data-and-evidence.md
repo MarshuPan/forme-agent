@@ -1,0 +1,108 @@
+# V1 大脑：数据控制与 D 波真实验收操作
+
+本手册对应 `prd/23` D 波、canonical §28。正式 CLI 的 data/dashboard 命令通过已认证的 Gateway 使用同一个 ProductionRuntime；它们不另开 SQLite writer。离线旧明文迁移是唯一独立 operator，必须先停止 authority daemon。
+
+## 1. 模型配置
+
+普通单模型会话兼容 `FORME_MODEL_BASE_URL`、`FORME_MODEL_NAME`、`FORME_MODEL_API_KEY`。需要工具调用和多模型时使用 `FORME_MODEL_PROFILES_JSON`，它优先于旧三变量，且只引用密钥变量名：
+
+```powershell
+$env:FORME_MODEL_PROFILES_JSON = @'
+[{"id":"primary","provider":"compatible","model":"实际模型名","base_url":"https://你的兼容端点/v1","credential_env":"FORME_MODEL_API_KEY","tool_use":true,"tool_schema_versions":[1],"default":true}]
+'@
+$env:FORME_MODEL_API_KEY = Read-Host 'API Key' -MaskInput
+```
+
+`-MaskInput` 需要 PowerShell 7。当前终端的 `$env:` 不会反向传播给已经运行的 Codex/daemon；如需另一个进程加载，可通过 Windows User 环境保存配置，在该进程内重新读取，或由 owner 提供本机受保护的配置加载方式。不要把密钥放进 JSON、Git、命令参数或验收工件。
+
+fallback 只有显式相同非空 `fallback_group` 的兼容 profile 才可参与，最多 primary + 2 fallback；高风险/L5、结果不明和链耗尽都停止。每次 attempt 记录实际 profile；配置过 fallback 不代表发生过 fallback。默认价格未知时费用为 unknown，不把零配置价格当作免费。
+
+## 2. 备份、校验与恢复
+
+先连接已启动的 daemon：配置 `FORME_GATEWAY_URL`，并使用 daemon provision 的 token 文件（`FORME_GATEWAY_TOKEN_PATH`）或本地 `FORME_GATEWAY_TOKEN`。CLI 自动携带 Bearer、Origin 与 CSRF。文件名仅允许不含路径分隔符的 opaque 名称，落在 authority DB 旁的 `data-operations/` 下。
+
+```powershell
+'{"schema_version":1,"target":"owner-snapshot.db"}' | cargo run -p forme-cli -- data backup
+'{"schema_version":1,"source":"owner-snapshot.db"}' | cargo run -p forme-cli -- data verify-backup
+'{"schema_version":1,"source":"owner-snapshot.db","target":"owner-restored.db"}' | cargo run -p forme-cli -- data restore-plan
+```
+
+恢复先取得并人工核对完整 plan。确认时必须原样提交 plan，并由确认内容绑定 `digest`、`nonce`、`expires_at`：
+
+```powershell
+# $plan 为上一条 restore-plan 的完整 JSON 响应，owner 已核对 source/target。
+$request = @{
+  schema_version = 1; plan = $plan
+  confirmation = @{ schema_version = 1; plan_digest = $plan.digest
+    nonce = $plan.nonce; use_by = $plan.expires_at; approved = $true }
+}
+$request | ConvertTo-Json -Depth 64 -Compress | cargo run -p forme-cli -- data restore
+```
+
+备份使用 SQLite backup API，带 manifest、DB digest、事件连续性及 replay/projection 对账。恢复只写新目标，不自动切换 authority；须停止旧 daemon，由 owner 显式选择恢复 DB，再重启唯一 writer。恢复不能覆盖已有文件。one-shot 已消费但结果不明时先检查目标与审计，不重复 apply。
+
+数据库备份**不含内容密钥**。生产密钥目录为 `FORME_STORE_PATH` 对应路径的 `.content-keys` 扩展名目录；离线保护该目录并与数据库分开管理，恢复必须仍能访问正确 resolver。复制旧 key 会削弱 crypto-shred 的删除保证；不要把 key 目录作为普通工件或备份附件发布。
+
+## 3. 删除与保留
+
+生命周期 Prepare 的参数为 `{action:"Prepare",schema_version:1,scope,subject_digest,operation,expected_version}`；operation 为 `Retain`、`Delete` 或 `CryptoShred`。subject 为被清理内容原聚合/来源的安全 digest；scope 必须是该 owner 授权范围，expected version 初次为 0，此后取上次成功 receipt 的 committed version。不得对不明对象猜测 scope/version 或直接删除 DB 文件。
+
+```powershell
+# $previewRequest 是 owner 已确认的 Prepare 请求。
+$plan = ($previewRequest | ConvertTo-Json -Depth 64 -Compress |
+  cargo run -p forme-cli -- data lifecycle | Out-String) | ConvertFrom-Json
+```
+
+先核对 `plan.operation` 内列出的对象、派生血缘和受影响的同聚合依赖后缀。批准后才构造与恢复相同的 confirmation，并以 `{action:"Apply",schema_version:1,plan,confirmation}` 调用 `data lifecycle`。不得重新计算 digest 或替换对象列表。subject 在预览后有新内容、version 改变、授权过期时重新 Prepare。
+
+删除依次固定 pending plan/安装 fence/移除投影、销毁并验证对应历史 key、最后追加 `DataLifecycleApplied` 与 tombstone。没有成功 receipt 就没有完成；中断后保留同 digest 的 pending job，用仍有效的原授权恢复，授权失效则重新取得批准。pending 时所有正式读/执行入口和缓存读取停止。活动或挂起 run/route 必须先解决，清理不抢占正在执行的动作。
+
+成功后 memory/cognition cache 刷新；旧事件密文和审计元数据仍保留，旧 DB 备份也不能解出已经销毁 key 的内容。远端未核验为 Unknown。当前没有独立持久 vector index，不声称清除了不存在的索引。物理扇区、系统内存、用户另存的原文/密钥不在本地应用层删除证明内。
+
+## 4. 旧明文数据库迁移
+
+已有明文 DB 不能静默与新密文混存。先停止 daemon，保留源 DB，确认 `FORME_OWNER_ID` 与源 `brain_authority` 的 owner 一致，并设置正确 `FORME_WORKSPACE`。目标必须是新文件，目标 `.content-keys` 目录也必须不存在。
+
+```powershell
+$planJson = cargo run -p forme-store --bin forme-data-migrate -- plan .\old.db .\protected.db | Out-String
+if ($LASTEXITCODE -ne 0) { throw '迁移预览失败' }
+$plan = $planJson | ConvertFrom-Json
+$plan | Format-List
+```
+
+人工核对 owner/source/target/schema digest、event/content 数与有效期后，在同一有效期内 apply：
+
+```powershell
+$planJson | cargo run -p forme-store --bin forme-data-migrate -- apply .\old.db .\protected.db $plan.digest
+```
+
+plan 不创建 DB/key；apply 重新校验源字节、scope/owner、批准 digest 和目标，使用一致性快照完成全部已知内容列加密、空闲页压实、checksum/integrity/replay 验证。成功 receipt 明示 `source_unchanged=true`、`source_deleted=false`、`authority_switched=false`；旧源仍是**未保护备份**。失败目标可能仍含明文，不能作为完成迁移；源和失败目标都继续按敏感数据保护，重试使用新的目标，不覆盖旧文件。迁移成功也不自动清除旧备份或接管 authority。
+
+## 5. 认知看板
+
+```powershell
+cargo run -p forme-cli -- brain dashboard
+cargo run -p forme-cli -- brain dashboard workspace:default
+```
+
+HTTP `GET /v1/brain/dashboard?workspace=...&from=...&to=...` 也支持时间窗（Unix 毫秒）。窗内行为与截至窗尾的 backlog/confidence/supervision 状态分别核算；每 stream 的 heads 是权威游标，单个最大序号只作显示。问答被接受不代表学到的知识有用，reject 不等于 regret；没有结果证据的指标标 unverifiable。看板可由事件重建，不成为第二事实库。
+
+## 6. C24 真实任务与发布门
+
+配置真实、支持工具调用的模型后，从干净源码提交运行到**新的目录**：
+
+```powershell
+cargo run -p forme-harness --bin forme-core-brain-d-golden -- --live --out .\c24-evidence --repeats 2
+cargo run -p forme-eval --bin forme-core-brain-d-artifact-verify -- .\c24-evidence\product-golden.json --require-pass
+```
+
+六类固定任务覆盖冷启动、工具写文件、跨 SQLite 重启的长期 workspace、多个 child、AskToLearn、失败后重协调。每类至少两次，直接模型只作同一事实输入的答案质量基线；文件/route/checkpoint/候选的 workflow 结果另由独立 selector 证明。该短周期套件不代表真实用户数月收益或通用复杂任务能力已经得到证明。
+
+缺配置会生成 `Unavailable/UNVERIFIABLE` 工件并返回 2；controlled transport 不能成为 live 成功。仅 `-Wave D -RuntimeOnly` PASS 证明实现与治理回归，不能声明 D/C24/Final PASS。正式工件置于 `acceptance/core-brain-d-artifacts/product-golden.json`，再执行：
+
+```powershell
+pwsh -NoProfile -File tools/verify-core-brain-closure.ps1 -Wave D
+pwsh -NoProfile -File tools/verify-core-brain-closure.ps1 -Wave Final
+```
+
+Final 还要求 A–C、S1–S99、fmt/check/test/strict-clippy/compliance、当前干净树 release audit。发布检查只能用该 checkout 的 `target/debug`；不得借共享 target、旧 receipt 或自报最终回答通过。分支实现、真实价值通过和 main 合入是三个单独状态。

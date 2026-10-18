@@ -565,6 +565,8 @@ Harness 在每次 model attempt 前：
 
 fallback chain 有最大 attempts；重复 profile、能力不兼容、L5/high-risk、unknown result 立即停止。DecisionTrace 记录 selection policy/snapshot/rationale。ModelProfile 决定 reasoning scaffold/checkpoint/evaluator strength，但不能改变治理。
 
+本次可执行默认值为最多 3 次实际 attempt（primary + 2 fallback），只有显式相同的非空 fallback group 才参与轮换。明确连接建立前失败、HTTP 429/502/503 可进入有界恢复；timeout、传输结果不明、无法分类的失败不轮换。已记录的高风险审批/未知动作同样阻止后续模型切换，不因 pending slot 被清空而失去限制。失败 attempt 的真实 profile 与失败事实必须保留；缺失 usage/定价不解释成费用为零。
+
 ### D2 Dashboard
 
 `eval::CognitiveDashboardProjection` 对 event range fold，输出：
@@ -575,6 +577,8 @@ pub struct CognitiveDashboardSnapshot { owner/workspace/window/cursor/metrics/di
 ```
 
 Gateway/CLI 提供 owner-authenticated read；支持 global/workspace/time window。删 projection 后 replay 相同。不得新增不可追溯 metrics DB；可用 cache 但 cursor/digest 必须绑定 event range。
+
+时间窗内行为计数与截至窗尾的状态快照分开：候选 backlog、map confidence、监管状态使用前置历史；窗内反馈通过原 proposal/candidate/route 的 typed ref 或 provenance 找到 workspace。无法归属的 owner 级事实只进 global，不冒充某个项目。返回 per-stream heads；单个最大 `stream_seq` 仅用于展示，不能作为跨 stream 的完整游标。回答学习问题证明接受了问题，不能直接证明学习已经有用；拒绝也不是 regret 标签，缺少相应结果证据时标 unverifiable。
 
 ### D3 Backup/restore
 
@@ -594,11 +598,25 @@ pub trait BackupService {
 
 采用经过审计的 AEAD crate（具体依赖先更新 third-party/NOTICE/borrowing record）。新增 `EncryptedContentEnvelope`，并规定敏感内容在进入不可变 event/object 链之前必须被 envelope 化或外置为安全 content reference；key resolver companion 只接 `SecretRef`；AAD 绑定 owner/scope/object/schema。nonce 唯一；key/SecretRef id 不进入 Debug/Event/artifact。旧明文数据迁移必须是显式、可恢复、可验证的 owner operation；迁移未完成时不得静默混存并声称全部加密，C22/C23 必须 FAIL/UNVERIFIABLE。
 
+实现使用 ChaCha20Poly1305 content envelope；本地 resolver 在边界内部管理实际 key，只让安全 digest 进入 envelope。AAD 必须传给 AEAD 验证，不能只比较可被攻击者重算的公共 digest。覆盖 event payload、会话/转录、charter、编排、策略/evaluation/历史、同步/联邦/生态 ledger 的内容列，以及真实截图/附件的外置字节。普通非生产测试 store 可以保持历史原文模式；正式 ProductionRuntime 默认开启保护，拒绝静默启用到含明文的历史库。
+
+密钥目录与 DB、附件、便携工件分离；恢复 DB 依赖原 resolver，备份不携带密钥。应用层保护不承诺磁盘元数据隐藏、内存取证防护、物理扇区擦除或清除用户自行复制的密钥。旧明文迁移只生成新的受保护目标，校验成功也不自动切换 authority；保留的旧源/备份必须明确披露，不能把新库加密解释成旧源已被删除。
+
 ### D5 Retention/delete
 
 `store` 增加 data lifecycle aggregate version、cleanup plan 与 tombstone projection。Harness control flow：authenticate owner -> build scoped cleanup plan/digest -> expected-version recheck -> delete/crypto-shred raw content and derived indexes -> append `DataLifecycleApplied` + version/tombstone transaction -> verify no local retrieval -> report remote disposition。不可变事件中的历史密文不能改写，只能靠销毁对应内容密钥失效；若发现历史可恢复明文，必须先完成显式迁移/清理，否则不允许报告真实删除完成。
 
 删除范围至少覆盖 content store、FTS、summary/vector/graph/candidate projection 与 per-subject keys。append-only audit metadata保留但不得含原文。无法验证的远端清理是 Unknown。
+
+SQLite 与外部密钥销毁不能伪装成一个可回滚事务，执行分三阶段：
+
+1. 单写者事务内固定 cleanup plan/digest，安装 subject fence，移除真实派生投影/检索入口并记录 pending job。
+2. 销毁计划中所有历史版本 key，逐项验证不再可用；中断则保持 pending，不追加成功事件。
+3. 验证后同事务追加 `DataLifecycleApplied`、提升版本并落 tombstone。恢复使用同一 cleanup digest，不重新推断或扩大目标。
+
+删除引用源也使派生链与同一增量聚合的依赖后缀失效；计划在批准前列明受影响对象。历史密文和 tombstone 留在审计链中；查询/replay 排除被删除的对象，不能尝试复活旧稳定认知。没有实际持久化 vector index 时不声称清除了一个不存在的索引。源在其他 scope 仍被引用而无法满足隔离时 fail closed，不能销毁其他 scope 的密钥。
+
+运行时清理需独占 data lock，且没有活动/挂起 run 或活动 route；读入口先持共享锁，再检查 durable pending fence。中断清理期间前台、tick、项目控制与缓存读取都停止，只有数据恢复控制可继续。成功后刷新 memory/cognition projection 并清空已完成 run/output 缓存。旧 DB 备份若引用已销毁 key，也不能绕过删除恢复原文。
 
 ### D6 价值基线与真实 golden
 
@@ -609,6 +627,16 @@ activation、memory recall、orchestration、model routing 分别有 baseline。
 ### D7 D 波测试与提交
 
 对应 C19–C24：actual model profile/fallback/no hidden switch；dashboard replay；backup tamper/restore；encryption wrong-key/tamper/secret scan；delete index/key/tombstone；six real goldens/baselines。
+
+### D 波 companion 与证据约定
+
+冻结 public trait 不变，新增 owner data control companion：`DataOperationPlan`、`DataPlannedOperation`、`DataOperationConfirmation`、`DataOperationResult`。Gateway mutation 继续使用认证 owner 与 Origin/CSRF；restore/delete 通过持久 `ApprovalRequested` 绑定 operation、digest、owner、nonce、expiry 和 expected version。restore 只允许 `data-operations/` 内新的 opaque 文件名；重复已消费 restore 审批不盲重试，先检查结果。cleanup 的相同不可变 job 可以恢复；换 subject/scope/对象列表或已过期授权必须重新规划/确认。
+
+`forme-core-brain-d-golden --live --out <new-directory>` 只在自建隔离目录运行六类固定任务，真实 provider、SQLite 重启与 File backend 的证据分开记录；每类至少两次重复，与直接模型的相同事实输入对照。文件、route/checkpoint、子代理数、学习回答候选与失败后重协调由独立 selector 验证；最终回答只用于共同的答案质量比较。该套件是有界任务基准，不代表真实用户数月运行或通用认知质量已经得到证明。
+
+portable artifact 保存完整 stream position/hash 见证和安全载荷白名单，拒绝缺失序号、改 profile、伪造 usage/重启/文件、私有路径和 transport 数据。费用无已知定价时为 unknown，不把失败 call 当免费。无真实模型配置时产出六类空任务、`Unavailable` 与 `UNVERIFIABLE`，不得用受控 HTTP 模型升级为 live。
+
+`verify-core-brain-closure.ps1 -Wave D -RuntimeOnly` 仅检验实现与治理，不构成 D/C24 或 Final 通过。正式 D gate 必须要求真实 C24 artifact PASS；Final 还要求 A–C、S1–S99、干净树 current release audit。分支实现、真实价值通过、main 合入是分别记录的状态。
 
 提交建议：`feat(runtime): complete the V1 core brain product loop`。
 

@@ -369,6 +369,8 @@ fallback 不改变 scope、toolset、permission、approval、DoneContract 或 ca
 
 不可变事件链中的历史密文不能物理改写；删除通过清理可寻址原文/派生索引并销毁对应内容密钥，使密文不可恢复，同时保留不含原文的 tombstone。若历史事件已经保存可恢复明文，删除 projection 或新增 tombstone 不足以满足 C22/C23：必须完成显式迁移/清理，未完成时 closure gate 必须报告 FAIL/UNVERIFIABLE。
 
+内容保护的运行落点是 store 写边界与真实 artifact writer，不能只提供一个未被调用的加密 helper。AAD 进入 AEAD authentication，绑定 owner/scope/object/schema；外置 key resolver 不进入备份。历史明文迁移到新目标并保留原源的回滚能力，原源仍属未保护数据，必须在结果中披露；迁移不自动接管 authority。SQLite 本地 schema 的 additive companion 表与具体签名以 store 实现及 `prd/23` D 波补充为准，不增加业务事件或 crate 依赖边。
+
 ### 11.3 数据生命周期
 
 ```rust
@@ -392,6 +394,8 @@ pub struct DataLifecycleAppliedPayload {
 ```
 
 `DataLifecycleApplied` 是 R 组第 99 个事件。删除/retention 清理原始敏感内容、FTS、summary/vector/graph/candidate 派生数据并 crypto-shred 对应 key；append-only 审计链保留不含原文的 tombstone。对历史可恢复明文必须先迁移/清理，不能以删除 projection 冒充完成。远端未验证删除必须标 `Requested/Unknown`，不得宣称完成。
+
+事务边界为“pending job + 写入/检索 fence → 外部 key 销毁验证 → success event/version/tombstone”。中断后 job 保留，禁止脑运行时使用旧认知/cache；恢复严格复用获批 cleanup digest。成功后共享 memory/cognition 重建、run/output cache 失效。保留的密文、外部副本、物理磁盘与远端删除有不同证明边界，receipt 只声明本次已实际验证的本地范围。
 
 ## 12. 失败、恢复与一致性
 
