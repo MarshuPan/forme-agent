@@ -30,6 +30,7 @@ impl ProductionRuntime {
         &self,
         owner: &p::VerifiedPrincipal,
     ) -> p::Result<p::OrchestrationLedger> {
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         self.orchestration_snapshot()
     }
@@ -44,6 +45,7 @@ impl ProductionRuntime {
         command: p::IdempotencyKey,
         project: p::WorkspaceProject,
     ) -> p::Result<p::EventId> {
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         if project.workspace != self.config().workspace {
             return Err(p::Error("project workspace differs from runtime".into()));
@@ -166,6 +168,7 @@ impl ProductionRuntime {
         input_digest: p::SchemaDigest,
         now: p::Timestamp,
     ) -> p::Result<p::RouteDeclaration> {
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         self.plan_project_segment(command, project, signature, input_digest, None, now)
     }
@@ -413,6 +416,7 @@ impl ProductionRuntime {
         owner: &p::VerifiedPrincipal,
         route: &p::ExecutionRouteRef,
     ) -> p::Result<p::WorkRouteRecord> {
+        let _data_access = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         {
             let mut active = self
@@ -922,6 +926,7 @@ impl ProductionRuntime {
         route: &p::ExecutionRouteRef,
         command: p::IdempotencyKey,
     ) -> p::Result<()> {
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         self.append_orchestration(
             command,
@@ -952,6 +957,7 @@ impl ProductionRuntime {
         intent: p::ActionId,
         command: p::IdempotencyKey,
     ) -> p::Result<()> {
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         self.append_orchestration(
             command,

@@ -20,6 +20,7 @@ pub struct Fixture {
     pub calls: Arc<AtomicU64>,
     pub answer: Arc<Mutex<String>>,
     pub responses: Arc<Mutex<VecDeque<serde_json::Value>>>,
+    pub statuses: Arc<Mutex<VecDeque<u16>>>,
     pub requests: Arc<Mutex<Vec<String>>>,
     pub delay_ms: Arc<AtomicU64>,
     stop: Arc<AtomicBool>,
@@ -38,10 +39,12 @@ impl Fixture {
         let calls = Arc::new(AtomicU64::new(0));
         let answer = Arc::new(Mutex::new(String::from("[]")));
         let responses = Arc::new(Mutex::new(VecDeque::<serde_json::Value>::new()));
+        let statuses = Arc::new(Mutex::new(VecDeque::<u16>::new()));
         let requests = Arc::new(Mutex::new(Vec::new()));
         let delay_ms = Arc::new(AtomicU64::new(0));
         let (queued, captured, delay) = (responses.clone(), requests.clone(), delay_ms.clone());
         let (flag, count, output) = (stop.clone(), calls.clone(), answer.clone());
+        let codes = statuses.clone();
         let thread = std::thread::spawn(move || {
             while !flag.load(Ordering::SeqCst) {
                 match listener.accept() {
@@ -57,7 +60,8 @@ impl Fixture {
                         let body = queued.lock().unwrap().pop_front().unwrap_or_else(||
                             serde_json::json!({"choices":[{"message":{"content":content},"finish_reason":"stop"}],
                             "usage":{"prompt_tokens":20,"completion_tokens":4}})).to_string();
-                        let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
+                        let status = codes.lock().unwrap().pop_front().unwrap_or(200);
+                        let _ = write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body);
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                         std::thread::sleep(Duration::from_millis(3))
@@ -119,6 +123,7 @@ impl Fixture {
             calls,
             answer,
             responses,
+            statuses,
             requests,
             delay_ms,
             stop,

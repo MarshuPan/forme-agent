@@ -38,9 +38,9 @@ pub use m3_c::*;
 /// cognition boundary that already owns the memory dependency.
 pub type PersistentMemory = memory::EventSourcedMemory<SqliteEventStore>;
 pub use memory::{
-    Activated, ActivationConfig, ActivationRun, ActivationShape, EdgeKind, MemoryEdge, MemoryGraph,
-    MemoryGraphSnapshot, MemoryNode, MemoryScope, NodeKind, RecallCue, RelevanceBaseline,
-    TimeSlice,
+    Activated, ActivationConfig, ActivationRun, ActivationShape, EdgeKind, GraphQuery, MemoryEdge,
+    MemoryGraph, MemoryGraphSnapshot, MemoryNode, MemoryScope, NodeKind, RecallCue,
+    RelevanceBaseline, TimeSlice,
 };
 /// The intention records `ProspectiveIntentions` exchanges, re-exported so a
 /// caller of that trait needs no direct memory dependency.
@@ -1703,6 +1703,25 @@ where
         self.lock_state()
             .map(|state| state.stable.values().cloned().collect())
             .unwrap_or_default()
+    }
+
+    /// Replaces disposable cognition after a governed data lifecycle change.
+    pub fn refresh_projection(&self) -> p::Result<()> {
+        let _command = self
+            .commands
+            .lock()
+            .map_err(|_| p::Error("cognition command lock unavailable".into()))?;
+        let mut state = CognitionState::default();
+        let mut head = 0;
+        for event in self.store.read_run(self.aggregate_run.clone()) {
+            let event = event?;
+            head = head.max(event.stream_seq);
+            fold_event(&mut state, &self.memory, &event);
+        }
+        *self.lock_state()? = state;
+        self.event_sequence
+            .fetch_max(head.saturating_add(1), Ordering::SeqCst);
+        Ok(())
     }
 
     /// Rebuilds the stable objects at the aggregate head a tick claimed.

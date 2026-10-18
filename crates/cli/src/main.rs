@@ -13,6 +13,44 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
+    let data_arguments = std::env::args().skip(1).collect::<Vec<_>>();
+    if data_arguments.first().is_some_and(|s| s == "data") {
+        let operation=data_arguments.get(1).ok_or_else(||"usage: forme-cli data <backup|verify-backup|restore-plan|restore|lifecycle> [JSON; defaults to stdin]".to_owned())?;
+        let json = if data_arguments.len() > 2 {
+            data_arguments[2..].join(" ")
+        } else {
+            let mut body = String::new();
+            std::io::stdin()
+                .take(1024 * 1024)
+                .read_to_string(&mut body)
+                .map_err(|_| "data command could not be read".to_owned())?;
+            body
+        };
+        let request = serde_json::from_str(&json)
+            .map_err(|_| "data command must be valid JSON".to_owned())?;
+        let response = forme_gateway::HttpGatewayClient::from_environment()
+            .and_then(|gateway| gateway.data_control(operation, &request))
+            .map_err(|e| e.to_string())?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&response)
+                .map_err(|_| "data response encoding failed".to_owned())?
+        );
+        return Ok(());
+    }
+    if data_arguments.first().is_some_and(|s| s == "brain")
+        && data_arguments.get(1).is_some_and(|s| s == "dashboard")
+    {
+        let response = forme_gateway::HttpGatewayClient::from_environment()
+            .and_then(|gateway| gateway.brain_dashboard(data_arguments.get(2).map(String::as_str)))
+            .map_err(|e| e.to_string())?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&response)
+                .map_err(|_| "dashboard encoding failed".to_owned())?
+        );
+        return Ok(());
+    }
     let arguments = parse_arguments()?;
     // The default path talks to the running local gateway daemon, which owns
     // the single production runtime. `--embedded` composes that same runtime

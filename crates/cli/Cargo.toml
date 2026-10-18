@@ -7,6 +7,4 @@ publish.workspace = true
 [dependencies]
 forme-protocol = { path = "../protocol" }
 forme-gateway = { path = "../gateway" }
-
-[dev-dependencies]
 serde_json = "=1.0.150"

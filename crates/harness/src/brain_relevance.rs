@@ -220,6 +220,7 @@ impl ProductionRuntime {
         case: RelevanceCase,
     ) -> p::Result<p::RelevanceComparisonArtifact> {
         use c::RelevanceBaseline;
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         if case.schema_version != p::SchemaVersion(1)
             || case.k == 0

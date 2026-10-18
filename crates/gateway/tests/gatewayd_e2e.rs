@@ -293,6 +293,7 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
             p::EventKind::DoneContractSet,
             p::EventKind::AutonomyEnvelopeSet,
             p::EventKind::DecisionTraceRecorded,
+            p::EventKind::DecisionTraceRecorded,
             p::EventKind::TurnStarted,
             p::EventKind::ContextBuildStarted,
             p::EventKind::ContextBuildFinished,
@@ -306,6 +307,16 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
             p::EventKind::RunComplete,
         ]
     );
+    let traces = events
+        .iter()
+        .filter_map(|event| match &event.payload {
+            p::EventPayload::DecisionTraceRecorded(trace) => Some(&trace.trace_ref.0),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(traces.len(), 2);
+    assert_ne!(traces[0], traces[1]);
+    assert!(traces[1].starts_with("model-selection:"));
     assert_eq!(
         events
             .iter()

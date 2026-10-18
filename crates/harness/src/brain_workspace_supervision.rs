@@ -11,6 +11,7 @@ impl ProductionRuntime {
         project: p::WorkspaceProject,
         expected_digest: p::SchemaDigest,
     ) -> p::Result<p::EventId> {
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         self.validate_project_resources(&project)?;
         if project.workspace != self.config().workspace {

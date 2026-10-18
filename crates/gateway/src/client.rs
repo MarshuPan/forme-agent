@@ -133,6 +133,32 @@ impl HttpGatewayClient {
         &self.manifest_digest
     }
 
+    /// Data controls share the daemon's owner authentication and CSRF proof.
+    pub fn data_control(
+        &self,
+        operation: &str,
+        request: &serde_json::Value,
+    ) -> p::Result<serde_json::Value> {
+        if !matches!(
+            operation,
+            "backup" | "verify-backup" | "restore-plan" | "restore" | "lifecycle"
+        ) {
+            return Err(p::Error("unknown data operation".into()));
+        }
+        let encoded = serde_json::to_vec(request)
+            .map_err(|_| p::Error("data command encoding failed".into()))?;
+        let response = self.exchange("POST", &format!("/v1/data/{operation}"), Some(&encoded))?;
+        serde_json::from_slice(&response)
+            .map_err(|_| p::Error("data control response is invalid".into()))
+    }
+
+    pub fn brain_dashboard(&self, workspace: Option<&str>) -> p::Result<serde_json::Value> {
+        let path = workspace
+            .map(|s| format!("/v1/brain/dashboard?workspace={}", path_segment(s)))
+            .unwrap_or_else(|| "/v1/brain/dashboard".into());
+        self.get_json(&path)
+    }
+
     fn get_json<T: for<'de> Deserialize<'de>>(&self, path: &str) -> p::Result<T> {
         let body = self.exchange("GET", path, None)?;
         serde_json::from_slice(&body)

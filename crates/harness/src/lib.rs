@@ -61,9 +61,13 @@ mod m4;
 mod m5;
 mod production;
 mod production_config;
+mod production_data;
 pub use forme_eval::{
     CognitiveDashboardMetrics, CognitiveDashboardProjection, CognitiveDashboardSnapshot,
     DashboardWindow, MetricRatio,
+};
+pub use forme_store::{
+    BackupManifest, BackupVerification, DataLifecyclePlan, DataLifecycleRequest, RestoreReport,
 };
 pub use m3_a::{
     EvolutionActivationResult, EvolutionEvaluationResult, ExactReplayAuditResult,
@@ -85,6 +89,7 @@ pub use m5::{
 };
 pub use production::*;
 pub use production_config::*;
+pub use production_data::*;
 
 #[derive(Debug, Clone)]
 pub struct EventStream {
@@ -804,6 +809,64 @@ pub struct ReactiveHarness {
 }
 
 impl ReactiveHarness {
+    fn data_read_guard(&self) -> p::Result<Option<std::sync::RwLockReadGuard<'_, ()>>> {
+        self.brain_services
+            .as_ref()
+            .map(|s| s.data_read_guard())
+            .transpose()
+    }
+    pub(crate) fn require_data_quiescent(&self) -> p::Result<()> {
+        for handle in self
+            .runs
+            .lock()
+            .map_err(|_| p::Error("run registry unavailable".into()))?
+            .values()
+        {
+            if !handle
+                .record
+                .lock()
+                .map_err(|_| p::Error("run state unavailable".into()))?
+                .loop_ctx
+                .state
+                .is_terminal()
+            {
+                return Err(p::Error(
+                    "data operation requires active and suspended runs to be resolved or cancelled"
+                        .into(),
+                ));
+            }
+        }
+        for child in self.child_executors()? {
+            child.require_data_quiescent()?;
+        }
+        Ok(())
+    }
+    pub(crate) fn evict_data_caches(&self) -> p::Result<()> {
+        for child in self.child_executors()? {
+            child.evict_data_caches()?;
+        }
+        self.runs
+            .lock()
+            .map_err(|_| p::Error("run cache unavailable".into()))?
+            .clear();
+        self.child_harnesses
+            .lock()
+            .map_err(|_| p::Error("child cache unavailable".into()))?
+            .clear();
+        self.idempotency
+            .lock()
+            .map_err(|_| p::Error("idempotency cache unavailable".into()))?
+            .clear();
+        self.proposal_origins
+            .lock()
+            .map_err(|_| p::Error("proposal cache unavailable".into()))?
+            .clear();
+        self.suppressed_origins
+            .lock()
+            .map_err(|_| p::Error("proposal suppression cache unavailable".into()))?
+            .clear();
+        Ok(())
+    }
     pub fn new(
         store: SqliteEventStore,
         model: Arc<dyn ModelProvider>,
@@ -1257,6 +1320,7 @@ impl ReactiveHarness {
     }
 
     pub fn output_text(&self, run: p::RunId) -> p::Result<Option<String>> {
+        let _data_access = self.data_read_guard()?;
         let handle = match self.run_handle(&run) {
             Ok(handle) => handle,
             // Model output text is process state, not an event fact; a run
@@ -2535,6 +2599,7 @@ impl ReactiveHarness {
     }
 
     fn bind_and_drive(&self, run: &p::RunId, handle: &Arc<RunHandle>) -> p::Result<()> {
+        let _data_access = self.data_read_guard()?;
         let session = {
             let record = handle
                 .record
@@ -3425,6 +3490,7 @@ impl ReactiveHarness {
     }
 
     fn drive(&self, run: &p::RunId, handle: &Arc<RunHandle>) -> p::Result<()> {
+        let _data_access = self.data_read_guard()?;
         loop {
             let mut record = handle
                 .record
@@ -3451,8 +3517,14 @@ impl ReactiveHarness {
                     self.persist_loop_events(run, &mut record)?;
                     if record.loop_ctx.provider_attempt_failed()
                         && is_retryable_model_error(&error)
-                        && self.advance_model_fallback(&mut record)?
+                        && self.advance_model_fallback(run, &mut record)?
                     {
+                        self.append_failure(
+                            run,
+                            &record,
+                            p::FailureClass::ExecutionFailure,
+                            &error.to_string(),
+                        )?;
                         continue;
                     }
                     record
@@ -3619,13 +3691,37 @@ impl ReactiveHarness {
             .active_model
             .as_ref()
             .ok_or_else(|| p::Error("model attempt has no bound profile".into()))?;
-        self.model_registry
+        let provider = self
+            .model_registry
             .as_ref()
             .map(|registry| registry.provider(reference))
-            .unwrap_or_else(|| Ok(self.model.clone()))
+            .unwrap_or_else(|| Ok(self.model.clone()))?;
+        // Pinned strategy compatibility and measured adaptation evidence are
+        // profile-specific. A selected/fallback provider cannot inherit the
+        // default model's scaffold merely because both support tool use.
+        if let (Some(runtime), Some(snapshot)) =
+            (&self.m3_domains, record.evolution_snapshot_full.as_ref())
+        {
+            let scope = p::Scope(self.config.workspace.0.clone());
+            let strategy_scope = self.m3_scope_override.as_ref().unwrap_or(&scope);
+            let binding = runtime.bind(snapshot, strategy_scope, &provider.profile())?;
+            if binding.model_scaffold.as_ref().map(|plan| &plan.scaffold)
+                != record
+                    .m3_binding
+                    .as_ref()
+                    .and_then(|bound| bound.model_scaffold.as_ref())
+                    .map(|plan| &plan.scaffold)
+            {
+                return Err(p::Error(
+                    "selected model cannot change the pinned run scaffold".into(),
+                ));
+            }
+            record.m3_binding = Some(binding);
+        }
+        Ok(provider)
     }
 
-    fn advance_model_fallback(&self, record: &mut RunRecord) -> p::Result<bool> {
+    fn advance_model_fallback(&self, run: &p::RunId, record: &mut RunRecord) -> p::Result<bool> {
         let Some(selection) = &record.model_selection else {
             return Ok(false);
         };
@@ -3637,6 +3733,22 @@ impl ReactiveHarness {
             .is_some_and(|intent| intent.risk_hint == p::Risk::High)
         {
             return Ok(false);
+        }
+        if record.fallback_index >= 2 {
+            return Ok(false);
+        }
+        // This also covers a model-produced L5 action after its direct intent
+        // has left the pending slot, and remains true across a restart.
+        for event in self.store.read_run(run.clone()) {
+            if matches!(
+                event?.payload,
+                p::EventPayload::ApprovalRequested(p::ApprovalRequestedPayload {
+                    risk: p::Risk::High,
+                    ..
+                }) | p::EventPayload::ActionOutcomeUnknown(_)
+            ) {
+                return Ok(false);
+            }
         }
         let next = selection.fallback_chain.get(record.fallback_index).cloned();
         let Some(next) = next else {
@@ -4890,6 +5002,7 @@ impl ReactiveHarness {
         prelude: Vec<IngressEvent>,
         forced_run: Option<p::RunId>,
     ) -> p::Result<p::RunId> {
+        let _data_access = self.data_read_guard()?;
         match self.prepare_ingress_internal_as(request, prelude, forced_run)? {
             PreparedSubmission::Existing(run) => Ok(run),
             PreparedSubmission::New {
@@ -5963,6 +6076,7 @@ impl HarnessActionIngress for ReactiveHarness {
         envelope: p::AutonomyEnvelope,
         prelude: Vec<IngressEvent>,
     ) -> p::Result<p::RunId> {
+        let _data_access = self.data_read_guard()?;
         if request.source != intent.source
             || request.idempotency_key.is_none()
             || intent.schema_version.0 == 0
@@ -6794,12 +6908,7 @@ fn internal_provenance(source: p::Source) -> p::Provenance {
 /// unknown outcomes remain terminal so that a second provider cannot repeat a
 /// request whose external effect is uncertain.
 fn is_retryable_model_error(error: &p::Error) -> bool {
-    let message = error.0.to_ascii_lowercase();
-    message.starts_with("retryable:")
-        || message.contains("transport could not start")
-        || message.contains("transport input failed")
-        || message.contains("transport failed")
-        || message.contains("endpoint returned a transport error")
+    error.0.starts_with("retryable:")
 }
 
 fn current_turn(run: &p::RunId, index: u32) -> p::TurnId {

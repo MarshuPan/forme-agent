@@ -322,6 +322,91 @@ fn model_spec() -> p::ModelAdaptationSpec {
     }
 }
 
+#[test]
+fn c19_selected_provider_cannot_inherit_another_models_measured_adaptation() {
+    let store = SqliteEventStore::open_in_memory(StoreOptions::default()).unwrap();
+    let control = M3EvolutionHarness::new(store.clone());
+    let spec = model_spec();
+    let snapshot = activate(
+        &store,
+        &control,
+        p::StrategyDomain::ModelAdaptation,
+        spec.version.clone(),
+        spec.content_ref.clone(),
+        spec.content_digest.clone(),
+        "c19-adaptation",
+    );
+    let domains = runtime(
+        vec![loop_spec()],
+        coordination_spec(),
+        vec![selection_spec(
+            p::SelectionTarget::Model,
+            "model-selection:m3-b:v1",
+        )],
+        spec,
+    );
+    let primary =
+        Arc::new(ScriptedModelProvider::new(profile(), vec![final_response("primary")]).unwrap());
+    let mut other = profile();
+    other.model = "unmeasured-selected-profile".into();
+    other.cost.input_microunits_per_million = 0;
+    other.cost.output_microunits_per_million = 0;
+    let selected = Arc::new(
+        ScriptedModelProvider::new(other.clone(), vec![final_response("must not run")]).unwrap(),
+    );
+    let mut registry =
+        forme_models::ModelRegistry::new(p::ModelProfileRef("primary".into())).unwrap();
+    registry
+        .register(
+            forme_models::RegisteredModel::new(
+                p::ModelProfileRef("primary".into()),
+                profile(),
+                primary.clone(),
+                None,
+                vec![],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    registry
+        .register(
+            forme_models::RegisteredModel::new(
+                p::ModelProfileRef("selected".into()),
+                other,
+                selected,
+                None,
+                vec![],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let harness = ReactiveHarness::new(
+        store.clone(),
+        primary,
+        Arc::new(ExecutionBackendRegistry::default()),
+        GovernanceConfig::default(),
+        HarnessConfig::for_model(&profile()),
+    )
+    .unwrap()
+    .with_evolution_seed(snapshot)
+    .unwrap()
+    .with_m3_domain_runtime(domains)
+    .with_model_registry(Arc::new(registry));
+    let run = harness.submit_run(request("c19-adaptation")).unwrap();
+    assert_eq!(
+        harness.wait(run.clone()).unwrap().status,
+        p::RunStatus::Failed
+    );
+    let events = store.read_run(run).collect::<p::Result<Vec<_>>>().unwrap();
+    assert!(events.iter().any(|e| e.kind == p::EventKind::SessionBound));
+    assert!(events
+        .iter()
+        .any(|e| e.kind == p::EventKind::FailureEvidenceRecorded));
+    assert!(!events
+        .iter()
+        .any(|e| e.kind == p::EventKind::ModelCallStarted));
+}
+
 fn runtime(
     loop_specs: Vec<p::LoopStrategySpec>,
     coordination_spec: p::CoordinationStrategySpec,

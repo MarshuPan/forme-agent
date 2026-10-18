@@ -455,10 +455,54 @@ struct CompositeCapabilityRechecker {
 
 const BUILTIN_CAPABILITY_SOURCE: &str = "builtin:forme-runtime";
 
+struct ProtectedRuntimeArtifacts {
+    inner: FileArtifactStore,
+    protection: forme_store::StoreContentProtection,
+    store: SqliteEventStore,
+    owner: p::VerifiedPrincipal,
+}
+
+impl forme_execution::ArtifactStore for ProtectedRuntimeArtifacts {
+    fn write(
+        &self,
+        scope: &p::Scope,
+        extension: &str,
+        bytes: &[u8],
+    ) -> p::Result<forme_execution::ArtifactRecord> {
+        let digest = p::sha256_content_digest(bytes);
+        let safe_scope = p::Scope(format!(
+            "artifact:{}",
+            p::sha256_content_digest(scope.0.as_bytes()).0
+        ));
+        static ARTIFACT_NONCE: AtomicU64 = AtomicU64::new(1);
+        let (sealed, record) = self.protection.seal_record(
+            bytes,
+            scope,
+            &format!(
+                "artifact:{}:{extension}:{}:{}",
+                digest.0,
+                now_ms(),
+                ARTIFACT_NONCE.fetch_add(1, Ordering::Relaxed)
+            ),
+            &p::sha256_content_digest(scope.0.as_bytes()),
+        )?;
+        let file = self.inner.write(&safe_scope, "sealed", &sealed)?;
+        self.protection
+            .lifecycle_service(self.store.clone())
+            .put_protected_content(&self.owner, record.clone())?;
+        Ok(forme_execution::ArtifactRecord {
+            content_ref: record.content_ref,
+            ..file
+        })
+    }
+}
+
 fn assemble_capabilities(
     config: &ProductionRuntimeConfig,
     workspace: &p::WorkspaceRef,
     authority_created_at: p::Timestamp,
+    protection: forme_store::StoreContentProtection,
+    store: SqliteEventStore,
 ) -> p::Result<CapabilityAssembly> {
     let capability_config = &config.capabilities;
     let capabilities = Arc::new(InMemoryCapabilityRegistry::default());
@@ -639,7 +683,14 @@ fn assemble_capabilities(
     {
         FileArtifactStore::new(config.data.artifact_root.clone())
             .ok()
-            .map(Arc::new)
+            .map(|inner| {
+                Arc::new(ProtectedRuntimeArtifacts {
+                    inner,
+                    protection: protection.clone(),
+                    store: store.clone(),
+                    owner: p::VerifiedPrincipal(config.owner.0.clone()),
+                }) as Arc<dyn forme_execution::ArtifactStore>
+            })
     } else {
         None
     };
@@ -1633,7 +1684,7 @@ fn production_envelope(
 fn build_computer_backend(
     config: &ComputerRuntimeConfig,
     contents: Arc<dyn ContentResolver>,
-    artifacts: Arc<FileArtifactStore>,
+    artifacts: Arc<dyn forme_execution::ArtifactStore>,
     secrets: Arc<dyn SecretResolver>,
     budget: OutputBudget,
     timeout: p::DurationMs,
@@ -1843,6 +1894,7 @@ impl ConfigDoctorSnapshot {
 /// public read-only handles; mutation still goes through the individual
 /// module's governed APIs and the store's authority fence.
 pub struct BrainServices {
+    pub(crate) data_access: std::sync::RwLock<()>,
     pub store: Arc<SqliteEventStore>,
     pub authority: BrainAuthorityBinding,
     pub authority_guard: AuthorityLeaseGuard,
@@ -1866,6 +1918,23 @@ pub struct BrainServices {
     pub federation: Arc<super::FederatedHarnessRuntime>,
     pub ecosystem: Arc<super::EcosystemHarnessRuntime>,
     pub doctor: ConfigDoctorSnapshot,
+}
+
+impl BrainServices {
+    pub(crate) fn data_read_guard(&self) -> p::Result<std::sync::RwLockReadGuard<'_, ()>> {
+        let guard = self
+            .data_access
+            .read()
+            .map_err(|_| p::Error("runtime data access is unavailable".into()))?;
+        // Check after acquiring the lock: a cleanup may have failed while this
+        // reader waited. Its durable fence must cover cached cognition too.
+        if self.store.has_pending_data_cleanup()? {
+            return Err(p::Error(
+                "owner data cleanup is pending; resume it before running the brain".into(),
+            ));
+        }
+        Ok(guard)
+    }
 }
 
 pub struct ProductionRuntime {
@@ -1941,6 +2010,9 @@ pub struct RuntimeSchedulerPass {
 }
 
 impl ProductionRuntime {
+    pub(crate) fn data_read_guard(&self) -> p::Result<std::sync::RwLockReadGuard<'_, ()>> {
+        self.services.data_read_guard()
+    }
     pub fn harness(&self) -> Arc<ReactiveHarness> {
         self.harness.clone()
     }
@@ -1972,6 +2044,7 @@ impl ProductionRuntime {
         from: Option<p::Timestamp>,
         to: Option<p::Timestamp>,
     ) -> p::Result<forme_eval::CognitiveDashboardSnapshot> {
+        let _guard = self.data_read_guard()?;
         let events = collect_owner_brain_events(&self.services.store, None)?;
         forme_eval::CognitiveDashboardProjection::from_events(
             &events,
@@ -2003,6 +2076,7 @@ impl ProductionRuntime {
     /// unfinished window is retried with its recorded inputs before any newer
     /// window opens.
     pub fn cognitive_tick_at(&self, now: p::Timestamp) -> p::Result<CognitiveTickOutcome> {
+        let _data_access = self.data_read_guard()?;
         let store = self.services.store.as_ref();
         let owner = self.services.authority.owner_digest.clone();
         store.abandon_expired_tick(&owner, now)?;
@@ -2259,6 +2333,7 @@ impl ProductionRuntime {
         owner: &p::VerifiedPrincipal,
         query: &AgentWorkspaceQuery,
     ) -> p::Result<OwnerAgentWorkspace> {
+        let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         AgentWorkspaceProjection::rebuild_scoped(&self.owner_brain_events_at(None)?, query)
     }
@@ -2272,6 +2347,7 @@ impl ProductionRuntime {
         goal: p::GoalFrameRef,
         knowledge: p::GoalKnowledge,
     ) -> p::Result<p::EventId> {
+        let _data_guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         knowledge.validate()?;
         if !scope_contains(&p::Scope(self.config.workspace.0.clone()), &knowledge.scope) {
@@ -2302,6 +2378,7 @@ impl ProductionRuntime {
         command: p::IdempotencyKey,
         reply: p::LearningReplyRecord,
     ) -> p::Result<p::CandidateId> {
+        let _data_guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         reply.validate()?;
         let _guard = self
@@ -2350,6 +2427,7 @@ impl ProductionRuntime {
         outcome: p::ProposalOutcome,
         defer_until: Option<p::Timestamp>,
     ) -> p::Result<p::EventId> {
+        let _data_guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
         let _guard = self
             .learning_commands
@@ -2531,6 +2609,16 @@ impl ProductionRuntimeBuilder {
     /// It uses the exact same composition routine as `build`.
     pub fn build_with_store(self, store: SqliteEventStore) -> p::Result<ProductionRuntime> {
         self.config.validate()?;
+        if store.content_protection()?.is_none() {
+            let keys = forme_store::FileContentKeyResolver::new(
+                self.config.store_path.with_extension("content-keys"),
+            )?;
+            store.enable_content_protection(forme_store::StoreContentProtection::new(
+                &p::VerifiedPrincipal(self.config.owner.0.clone()),
+                p::Scope(self.config.workspace.0.clone()),
+                Arc::new(keys),
+            )?)?;
+        }
         compose(self.config, store)
     }
 }
@@ -2732,8 +2820,15 @@ fn compose(
     let intentions =
         event_sourced_intention_services(store.clone(), aggregates.intentions.clone())?;
 
-    let capability_assembly =
-        assemble_capabilities(&config, &config.workspace, authority.created_at)?;
+    let capability_assembly = assemble_capabilities(
+        &config,
+        &config.workspace,
+        authority.created_at,
+        store
+            .content_protection()?
+            .ok_or_else(|| p::Error("production content protection is not installed".into()))?,
+        store.as_ref().clone(),
+    )?;
     let capabilities = capability_assembly.capabilities.clone();
     let skills = capability_assembly.skills.clone();
     let mcp = capability_assembly.mcp.clone();
@@ -2878,6 +2973,7 @@ fn compose(
     });
     manifest.validate()?;
     let services = Arc::new(BrainServices {
+        data_access: std::sync::RwLock::new(()),
         store,
         authority,
         authority_guard: guard,
@@ -3180,5 +3276,120 @@ fn optional_bool(key: &str, fallback: bool) -> p::Result<bool> {
         Err(std::env::VarError::NotUnicode(_)) => Err(p::Error(format!(
             "environment variable {key} is invalid UTF-8"
         ))),
+    }
+}
+
+#[cfg(test)]
+mod protected_artifact_tests {
+    use super::*;
+    use forme_execution::ArtifactStore;
+
+    #[test]
+    fn c22_artifact_driver_encrypts_bytes_and_c23_source_cleanup_revokes_reads() {
+        let root = std::env::temp_dir().join(format!(
+            "forme-d-artifact-{}-{}",
+            std::process::id(),
+            NEXT_PROCESS_NONCE.fetch_add(1, Ordering::SeqCst)
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let owner = p::VerifiedPrincipal("owner:artifact-d".into());
+        let scope = p::Scope("workspace:artifact-d".into());
+        let store = SqliteEventStore::open(root.join("store.db"), StoreOptions::default()).unwrap();
+        let keys = Arc::new(forme_store::FileContentKeyResolver::new(root.join("keys")).unwrap());
+        let protection =
+            forme_store::StoreContentProtection::new(&owner, scope.clone(), keys.clone()).unwrap();
+        store.enable_content_protection(protection.clone()).unwrap();
+        let binding = store
+            .claim_brain_authority(BrainAuthorityClaim {
+                owner_digest: p::sha256_content_digest(owner.0.as_bytes()),
+                process_nonce: process_nonce(),
+                now_ms: now_ms(),
+                lease_ttl: p::DurationMs(60_000),
+            })
+            .unwrap();
+        let guard = store
+            .install_authority_lease_guard(&binding, p::DurationMs(60_000))
+            .unwrap();
+        let sink = ProtectedRuntimeArtifacts {
+            inner: FileArtifactStore::new(root.join("artifacts")).unwrap(),
+            protection: protection.clone(),
+            store: store.clone(),
+            owner: owner.clone(),
+        };
+        let private = b"self-authored-sensitive-screen-bytes-957da";
+        let record = sink.write(&scope, "png", private).unwrap();
+        let service = protection.lifecycle_service(store.clone());
+        let stored = service
+            .protected_content(&owner, &record.content_ref)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            protection
+                .content_service()
+                .decrypt(&stored.envelope.binding(), &stored.envelope)
+                .unwrap(),
+            private
+        );
+        let mut files = std::fs::read_dir(root.join("artifacts"))
+            .unwrap()
+            .map(|x| x.unwrap().path())
+            .collect::<Vec<_>>();
+        let mut checked = 0;
+        while let Some(file) = files.pop() {
+            if file.is_dir() {
+                files.extend(std::fs::read_dir(file).unwrap().map(|x| x.unwrap().path()));
+                continue;
+            }
+            let bytes = std::fs::read(file).unwrap();
+            assert!(!bytes.windows(private.len()).any(|w| w == private));
+            checked += 1;
+        }
+        assert_eq!(checked, 1);
+        let run = p::RunId("run:artifact-d".into());
+        store
+            .append(p::Event::new(
+                p::EventId("event:artifact-d".into()),
+                run.clone(),
+                None,
+                p::EventPayload::ActionCompleted(p::ActionCompletedPayload {
+                    intent_id: p::ActionId("intent:artifact-d".into()),
+                    result_ref: p::ActionResultRef(record.content_ref.0.clone()),
+                    receipt: None,
+                    remote_receipt: None,
+                }),
+                p::SchemaVersion(1),
+                now_ms(),
+                trusted_provenance(),
+            ))
+            .unwrap();
+        service
+            .apply(forme_store::DataLifecycleRequest {
+                schema_version: p::V1_CLOSURE_SCHEMA_VERSION,
+                owner: owner.clone(),
+                scope,
+                subject_digest: p::sha256_content_digest(run.0.as_bytes()),
+                operation: p::DataLifecycleOperation::CryptoShred,
+                expected_version: 0,
+                event_id: p::EventId("event:artifact-d-delete".into()),
+                timestamp: now_ms(),
+                remote_disposition: p::RemoteDeletionDisposition::Unknown,
+                evidence: vec![],
+            })
+            .unwrap();
+        assert!(service
+            .protected_content(&owner, &record.content_ref)
+            .unwrap()
+            .is_none());
+        assert!(protection
+            .content_service()
+            .decrypt(&stored.envelope.binding(), &stored.envelope)
+            .is_err());
+        drop(sink);
+        drop(service);
+        drop(guard);
+        drop(store);
+        drop(protection);
+        drop(keys);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
