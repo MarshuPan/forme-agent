@@ -10,6 +10,8 @@ use forme_protocol as p;
 use forme_store::EventStore;
 
 mod core_brain_c;
+mod core_brain_d;
+pub use core_brain_d::*;
 mod dashboard;
 mod m3_a;
 mod m3_b;
