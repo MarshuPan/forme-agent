@@ -331,6 +331,9 @@ impl ReactiveHarness {
             skills_prepared: true,
             evolution_simulation: None,
             long_horizon: None,
+            model_selection: None,
+            active_model: None,
+            fallback_index: 0,
         };
         self.runs
             .lock()

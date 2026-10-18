@@ -224,6 +224,15 @@ impl ModelRegistry {
         self.models.get(reference)
     }
 
+    /// Resolves one attempt to the concrete provider registered for its
+    /// profile.  Callers must bind the returned provider before emitting the
+    /// corresponding ModelCallStarted event.
+    pub fn provider(&self, reference: &p::ModelProfileRef) -> p::Result<Arc<dyn ModelProvider>> {
+        self.get(reference)
+            .map(RegisteredModel::provider)
+            .ok_or_else(|| p::Error(format!("model profile is not registered: {}", reference.0)))
+    }
+
     pub fn profiles(&self) -> Vec<p::ModelProfileRef> {
         self.models.keys().cloned().collect()
     }

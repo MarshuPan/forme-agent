@@ -159,6 +159,8 @@ pub struct RunCtx {
     pub budget: Budget,
     pub state: LoopState,
     pub turn_index: u32,
+    model_attempt: u32,
+    provider_attempt_failed: bool,
     pub tokens_used: u64,
     pub tool_calls: u32,
     pub stop_reason: Option<StopReason>,
@@ -216,6 +218,8 @@ impl RunCtx {
             budget,
             state: LoopState::SessionBound,
             turn_index: 0,
+            model_attempt: 0,
+            provider_attempt_failed: false,
             tokens_used: 0,
             tool_calls: 0,
             stop_reason: None,
@@ -242,6 +246,10 @@ impl RunCtx {
 
     pub fn model_scaffold(&self) -> Option<&p::ModelScaffoldProfile> {
         self.model_scaffold.as_ref()
+    }
+
+    pub fn provider_attempt_failed(&self) -> bool {
+        self.provider_attempt_failed
     }
 
     pub fn bind_strategy(&mut self, strategy: p::LoopStrategySpec) -> p::Result<()> {
@@ -394,6 +402,16 @@ impl ReactiveLoopEngine {
     ) -> Self {
         Self { context, model }
     }
+
+    /// Returns a driver bound to one concrete provider for one model attempt.
+    /// The production harness uses this seam for routing; providers never
+    /// hide fallback inside `call` or misreport their profile.
+    pub fn with_provider(&self, model: Arc<dyn ModelProvider>) -> Self {
+        Self {
+            context: self.context.clone(),
+            model,
+        }
+    }
 }
 
 impl LoopEngine for ReactiveLoopEngine {
@@ -509,8 +527,11 @@ impl LoopEngine for ReactiveLoopEngine {
             ));
         }
         messages.extend(ctx.messages.clone());
-        let call_id = p::ModelCallId(format!("model:{}:{}", run.0, ctx.turn_index));
+        let attempt = ctx.model_attempt;
+        ctx.model_attempt = ctx.model_attempt.saturating_add(1);
+        let call_id = p::ModelCallId(format!("model:{}:{}:{}", run.0, ctx.turn_index, attempt));
         let profile = self.model.profile();
+        ctx.provider_attempt_failed = false;
         ctx.state = LoopState::ModelCall;
         ctx.events.push(p::EventPayload::ModelCallStarted(
             p::ModelCallStartedPayload {
@@ -518,7 +539,7 @@ impl LoopEngine for ReactiveLoopEngine {
                 model_profile: profile.profile_ref(),
             },
         ));
-        let response = self.model.call(ModelRequest {
+        let response = match self.model.call(ModelRequest {
             schema_version: p::SchemaVersion(1),
             messages,
             tools,
@@ -526,7 +547,26 @@ impl LoopEngine for ReactiveLoopEngine {
                 .budget
                 .tokens
                 .map(|tokens| tokens.saturating_sub(ctx.tokens_used).max(1)),
-        })?;
+        }) {
+            Ok(response) => response,
+            Err(error) => {
+                // A failed attempt still gets a terminal model-call record.
+                // The harness may then select a bounded fallback provider.
+                ctx.events.push(p::EventPayload::ModelCallFinished(
+                    p::ModelCallFinishedPayload {
+                        call_id,
+                        model_profile: profile.profile_ref(),
+                        usage: p::ModelUsage {
+                            input_tokens: 0,
+                            output_tokens: 0,
+                        },
+                        finish_reason: p::FinishReason("provider_error".into()),
+                    },
+                ));
+                ctx.provider_attempt_failed = true;
+                return Err(error);
+            }
+        };
         if let ModelOutput::Final(output) = &response.output {
             ctx.events
                 .push(p::EventPayload::ModelCallDelta(p::ModelCallDeltaPayload {

@@ -33,8 +33,8 @@ use forme_loop::{
     ReactiveLoopEngine, ResolvedOutcome, ResumeState, StopReason,
 };
 use forme_models::{
-    Cost, ModelCapability, ModelProfile, ModelProvider, ModelStrength, RateLimit,
-    ScriptedModelProvider, Url,
+    Cost, ModelCapability, ModelProfile, ModelProvider, ModelRegistry, ModelSelection,
+    ModelSelectionRequest, ModelSelector, ModelStrength, RateLimit, ScriptedModelProvider, Url,
 };
 use forme_policy::{
     ActionMatcher, ArgMatcher, DefaultPolicyEngine, DelegationGrant, DelegationSubject,
@@ -713,6 +713,9 @@ struct RunRecord {
     skills_prepared: bool,
     evolution_simulation: Option<EvolutionSimulationContext>,
     long_horizon: Option<m3_b::PendingLongHorizonCheckpoint>,
+    model_selection: Option<ModelSelection>,
+    active_model: Option<p::ModelProfileRef>,
+    fallback_index: usize,
 }
 
 struct RunHandle {
@@ -756,6 +759,7 @@ pub struct ReactiveHarness {
     lease_heartbeat: Option<production::LeaseHeartbeat>,
     ingress_authority: IngressAuthority,
     model: Arc<dyn ModelProvider>,
+    model_registry: Option<Arc<ModelRegistry>>,
     context_builder: Arc<dyn ContextBuilder + Send + Sync>,
     loop_engine: ReactiveLoopEngine,
     backends: Arc<ExecutionBackendRegistry>,
@@ -838,6 +842,7 @@ impl ReactiveHarness {
             lease_heartbeat: None,
             ingress_authority: IngressAuthority::default(),
             model,
+            model_registry: None,
             context_builder,
             loop_engine,
             backends,
@@ -1149,6 +1154,13 @@ impl ReactiveHarness {
     pub fn with_context_builder(mut self, builder: Arc<dyn ContextBuilder + Send + Sync>) -> Self {
         self.context_builder = builder.clone();
         self.loop_engine = ReactiveLoopEngine::new(builder, self.model.clone());
+        self
+    }
+
+    /// Installs the production registry used for attempt-level model binding.
+    /// Test harnesses may omit it and retain their explicitly supplied model.
+    pub fn with_model_registry(mut self, registry: Arc<ModelRegistry>) -> Self {
+        self.model_registry = Some(registry);
         self
     }
 
@@ -1983,6 +1995,9 @@ impl ReactiveHarness {
             skills_prepared: false,
             evolution_simulation: None,
             long_horizon: None,
+            model_selection: None,
+            active_model: None,
+            fallback_index: 0,
         };
         configure_scheduled_record(&mut record, claim, now)?;
         Ok(Arc::new(RunHandle::new(record)))
@@ -2457,6 +2472,9 @@ impl ReactiveHarness {
                 skills_prepared: false,
                 evolution_simulation: None,
                 long_horizon: None,
+                model_selection: None,
+                active_model: None,
+                fallback_index: 0,
             };
             self.runs
                 .lock()
@@ -3416,9 +3434,23 @@ impl ReactiveHarness {
                 return Ok(());
             }
             self.compact_context_if_needed(run, &mut record)?;
-            let state = match self.loop_engine.drive(run.clone(), &mut record.loop_ctx) {
+            let provider = self.model_for_record(run, &mut record)?;
+            let state = match self
+                .loop_engine
+                .with_provider(provider)
+                .drive(run.clone(), &mut record.loop_ctx)
+            {
                 Ok(state) => state,
                 Err(error) => {
+                    // Persist the failed attempt before deciding whether a
+                    // bounded, pre-effect provider fallback is allowed.
+                    self.persist_loop_events(run, &mut record)?;
+                    if record.loop_ctx.provider_attempt_failed()
+                        && is_retryable_model_error(&error)
+                        && self.advance_model_fallback(&mut record)?
+                    {
+                        continue;
+                    }
                     record
                         .loop_ctx
                         .terminate(p::RunStatus::Failed, StopReason::RetryExhausted);
@@ -3486,6 +3518,129 @@ impl ReactiveHarness {
                 }
             }
         }
+    }
+
+    fn model_for_record(
+        &self,
+        run: &p::RunId,
+        record: &mut RunRecord,
+    ) -> p::Result<Arc<dyn ModelProvider>> {
+        if record.model_selection.is_none() {
+            let Some(registry) = &self.model_registry else {
+                record.active_model = Some(self.model.profile().profile_ref());
+                return Ok(self.model.clone());
+            };
+            // A visible catalog is not itself a requirement to call tools:
+            // optional capabilities may be present in the formal context
+            // while the selected model is intentionally text-only.  The
+            // loop will expose tools only when the bound provider declares
+            // tool use, so routing must not reject an otherwise valid
+            // text-only production profile here.
+            let require_tool_use = self.model.profile().capability.tool_use
+                && !record
+                    .loop_ctx
+                    .context
+                    .sources
+                    .tool_schema
+                    .entries
+                    .is_empty();
+            let minimum_strength = match record
+                .direct_intent
+                .as_ref()
+                .map(|intent| intent.risk_hint)
+                .unwrap_or(p::Risk::Medium)
+            {
+                p::Risk::Low => ModelStrength::Basic,
+                p::Risk::Medium => ModelStrength::Standard,
+                p::Risk::High => ModelStrength::Strong,
+            };
+            let selection = registry.select(&ModelSelectionRequest {
+                schema_version: p::SchemaVersion(1),
+                task: None,
+                minimum_context_window: u32::try_from(record.loop_ctx.context_budget.max_tokens)
+                    .map_err(|_| {
+                        p::Error("model context window requirement is too large".into())
+                    })?,
+                require_tool_use,
+                tool_schema_version: require_tool_use
+                    .then_some(record.loop_ctx.context.sources.tool_schema.version),
+                minimum_strength,
+                risk: record
+                    .direct_intent
+                    .as_ref()
+                    .map(|intent| intent.risk_hint)
+                    .unwrap_or(p::Risk::Medium),
+                evidence: Vec::new(),
+            })?;
+            let snapshot = p::canonical_digest(&(
+                &selection.selected,
+                &selection.fallback_chain,
+                &selection.policy,
+                &selection.rationale,
+            ))?;
+            self.append(
+                run.clone(),
+                None,
+                internal_provenance(p::Source::Internal),
+                p::EventPayload::DecisionTraceRecorded(p::DecisionTraceRecordedPayload {
+                    trace_ref: p::DecisionTraceRef(format!("model-selection:{}", run.0)),
+                    refs: p::DecisionRefs {
+                        map: None,
+                        user: None,
+                        agent_self: None,
+                        trust: None,
+                        failure: Vec::new(),
+                    },
+                    rationale: p::Rationale(format!(
+                        "model selection {} selected={} fallback_count={} snapshot={}",
+                        selection.policy.0,
+                        selection.selected.0,
+                        selection.fallback_chain.len(),
+                        snapshot.0
+                    )),
+                    workspace_snapshot: p::AgentWorkspaceSnapshotRef(format!(
+                        "model-selection:{}",
+                        snapshot.0
+                    )),
+                    resource_graph_snapshot: None,
+                    evolution_snapshot: None,
+                    federation_snapshot: None,
+                    orchestration: None,
+                }),
+            )?;
+            record.active_model = Some(selection.selected.clone());
+            record.model_selection = Some(selection);
+        }
+        let reference = record
+            .active_model
+            .as_ref()
+            .ok_or_else(|| p::Error("model attempt has no bound profile".into()))?;
+        self.model_registry
+            .as_ref()
+            .map(|registry| registry.provider(reference))
+            .unwrap_or_else(|| Ok(self.model.clone()))
+    }
+
+    fn advance_model_fallback(&self, record: &mut RunRecord) -> p::Result<bool> {
+        let Some(selection) = &record.model_selection else {
+            return Ok(false);
+        };
+        // A fallback is a pre-effect availability recovery, never a way to
+        // silently change the model behind a high-impact action.
+        if record
+            .direct_intent
+            .as_ref()
+            .is_some_and(|intent| intent.risk_hint == p::Risk::High)
+        {
+            return Ok(false);
+        }
+        let next = selection.fallback_chain.get(record.fallback_index).cloned();
+        let Some(next) = next else {
+            return Ok(false);
+        };
+        record.fallback_index = record.fallback_index.saturating_add(1);
+        record.active_model = Some(next);
+        Ok(true)
     }
 
     fn compact_context_if_needed(&self, run: &p::RunId, record: &mut RunRecord) -> p::Result<()> {
@@ -4849,6 +5004,9 @@ impl ReactiveHarness {
             skills_prepared: false,
             evolution_simulation: None,
             long_horizon: None,
+            model_selection: None,
+            active_model: None,
+            fallback_index: 0,
         };
         let handle = Arc::new(RunHandle::new(record));
         for ingress in prelude {
@@ -6625,6 +6783,19 @@ fn internal_provenance(source: p::Source) -> p::Provenance {
         trust_tier: p::TrustTier::VerifiedProcess,
         caused_by: None,
     }
+}
+
+/// Only failures that are known to happen before a provider effect may enter
+/// the bounded model fallback path.  Parse errors, endpoint rejections and
+/// unknown outcomes remain terminal so that a second provider cannot repeat a
+/// request whose external effect is uncertain.
+fn is_retryable_model_error(error: &p::Error) -> bool {
+    let message = error.0.to_ascii_lowercase();
+    message.starts_with("retryable:")
+        || message.contains("transport could not start")
+        || message.contains("transport input failed")
+        || message.contains("transport failed")
+        || message.contains("endpoint returned a transport error")
 }
 
 fn current_turn(run: &p::RunId, index: u32) -> p::TurnId {

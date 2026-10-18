@@ -2773,6 +2773,7 @@ fn compose(
         governance,
         harness_config.clone(),
     )?
+    .with_model_registry(model_registry.clone())
     .with_context_builder(context_builder.clone())
     .with_context_factory(move |request, run, config| {
         hydrator_for_factory.hydrate(&ContextHydrationRequest {

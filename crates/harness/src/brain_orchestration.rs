@@ -725,6 +725,9 @@ impl ProductionRuntime {
                     skills_prepared: false,
                     evolution_simulation: None,
                     long_horizon: None,
+                    model_selection: None,
+                    active_model: None,
+                    fallback_index: 0,
                 };
                 h.runs
                     .lock()
