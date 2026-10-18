@@ -25,6 +25,13 @@ pub(crate) fn read(
         .optional()
         .map_err(|_| p::Error("charter projection read failed".into()))?;
     row.map(|(json, version, digest)| {
+        let json = String::from_utf8(crate::at_rest::open_bound_blob(
+            connection,
+            json.as_bytes(),
+            "workspace_charter_state",
+            &workspace.0,
+        )?)
+        .map_err(|_| p::Error("charter projection encoding is invalid".into()))?;
         let record: p::WorkspaceCharterRecord = serde_json::from_str(&json)
             .map_err(|_| p::Error("charter projection is corrupt".into()))?;
         record.validate()?;
@@ -95,9 +102,20 @@ pub(crate) fn fold(transaction: &Transaction<'_>, event: &p::Event) -> p::Result
     if current != payload.expected_version {
         return Err(p::Error("charter replay version discontinuity".into()));
     }
+    let encoded =
+        serde_json::to_vec(record).map_err(|_| p::Error("charter encoding failed".into()))?;
+    let encoded = String::from_utf8(crate::at_rest::seal_blob(
+        transaction,
+        &encoded,
+        Some(&p::Scope(record.workspace.0.clone())),
+        "workspace_charter_state",
+        &record.workspace.0,
+        &record.workspace.0,
+    )?)
+    .map_err(|_| p::Error("charter protected encoding failed".into()))?;
     transaction.execute("INSERT INTO workspace_charter_state(workspace,version,event_id,payload_json,digest) VALUES (?1,?2,?3,?4,?5)
         ON CONFLICT(workspace) DO UPDATE SET version=excluded.version,event_id=excluded.event_id,payload_json=excluded.payload_json,digest=excluded.digest",
-        params![record.workspace.0, i64::try_from(record.version).map_err(|_| p::Error("charter version exhausted".into()))?, event.event_id.0, serde_json::to_string(record).map_err(|_| p::Error("charter encoding failed".into()))?, record.digest.0])
+        params![record.workspace.0, i64::try_from(record.version).map_err(|_| p::Error("charter version exhausted".into()))?, event.event_id.0, encoded, record.digest.0])
         .map_err(|_| p::Error("charter projection commit failed".into()))?;
     Ok(())
 }

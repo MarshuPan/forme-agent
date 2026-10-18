@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use chacha20poly1305::{aead::Aead, ChaCha20Poly1305, KeyInit, Nonce};
+use chacha20poly1305::{
+    aead::{Aead, Payload},
+    ChaCha20Poly1305, KeyInit, Nonce,
+};
 use forme_protocol as p;
 
 /// Local key boundary. Implementations must keep key material outside events,
@@ -12,6 +15,17 @@ use forme_protocol as p;
 pub trait ContentKeyResolver: Send + Sync {
     fn resolve(&self, key_digest: &p::SchemaDigest) -> p::Result<Vec<u8>>;
     fn destroy(&self, key_digest: &p::SchemaDigest) -> p::Result<()>;
+    /// Allocate or retrieve the external per-subject key. A resolver without
+    /// allocation support remains usable for decrypting existing envelopes.
+    fn subject_key(
+        &self,
+        _binding: &p::ContentBinding,
+        _subject: &p::SchemaDigest,
+    ) -> p::Result<p::SchemaDigest> {
+        Err(p::Error(
+            "content resolver does not support subject keys".into(),
+        ))
+    }
 }
 
 #[derive(Clone)]
@@ -46,7 +60,13 @@ impl ProtectedContentService {
         let nonce = Nonce::try_from(nonce_bytes.as_slice())
             .map_err(|_| p::Error("content encryption nonce has invalid length".into()))?;
         let ciphertext = cipher
-            .encrypt(&nonce, plaintext)
+            .encrypt(
+                &nonce,
+                Payload {
+                    msg: plaintext,
+                    aad: aad_digest.0.as_bytes(),
+                },
+            )
             .map_err(|_| p::Error("content encryption failed".into()))?;
         Ok(p::EncryptedContentEnvelope {
             schema_version: p::CONTENT_PROTECTION_SCHEMA_VERSION,
@@ -82,7 +102,13 @@ impl ProtectedContentService {
         let nonce = Nonce::try_from(envelope.nonce.as_slice())
             .map_err(|_| p::Error("content decryption nonce has invalid length".into()))?;
         cipher
-            .decrypt(&nonce, envelope.ciphertext.as_ref())
+            .decrypt(
+                &nonce,
+                Payload {
+                    msg: envelope.ciphertext.as_ref(),
+                    aad: expected_aad.0.as_bytes(),
+                },
+            )
             .map_err(|_| p::Error("content decryption failed".into()))
     }
 
@@ -90,6 +116,11 @@ impl ProtectedContentService {
         p::sha256_digest_bytes(key_digest)
             .map_err(|_| p::Error("content key digest is not canonical".into()))?;
         self.keys.destroy(key_digest)
+    }
+
+    pub(crate) fn ensure_key_available(&self, key_digest: &p::SchemaDigest) -> p::Result<()> {
+        let key = self.keys.resolve(key_digest)?;
+        validate_key(&key, key_digest)
     }
 }
 
@@ -204,5 +235,26 @@ mod tests {
             .unwrap();
         service.destroy_key(&digest).unwrap();
         assert!(service.decrypt(&binding, &envelope).is_err());
+    }
+
+    #[test]
+    fn rebinding_and_recomputing_public_digest_cannot_forge_authentication() {
+        let (service, _keys, digest) = service();
+        let envelope = service
+            .encrypt(&binding(), &digest, b"private content")
+            .unwrap();
+        for field in 0..3 {
+            let mut forged = envelope.clone();
+            match field {
+                0 => forged.owner_digest = p::sha256_content_digest(b"another owner"),
+                1 => forged.scope = p::Scope("workspace:beta".into()),
+                _ => forged.object = p::ObjectRef("content:another".into()),
+            }
+            let binding = forged.binding();
+            forged.aad_digest = binding
+                .aad_digest(forged.algorithm, &forged.key_digest)
+                .unwrap();
+            assert!(service.decrypt(&binding, &forged).is_err());
+        }
     }
 }

@@ -1,6 +1,7 @@
 //! forme-store - append-only event log, projections, and replay contracts.
 #![forbid(unsafe_code)]
 
+mod at_rest;
 mod backup;
 mod brain;
 mod charter;
@@ -16,6 +17,7 @@ mod sqlite;
 
 use forme_protocol as p;
 
+pub use at_rest::{FileContentKeyResolver, StoreContentProtection};
 pub use backup::{BackupManifest, BackupService, BackupVerification, RestoreReport};
 pub use brain::{
     AuthorityLeaseGuard, AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding,
@@ -35,6 +37,14 @@ pub use replay::{
 };
 pub use replica::ReplicaSqliteStore;
 pub use schema::{PayloadType, SchemaSnapshot, Upcaster};
+pub use sqlite::lifecycle::{
+    DataLifecyclePlan, DataLifecycleRequest, DataLifecycleService, LifecycleObject,
+    ProtectedContentRecord, DATA_LIFECYCLE_STORE_SCHEMA_VERSION, PROTECTED_CONTENT_PROJECTIONS,
+};
+pub use sqlite::migration::{
+    LegacyMigrationPlan, LegacyMigrationReceipt, LegacyPlaintextMigration, SourceBackupDisposition,
+    LEGACY_MIGRATION_SCHEMA_VERSION,
+};
 pub use sqlite::{DomainClaimProbe, SqliteEventStore, StoreOptions};
 
 pub const APPROVAL_CONSUMPTION_SCHEMA_VERSION: p::SchemaVersion = p::SchemaVersion(1);

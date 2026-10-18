@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -129,7 +130,7 @@ impl BackupService {
                 "backup integrity or event continuity failed".into(),
             ));
         }
-        let replay_ok = replay_backup(source)?;
+        let replay_ok = replay_backup(source, self.store.content_protection()?)?;
         if !replay_ok {
             return Err(p::Error(
                 "backup projection replay did not reconcile".into(),
@@ -309,7 +310,10 @@ fn schema_digest(connection: &Connection) -> p::Result<p::SchemaDigest> {
     p::canonical_digest(&schema)
 }
 
-fn replay_backup(path: &Path) -> p::Result<bool> {
+fn replay_backup(
+    path: &Path,
+    protection: Option<crate::StoreContentProtection>,
+) -> p::Result<bool> {
     // Replay a private copy. Opening a backup with the normal writable store
     // may initialize/checkpoint SQLite state, so verification must never alter
     // the artifact whose digest it is validating.
@@ -329,6 +333,9 @@ fn replay_backup(path: &Path) -> p::Result<bool> {
         drop(source);
 
         let store = SqliteEventStore::open(&replay_path, StoreOptions::default())?;
+        if let Some(protection) = protection {
+            store.enable_content_protection(protection)?;
+        }
         let schema = StoreOptions::default().current_schema;
         let snapshot = SchemaSnapshot {
             schema,
@@ -387,10 +394,19 @@ fn write_manifest(path: &Path, manifest: &BackupManifest) -> p::Result<()> {
     let temporary = destination.with_extension("json.tmp");
     let bytes = serde_json::to_vec_pretty(manifest)
         .map_err(|error| p::Error(format!("backup manifest encoding failed: {error}")))?;
-    fs::write(&temporary, bytes)
-        .map_err(|error| p::Error(format!("backup manifest write failed: {error}")))?;
-    fs::rename(&temporary, destination)
-        .map_err(|error| p::Error(format!("backup manifest commit failed: {error}")))
+    let mut file = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .map_err(|_| p::Error("backup manifest temporary path is not new".into()))?;
+    file.write_all(&bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|_| p::Error("backup manifest write failed".into()))?;
+    drop(file);
+    fs::hard_link(&temporary, destination)
+        .map_err(|_| p::Error("backup manifest target is not new".into()))?;
+    fs::remove_file(temporary)
+        .map_err(|_| p::Error("backup manifest temporary cleanup failed".into()))
 }
 
 fn prepare_new_target(path: &Path) -> p::Result<()> {
@@ -401,6 +417,13 @@ fn prepare_new_target(path: &Path) -> p::Result<()> {
         fs::create_dir_all(parent)
             .map_err(|error| p::Error(format!("backup target directory failed: {error}")))?;
     }
+    // Reserve exactly this new file atomically. SQLite may open the empty
+    // reservation, but must never overwrite a target won by another request.
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|_| p::Error("backup target must be a new regular file".into()))?;
     Ok(())
 }
 

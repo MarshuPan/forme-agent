@@ -26,7 +26,13 @@ pub(crate) fn read(
     let Some((revision, json, digest)) = row else {
         return Ok(p::OrchestrationLedger::default());
     };
-    let ledger: p::OrchestrationLedger = serde_json::from_str(&json)
+    let json = crate::at_rest::open_bound_blob(
+        connection,
+        json.as_bytes(),
+        "orchestration_state",
+        &stream.0,
+    )?;
+    let ledger: p::OrchestrationLedger = serde_json::from_slice(&json)
         .map_err(|_| p::Error("orchestration projection is corrupt".into()))?;
     if Some(ledger.revision) != u64::try_from(revision).ok()
         || p::canonical_digest(&ledger)?.0 != digest
@@ -141,9 +147,20 @@ pub(crate) fn fold(tx: &Transaction<'_>, event: &p::Event) -> p::Result<()> {
     };
     let mut ledger = read(tx, &event.run_id)?;
     ledger.apply(fact)?;
+    let encoded = serde_json::to_vec(&ledger)
+        .map_err(|_| p::Error("orchestration ledger encoding failed".into()))?;
+    let encoded = String::from_utf8(crate::at_rest::seal_blob(
+        tx,
+        &encoded,
+        None,
+        "orchestration_state",
+        &event.run_id.0,
+        &event.run_id.0,
+    )?)
+    .map_err(|_| p::Error("orchestration protected encoding failed".into()))?;
     tx.execute("INSERT INTO orchestration_state(stream,revision,payload_json,digest) VALUES(?1,?2,?3,?4)
         ON CONFLICT(stream) DO UPDATE SET revision=excluded.revision,payload_json=excluded.payload_json,digest=excluded.digest",
-        params![event.run_id.0, i64::try_from(ledger.revision).map_err(|_| p::Error("orchestration revision exhausted".into()))?, serde_json::to_string(&ledger).map_err(|_| p::Error("orchestration ledger encoding failed".into()))?, p::canonical_digest(&ledger)?.0])
+        params![event.run_id.0, i64::try_from(ledger.revision).map_err(|_| p::Error("orchestration revision exhausted".into()))?, encoded, p::canonical_digest(&ledger)?.0])
         .map_err(|_| p::Error("orchestration ledger commit failed".into()))?;
     Ok(())
 }

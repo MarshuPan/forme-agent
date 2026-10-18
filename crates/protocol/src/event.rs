@@ -829,6 +829,9 @@ impl Event {
                         }
                     }
                 }
+                EventPayload::DataLifecycleApplied(payload) => {
+                    payload.validate()?;
+                }
                 _ => {}
             }
             Ok(())

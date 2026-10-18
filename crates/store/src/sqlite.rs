@@ -10,6 +10,11 @@ use std::cell::RefCell;
 use forme_protocol as p;
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
 
+#[path = "lifecycle.rs"]
+pub(crate) mod lifecycle;
+#[path = "migration.rs"]
+pub(crate) mod migration;
+
 use crate::brain::AuthorityLeaseGuardInner;
 use crate::{
     checksum::{self, PersistedEnvelope},
@@ -405,6 +410,52 @@ CREATE TABLE IF NOT EXISTS approval_consumptions (
     FOREIGN KEY(store_identity) REFERENCES brain_authority(store_identity)
 );
 
+CREATE TABLE IF NOT EXISTS protected_content (
+    content_ref    TEXT PRIMARY KEY,
+    owner_digest   TEXT NOT NULL,
+    scope          TEXT NOT NULL,
+    subject_digest TEXT NOT NULL,
+    key_digest     TEXT NOT NULL,
+    record         BLOB NOT NULL,
+    digest         TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS protected_rows (
+    object_ref TEXT PRIMARY KEY, owner_digest TEXT NOT NULL, scope TEXT NOT NULL,
+    subject_digest TEXT NOT NULL, key_digest TEXT NOT NULL,
+    table_name TEXT NOT NULL, row_key TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS protected_dependencies (
+    object_ref TEXT NOT NULL, source_object TEXT NOT NULL,
+    PRIMARY KEY(object_ref,source_object)
+);
+CREATE TABLE IF NOT EXISTS protected_key_history (
+    object_ref TEXT NOT NULL,key_digest TEXT NOT NULL,PRIMARY KEY(object_ref,key_digest)
+);
+CREATE TABLE IF NOT EXISTS data_lifecycle_subjects (
+    scope TEXT NOT NULL, subject_digest TEXT NOT NULL, state TEXT NOT NULL,
+    PRIMARY KEY(scope,subject_digest)
+);
+
+CREATE TABLE IF NOT EXISTS data_lifecycle_jobs (
+    aggregate TEXT PRIMARY KEY, event_id TEXT NOT NULL UNIQUE,
+    plan TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('pending','verified'))
+);
+CREATE TABLE IF NOT EXISTS data_lifecycle_deleted_objects(object_ref TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS data_lifecycle_history (
+    aggregate TEXT NOT NULL, version INTEGER NOT NULL, event_id TEXT NOT NULL UNIQUE,
+    tombstone TEXT NOT NULL, digest TEXT NOT NULL, PRIMARY KEY(aggregate,version)
+);
+
+CREATE TABLE IF NOT EXISTS data_lifecycle_state (
+    aggregate TEXT PRIMARY KEY,
+    version   INTEGER NOT NULL CHECK(version >= 0),
+    event_id  TEXT NOT NULL UNIQUE,
+    tombstone TEXT NOT NULL,
+    digest    TEXT NOT NULL,
+    FOREIGN KEY(event_id) REFERENCES events(event_id)
+);
+
 CREATE TRIGGER IF NOT EXISTS events_immutable_update
 BEFORE UPDATE ON events
 BEGIN
@@ -420,7 +471,7 @@ END;
 
 const FTS_SCHEMA: &str = "CREATE VIRTUAL TABLE IF NOT EXISTS events_fts \
                          USING fts5(text, content='');";
-const DATABASE_SCHEMA_VERSION: i64 = 8;
+const DATABASE_SCHEMA_VERSION: i64 = 9;
 
 #[cfg(test)]
 std::thread_local! {
@@ -607,7 +658,32 @@ impl SqliteEventStore {
             options.fts_enabled,
             options.sync_peer.as_ref(),
         )?;
-        Ok(Self::from_connection(connection, options))
+        Self::from_connection(connection, options)
+    }
+
+    /// Installs the resolver before owner-bound sync metadata is inspected.
+    /// Legacy plaintext still requires the explicit offline migration path.
+    pub fn open_with_content_protection(
+        path: impl AsRef<Path>,
+        options: StoreOptions,
+        protection: crate::StoreContentProtection,
+    ) -> p::Result<Self> {
+        validate_options(&options)?;
+        let mut connection = Connection::open(path.as_ref())
+            .map_err(|error| store_error("failed to open event database", error))?;
+        initialize_connection(&mut connection, true, options.fts_enabled, None)?;
+        let store = Self::from_connection(connection, options)?;
+        store.enable_content_protection(protection)?;
+        {
+            let mut c = store.core_connection()?;
+            let tx = c
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(|_| p::Error("protected sync initialization failed".into()))?;
+            configure_sync_peer(&tx, store.core.sync_peer.as_ref())?;
+            tx.commit()
+                .map_err(|_| p::Error("protected sync initialization commit failed".into()))?;
+        }
+        Ok(store)
     }
 
     pub fn open_in_memory(options: StoreOptions) -> p::Result<Self> {
@@ -620,7 +696,7 @@ impl SqliteEventStore {
             options.fts_enabled,
             options.sync_peer.as_ref(),
         )?;
-        Ok(Self::from_connection(connection, options))
+        Self::from_connection(connection, options)
     }
 
     /// Read-only probe of the durable domain idempotency ledger for a
@@ -635,7 +711,10 @@ impl SqliteEventStore {
             .map_err(|error| store_error("failed to serialize event payload", error))?;
         let provenance = serde_json::to_vec(&event.provenance)
             .map_err(|error| store_error("failed to serialize event provenance", error))?;
-        let semantics = domain_semantic_bytes(event, &payload, &provenance);
+        let mut semantics = domain_semantic_bytes(event, &payload, &provenance);
+        if self.content_protection()?.is_some() {
+            semantics = p::sha256_content_digest(&semantics).0.into_bytes();
+        }
         let connection = self
             .core
             .connection
@@ -1030,7 +1109,7 @@ impl SqliteEventStore {
         for state in rebuilt {
             write_session_state(&transaction, &state.session)?;
             write_transcript(&transaction, &state.transcript)?;
-            if self.core.fts_enabled {
+            if self.core.fts_enabled && self.content_protection()?.is_none() {
                 for entry in state.fts_entries {
                     let inserted = transaction
                         .execute(
@@ -1063,6 +1142,11 @@ impl SqliteEventStore {
     }
 
     pub fn search(&self, query: &str, limit: usize) -> p::Result<Vec<SearchHit>> {
+        if self.content_protection()?.is_some() {
+            // Sensitive words are never materialized in a durable FTS index.
+            // Authorized search evaluates decrypted payloads in one snapshot.
+            return self.protected_search(query, limit);
+        }
         if !self.core.fts_enabled {
             return Err(p::Error("full-text search is disabled".into()));
         }
@@ -1140,6 +1224,56 @@ impl SqliteEventStore {
         Ok(hits)
     }
 
+    fn protected_search(&self, query: &str, limit: usize) -> p::Result<Vec<SearchHit>> {
+        if !self.core.fts_enabled {
+            return Err(p::Error("full-text search is disabled".into()));
+        }
+        let words = query
+            .split_whitespace()
+            .map(|s| s.trim_matches('"').to_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>();
+        if words.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        if words.iter().any(|word| {
+            word.contains(['*', '(', ')', ':'])
+                || matches!(word.as_str(), "or" | "and" | "not" | "near")
+        }) {
+            return Err(p::Error(
+                "protected search supports literal conjunctions only".into(),
+            ));
+        }
+        let connection = self
+            .core_connection()
+            .map_err(|_| p::Error("protected search store is unavailable".into()))?;
+        let snapshot = read_all_stored_events(&connection)?;
+        let upcasters = self.core.upcaster_snapshot()?;
+        let mut hits = Vec::new();
+        for stored in snapshot {
+            let event = stored.decode(&self.core.current_schema, &upcasters)?;
+            if searchable_text(&event).is_some_and(|text| {
+                let text = text.to_lowercase();
+                words.iter().all(|word| text.contains(word))
+            }) {
+                hits.push(SearchHit {
+                    event_id: event.event_id,
+                    run_id: event.run_id,
+                    stream_seq: event.stream_seq,
+                    kind: event.kind,
+                });
+            }
+        }
+        hits.sort_by(|a, b| {
+            a.run_id
+                .0
+                .cmp(&b.run_id.0)
+                .then(a.stream_seq.cmp(&b.stream_seq))
+        });
+        hits.truncate(limit);
+        Ok(hits)
+    }
+
     pub fn stable_strategy(
         &self,
         domain: p::StrategyDomain,
@@ -1168,7 +1302,7 @@ impl SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         connection
             .query_row(
-                "SELECT candidate FROM strategy_candidates WHERE candidate_id = ?1",
+                "SELECT forme_open_bound(candidate,'strategy_candidates',CAST(candidate_id AS TEXT)) FROM strategy_candidates WHERE candidate_id = ?1",
                 params![&candidate.0],
                 |row| row.get::<_, Vec<u8>>(0),
             )
@@ -1269,12 +1403,26 @@ impl SqliteEventStore {
     }
 
     fn prepare_event(&self, event: p::Event) -> p::Result<PreparedEvent> {
+        if self.content_protection()?.is_some() {
+            let connection = self
+                .core_connection()
+                .map_err(|_| p::Error("lifecycle fence unavailable".into()))?;
+            let blocked:i64=connection.query_row("SELECT COUNT(*) FROM data_lifecycle_subjects WHERE subject_digest=?1 AND state IN ('pending','deleted')",params![p::sha256_content_digest(event.run_id.0.as_bytes()).0],|r|r.get(0)).map_err(|_|p::Error("lifecycle fence unavailable".into()))?;
+            if blocked != 0 {
+                return Err(p::Error(
+                    "event subject is pending deletion or has been deleted".into(),
+                ));
+            }
+        }
         event.validate_payload_kind()?;
         if let p::EventPayload::ApprovalRequested(payload) = &event.payload {
             payload.validate_current_binding()?;
         }
         if let p::EventPayload::CandidatePromoted(payload) = &event.payload {
             payload.validate_record()?;
+        }
+        if let p::EventPayload::DataLifecycleApplied(payload) = &event.payload {
+            payload.validate()?;
         }
         let payload_type = PayloadType::from_event_kind(event.kind);
         let current_schema = self.core.current_schema_for(payload_type)?;
@@ -1290,9 +1438,13 @@ impl SqliteEventStore {
             .map_err(|error| store_error("failed to serialize event provenance", error))?;
         let event_semantics = event_semantic_bytes(&event, &payload, &provenance);
         let domain_key = domain_idempotency_key(&event);
-        let domain_semantics = domain_key
+        let mut domain_semantics = domain_key
             .as_ref()
             .map(|_| domain_semantic_bytes(&event, &payload, &provenance));
+        if self.content_protection()?.is_some() {
+            domain_semantics =
+                domain_semantics.map(|bytes| p::sha256_content_digest(&bytes).0.into_bytes());
+        }
         Ok(PreparedEvent {
             event,
             payload,
@@ -1303,8 +1455,11 @@ impl SqliteEventStore {
         })
     }
 
-    fn from_connection(connection: Connection, options: StoreOptions) -> Self {
-        Self {
+    fn from_connection(connection: Connection, options: StoreOptions) -> p::Result<Self> {
+        let protection = Arc::new(RwLock::new(None));
+        crate::at_rest::install(&connection, protection.clone())?;
+        crate::at_rest::install_auxiliary_protection(&connection)?;
+        Ok(Self {
             core: Arc::new(StoreCore {
                 connection: Mutex::new(connection),
                 current_schema: options.current_schema,
@@ -1313,9 +1468,68 @@ impl SqliteEventStore {
                 upcasters: RwLock::new(UpcasterGraph::default()),
                 upcaster_registration: Mutex::new(()),
                 authority_guard: RwLock::new(None),
+                protection,
             }),
             cursor_page_size: options.cursor_page_size,
+        })
+    }
+
+    pub fn enable_content_protection(
+        &self,
+        protection: crate::StoreContentProtection,
+    ) -> p::Result<()> {
+        let connection = self
+            .core_connection()
+            .map_err(|_| p::Error("content protection store is unavailable".into()))?;
+        let legacy: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM events WHERE substr(payload,1,?1) != ?2",
+                params![crate::at_rest::PREFIX.len() as i64, crate::at_rest::PREFIX],
+                |r| r.get(0),
+            )
+            .map_err(|_| p::Error("historical protection inspection failed".into()))?;
+        if legacy != 0 {
+            return Err(p::Error("historical plaintext requires explicit owner migration; protection is unverifiable".into()));
         }
+        for (table, column) in [
+            ("session_state", "state"),
+            ("transcript", "state"),
+            ("workspace_charter_state", "payload_json"),
+            ("orchestration_state", "payload_json"),
+            ("strategy_candidates", "candidate"),
+            ("stable_strategies", "candidate"),
+            ("evolution_evaluations", "evaluation"),
+            ("active_strategies", "active"),
+            ("evolution_history", "active"),
+        ]
+        .into_iter()
+        .chain(
+            crate::at_rest::AUXILIARY_CONTENT
+                .iter()
+                .map(|(table, _, column, _, _)| (*table, *column)),
+        ) {
+            let plaintext:i64=connection.query_row(&format!("SELECT COUNT(*) FROM {table} WHERE substr(CAST({column} AS BLOB),1,?1)!=?2"),params![crate::at_rest::PREFIX.len() as i64,crate::at_rest::PREFIX],|r|r.get(0)).map_err(|_|p::Error("protected content coverage inspection failed".into()))?;
+            if plaintext != 0 {
+                return Err(p::Error(
+                    "historical plaintext projection or ledger requires explicit owner migration"
+                        .into(),
+                ));
+            }
+        }
+        *self
+            .core
+            .protection
+            .write()
+            .map_err(|_| p::Error("protection lock is poisoned".into()))? = Some(protection);
+        Ok(())
+    }
+
+    pub fn content_protection(&self) -> p::Result<Option<crate::StoreContentProtection>> {
+        self.core
+            .protection
+            .read()
+            .map(|p| p.clone())
+            .map_err(|_| p::Error("protection lock is poisoned".into()))
     }
 }
 
@@ -2101,9 +2315,9 @@ impl EventStore for SqliteEventStore {
                 let mut statement = transaction
                     .prepare(
                         "SELECT event_id, run_id, stream_seq, turn_id, kind, payload,
-                                schema_version, ts, provenance, checksum
+                                schema_version, ts, provenance, checksum, forme_open_bound(payload,'events',event_id)
                          FROM events
-                         WHERE run_id = ?1
+                         WHERE run_id = ?1 AND NOT EXISTS(SELECT 1 FROM protected_rows r JOIN data_lifecycle_deleted_objects d ON r.object_ref=d.object_ref WHERE r.table_name='events' AND r.row_key=events.event_id)
                          ORDER BY stream_seq",
                     )
                     .map_err(|error| store_error("failed to prepare replay stream", error))?;
@@ -2318,7 +2532,7 @@ impl VersionedEventStore for SqliteEventStore {
 
         if let Some((stored_semantics, stored_expected, stored_result, stored_events)) = transaction
             .query_row(
-                "SELECT semantic_bytes, expected_version, resulting_version, applied_event_ids
+                "SELECT forme_open_bound(semantic_bytes,'sync_batches',CAST(batch_id AS TEXT)), expected_version, resulting_version, applied_event_ids
                  FROM sync_batches WHERE batch_id = ?1",
                 params![&batch_id.0],
                 |row| {
@@ -2468,9 +2682,9 @@ impl VersionedEventStore for SqliteEventStore {
             let mut statement = transaction
                 .prepare(
                     "SELECT event_id, run_id, stream_seq, turn_id, kind, payload,
-                            schema_version, ts, provenance, checksum
+                            schema_version, ts, provenance, checksum, forme_open_bound(payload,'events',event_id)
                      FROM events
-                     WHERE run_id = ?1 AND stream_seq > ?2
+                     WHERE run_id = ?1 AND stream_seq > ?2 AND NOT EXISTS(SELECT 1 FROM protected_rows r JOIN data_lifecycle_deleted_objects d ON r.object_ref=d.object_ref WHERE r.table_name='events' AND r.row_key=events.event_id)
                      ORDER BY stream_seq
                      LIMIT ?3",
                 )
@@ -2763,7 +2977,7 @@ impl FederationProjection for SqliteEventStore {
         let now = current_time_ms()?;
         let mut statement = connection
             .prepare(
-                "SELECT grant FROM federated_peers
+                "SELECT forme_open_bound(grant,'federated_peers',CAST(peer_ref AS TEXT)) FROM federated_peers
                  WHERE revoked = 0 ORDER BY peer_ref, grant_version",
             )
             .map_err(|error| store_error("failed to prepare federation snapshot", error))?;
@@ -2812,7 +3026,7 @@ impl FederationProjection for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         connection
             .query_row(
-                "SELECT grant, revoked FROM federated_peers WHERE peer_ref = ?1",
+                "SELECT forme_open_bound(grant,'federated_peers',CAST(peer_ref AS TEXT)), revoked FROM federated_peers WHERE peer_ref = ?1",
                 params![&peer.0],
                 |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)?)),
             )
@@ -2846,7 +3060,7 @@ impl FederationProjection for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         connection
             .query_row(
-                "SELECT lease FROM remote_leases WHERE lease_ref = ?1",
+                "SELECT forme_open_bound(lease,'remote_leases',CAST(lease_ref AS TEXT)) FROM remote_leases WHERE lease_ref = ?1",
                 params![&lease.0],
                 |row| row.get::<_, Vec<u8>>(0),
             )
@@ -3200,7 +3414,7 @@ impl FederationEventStore for SqliteEventStore {
         }
         if let Some(stored) = transaction
             .query_row(
-                "SELECT semantic_bytes FROM replication_exports WHERE batch_ref = ?1",
+                "SELECT forme_open_bound(semantic_bytes,'replication_exports',CAST(batch_ref AS TEXT)) FROM replication_exports WHERE batch_ref = ?1",
                 params![&batch.batch.0],
                 |row| row.get::<_, Vec<u8>>(0),
             )
@@ -3541,7 +3755,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         connection
             .query_row(
-                "SELECT source_run, artifact FROM federated_checkpoint_artifacts
+                "SELECT source_run, forme_open_bound(artifact,'federated_checkpoint_artifacts',CAST(checkpoint_ref AS TEXT)) FROM federated_checkpoint_artifacts
                  WHERE checkpoint_ref = ?1",
                 params![&checkpoint.0],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
@@ -3580,7 +3794,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     ) -> p::Result<Option<p::FederatedHandoffPlan>> {
         read_runtime_json_record(
             self,
-            "SELECT plan FROM federated_handoffs WHERE next_run = ?1",
+            "SELECT forme_open_bound(plan,'federated_handoffs',CAST(next_run AS TEXT)) FROM federated_handoffs WHERE next_run = ?1",
             &run.0,
             "federated handoff",
             p::FederatedHandoffPlan::validate,
@@ -3618,7 +3832,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     ) -> p::Result<Option<p::FederatedRetentionState>> {
         read_runtime_json_record(
             self,
-            "SELECT state FROM federated_retention WHERE request_ref = ?1",
+            "SELECT forme_open_bound(state,'federated_retention',CAST(request_ref AS TEXT)) FROM federated_retention WHERE request_ref = ?1",
             &request.0,
             "federated retention state",
             p::FederatedRetentionState::validate,
@@ -3642,7 +3856,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         self.require_authority_writer_in_transaction(&transaction)?;
         let encoded = transaction
             .query_row(
-                "SELECT state FROM federated_retention WHERE request_ref = ?1",
+                "SELECT forme_open_bound(state,'federated_retention',CAST(request_ref AS TEXT)) FROM federated_retention WHERE request_ref = ?1",
                 params![&receipt.request.0],
                 |row| row.get::<_, Vec<u8>>(0),
             )
@@ -3708,7 +3922,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
         self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
-                "SELECT lease_ref, record FROM remote_action_recovery WHERE run_id = ?1",
+                "SELECT lease_ref, forme_open_bound(record,'remote_action_recovery',CAST(run_id AS TEXT)) FROM remote_action_recovery WHERE run_id = ?1",
                 params![&recovery.run.0],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
             )
@@ -3766,7 +3980,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     fn remote_recovery(&self, run: &p::RunId) -> p::Result<Option<p::RemoteActionRecoveryRecord>> {
         read_runtime_json_record(
             self,
-            "SELECT record FROM remote_action_recovery WHERE run_id = ?1",
+            "SELECT forme_open_bound(record,'remote_action_recovery',CAST(run_id AS TEXT)) FROM remote_action_recovery WHERE run_id = ?1",
             &run.0,
             "remote action recovery",
             p::RemoteActionRecoveryRecord::validate,
@@ -3779,7 +3993,7 @@ impl FederationRuntimeLedger for SqliteEventStore {
     ) -> p::Result<Option<p::RemoteActionRecoveryRecord>> {
         read_runtime_json_record(
             self,
-            "SELECT record FROM remote_action_recovery WHERE lease_ref = ?1",
+            "SELECT forme_open_bound(record,'remote_action_recovery',CAST(run_id AS TEXT)) FROM remote_action_recovery WHERE lease_ref = ?1",
             &lease.0,
             "remote action recovery",
             p::RemoteActionRecoveryRecord::validate,
@@ -3802,7 +4016,7 @@ impl EcosystemProjection for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         read_ecosystem_json(
             &connection,
-            "SELECT grant FROM ecosystem_publishers WHERE publisher_ref = ?1",
+            "SELECT forme_open_bound(grant,'ecosystem_publishers',CAST(publisher_ref AS TEXT)) FROM ecosystem_publishers WHERE publisher_ref = ?1",
             &publisher.0,
             "capability publisher grant",
             p::CapabilityPublisherGrant::validate,
@@ -3823,7 +4037,7 @@ impl EcosystemProjection for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         read_ecosystem_json(
             &connection,
-            "SELECT admission FROM ecosystem_admissions WHERE release_ref = ?1",
+            "SELECT forme_open_bound(admission,'ecosystem_admissions',CAST(release_ref AS TEXT)) FROM ecosystem_admissions WHERE release_ref = ?1",
             &release.0,
             "capability package admission",
             p::CapabilityPackageAdmission::validate,
@@ -3844,7 +4058,7 @@ impl EcosystemProjection for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         read_ecosystem_json(
             &connection,
-            "SELECT state FROM ecosystem_package_states WHERE package_ref = ?1",
+            "SELECT forme_open_bound(state,'ecosystem_package_states',CAST(package_ref AS TEXT)) FROM ecosystem_package_states WHERE package_ref = ?1",
             &package.0,
             "capability package state",
             p::CapabilityPackageState::validate,
@@ -3884,7 +4098,7 @@ impl EcosystemProjection for SqliteEventStore {
         .collect();
         let packages = read_ecosystem_json_rows::<p::CapabilityPackageState>(
             &connection,
-            "SELECT state FROM ecosystem_package_states
+            "SELECT forme_open_bound(state,'ecosystem_package_states',CAST(package_ref AS TEXT)) FROM ecosystem_package_states
              WHERE scope = ?1 OR scope = '*' ORDER BY package_ref",
             &scope.0,
             "capability package state",
@@ -4136,7 +4350,7 @@ impl EcosystemRuntimeLedger for SqliteEventStore {
         self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
-                "SELECT semantic FROM ecosystem_distribution_attempts WHERE receipt_ref = ?1",
+                "SELECT forme_open_bound(semantic,'ecosystem_distribution_attempts',CAST(receipt_ref AS TEXT)) FROM ecosystem_distribution_attempts WHERE receipt_ref = ?1",
                 params![&receipt.reference.0],
                 |row| row.get::<_, Vec<u8>>(0),
             )
@@ -4180,7 +4394,7 @@ impl EcosystemRuntimeLedger for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         read_ecosystem_json(
             &connection,
-            "SELECT semantic FROM ecosystem_distribution_attempts WHERE receipt_ref = ?1",
+            "SELECT forme_open_bound(semantic,'ecosystem_distribution_attempts',CAST(receipt_ref AS TEXT)) FROM ecosystem_distribution_attempts WHERE receipt_ref = ?1",
             &reference.0,
             "capability distribution receipt",
             p::CapabilityPackageDistributionReceipt::validate,
@@ -4205,7 +4419,7 @@ impl EcosystemPackageArchive for SqliteEventStore {
         self.require_authority_writer_in_transaction(&transaction)?;
         let existing = transaction
             .query_row(
-                "SELECT bundle FROM ecosystem_package_bundles WHERE release_ref = ?1",
+                "SELECT forme_open_bound(bundle,'ecosystem_package_bundles',CAST(release_ref AS TEXT)) FROM ecosystem_package_bundles WHERE release_ref = ?1",
                 params![&package.manifest.release.0],
                 |row| row.get::<_, Vec<u8>>(0),
             )
@@ -4260,7 +4474,7 @@ impl EcosystemPackageArchive for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         read_ecosystem_json(
             &connection,
-            "SELECT bundle FROM ecosystem_package_bundles WHERE release_ref = ?1",
+            "SELECT forme_open_bound(bundle,'ecosystem_package_bundles',CAST(release_ref AS TEXT)) FROM ecosystem_package_bundles WHERE release_ref = ?1",
             &release.0,
             "capability package bundle",
             p::SignedCapabilityPackage::validate,
@@ -4275,7 +4489,7 @@ impl EcosystemPackageArchive for SqliteEventStore {
             .map_err(|_| p::Error("event database lock is poisoned".into()))?;
         read_ecosystem_json_rows_unscoped::<p::CapabilityPackageState>(
             &connection,
-            "SELECT state FROM ecosystem_package_states
+            "SELECT forme_open_bound(state,'ecosystem_package_states',CAST(package_ref AS TEXT)) FROM ecosystem_package_states
              WHERE lifecycle = 'enabled' ORDER BY package_ref",
             "enabled capability package state",
             p::CapabilityPackageState::validate,
@@ -4430,7 +4644,7 @@ fn persist_immutable_runtime_record(
     let existing = match extra {
         Some((extra_column, _)) => {
             let select = format!(
-                "SELECT {extra_column}, {value_column} FROM {table} WHERE {key_column} = ?1"
+                "SELECT {extra_column}, forme_open_bound({value_column},'{table}',CAST({key_column} AS TEXT)) FROM {table} WHERE {key_column} = ?1"
             );
             transaction
                 .query_row(&select, params![key], |row| {
@@ -4440,7 +4654,8 @@ fn persist_immutable_runtime_record(
                 .map_err(|error| store_error(&format!("failed to inspect {label}"), error))?
         }
         None => {
-            let select = format!("SELECT {value_column} FROM {table} WHERE {key_column} = ?1");
+            let select =
+                format!("SELECT forme_open_bound({value_column},'{table}',CAST({key_column} AS TEXT)) FROM {table} WHERE {key_column} = ?1");
             transaction
                 .query_row(&select, params![key], |row| {
                     Ok((None, row.get::<_, Vec<u8>>(0)?))
@@ -4562,6 +4777,12 @@ fn append_prepared(
     if let Some((run_id, turn_id, kind, stored_payload, schema_version, ts, stored_provenance)) =
         duplicate_event
     {
+        let stored_payload = crate::at_rest::open_bound_blob(
+            transaction,
+            &stored_payload,
+            "events",
+            &prepared.event.event_id.0,
+        )?;
         let schema_version = u32::try_from(schema_version)
             .map_err(|_| p::Error("stored event schema version is invalid".into()))?;
         let stored_semantics = semantic_bytes(SemanticEventFields {
@@ -4666,6 +4887,7 @@ fn append_prepared(
     validate_graph_maintenance_in_transaction(transaction, &prepared.event)?;
     crate::charter::validate(transaction, &prepared.event)?;
     crate::orchestration::validate(transaction, &prepared.event)?;
+    lifecycle::validate(transaction, &prepared.event)?;
     let previous_seq = aggregate_version_in_transaction(transaction, &prepared.event.run_id)?;
     let next_seq = previous_seq
         .checked_add(1)
@@ -4673,6 +4895,17 @@ fn append_prepared(
     let next_seq_sql =
         i64::try_from(next_seq).map_err(|_| p::Error("event sequence is invalid".into()))?;
     prepared.event.stream_seq = next_seq;
+    let payload_to_store = crate::at_rest::seal_blob(
+        transaction,
+        &prepared.payload,
+        None,
+        "events",
+        &prepared.event.event_id.0,
+        &prepared.event.run_id.0,
+    )?;
+    if let Some(cause) = &prepared.event.provenance.caused_by {
+        transaction.execute("INSERT OR IGNORE INTO protected_dependencies(object_ref,source_object) SELECT target.object_ref,source.object_ref FROM protected_rows target,protected_rows source WHERE target.table_name='events' AND target.row_key=?1 AND source.table_name='events' AND source.row_key=?2",params![prepared.event.event_id.0,cause.0]).map_err(|_|p::Error("causal content lineage unavailable".into()))?;
+    }
     let checksum = checksum::calculate(PersistedEnvelope {
         event_id: &prepared.event.event_id.0,
         run_id: &prepared.event.run_id.0,
@@ -4683,7 +4916,7 @@ fn append_prepared(
             .as_ref()
             .map(|turn_id| turn_id.0.as_str()),
         kind: prepared.event.kind.as_str(),
-        payload: &prepared.payload,
+        payload: &payload_to_store,
         schema_version: prepared.event.schema_version.0,
         ts_unix_ms: prepared.event.ts_unix_ms,
         provenance: &prepared.provenance,
@@ -4705,7 +4938,7 @@ fn append_prepared(
                     .as_ref()
                     .map(|turn_id| turn_id.0.as_str()),
                 prepared.event.kind.as_str(),
-                prepared.payload,
+                &payload_to_store,
                 i64::from(prepared.event.schema_version.0),
                 prepared.event.ts_unix_ms,
                 prepared.provenance,
@@ -4714,7 +4947,7 @@ fn append_prepared(
         )
         .map_err(|error| store_error("failed to append event", error))?;
     let event_rowid = transaction.last_insert_rowid();
-    if fts_enabled {
+    if fts_enabled && !payload_to_store.starts_with(crate::at_rest::PREFIX) {
         if let Some(text) = searchable_text(&prepared.event) {
             transaction
                 .execute(
@@ -4727,6 +4960,7 @@ fn append_prepared(
     update_builtin_projections(transaction, &prepared.event)?;
     crate::charter::fold(transaction, &prepared.event)?;
     crate::orchestration::fold(transaction, &prepared.event)?;
+    lifecycle::fold(transaction, &prepared.event)?;
     update_evolution_catalog(transaction, &prepared.event)?;
     if fts_enabled {
         if fts_was_current {
@@ -4912,7 +5146,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
         p::EventPayload::CapabilityPublisherChanged(payload) => {
             let existing = read_ecosystem_json::<p::CapabilityPublisherGrant>(
                 connection,
-                "SELECT grant FROM ecosystem_publishers WHERE publisher_ref = ?1",
+                "SELECT forme_open_bound(grant,'ecosystem_publishers',CAST(publisher_ref AS TEXT)) FROM ecosystem_publishers WHERE publisher_ref = ?1",
                 &payload.grant.publisher.0,
                 "capability publisher grant",
                 p::CapabilityPublisherGrant::validate,
@@ -4966,7 +5200,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
             for dependency in &admission.dependencies {
                 let admitted = read_ecosystem_json::<p::CapabilityPackageAdmission>(
                     connection,
-                    "SELECT admission FROM ecosystem_admissions WHERE release_ref = ?1",
+                    "SELECT forme_open_bound(admission,'ecosystem_admissions',CAST(release_ref AS TEXT)) FROM ecosystem_admissions WHERE release_ref = ?1",
                     &dependency.release.0,
                     "package dependency admission",
                     p::CapabilityPackageAdmission::validate,
@@ -4985,7 +5219,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
             let change = &payload.change;
             let admission = read_ecosystem_json::<p::CapabilityPackageAdmission>(
                 connection,
-                "SELECT admission FROM ecosystem_admissions WHERE release_ref = ?1",
+                "SELECT forme_open_bound(admission,'ecosystem_admissions',CAST(release_ref AS TEXT)) FROM ecosystem_admissions WHERE release_ref = ?1",
                 &change.release.0,
                 "capability package admission",
                 p::CapabilityPackageAdmission::validate,
@@ -5007,7 +5241,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
             }
             let current = read_ecosystem_json::<p::CapabilityPackageState>(
                 connection,
-                "SELECT state FROM ecosystem_package_states WHERE package_ref = ?1",
+                "SELECT forme_open_bound(state,'ecosystem_package_states',CAST(package_ref AS TEXT)) FROM ecosystem_package_states WHERE package_ref = ?1",
                 &change.package.0,
                 "capability package state",
                 p::CapabilityPackageState::validate,
@@ -5043,7 +5277,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
                 .map_err(|error| store_error("failed to encode distribution receipt", error))?;
             let attempt = connection
                 .query_row(
-                    "SELECT semantic FROM ecosystem_distribution_attempts WHERE receipt_ref = ?1",
+                    "SELECT forme_open_bound(semantic,'ecosystem_distribution_attempts',CAST(receipt_ref AS TEXT)) FROM ecosystem_distribution_attempts WHERE receipt_ref = ?1",
                     params![&receipt.reference.0],
                     |row| row.get::<_, Vec<u8>>(0),
                 )
@@ -5068,7 +5302,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
             }
             let admission = read_ecosystem_json::<p::CapabilityPackageAdmission>(
                 connection,
-                "SELECT admission FROM ecosystem_admissions WHERE release_ref = ?1",
+                "SELECT forme_open_bound(admission,'ecosystem_admissions',CAST(release_ref AS TEXT)) FROM ecosystem_admissions WHERE release_ref = ?1",
                 &receipt.release.0,
                 "distributed package admission",
                 p::CapabilityPackageAdmission::validate,
@@ -5090,7 +5324,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
             }
             let state = read_ecosystem_json::<p::CapabilityPackageState>(
                 connection,
-                "SELECT state FROM ecosystem_package_states WHERE package_ref = ?1",
+                "SELECT forme_open_bound(state,'ecosystem_package_states',CAST(package_ref AS TEXT)) FROM ecosystem_package_states WHERE package_ref = ?1",
                 &receipt.package.0,
                 "distributed package state",
                 p::CapabilityPackageState::validate,
@@ -5106,7 +5340,7 @@ fn validate_ecosystem_transition(connection: &Connection, event: &p::Event) -> p
             let epoch = authority_epoch_in_transaction(connection)?;
             let lease = read_ecosystem_json::<p::RemoteExecutionLease>(
                 connection,
-                "SELECT lease FROM remote_leases WHERE lease_ref = ?1",
+                "SELECT forme_open_bound(lease,'remote_leases',CAST(lease_ref AS TEXT)) FROM remote_leases WHERE lease_ref = ?1",
                 &receipt.lease.0,
                 "distribution remote lease",
                 p::RemoteExecutionLease::validate,
@@ -5192,7 +5426,7 @@ fn update_ecosystem_projection(transaction: &Transaction<'_>, event: &p::Event) 
         p::EventPayload::CapabilityPackageStateChanged(payload) => {
             let admission = read_ecosystem_json::<p::CapabilityPackageAdmission>(
                 transaction,
-                "SELECT admission FROM ecosystem_admissions WHERE release_ref = ?1",
+                "SELECT forme_open_bound(admission,'ecosystem_admissions',CAST(release_ref AS TEXT)) FROM ecosystem_admissions WHERE release_ref = ?1",
                 &payload.change.release.0,
                 "package state admission",
                 p::CapabilityPackageAdmission::validate,
@@ -5244,7 +5478,7 @@ fn update_ecosystem_projection(transaction: &Transaction<'_>, event: &p::Event) 
         p::EventPayload::CapabilityPackageDistributionRecorded(payload) => {
             let admission = read_ecosystem_json::<p::CapabilityPackageAdmission>(
                 transaction,
-                "SELECT admission FROM ecosystem_admissions WHERE release_ref = ?1",
+                "SELECT forme_open_bound(admission,'ecosystem_admissions',CAST(release_ref AS TEXT)) FROM ecosystem_admissions WHERE release_ref = ?1",
                 &payload.receipt.release.0,
                 "distribution admission",
                 p::CapabilityPackageAdmission::validate,
@@ -5283,7 +5517,7 @@ fn read_publisher_by_grant(
 ) -> p::Result<Option<p::CapabilityPublisherGrant>> {
     read_ecosystem_json(
         connection,
-        "SELECT grant FROM ecosystem_publishers WHERE grant_ref = ?1",
+        "SELECT forme_open_bound(grant,'ecosystem_publishers',CAST(publisher_ref AS TEXT)) FROM ecosystem_publishers WHERE grant_ref = ?1",
         &grant.0,
         "capability publisher grant",
         p::CapabilityPublisherGrant::validate,
@@ -5475,7 +5709,7 @@ fn validate_federation_transition(
             let ack = ack.ok_or_else(|| p::Error("replication ack is missing".into()))?;
             let bytes = connection
                 .query_row(
-                    "SELECT semantic_bytes FROM replication_exports WHERE batch_ref = ?1",
+                    "SELECT forme_open_bound(semantic_bytes,'replication_exports',CAST(batch_ref AS TEXT)) FROM replication_exports WHERE batch_ref = ?1",
                     params![&ack.batch.0],
                     |row| row.get::<_, Vec<u8>>(0),
                 )
@@ -5665,7 +5899,7 @@ fn fence_old_epoch_leases(
     let leases = {
         let mut statement = transaction
             .prepare(
-                "SELECT lease_ref, lease FROM remote_leases
+                "SELECT lease_ref, forme_open_bound(lease,'remote_leases',CAST(lease_ref AS TEXT)) FROM remote_leases
                  WHERE state IN ('reserved', 'acquired') AND authority_epoch < ?1",
             )
             .map_err(|error| store_error("failed to prepare lease fencing", error))?;
@@ -5701,7 +5935,7 @@ fn read_peer_grant(
 ) -> p::Result<Option<p::FederatedPeerState>> {
     connection
         .query_row(
-            "SELECT grant, revoked FROM federated_peers WHERE peer_ref = ?1",
+            "SELECT forme_open_bound(grant,'federated_peers',CAST(peer_ref AS TEXT)), revoked FROM federated_peers WHERE peer_ref = ?1",
             params![&peer.0],
             |row| Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)?)),
         )
@@ -5726,7 +5960,7 @@ fn read_remote_lease(
 ) -> p::Result<Option<p::RemoteExecutionLease>> {
     connection
         .query_row(
-            "SELECT lease FROM remote_leases WHERE lease_ref = ?1",
+            "SELECT forme_open_bound(lease,'remote_leases',CAST(lease_ref AS TEXT)) FROM remote_leases WHERE lease_ref = ?1",
             params![&lease.0],
             |row| row.get::<_, Vec<u8>>(0),
         )
@@ -5964,7 +6198,7 @@ fn update_evolution_catalog(transaction: &Transaction<'_>, event: &p::Event) -> 
                 .map_err(|error| store_error("failed to encode strategy candidate", error))?;
             if let Some((created_event, stored)) = transaction
                 .query_row(
-                    "SELECT created_event_id, candidate FROM strategy_candidates
+                    "SELECT created_event_id, forme_open_bound(candidate,'strategy_candidates',CAST(candidate_id AS TEXT)) FROM strategy_candidates
                      WHERE candidate_id = ?1",
                     params![&candidate.candidate.0],
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
@@ -5981,6 +6215,14 @@ fn update_evolution_catalog(transaction: &Transaction<'_>, event: &p::Event) -> 
                 return Ok(());
             }
             validate_strategy_candidate_identity(transaction, candidate)?;
+            let encoded = crate::at_rest::seal_blob(
+                transaction,
+                &encoded,
+                Some(&candidate.scope),
+                "strategy_candidates",
+                &candidate.candidate.0,
+                &event.run_id.0,
+            )?;
             transaction
                 .execute(
                     "INSERT INTO strategy_candidates(candidate_id, created_event_id, candidate)
@@ -6014,7 +6256,7 @@ fn update_evolution_catalog(transaction: &Transaction<'_>, event: &p::Event) -> 
                 .map_err(|error| store_error("failed to encode evolution evaluation", error))?;
             if let Some((stored_event, stored)) = transaction
                 .query_row(
-                    "SELECT event_id, evaluation FROM evolution_evaluations
+                    "SELECT event_id, forme_open_bound(evaluation,'evolution_evaluations',CAST(evaluation_ref AS TEXT)) FROM evolution_evaluations
                      WHERE evaluation_ref = ?1",
                     params![&payload.evaluation.0],
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
@@ -6030,6 +6272,14 @@ fn update_evolution_catalog(transaction: &Transaction<'_>, event: &p::Event) -> 
                 }
                 return Ok(());
             }
+            let encoded = crate::at_rest::seal_blob(
+                transaction,
+                &encoded,
+                None,
+                "evolution_evaluations",
+                &payload.evaluation.0,
+                &event.run_id.0,
+            )?;
             transaction
                 .execute(
                     "INSERT INTO evolution_evaluations(evaluation_ref, event_id, evaluation)
@@ -6041,7 +6291,7 @@ fn update_evolution_catalog(transaction: &Transaction<'_>, event: &p::Event) -> 
         p::EventPayload::CandidatePromoted(payload) => {
             let Some((created_event, candidate_bytes)) = transaction
                 .query_row(
-                    "SELECT created_event_id, candidate FROM strategy_candidates
+                    "SELECT created_event_id, forme_open_bound(candidate,'strategy_candidates',CAST(candidate_id AS TEXT)) FROM strategy_candidates
                      WHERE candidate_id = ?1",
                     params![&payload.candidate_id.0],
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)),
@@ -6072,7 +6322,7 @@ fn update_evolution_catalog(transaction: &Transaction<'_>, event: &p::Event) -> 
             }
             if let Some((stored_created, stored_promotion, stored_candidate)) = transaction
                 .query_row(
-                    "SELECT created_event_id, promotion_event_id, candidate
+                    "SELECT created_event_id, promotion_event_id, forme_open_bound(candidate,'stable_strategies',CAST(candidate_id AS TEXT))
                      FROM stable_strategies WHERE candidate_id = ?1",
                     params![&payload.candidate_id.0],
                     |row| {
@@ -6097,6 +6347,14 @@ fn update_evolution_catalog(transaction: &Transaction<'_>, event: &p::Event) -> 
                 }
                 return Ok(());
             }
+            let candidate_bytes = crate::at_rest::seal_blob(
+                transaction,
+                &candidate_bytes,
+                Some(&candidate.scope),
+                "stable_strategies",
+                &payload.candidate_id.0,
+                &event.run_id.0,
+            )?;
             transaction
                 .execute(
                     "INSERT INTO stable_strategies(
@@ -6140,7 +6398,7 @@ fn read_stable_strategy(
     version: &p::StrategyVersionRef,
 ) -> p::Result<Option<StableStrategyRecord>> {
     let mut statement = connection
-        .prepare("SELECT created_event_id, promotion_event_id, candidate FROM stable_strategies")
+        .prepare("SELECT created_event_id, promotion_event_id, forme_open_bound(candidate,'stable_strategies',candidate_id) FROM stable_strategies")
         .map_err(|error| store_error("failed to prepare stable strategy lookup", error))?;
     let rows = statement
         .query_map([], |row| {
@@ -6191,7 +6449,7 @@ fn validate_strategy_candidate_identity(
     candidate: &p::StrategyCandidate,
 ) -> p::Result<()> {
     let mut statement = transaction
-        .prepare("SELECT candidate FROM strategy_candidates")
+        .prepare("SELECT forme_open_bound(candidate,'strategy_candidates',candidate_id) FROM strategy_candidates")
         .map_err(|error| store_error("failed to inspect strategy version identity", error))?;
     let rows = statement
         .query_map([], |row| row.get::<_, Vec<u8>>(0))
@@ -6239,7 +6497,7 @@ fn has_passing_evolution_evaluation(
     candidate: &p::StrategyCandidate,
 ) -> p::Result<bool> {
     let mut statement = transaction
-        .prepare("SELECT evaluation FROM evolution_evaluations")
+        .prepare("SELECT forme_open_bound(evaluation,'evolution_evaluations',evaluation_ref) FROM evolution_evaluations")
         .map_err(|error| store_error("failed to inspect strategy evaluations", error))?;
     let rows = statement
         .query_map([], |row| row.get::<_, Vec<u8>>(0))
@@ -6265,7 +6523,7 @@ fn read_evolution_evaluation(
 ) -> p::Result<Option<p::EvolutionEvaluationRecordedPayload>> {
     connection
         .query_row(
-            "SELECT evaluation FROM evolution_evaluations WHERE evaluation_ref = ?1",
+            "SELECT forme_open_bound(evaluation,'evolution_evaluations',CAST(evaluation_ref AS TEXT)) FROM evolution_evaluations WHERE evaluation_ref = ?1",
             params![&evaluation.0],
             |row| row.get::<_, Vec<u8>>(0),
         )
@@ -6286,7 +6544,7 @@ fn read_active_strategy(
 ) -> p::Result<Option<p::ActiveStrategyRef>> {
     connection
         .query_row(
-            "SELECT active FROM active_strategies
+            "SELECT forme_open_bound(active,'active_strategies',CAST(activation_event AS TEXT)) FROM active_strategies
              WHERE aggregate = ?1 AND domain = ?2 AND scope = ?3",
             params![&aggregate.0, strategy_domain_name(domain), &scope.0],
             |row| row.get::<_, Vec<u8>>(0),
@@ -6309,7 +6567,7 @@ fn read_active_strategies(
     aggregate: Option<&p::EvolutionAggregateRef>,
 ) -> p::Result<Vec<p::ActiveStrategyRef>> {
     let mut statement = connection
-        .prepare("SELECT active FROM active_strategies")
+        .prepare("SELECT forme_open_bound(active,'active_strategies',activation_event) FROM active_strategies")
         .map_err(|error| store_error("failed to prepare active strategy scan", error))?;
     let rows = statement
         .query_map([], |row| row.get::<_, Vec<u8>>(0))
@@ -6529,6 +6787,14 @@ fn apply_evolution_control_event(
     active.validate()?;
     let encoded = serde_json::to_vec(&active)
         .map_err(|error| store_error("failed to encode active strategy", error))?;
+    let encoded = crate::at_rest::seal_blob(
+        transaction,
+        &encoded,
+        Some(scope),
+        "active_strategies",
+        &event.event_id.0,
+        &event.run_id.0,
+    )?;
     let committed_i64 = i64::try_from(committed_version)
         .map_err(|_| p::Error("evolution aggregate version is too large".into()))?;
     transaction
@@ -6557,6 +6823,15 @@ fn apply_evolution_control_event(
             ],
         )
         .map_err(|error| store_error("failed to update active strategy", error))?;
+    let history_encoded = crate::at_rest::seal_blob(
+        transaction,
+        &serde_json::to_vec(&active)
+            .map_err(|_| p::Error("evolution history encoding failed".into()))?,
+        Some(scope),
+        "evolution_history",
+        &event.event_id.0,
+        &event.run_id.0,
+    )?;
     transaction
         .execute(
             "INSERT INTO evolution_history(
@@ -6567,7 +6842,7 @@ fn apply_evolution_control_event(
                 committed_i64,
                 &event.event_id.0,
                 event.kind.as_str(),
-                &encoded,
+                &history_encoded,
             ],
         )
         .map_err(|error| store_error("failed to append evolution history", error))?;
@@ -6705,7 +6980,7 @@ fn read_evolution_history(
 ) -> p::Result<Vec<EvolutionHistoryEntry>> {
     let mut statement = connection
         .prepare(
-            "SELECT committed_version, event_id, kind, active
+            "SELECT committed_version, event_id, kind, forme_open_bound(active,'evolution_history',CAST(event_id AS TEXT))
              FROM evolution_history WHERE aggregate = ?1 ORDER BY committed_version",
         )
         .map_err(|error| store_error("failed to prepare evolution history", error))?;
@@ -6841,7 +7116,7 @@ fn configure_sync_peer(transaction: &Transaction<'_>, peer: Option<&p::SyncPeer>
     let semantics = sync_peer_semantic_bytes(peer)?;
     let existing = transaction
         .query_row(
-            "SELECT peer_ref, owner_ref, semantic_bytes FROM sync_peers WHERE singleton = 1",
+            "SELECT peer_ref, owner_ref, forme_open_bound(semantic_bytes,'sync_peers',CAST(singleton AS TEXT)) FROM sync_peers WHERE singleton = 1",
             [],
             |row| {
                 Ok((
@@ -6879,7 +7154,7 @@ fn verify_sync_peer(transaction: &Transaction<'_>, peer: &p::SyncPeer) -> p::Res
     let semantics = sync_peer_semantic_bytes(peer)?;
     let existing = transaction
         .query_row(
-            "SELECT peer_ref, owner_ref, semantic_bytes FROM sync_peers WHERE singleton = 1",
+            "SELECT peer_ref, owner_ref, forme_open_bound(semantic_bytes,'sync_peers',CAST(singleton AS TEXT)) FROM sync_peers WHERE singleton = 1",
             [],
             |row| {
                 Ok((
@@ -7130,6 +7405,7 @@ pub(crate) struct StoreCore {
     upcasters: RwLock<UpcasterGraph>,
     upcaster_registration: Mutex<()>,
     authority_guard: RwLock<Option<Weak<AuthorityLeaseGuardInner>>>,
+    protection: crate::at_rest::ProtectionState,
 }
 
 impl StoreCore {
@@ -7197,9 +7473,9 @@ impl StoreCore {
             let mut statement = connection
                 .prepare(
                     "SELECT event_id, run_id, stream_seq, turn_id, kind, payload,
-                            schema_version, ts, provenance, checksum
+                            schema_version, ts, provenance, checksum, forme_open_bound(payload,'events',event_id)
                      FROM events
-                     WHERE run_id = ?1 AND stream_seq >= ?2
+                     WHERE run_id = ?1 AND stream_seq >= ?2 AND NOT EXISTS(SELECT 1 FROM protected_rows r JOIN data_lifecycle_deleted_objects d ON r.object_ref=d.object_ref WHERE r.table_name='events' AND r.row_key=events.event_id)
                      ORDER BY stream_seq
                      LIMIT ?3",
                 )
@@ -7247,6 +7523,7 @@ struct StoredEvent {
     ts_unix_ms: i64,
     provenance: Vec<u8>,
     checksum: String,
+    decoded_payload: Option<Vec<u8>>,
 }
 
 impl StoredEvent {
@@ -7262,6 +7539,11 @@ impl StoredEvent {
             ts_unix_ms: row.get(7)?,
             provenance: row.get(8)?,
             checksum: row.get(9)?,
+            decoded_payload: if row.as_ref().column_count() > 10 {
+                Some(row.get(10)?)
+            } else {
+                None
+            },
         })
     }
 
@@ -7324,7 +7606,7 @@ impl StoredEvent {
         let kind = self.kind.parse::<p::EventKind>()?;
         let payload_type = PayloadType::from_event_kind(kind);
         let target_schema = target_for(payload_type, stored_schema)?;
-        let mut payload_bytes = self.payload;
+        let mut payload_bytes = self.decoded_payload.unwrap_or(self.payload);
         for step in upcasters.plan(payload_type, stored_schema, target_schema)? {
             payload_bytes = step.apply(payload_bytes)?;
         }
@@ -7406,6 +7688,8 @@ fn read_session_state(
         .map_err(|error| store_error("failed to load session projection", error))?;
     stored
         .map(|(state, last_stream_seq)| {
+            let state =
+                crate::at_rest::open_bound_blob(connection, &state, "session_state", &run_id.0)?;
             let state = serde_json::from_slice::<SessionState>(&state)
                 .map_err(|error| store_error("failed to deserialize session projection", error))?;
             validate_projection_row(
@@ -7432,6 +7716,8 @@ fn read_transcript(connection: &Connection, run_id: &p::RunId) -> p::Result<Opti
         .map_err(|error| store_error("failed to load transcript projection", error))?;
     stored
         .map(|(state, last_stream_seq)| {
+            let state =
+                crate::at_rest::open_bound_blob(connection, &state, "transcript", &run_id.0)?;
             let state = serde_json::from_slice::<Transcript>(&state).map_err(|error| {
                 store_error("failed to deserialize transcript projection", error)
             })?;
@@ -7486,6 +7772,14 @@ fn write_session_state(transaction: &Transaction<'_>, state: &SessionState) -> p
         .map_err(|_| p::Error("session projection sequence is invalid".into()))?;
     let serialized = serde_json::to_vec(state)
         .map_err(|error| store_error("failed to serialize session projection", error))?;
+    let serialized = crate::at_rest::seal_blob(
+        transaction,
+        &serialized,
+        None,
+        "session_state",
+        &run_id.0,
+        &run_id.0,
+    )?;
     transaction
         .execute(
             "INSERT INTO session_state(run_id, state, last_stream_seq)
@@ -7508,6 +7802,14 @@ fn write_transcript(transaction: &Transaction<'_>, state: &Transcript) -> p::Res
         .map_err(|_| p::Error("transcript projection sequence is invalid".into()))?;
     let serialized = serde_json::to_vec(state)
         .map_err(|error| store_error("failed to serialize transcript projection", error))?;
+    let serialized = crate::at_rest::seal_blob(
+        transaction,
+        &serialized,
+        None,
+        "transcript",
+        &run_id.0,
+        &run_id.0,
+    )?;
     transaction
         .execute(
             "INSERT INTO transcript(run_id, state, last_stream_seq)
@@ -7633,7 +7935,7 @@ fn validate_graph_maintenance_in_transaction(
     };
     set.validate_actor(&event.provenance)?;
     let mut statement = transaction.prepare(
-        "SELECT event_id, run_id, stream_seq, turn_id, kind, payload, schema_version, ts, provenance, checksum FROM events WHERE run_id = ?1 ORDER BY stream_seq"
+        "SELECT event_id, run_id, stream_seq, turn_id, kind, payload, schema_version, ts, provenance, checksum, forme_open_bound(payload,'events',event_id) FROM events WHERE run_id = ?1 AND NOT EXISTS(SELECT 1 FROM protected_rows r JOIN data_lifecycle_deleted_objects d ON r.object_ref=d.object_ref WHERE r.table_name='events' AND r.row_key=events.event_id) ORDER BY stream_seq"
     ).map_err(|error| store_error("cannot prepare graph maintenance validation", error))?;
     let rows = statement
         .query_map(params![&event.run_id.0], StoredEvent::from_row)
@@ -7653,8 +7955,8 @@ fn read_all_stored_events(connection: &Connection) -> p::Result<Vec<StoredEvent>
     let mut statement = connection
         .prepare(
             "SELECT event_id, run_id, stream_seq, turn_id, kind, payload,
-                    schema_version, ts, provenance, checksum
-             FROM events",
+                    schema_version, ts, provenance, checksum, forme_open_bound(payload,'events',event_id)
+             FROM events WHERE NOT EXISTS(SELECT 1 FROM protected_rows r JOIN data_lifecycle_deleted_objects d ON r.object_ref=d.object_ref WHERE r.table_name='events' AND r.row_key=events.event_id)",
         )
         .map_err(|error| store_error("failed to prepare projection rebuild capture", error))?;
     let rows = statement
@@ -7702,7 +8004,7 @@ fn fold_builtin_projections(
 
 fn read_event_set_token(connection: &Connection) -> p::Result<EventSetToken> {
     let mut statement = connection
-        .prepare("SELECT run_id, stream_seq, event_id, checksum FROM events")
+        .prepare("SELECT run_id, stream_seq, event_id, checksum FROM events WHERE NOT EXISTS(SELECT 1 FROM protected_rows r JOIN data_lifecycle_deleted_objects d ON r.object_ref=d.object_ref WHERE r.table_name='events' AND r.row_key=events.event_id)")
         .map_err(|error| store_error("failed to prepare projection rebuild token", error))?;
     let rows = statement
         .query_map([], |row| {
@@ -7777,6 +8079,9 @@ fn initialize_connection(
     fts_enabled: bool,
     sync_peer: Option<&p::SyncPeer>,
 ) -> p::Result<()> {
+    // Bootstrap may inspect legacy sync metadata before the owning store
+    // installs its resolver. Encrypted content still fails closed here.
+    crate::at_rest::install(connection, Arc::new(RwLock::new(None)))?;
     connection
         .pragma_update(None, "foreign_keys", "ON")
         .map_err(|error| store_error("failed to enable SQLite foreign keys", error))?;
@@ -7995,6 +8300,10 @@ fn validate_catalog(connection: &Connection) -> p::Result<()> {
         ("brain_authority", "store_identity"),
         ("brain_aggregates", "aggregate_run_id"),
         ("authority_writer_lease", "expires_at"),
+        ("protected_content", "record"),
+        ("protected_rows", "object_ref"),
+        ("data_lifecycle_jobs", "plan"),
+        ("data_lifecycle_state", "tombstone"),
     ] {
         if !table_has_column(connection, table, column)? {
             return Err(p::Error(format!(
