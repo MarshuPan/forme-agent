@@ -20,6 +20,15 @@
       "allowed_sha256": []
     },
     {
+      "source": "chacha20poly1305 0.11.0 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public AEAD API behind the project-owned protected-content envelope; do not copy source, examples, fixtures, errors, or naming.",
+      "notice_action": "Review the locked dependency license and reachable advisories before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
       "source": "headless_chrome 1.0.22 public crate API",
       "license": "MIT",
       "copy_risk": "low",

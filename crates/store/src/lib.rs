@@ -5,6 +5,7 @@ mod backup;
 mod brain;
 mod charter;
 mod checksum;
+mod content;
 mod cursor;
 mod orchestration;
 mod projection;
@@ -22,6 +23,7 @@ pub use brain::{
     CognitiveTickClaimRequest, CognitiveTickLedger, CognitiveTickWindowState, TickEventCursor,
     TickEventRange, BRAIN_AUTHORITY_SCHEMA_VERSION, COGNITIVE_TICK_SCHEMA_VERSION,
 };
+pub use content::{ContentKeyResolver, ProtectedContentService};
 pub use cursor::EventCursor;
 pub use projection::{
     SearchHit, SessionState, SessionStateProjection, Transcript, TranscriptEntry,

@@ -9,6 +9,7 @@
 | SQLite | 3.53.2 (bundled by libsqlite3-sys) | [sqlite.org](https://www.sqlite.org/) | [SQLite source](https://sqlite.org/src/) | Public domain | Low | Bundled build artifact only | No SQLite source copied into authored crates | Review public-domain notice before release |
 | Model Context Protocol specification | 2025-06-18 protocol identifier | [modelcontextprotocol.io](https://modelcontextprotocol.io/) | [modelcontextprotocol/modelcontextprotocol](https://github.com/modelcontextprotocol/modelcontextprotocol) | MIT | Low | Implement the public JSON-RPC protocol only; do not copy SDK source, errors, or fixtures | No copied material; repository-owned stdio fixture | Review specification license and NOTICE before release |
 | sha2 | 0.10.9 | [crates.io](https://crates.io/crates/sha2) | [RustCrypto/hashes](https://github.com/RustCrypto/hashes) | MIT OR Apache-2.0 | Low | Public digest API only | No copied code or fixtures | Review LICENSE/NOTICE before release |
+| chacha20poly1305 | 0.11.0 | [crates.io](https://crates.io/crates/chacha20poly1305) | [RustCrypto/AEADs](https://github.com/RustCrypto/AEADs) | MIT OR Apache-2.0 | Low | Public AEAD API only behind the project-owned protected-content envelope; key material stays outside events and artifacts | No copied code, examples, fixtures, or naming | Review LICENSE/NOTICE and reachable advisories before release |
 | axum | 0.8.9 | [crates.io](https://crates.io/crates/axum) | [tokio-rs/axum](https://github.com/tokio-rs/axum) | MIT | Low | Public routing/extractor/response APIs only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
 | tokio | 1.52.3 | [crates.io](https://crates.io/crates/tokio) | [tokio-rs/tokio](https://github.com/tokio-rs/tokio) | MIT | Low | Public runtime, listener, task, and signal APIs only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
 | tower-http | 0.7.0 | [crates.io](https://crates.io/crates/tower-http) | [tower-rs/tower-http](https://github.com/tower-rs/tower-http) | MIT | Low | Public timeout middleware API only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
@@ -62,6 +63,14 @@ and are asserted by `tools/verify-core-brain-workspace-contract.ps1`. The
 CLI's local gateway client is repository-owned and uses only the standard
 library over a loopback socket; no dependency source, example, fixture, error
 text, or naming was copied.
+
+V1 core-brain closure D4 dependency check (2026-10-18): `chacha20poly1305
+0.11.0` is exact-pinned and used only through the project-owned
+`ProtectedContentService` envelope. `getrandom 0.4.3` supplies operating-system
+entropy for unique nonces. The implementation stores no key material or
+secret reference in protocol objects, events, logs, traces, manifests, or
+portable artifacts; no dependency source, example, fixture, error text, or
+naming was copied.
 
 V1 core-brain closure B security update (2026-10-17): the clean-tree release
 audit blocks `rustls 0.23.45` on `RUSTSEC-2026-0346/0347/0348/0349`, published

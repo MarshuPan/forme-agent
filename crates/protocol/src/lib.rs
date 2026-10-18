@@ -11,6 +11,7 @@ pub use brain_memory::*;
 pub use brain_orchestration::*;
 mod brain_relevance;
 pub use brain_relevance::*;
+mod content_protection;
 mod control;
 mod event;
 mod lifecycle;
@@ -28,6 +29,7 @@ mod workspace_charter;
 pub use brain_learning::*;
 pub use workspace_charter::*;
 
+pub use content_protection::*;
 pub use control::*;
 pub use event::*;
 pub use lifecycle::*;
