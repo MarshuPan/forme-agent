@@ -451,24 +451,32 @@ impl ChatCompletionsProvider {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|error| p::Error(format!("model HTTP transport could not start: {error}")))?;
+            .map_err(|_| p::Error("retryable: model HTTP transport could not start".into()))?;
         child
             .stdin
             .take()
             .ok_or_else(|| p::Error("model HTTP transport has no input pipe".into()))?
             .write_all(config.as_bytes())
-            .map_err(|error| p::Error(format!("model HTTP transport input failed: {error}")))?;
+            .map_err(|_| {
+                p::Error("unknown: model HTTP transport input outcome is unconfirmed".into())
+            })?;
         let output = child
             .wait_with_output()
-            .map_err(|error| p::Error(format!("model HTTP transport failed: {error}")))?;
+            .map_err(|_| p::Error("unknown: model HTTP transport outcome is unconfirmed".into()))?;
+        let (body, status) = split_http_status(&output.stdout);
         if !output.status.success() {
-            let detail = String::from_utf8_lossy(&output.stderr);
+            // curl stderr may echo private endpoints. Only fixed categories
+            // and numeric codes may cross into event/trace failure evidence.
+            let code = output.status.code().unwrap_or(-1);
+            let retryable =
+                matches!(code, 5..=7) || (code == 22 && matches!(status, Some(429 | 502 | 503)));
             return Err(p::Error(format!(
-                "model endpoint returned a transport error: {}",
-                detail.trim()
+                "{}: model HTTP attempt failed (transport_code={code}, http_status={})",
+                if retryable { "retryable" } else { "unknown" },
+                status.unwrap_or(0)
             )));
         }
-        serde_json::from_slice(&output.stdout)
+        serde_json::from_slice(body)
             .map_err(|error| p::Error(format!("model endpoint returned invalid JSON: {error}")))
     }
 
@@ -478,8 +486,19 @@ impl ChatCompletionsProvider {
         let body = quote_curl_config(body)?;
         let timeout_seconds = self.timeout.0.div_ceil(1000).max(1);
         Ok(format!(
-            "silent\nshow-error\nfail-with-body\nrequest = \"POST\"\nmax-time = \"{timeout_seconds}\"\nurl = \"{endpoint}\"\nheader = \"Content-Type: application/json\"\nheader = \"Authorization: Bearer {credential}\"\ndata = \"{body}\"\n"
+            "silent\nshow-error\nfail-with-body\nrequest = \"POST\"\nmax-time = \"{timeout_seconds}\"\nurl = \"{endpoint}\"\nheader = \"Content-Type: application/json\"\nheader = \"Authorization: Bearer {credential}\"\ndata = \"{body}\"\nwrite-out = \"\\nFORME_HTTP_STATUS:%{{http_code}}\"\n"
         ))
+    }
+}
+fn split_http_status(bytes: &[u8]) -> (&[u8], Option<u16>) {
+    const MARKER: &[u8] = b"\nFORME_HTTP_STATUS:";
+    if let Some(at) = bytes.windows(MARKER.len()).rposition(|s| s == MARKER) {
+        let status = std::str::from_utf8(&bytes[at + MARKER.len()..])
+            .ok()
+            .and_then(|s| s.trim().parse().ok());
+        (&bytes[..at], status)
+    } else {
+        (bytes, None)
     }
 }
 
@@ -541,11 +560,12 @@ fn quote_curl_config(value: &str) -> p::Result<String> {
 }
 
 fn parse_chat_response(body: Value) -> p::Result<ModelResponse> {
-    if let Some(message) = body.get("error").and_then(|error| error.get("message")) {
-        return Err(p::Error(format!(
-            "model endpoint rejected the request: {}",
-            message.as_str().unwrap_or("unspecified error")
-        )));
+    if body.get("error").is_some_and(|error| !error.is_null()) {
+        // Provider-controlled text can echo credentials or impersonate our
+        // retry classification. It never becomes a runtime diagnostic.
+        return Err(p::Error(
+            "unknown: model endpoint rejected the request".into(),
+        ));
     }
     let choice = body
         .get("choices")
@@ -890,5 +910,18 @@ mod tests {
         };
         assert!(compatibility.permits(selected, p::Version(1)));
         assert!(!compatibility.permits(selected, p::Version(2)));
+    }
+
+    #[test]
+    fn endpoint_error_text_cannot_forge_retryability_or_escape_to_diagnostics() {
+        let error = parse_chat_response(json!({"error": {
+            "message": "retryable: Bearer private-test-credential https://private.invalid"
+        }}))
+        .unwrap_err();
+        assert_eq!(error.0, "unknown: model endpoint rejected the request");
+        let (body, status) = split_http_status(b"{\"error\":{}}\nFORME_HTTP_STATUS:429");
+        assert_eq!(body, b"{\"error\":{}}");
+        assert_eq!(status, Some(429));
+        assert_eq!(split_http_status(b"{}"), (b"{}".as_slice(), None));
     }
 }

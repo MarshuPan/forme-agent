@@ -386,7 +386,13 @@ impl ModelSelector for ModelRegistry {
         let fallback_chain = candidates
             .iter()
             .skip(1)
-            .filter(|candidate| candidate.fallback_group() == selected.fallback_group())
+            .filter(|candidate| {
+                request.risk != p::Risk::High
+                    && selected.fallback_group().is_some()
+                    && candidate.fallback_group() == selected.fallback_group()
+            })
+            // Availability recovery is bounded independently of catalog size.
+            .take(2)
             .map(|candidate| candidate.reference().clone())
             .collect::<Vec<_>>();
         Ok(ModelSelection {
@@ -752,6 +758,45 @@ mod tests {
             })
             .unwrap_err();
         assert!(error.0.contains("no compatible"));
+    }
+
+    #[test]
+    fn fallback_is_explicit_group_bounded_and_disabled_for_high_risk() {
+        let request = ModelSelectionRequest {
+            schema_version: p::SchemaVersion(1),
+            task: None,
+            minimum_context_window: 1,
+            require_tool_use: false,
+            tool_schema_version: None,
+            minimum_strength: ModelStrength::Basic,
+            risk: p::Risk::Low,
+            evidence: Vec::new(),
+        };
+        let mut registry = ModelRegistry::new(p::ModelProfileRef("a".into())).unwrap();
+        for id in ["a", "b", "c", "d", "e"] {
+            registry
+                .register(profile(id, ModelStrength::Standard, false, 1))
+                .unwrap();
+        }
+        assert_eq!(registry.select(&request).unwrap().fallback_chain.len(), 2);
+        let mut high = request.clone();
+        high.risk = p::Risk::High;
+        assert!(registry.select(&high).unwrap().fallback_chain.is_empty());
+        for model in registry.models.values_mut() {
+            model.fallback_group = None;
+        }
+        assert!(registry.select(&request).unwrap().fallback_chain.is_empty());
+        registry
+            .models
+            .get_mut(&p::ModelProfileRef("a".into()))
+            .unwrap()
+            .fallback_group = Some("isolated".into());
+        registry
+            .models
+            .get_mut(&p::ModelProfileRef("b".into()))
+            .unwrap()
+            .fallback_group = Some("other".into());
+        assert!(registry.select(&request).unwrap().fallback_chain.is_empty());
     }
 
     #[test]
