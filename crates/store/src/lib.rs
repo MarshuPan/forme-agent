@@ -1,6 +1,7 @@
 //! forme-store - append-only event log, projections, and replay contracts.
 #![forbid(unsafe_code)]
 
+mod backup;
 mod brain;
 mod charter;
 mod checksum;
@@ -14,6 +15,7 @@ mod sqlite;
 
 use forme_protocol as p;
 
+pub use backup::{BackupManifest, BackupService, BackupVerification, RestoreReport};
 pub use brain::{
     AuthorityLeaseGuard, AuthorityWriterLease, BrainAggregateKind, BrainAuthorityBinding,
     BrainAuthorityClaim, BrainAuthorityMetadata, BrainAuthorityStore, CognitiveTickClaim,

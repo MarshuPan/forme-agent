@@ -671,6 +671,13 @@ impl SqliteEventStore {
         Ok(connection.path().is_some_and(|path| !path.is_empty()))
     }
 
+    pub(crate) fn core_connection(&self) -> p::Result<std::sync::MutexGuard<'_, Connection>> {
+        self.core
+            .connection
+            .lock()
+            .map_err(|_| p::Error("event database connection lock is poisoned".into()))
+    }
+
     /// Installs the process-wide production writer fence for this shared
     /// SQLite core. Test-only stores remain unfenced unless this method is
     /// explicitly called.
