@@ -4,7 +4,7 @@
 
 ## 总体判断
 
-当前文档已经有统一的主控入口。M0-M5 均已走完 `requirements -> canonical -> architecture -> PRD -> implementation -> acceptance` 并合入 main；S1-S99、97 EventKinds、真实 ecosystem golden、typed artifacts 与 release audit 是永久回归基线。当前不创造 M6，而是沿 `requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23` 闭合 V1 默认大脑运行时，保持 18-crate 图、前 97 exact prefix 与 single authority。
+当前文档已经有统一的主控入口。M0-M5 均已走完 `requirements -> canonical -> architecture -> PRD -> implementation -> acceptance` 并合入 main；S1-S99 与历史 97-kind prefix 继续永久回归。V1 默认大脑 A–D 及七项补闭已通过有界技术 Final，随 `a1fe0df` 合入本地 main；它沿 `requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23` 实施，不创造 M6，保持 18-crate 图、99 EventKinds、前 97 exact prefix 与 single authority。当前许可证与发布回执重验、owner 日常使用验收和远端发布分别见总验收报告，不由本地合入相互替代。
 
 维护原则：
 

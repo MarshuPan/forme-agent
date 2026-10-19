@@ -1,8 +1,8 @@
 # V1 核心大脑运行闭合：整体验收状态
 
-日期：2026-10-19。分支：`shu/v1-core-brain-a`；`main` 仍为 `94fe6f1`。
+日期：2026-10-19。当前分支：`main`；已从 `94fe6f1` 快进合入 `shu/v1-core-brain-a@a1fe0df`，保留完整分波提交历史。
 
-**本轮七项默认大脑补闭及 V1 Final 分支技术验收 PASS。** 2026-10-19 22:23:54（Asia/Shanghai），干净检出 `5e4f697` 的完整 Final 总门实际返回 0；受测源码是 `b9ea670accdae0f59122aa62333cb172e18416e4`。此前 `03d2159` 的 Final PASS 是历史事实，只绑定当时的 `025ad3d` 输入。owner 人工验收与 `main` 合入仍分别记录。
+**七项默认大脑补闭与 A–D 已通过技术 Final，并合入本地 main。** 2026-10-19 22:23:54（Asia/Shanghai），干净检出 `5e4f697` 的完整 Final 总门实际返回 0，受测源码为 `b9ea670accdae0f59122aa62333cb172e18416e4`；该 Apache-2.0 输入的结果保留在 §2–3。当前正在单独收口 MIT 许可证与发布审计变更，新的验证见 §5，不能用旧回执替代新输入。owner 日常使用验收、发布包与远端发布分别记录。
 
 ## 1. 本轮补齐的七项运行链
 
@@ -18,7 +18,7 @@
 
 新增永久测试位于 `crates/harness/tests/v1_brain_integration_closure.rs`（5 项）与 `v1_brain_competence_closure.rs`（2 项）；Gateway 真实 daemon 测试同时覆盖 owner 认证的 seed/spec 接口。七项检查归入现有 C1–C24，不新增里程碑或场景编号。
 
-## 2. 四波和真实模型证据
+## 2. 补闭轮四波和真实模型证据（历史输入 b9ea670）
 
 | 波 | 本轮逐名执行 | 证据与边界 |
 |---|---|---|
@@ -32,7 +32,7 @@ C24 来自干净源码 `b9ea670`，正式 runner 返回 `Pass (LiveConfigured)`�
 
 四波和汇总清单已更新：`core-brain-closure-artifacts/manifest.json`，digest：`sha256:b957358c7b639fdca4863de548ccd187a4fd7a55d9fdaedb3290f2c016f276db`；`tools/core_brain_evidence.py --verify --require-pass` 返回 0。所有运行 receipt 均绑定同一源码输入和当前 204 项冻结清单；工件保留事件位置、快照、内容摘要和隐私校验。A/B/C 不因 D 使用真实 provider 而升级为线上证据。
 
-## 3. Final 与发布回执
+## 3. 补闭轮 Final 与发布回执（历史输入 b9ea670）
 
 本轮在干净检出 `5e4f69788bc54ec859b034c4092f0d5f66ee9168` 执行下列完整命令，实际返回 **0**，末行为 `core-brain-closure (Final): PASS`：
 
@@ -56,4 +56,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-clos
 
 七项新增测试使用受控 HTTP、正式运行时、真实文件和 SQLite 重启，证明接线与治理。真实 C24 的六类短周期工作流另行验证；两者均不证明数月认知收益或编排普遍优于直接模型。当前项目规划仍接收类型化任务签名，路线经验采用受治理的成功/失败适配分数，不将其描述成通用自然语言到 DAG 推断、成本最优化或完整在线优化器。首次 seed 的等价性校验也不等于模型质量提升证据。
 
-价格未配置时费用继续 unknown。验证平台是本机 `x86_64-pc-windows-gnu`；其他平台未据此宣称已运行验收。实际数据保护、备份和删除限制继续见 D 报告 §6。`main` 合入和 owner 人工验收不由技术门代替。
+价格未配置时费用继续 unknown。验证平台是本机 `x86_64-pc-windows-gnu`；其他平台未据此宣称已运行验收。实际数据保护、备份和删除限制继续见 D 报告 §6。owner 日常使用验收不由技术门或本地 main 合入代替。
+
+## 5. Main 合入与 MIT 发布输入收尾
+
+- owner 指令“开始合入和收尾”后，将已验收 `a1fe0df` 快进合入本地 main；没有 squash、改写历史或丢弃分波提交。
+- 原工作区六项许可证相关改动在切换 main 前后逐文件 SHA-256 一致；按独立文档与审计实现提交收口，项目 MIT 与第三方依赖自身条款分开维护。
+- MIT/Cargo 元数据与审计源码改变发布输入，正在从干净提交重新采集四波、真实 C24 和 current-tree 回执。当前此步骤仍在执行，未标为新的 Final PASS。
+- 本地模型配置仍只在忽略目录中；当前操作未创建安装包、GitHub release 或推送远端，未代替 owner 的日常使用验收。

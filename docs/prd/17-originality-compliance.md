@@ -60,6 +60,12 @@ pub trait ComplianceDoctor {
 - **检查失败阻断 release-ready**(硬门)。
 - 来源不明或未获授权的材料不进 release tree。
 
+### 6.1 当前发布许可证口径
+
+- owner 选择的项目许可证为 MIT；根 `LICENSE`、`NOTICE`、README 与 `Cargo.toml` 的 `workspace.package.license` 必须一致。发布审计拒绝缺失许可证、被禁止的许可证以及退回旧 Apache-2.0 项目声明的漂移。
+- 此选择只改变 forme 自有代码的项目许可证，不改变第三方组件的许可证、归属和 notice 义务；`docs/compliance/third-party-dependencies.md` 与 NOTICE 仍逐项保留它们的实际条款。
+- 历史 M3/M4/M5 验收回执只证明其绑定的历史输入，不回写成 MIT 验收事实。许可证和审计规则提交后必须从干净树重新生成当前发布回执；若源码输入摘要改变，四波运行与真实 C24 证据也必须重新采集，不能只替换旧摘要。
+
 ## 7. 配置与可观测
 
 - **config key**:`compliance.upstream_paths`、`compliance.license_allowlist`、`compliance.copy_patterns`。

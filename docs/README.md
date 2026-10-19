@@ -19,7 +19,7 @@ flowchart LR
 
 ## 当前里程碑
 
-**main 的发布状态：开发中。** M0–M5 已逐阶段实现并验收。V1 核心大脑运行闭合（A 默认装配 → B 持续认知 → C 项目与编排 → D 产品闭合）的当前分支验收状态统一记录在 `acceptance/core-brain-closure-acceptance-report.md`；分支验证、owner 验收与 main 合入分别记录。通过 C1–C24、永久回归和发布门，并完成 owner/main 收口后，才更新正式发布状态。下面按时间顺序记录各阶段结果。
+**本地 main 的工程状态：M0–M5 与 V1 核心大脑 A–D 已实现、通过有界技术 Final 并合入。** 七项默认大脑补闭随 `a1fe0df` 快进合入；许可证调整后的当前回执与重验结果统一见 `acceptance/core-brain-closure-acceptance-report.md`。技术验收、owner 日常使用验收、远端发布分别记录；本地合入不代表已发布安装包，也不证明长期“越用越好”。下面按时间顺序保留各阶段结果。
 
 M0 已完成：18 个 crate、164 个 Rust 测试与 8 个合规 fixture 全绿，`prd/01` §7 的 S1-S22 全部通过，真实配置模型已沿 `Gateway -> Harness -> Loop` 产生完整 13 事件审计链，原创合规门的 upstream/license/copy 三项均为 PASS。逐场景证据见 `acceptance/m0-acceptance-report.md`，固定回归入口为 `tools/verify-m0.ps1`。
 
@@ -41,9 +41,9 @@ V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> 
 |---|---|---|
 | `planning/` | 仍在直接使用的规划设计。 | 当前仅 `15` 多 Agent 编排。 |
 | `requirements/` | 固定 forme 要做什么、不做什么、面向谁、优先级和验收方向。 | M0-M5 已落实；`15`–`16` 冻结 V1 核心大脑闭合 B1-B24/C1-C24，明确不是 M6。 |
-| `architecture/` | 设计如何实现需求，包括 Rust 模块、协议、数据流、状态机、存储、权限和扩展边界。 | `03`–`08` 已实现；`09` 冻结核心大脑闭合且保持 18-crate/single authority。 |
-| `prd/` | 形成可执行的实施型 PRD：功能描述、实施步骤、关键技术约束、测试和验收标准。 | M0-M5 `01`–`22` 已实现；`23` 是当前 A→D 实施契约。 |
-| `acceptance/` | 保存验收报告、逐场景证据和最终门结果。 | M0-M5 有 final 证据；V1 A/B/C 有分支证据，D 有实现报告与 Unavailable 工件；D/Final 待真实模型及发布门，不声明通过。 |
+| `architecture/` | 设计如何实现需求，包括 Rust 模块、协议、数据流、状态机、存储、权限和扩展边界。 | `03`–`09` 对应实现已合入本地 main；保持 18-crate/single authority，证据边界见当前总验收报告。 |
+| `prd/` | 形成可执行的实施型 PRD：功能描述、实施步骤、关键技术约束、测试和验收标准。 | `01`–`23` 对应 M0-M5 与 A–D 已合入；C1–C24 和 S1–S99 继续作为永久门。 |
+| `acceptance/` | 保存验收报告、逐场景证据和最终门结果。 | M0-M5、V1 A–D/真实 C24/Final 有通过证据；当前源码、许可证重验和 main 状态统一见 closure 报告，历史失败与 Unavailable 记录保留。 |
 | `compliance/` | 直接依赖的来源、许可证与复制风险清单。 | 随依赖变化维护，发布审计读取。 |
 | `runbooks/` | 正式入口和离线 owner 操作手册。 | `v1-core-brain-data-and-evidence.md` 说明模型配置、备份/恢复、真实删除、旧明文迁移与 C24 证据运行。 |
 | `archive/` | 早期规划 `planning/01-14` 与早期架构基线 `architecture/00-01`。 | 已归档，不再更新，不作为现行口径。 |

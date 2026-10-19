@@ -5,13 +5,15 @@ authoritative product and architecture documents live under `docs/`.
 
 ## Project status
 
-**forme is under active development and is not yet ready for packaging or
-everyday use.** Milestones M0-M5 are implemented and have passed their
-acceptance gates. The current program, V1 core-brain runtime closure, composes
-those modules into one persistent default brain in four waves (production
-composition, continuous cognition, workspace orchestration, product closure).
-The project becomes packageable only after all four waves pass C1-C24 and the
-closure release gate.
+Milestones M0-M5 and the V1 core-brain runtime closure are implemented and
+merged into local `main`. The bounded technical Final acceptance covers
+S1-S99, C1-C24, real model workflows, and release auditing. Current tested
+commits, receipts, and integration status are recorded in the
+[closure acceptance report](docs/acceptance/core-brain-closure-acceptance-report.md).
+forme remains under active development; these results do not establish
+months-long cognitive benefit, general task quality, or owner daily-use
+acceptance. No release package or remote publication is implied by a local
+merge.
 
 ### Milestone history
 
@@ -145,16 +147,17 @@ Re-run the complete M5 gate with:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
 ```
 
-The next program is **V1 core-brain runtime closure**, not M6. Its frozen
+**V1 core-brain runtime closure** is implemented and merged, not an M6. Its frozen
 document chain is `docs/requirements/15-16`, canonical section 28,
 `docs/architecture/09-v1-core-brain-runtime-closure-architecture.md`, and
 `docs/prd/23-v1-core-brain-closure-program-prd.md`. It composes the existing
 M0-M5 modules into one persistent default brain in four waves: production
 composition, continuous cognition, long-running workspace/orchestration, and
-model/data/value closure. The target remains 18 crates with the existing 97
-EventKinds as an exact prefix followed only by two closure events. Implementation
-is in progress; completion requires S1-S99 plus C1-C24 and the closure release
-gate.
+model/data/value closure. The graph remains 18 crates with the existing 97
+EventKinds as an exact prefix followed only by two closure events, for 99
+total. S1-S99, C1-C24, the real golden workflows, and the closure release gate
+remain permanent regression requirements. See the closure report for current
+release inputs and the limits of the evidence.
 
 ## Build requirements
 
@@ -225,5 +228,5 @@ cargo run -p forme-cli -- --manifest
 
 ## License
 
-forme is licensed under [Apache License 2.0](LICENSE). Required project and
+forme is licensed under the [MIT License](LICENSE). Required project and
 third-party attributions are retained in [NOTICE](NOTICE).

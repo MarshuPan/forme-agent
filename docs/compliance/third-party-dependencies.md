@@ -1,5 +1,7 @@
 # Third-party dependencies
 
+forme 的项目许可证为 MIT，以根 `LICENSE` 和 `Cargo.toml` 为准。下表记录第三方组件自身的实际许可证；它们不会随项目许可证变更，NOTICE 与相应归属义务继续保留。历史发布回执保留原输入，当前发布必须重新审计。
+
 | Package | Version | Source | Repository | License | Copy risk | Implementation rule | Copied material | Release action |
 |---|---:|---|---|---|---|---|---|---|
 | serde | 1.0.228 | [crates.io](https://crates.io/crates/serde) | [serde-rs/serde](https://github.com/serde-rs/serde) | MIT OR Apache-2.0 | Low | Public-API-only implementation | No copied code, fixture, or naming | Review LICENSE/NOTICE before release |

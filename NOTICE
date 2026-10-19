@@ -1,7 +1,7 @@
 forme
 Copyright 2026 forme contributors
 
-This product is licensed under the Apache License, Version 2.0.
+This product is licensed under the MIT License.
 
 The following direct third-party components are resolved from crates.io and
 used through their public APIs. Their own license terms continue to apply:
