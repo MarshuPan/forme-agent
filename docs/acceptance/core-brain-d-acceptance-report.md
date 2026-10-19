@@ -3,7 +3,7 @@
 - 日期：2026-10-19。
 - 分支：`shu/v1-core-brain-a`；未合入 `main`。
 - 契约：`requirements/15-16`、canonical §28、`architecture/09`、`prd/23` D 波。
-- 结论：**C19–C23 实现、D 波 70 项运行场景与 C24 真实模型六类各两次试验及独立校验 PASS；四波封存、current-tree release audit 与 Final 总门正在闭合，尚不提前声明 Final PASS。**
+- 结论：**D 波与 V1 Final 分支技术验收 PASS。** C19–C23、70 项 D 运行场景、C24 六类各两次真实试验、四波封存、S1–S99 与当前干净树 core/M5 发布审计全部通过。owner 人工验收与 `main` 合入仍分别记录。
 
 ## 1. 提交与范围
 
@@ -83,9 +83,27 @@ A/B/C 本轮专项日志：`forme-d-regression-abc-7a2377ebf6ba475285d141f0ed73b
 
 本轮修复后完整工作区测试为 **597 passed、0 failed、5 默认 ignored**；fmt、check、strict Clippy、compliance 均 PASS。A/B/C/D runtime 按冻结名称重新采集为 **43/48/35/70** 项，来源输入一致；D runtime 不单独代替 live C24。证据工具 Python 12 项（11 通过、1 项因 Windows 无符号链接权限跳过）、core release audit Python 22 项通过。
 
-剩余动作为封存四波与总清单、独立校验、干净树 core/M5 发布 receipt 和 Final 总门。通过后在本报告单独补记；`main` 合入是另一项状态。
+四波与总清单已经封存，A/B/C 为 `ControlledRuntime`、D 产品工件为 `LiveConfigured`。总清单 digest：`sha256:fd30e7ba6fd4b3873824f8a8ebb6764db055c1d049310f9c6b3dd844ae5be816`。每波均有非空事件范围及快照引用，所有文件通过隐私扫描与独立内容/来源校验。
 
-## 5. 实际边界
+## 5. 最终发布总门
+
+2026-10-19 13:05（Asia/Shanghai），干净验收检出 `03d2159` 执行下列完整命令，实际返回 **0**，末行为 `core-brain-closure (Final): PASS`：
+
+```powershell
+$env:CARGO_BUILD_JOBS = '2'
+$env:CARGO_TARGET_DIR = Join-Path $pwd 'target'
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-closure.ps1 -Wave Final
+```
+
+总门包括 fmt/check/完整 workspace tests/strict Clippy/compliance、M0–M5 的 S1–S99、真实 Chrome/API/M3 evolution/M4 federation/M5 ecosystem golden、A/B/C/D 的 43/48/35/70 项逐名场景、B/C/D typed verifier、四波封闭清单以及当前干净树发布回执生成/独立校验/仓库比对。18 crates、99 EventKinds 与前 97 exact prefix 不变。Python 总门 65 项：64 通过，1 项因 Windows 符号链接权限跳过；5 个默认忽略的 Rust case 由相应场景门显式执行，不把默认 ignored 当作通过。
+
+core release receipt 为 `sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01df04cf0a5ae68aaae`，当前清单见 `core-brain-closure-release-audit-artifacts/`。M5 current-tree receipt 见 `m5-release-audit-artifacts/`；该回执会随本报告变动刷新，不能将历史摘要固定写回报告造成循环依赖。两个当前报告与 M5 receipt 被 core 根摘要显式排除，受测 `crates/tools/Cargo.toml/Cargo.lock` 输入仍严格绑定 `025ad3d`。
+
+本次总门日志在 OS temp，名称为 `forme-v1-final-gate-025ad3d-complete.log`；原始构建路径只留本机，不作为便携证据。报告/回执收口只变文档与工件，继续核验当前源码一致性、四波清单和发布回执。首次失败归档与旧回执由 Git 历史保留，不以最新结果改写旧事实。
+
+验证平台为本机 `x86_64-pc-windows-gnu`。审计对非本目标的已知依赖告警保留 observation；本报告不声称其他操作系统/目标已经运行验收。原工作区六项既有修改未纳入，模型配置保留在忽略的本机文件中；`main` 仍为 `94fe6f1`，未合入本分支。
+
+## 6. 实际边界
 
 - 本地应用层加密/crypto-shred 不证明物理扇区、内存、用户自行另存原文/密钥或未验证远端已删除；远端保持 Unknown。
 - 备份不含 key。恢复需正确 resolver；新 DB 不会自动获得旧 `.content-keys`，authority 切换必须显式执行。
