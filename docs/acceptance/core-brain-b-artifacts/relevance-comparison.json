@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case_id": "relevance-negative-01",
-  "graph_snapshot": "sha256:b1580850a0b09a64dd852443cf071d6b79cfcc4cd3922be9be73dfe492f34ad2",
+  "graph_snapshot": "sha256:9c8096aced3505db4c49c9da283caa49d62fa2c7ae2b211618ecd08a37f1efb9",
   "task_digest": "sha256:002a00e3905f15ee3ef69d0ff9ceac2ddc6912bb5bf91112190a4bc0a93b75eb",
   "strategy_snapshot": "sha256:017576785890351c1d068c2f97550ddc2aa8bb8ff756233b77b2426288e5d385",
   "candidates": [
@@ -27,7 +27,7 @@
     "errors": 1,
     "precision_bps": 0,
     "recall_bps": 0,
-    "latency_us": 116,
+    "latency_us": 120,
     "usage": {
       "input_tokens": 0,
       "output_tokens": 0
@@ -41,7 +41,7 @@
     "errors": 0,
     "precision_bps": 10000,
     "recall_bps": 10000,
-    "latency_us": 9974,
+    "latency_us": 13406,
     "usage": {
       "input_tokens": 20,
       "output_tokens": 4
@@ -49,7 +49,7 @@
     "cost_microunits": 1
   },
   "model_profile": "core-b-provider:core-b-model",
-  "call_id": "relevance:sha256:85afec5b7b050b6ae69085d46863af267c5cb4828ef5d70e2e815456049887fd:1792382636729:0",
+  "call_id": "relevance:sha256:85afec5b7b050b6ae69085d46863af267c5cb4828ef5d70e2e815456049887fd:1792417152900:0",
   "evidence_level": "ControlledHttp",
   "hard_invariants": [
     [
@@ -78,5 +78,5 @@
     ]
   ],
   "recommended": "DirectModel",
-  "digest": "sha256:ca221bfbbfad0e4d2df936d7bf1cf9664718696949a642651a40bc28e788913e"
+  "digest": "sha256:1691f0770c83d91182b2217c7f740278efad2832442d2bdf571325c460430aa0"
 }

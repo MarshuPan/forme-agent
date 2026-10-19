@@ -3,7 +3,7 @@
 - 日期：2026-10-19。
 - 分支：`shu/v1-core-brain-a`；未合入 `main`。
 - 契约：`requirements/15-16`、canonical §28、`architecture/09`、`prd/23` D 波。
-- 结论：**D 波与 V1 Final 分支技术验收 PASS。** C19–C23、70 项 D 运行场景、C24 六类各两次真实试验、四波封存、S1–S99 与当前干净树 core/M5 发布审计全部通过。owner 人工验收与 `main` 合入仍分别记录。
+- 当前状态：**七项默认大脑补闭已实现，四波及真实 C24 通过，Final 与发布回执正在重验。** 当前源码为 `b9ea670`；本轮记录见 §7。§3–5 仅记录 `025ad3d` 及更早源码的历史验收，不作为本轮通过证明。owner 人工验收与 `main` 合入仍分别记录。
 
 ## 1. 提交与范围
 
@@ -60,7 +60,7 @@ Windows 首次全量并发构建触发系统 paging/metadata mmap 失败，不�
 
 A/B/C 本轮专项日志：`forme-d-regression-abc-7a2377ebf6ba475285d141f0ed73b8bd.log`。C24 产品工件 digest 为 `sha256:9367f6f43292c61967d0fe9cd24be92c6ef300312fba095be701582929c7d340`；`core_brain_release_audit.py --verify-product` 明确返回 `CORE_BRAIN_C24_UNVERIFIABLE` 与 exit 2，未将零试验误判为通过。
 
-## 4. 本轮真实 C24、修复与重验
+## 4. 前轮真实 C24、修复与重验（历史：025ad3d）
 
 已提供六类固定工作流的 production runner：冷启动、文件工具、跨 SQLite 重启的长期 workspace、多 child、AskToLearn、失败后重协调；每类至少两次，另有 direct-model 答案质量基线。typed verifier 核对固定 selector、完整 stream 位置/内容 hash、实际 profile/call/usage、approval/plan/scope/expiry、route ledger、文件与重启证据。
 
@@ -85,7 +85,7 @@ A/B/C 本轮专项日志：`forme-d-regression-abc-7a2377ebf6ba475285d141f0ed73b
 
 四波与总清单已经封存，A/B/C 为 `ControlledRuntime`、D 产品工件为 `LiveConfigured`。总清单 digest：`sha256:fd30e7ba6fd4b3873824f8a8ebb6764db055c1d049310f9c6b3dd844ae5be816`。每波均有非空事件范围及快照引用，所有文件通过隐私扫描与独立内容/来源校验。
 
-## 5. 最终发布总门
+## 5. 前轮最终发布总门（历史：025ad3d）
 
 2026-10-19 13:05（Asia/Shanghai），干净验收检出 `03d2159` 执行下列完整命令，实际返回 **0**，末行为 `core-brain-closure (Final): PASS`：
 
@@ -110,3 +110,13 @@ core release receipt 为 `sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01
 - 迁移成功的新库不等于旧源、失败目标或旧备份已清除；它们仍需 owner 管理。
 - 六类短周期基准不证明通用复杂任务能力、编排优于直接模型或数月主动价值。direct baseline 不完成相同工作流；activation/memory/routing 等机制的独立对照不能由共同算术答案替代。
 - 有界验收通过不等于长期日常使用质量已经证明；Final 发布门和 `main` 合入分别记录。
+
+## 7. 七项默认大脑补闭后的当前源码重验
+
+实现提交 `b9ea670accdae0f59122aa62333cb172e18416e4` 补齐多 workspace 共享大脑、普通运行到三模型候选、稳定认知正文进入 context、统一 governor 提升、实时能力输入、默认 M3 正文/seed/回滚及受治理路线适配。逐项行为、七个新增永久测试与反向断言见 `core-brain-closure-acceptance-report.md` §1；冻结契约与运行手册分别见 `prd/23` §1.0 和 `runbooks/v1-core-brain-data-and-evidence.md` §8。
+
+从干净验收检出重新采集 A/B/C/D 为 **47/50/36/71** 项逐名运行，全数通过。C 的六份新工件分别通过独立 verifier。源码、场景清单和文件摘要已重新封存，汇总 digest 为 `sha256:b957358c7b639fdca4863de548ccd187a4fd7a55d9fdaedb3290f2c016f276db`，四波封闭清单 `--verify --require-pass` 返回 0。
+
+同一源码的真实 C24 六类各两次，质量、直接模型质量基线与工作流均各 2/2，不可验证为 0；正式 runner、独立 typed verifier 与源码一致性 verifier 全部返回 0。新的产品 digest 为 `sha256:9e7c0a2a03cfee4f2fccb40754baa42383f1bf48acfdbc5a1777f55246ef647a`。凭证与端点未导出，价格未知仍为 unknown。该证据不证明长期认知收益；受控集成测试也不自动成为 live 质量证据。
+
+本轮 Final 正在重跑，core 与 M5 current-tree receipt 依次重封。旧 §5 的回执仅保留历史事实；完整总门返回码和本轮回执完成后更新本节。两个当前报告被 core 根摘要明确排除，最终报告收口仍须刷新受影响的 M5 receipt 并复核当前根摘要。原工作区六项既有修改不纳入，`main` 未动。

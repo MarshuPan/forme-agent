@@ -2,30 +2,39 @@
 
 日期：2026-10-19。分支：`shu/v1-core-brain-a`；`main` 仍为 `94fe6f1`。
 
-**V1 Final 分支技术验收 PASS。** 2026-10-19 13:05（Asia/Shanghai），干净验收检出 `03d2159` 的完整 `verify-core-brain-closure.ps1 -Wave Final` 实际返回 0。A–D、六类各两次真实 C24、S1–S99、四波封闭清单和 current-tree core/M5 发布回执均通过。owner 人工验收与 `main` 合入是两个单独状态；本轮没有操作 `main`。
+**本轮七项默认大脑补闭已实现，四波运行证据及真实 C24 已通过；Final 正在重验和重封发布回执。** 当前受测源码是 `b9ea670accdae0f59122aa62333cb172e18416e4`。此前 `03d2159` 的 Final PASS 是历史事实，只绑定当时的 `025ad3d` 输入，不能替代本轮验收。owner 人工验收与 `main` 合入仍分别记录。
 
-## 1. 各波与证据边界
+## 1. 本轮补齐的七项运行链
 
-| 波 | 内容 | 当前证据 |
+| 缺口 | 已实现行为 | 永久反向或恢复证明 |
 |---|---|---|
-| A：C1–C6 | 默认 ProductionRuntime、持久 owner、context、能力与统一入口。 | `025ad3d` 输入复跑 43 项 PASS；正式入口/共同快照见证已导出。 |
-| B：C7–C12 | 三相 tick、AskToLearn、AgentWorkspace、扩散/直接模型基线、维护。 | 同输入复跑 48 项 PASS；三相 tick 与比较工件为受控 HTTP，不能作为线上质量证明。 |
-| C：C13–C18 | Charter、八模式与六维匹配、route 治理、长期项目监管、经验回流。 | 同输入复跑 35 项 PASS；六份重新生成的 runtime/SQLite/files 工件独立验证。 |
-| D：C19–C23 | 实际模型 attempt、看板、备份恢复、加密迁移与真实删除。 | 同输入复跑 70 项 runtime PASS；修复后全工作区 597 passed、0 failed、5 默认 ignored；fmt/check/strict Clippy/compliance PASS。 |
-| C24 | 六类真实任务、基线、typed artifact 与独立 selector。 | **LiveConfigured / Pass**：六类各两次，质量、基线与工作流均 2/2；独立 verifier exit 0。 |
-| Final | C1–C24、S1–S99、99-kind/97-prefix、18-crate graph、真实 golden、clean-tree release。 | **PASS**；完整命令 exit 0，末行为 `core-brain-closure (Final): PASS`，当前 core receipt 独立校验与重算一致。 |
+| 一份 owner 大脑下的多 workspace | 使用同一 BrainServices 与持久 cognition；owner 登记的 workspace 分别拥有项目、charter、会话和资源约束。 | 两个项目实际运行并跨重启重放；登记工作区不会获得新工具权限，也不能跨目录执行。 |
+| 普通运行进入三模型候选 | 可信输入、任务结果、验证/失败及反馈进入 UserModel、AgentSelfModel、PartnershipModel 候选链。 | 同一终态再次观察不重复写事实；重启保留候选；最终回答不能冒充能力证据。 |
+| 稳定认知进入真实 context | 读取有效 scope 的正文、种类、置信度、稳定性和 evidence，正式 HTTP 模型请求实际包含正文。 | 候选不会冒充稳定知识；撤销后正文与相应能力输入消失，其他 scope 的稳定认知不可借用。 |
+| 统一提升与纠正 | 正式候选审核进入同一个 EvolutionGovernor，提升携带可重放 StableCognitionRecord。 | owner 确认不能代替结果证据；跨 stream 的真实证据可解析，异 scope 证据不能抬高认知。 |
+| 出口读取实时能力证据 | 每次执行及审批恢复重新读取 capability/scope 对应的已验证结果、失败、自我认知与 trust。 | 同一结果的两种视图只计一次；新失败或撤销会降低上限；重启保持一致。 |
+| M3 接入默认装配 | 六个 domain runtime 使用版本/作用域/摘要绑定的不可变正文；正式 owner seed/spec 控制进入同一 ProductionRuntime。 | 首次 seed 为内置行为等价初始化；不同正文不能覆盖旧版本；已激活 Loop 参数影响实际 run，重启与回滚可用。 |
+| 经验影响后续编排 | Coordination 只采用已激活候选明确引用、早于候选快照的同类路线结果，成功与失败共同影响适配分数。 | 未激活或晚到经验不改变 active policy；激活后选择变化可重放。 |
 
-历史 A/B/C 报告不回写当时事实。本轮具体提交、正反证明、命令、限制与待办见 `core-brain-d-acceptance-report.md`；操作步骤见 `../runbooks/v1-core-brain-data-and-evidence.md`。
+新增永久测试位于 `crates/harness/tests/v1_brain_integration_closure.rs`（5 项）与 `v1_brain_competence_closure.rs`（2 项）；Gateway 真实 daemon 测试同时覆盖 owner 认证的 seed/spec 接口。七项检查归入现有 C1–C24，不新增里程碑或场景编号。
 
-## 2. 真实试验的失败、修复与边界
+## 2. 四波和真实模型证据
 
-第一次真实试验 `1d1f671` 的工具类在真实写文件后未完成模型续接；原记录归档且保留 exit 2。`5ffcf74` 修复原生 assistant/tool_call_id 往返与审批恢复，`1a79b57` 加强 JSON 解码后隐私扫描，`025ad3d` 修正入口校验器把定时通知误作模型对话的口径。最终受理的一轮从 `025ad3d` 再采四波和真实 C24，当前产品内容 digest 为 `sha256:027af5b21114b0e4da85950e49fa6cbb8feaefbb2c094847ead9a1ee7b23e7b7`。
+| 波 | 本轮逐名执行 | 证据与边界 |
+|---|---|---|
+| A：C1–C6 | 47 项 PASS | 正式装配、共同入口、owner/workspace、context 与权限；entrypoints 见证为 ControlledRuntime。 |
+| B：C7–C12 | 50 项 PASS | 三模型、实时能力、三相 tick、学习、扩散/直接模型对照和维护；保留扩散不如直接模型的受控负结果。 |
+| C：C13–C18 | 36 项 PASS | 项目、八个编排种子、DAG 治理、监管与受治理经验；六份新生成的 SQLite/文件/事件工件由独立 verifier 通过。 |
+| D：C19–C24 runtime | 71 项 PASS | 真实 profile、数据控制、备份、加密、删除、默认 M3 和工具审计；RuntimeOnly 本身不关闭 C24。 |
+| C24 live | 六类各 2 次 PASS | 冷启动、工具、长期 workspace、多 child、AskToLearn、失败重协调，质量/直接模型质量基线/工作流均各 2/2；不可验证为 0。 |
 
-实际 profile 为 `compatible:gpt-6.1-sol`，配置与密钥未进入 Git/工件/报告。缺价格的费用保持 unknown。六类有界工作流不证明数月认知收益、编排普遍优于直接模型或全场景长期自治；A/B/C 的受控 HTTP 不因 C24 live 通过而升级。
+C24 来自干净源码 `b9ea670`，正式 runner 返回 `Pass (LiveConfigured)`；独立 `forme-core-brain-d-artifact-verify --require-pass` 与 `core_brain_release_audit.py --verify-product` 均返回 0。产品内容 digest：`sha256:9e7c0a2a03cfee4f2fccb40754baa42383f1bf48acfdbc5a1777f55246ef647a`。
 
-四波与汇总清单已封存：`core-brain-closure-artifacts/manifest.json`，digest 为 `sha256:fd30e7ba6fd4b3873824f8a8ebb6764db055c1d049310f9c6b3dd844ae5be816`。A/B/C 的证据等级继续为 ControlledRuntime，D 产品为 LiveConfigured；所有波均绑定共同源码输入、文件摘要、事件范围、快照和隐私扫描。
+四波和汇总清单已更新：`core-brain-closure-artifacts/manifest.json`，digest：`sha256:b957358c7b639fdca4863de548ccd187a4fd7a55d9fdaedb3290f2c016f276db`；`tools/core_brain_evidence.py --verify --require-pass` 返回 0。所有运行 receipt 均绑定同一源码输入和当前 204 项冻结清单；工件保留事件位置、快照、内容摘要和隐私校验。A/B/C 不因 D 使用真实 provider 而升级为线上证据。
 
-## 3. 最终门与发布证据
+## 3. Final 与发布回执
+
+本轮正在按下列完整命令重验；发布回执重封完成前，不将旧回执作为当前树证明：
 
 ```powershell
 $env:CARGO_BUILD_JOBS = '2'
@@ -33,10 +42,14 @@ $env:CARGO_TARGET_DIR = Join-Path $pwd 'target'
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-closure.ps1 -Wave Final
 ```
 
-总门实际完成完整 Rust 回归、strict Clippy、65 项 Python 工具门（64 通过、1 项权限相关跳过）、S1–S99、真实浏览器/API/演进/联邦/生态 golden、四波 196 项逐名场景与全部独立工件校验。5 个默认忽略的 Rust case 在相应正式场景门中显式运行，不能按默认忽略数推导覆盖。
+当前实现的 fmt/check/完整工作区测试/strict Clippy/compliance 已通过；完整 Final 还要求 S1–S99、真实 browser/API/evolution/federation/ecosystem golden、四波逐名执行、独立 typed verifier 和当前干净树 core/M5 receipt 重算一致。最终返回码与本轮回执在完成后更新本节。
 
-core current-tree release receipt：`sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01df04cf0a5ae68aaae`，目录 `core-brain-closure-release-audit-artifacts/`。M5 current-tree receipt 位于 `m5-release-audit-artifacts/`，随报告收口重新生成；不将其摘要写入受它约束的报告，避免循环。core 明确排除两个当前报告与 M5 receipt；报告收口不改变受测源码，仍须校验当前根摘要和封闭清单。
+此前 2026-10-19 13:05（Asia/Shanghai）`03d2159` 的完整 Final 返回 0，源码输入是 `025ad3d`，四波为 43/48/35/70 项。它与首次真实工具调用失败、修复后的历史通过结果均保留，不改写成当前源码证据；详细历史见 `core-brain-d-acceptance-report.md` §3–5。
 
-完整日志 `forme-v1-final-gate-025ad3d-complete.log` 保留在本机 OS temp；便携证据为已提交清单与 typed artifacts，非本机日志路径。报告变更后只刷新受影响发布回执并复核，不把旧 receipt 当当前树证明。旧 current M5 receipt 的替换可从 Git 历史恢复。
+## 4. 验证范围与实现限制
 
-本轮验证目标是 `x86_64-pc-windows-gnu`；非本目标的依赖告警保留 observation，其他平台未据此宣称验收。原工作区六项既有修改逐文件 hash 保持不变；本机模型配置不进入 Git。当前剩余状态是 owner 人工验收与 `main` 合入，不存在未完成的 A–D 代码/自动门；它不是 M6。
+本轮保持 18 crates、99 EventKinds、前 97 exact prefix 与既定依赖方向。实现提交为 `b9ea670`；此前契约与操作文档单独提交，数据和验收报告另外提交。原工作区六项许可证相关既有修改逐文件 hash 保持不变；本机模型配置与密钥未进入 Git 或便携工件。
+
+七项新增测试使用受控 HTTP、正式运行时、真实文件和 SQLite 重启，证明接线与治理。真实 C24 的六类短周期工作流另行验证；两者均不证明数月认知收益或编排普遍优于直接模型。当前项目规划仍接收类型化任务签名，路线经验采用受治理的成功/失败适配分数，不将其描述成通用自然语言到 DAG 推断、成本最优化或完整在线优化器。首次 seed 的等价性校验也不等于模型质量提升证据。
+
+价格未配置时费用继续 unknown。验证平台是本机 `x86_64-pc-windows-gnu`；其他平台未据此宣称已运行验收。实际数据保护、备份和删除限制继续见 D 报告 §6。`main` 合入和 owner 人工验收不由技术门代替。

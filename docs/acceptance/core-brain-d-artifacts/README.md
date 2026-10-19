@@ -1,6 +1,6 @@
 # D 波产品任务证据
 
-`product-golden.json`、`score.json` 和 `report.txt` 来自正式 `forme-core-brain-d-golden`。生成提交、配置摘要、证据等级、六类重复次数和计分保留在工件中；`runtime.json` 与 `manifest.json` 另外绑定 D 波 70 项逐名执行及封闭文件清单。只有真实配置、各类至少两次、独立 selector 与当前源码一致性校验全部通过，才构成 C24 有界任务通过。
+`product-golden.json`、`score.json` 和 `report.txt` 来自正式 `forme-core-brain-d-golden`。生成提交、配置摘要、证据等级、六类重复次数和计分保留在工件中；`runtime.json` 与 `manifest.json` 另外绑定 D 波当前冻结清单的全部逐名执行及封闭文件清单。只有真实配置、各类至少两次、独立 selector 与当前源码一致性校验全部通过，才构成 C24 有界任务通过。
 
 ```powershell
 cargo run -p forme-eval --bin forme-core-brain-d-artifact-verify -- docs/acceptance/core-brain-d-artifacts/product-golden.json --require-pass
