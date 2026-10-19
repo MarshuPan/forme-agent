@@ -120,6 +120,8 @@ Final 还要求 A–C、S1–S99、fmt/check/test/strict-clippy/compliance、当
 
 `verify-core-brain-closure.ps1 -Wave A|B|C|D -EvidenceOutput <新目录>` 在逐名测试全部实际通过后，导出该波 `runtime.json`。其中只记录冻结场景身份、恰好一次执行的计数、源码提交和输入摘要，不导出完整 shell 日志。A 波同时导出正式 owner turn/scheduler 的脱敏事件位置、共同 SessionBound 快照和模型端点实际调用数；B 波导出三相 tick 的事件位置、phase 顺序、report/认知快照摘要与实际模型调用计数。这些是受控 HTTP 运行证据，不冒充真实模型质量。C 波同时导出本次重新生成的六份 typed 工件。
 
+A 波的 owner turn 必须有 context/model 完整往返；`Schedule` 通知 run 必须有主动门、策略、action 和 verification 完整执行。后者本来就不需要调用模型；两者共同配置快照相同不代表事件序列应完全相同，实际模型调用计数必须与端点一致。
+
 将运行报告与各波 typed 工件放入 `core-brain-{a,b,c,d}-artifacts/` 后，由 `tools/core_brain_evidence.py --capture-wave A|B|C|D` 生成 `manifest.json`。清单采用封闭字段与文件集合，绑定源码/场景清单/输入摘要、每个文件的字节摘要、证据等级、事件范围和配置/模型/策略快照引用，以及秘密/私有路径扫描结果。`README.md` 是唯一可选说明文件，也必须纳入摘要；不允许额外文件、嵌套目录、符号链接或未知字段。
 
 这些工件目录和首次真实试验归档由 `.gitattributes` 设置 `-text`，Git 必须保留原始字节；不能让自动换行转换改变清单中的文件摘要。

@@ -285,6 +285,8 @@ builder 从同一 config 初始化已有 registry/lifecycle：File/Shell/MCP/Ski
 - CLI 默认经 Gateway；embedded command 必须调用同一 builder。
 - 每个入口的 `SessionBound` manifest/model/toolset/cognition refs 等价，差异只在 Source/provenance。
 
+入口等价不要求各入口执行相同工作：A 波见证中 owner turn 验证 context/model 往返；到期通知的 `Schedule` run 验证主动门、策略、实际 action 与 verification，不为凑齐事件额外调用模型。便携 verifier 必须按 Source 区分两条完整路径，共同配置快照与端点实际调用数仍严格一致；不得只检验 `RunComplete` 或自报 PASS。
+
 ### A8 A 波测试与提交
 
 对应 C1–C6。至少添加：
