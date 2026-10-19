@@ -59,15 +59,21 @@ class EvidenceTests(unittest.TestCase):
     def entrypoint(self):
         binding = dict(composition_manifest="sha256:" + "a" * 64, policy_profile="policy:fixture",
                        model_profile="model:fixture", toolset_ref="toolset:fixture", workspace="workspace:fixture")
-        kinds = ("RunAccepted", "SessionBound", "ContextBuildStarted", "ContextBuildFinished",
-                 "ModelCallStarted", "ModelCallFinished", "RunComplete")
+        owner_kinds = ("RunAccepted", "SessionBound", "ContextBuildStarted", "ContextBuildFinished",
+                       "ModelCallStarted", "ModelCallFinished", "VerificationStarted",
+                       "VerificationFinished", "RunComplete")
+        scheduled_kinds = ("RunAccepted", "ValueGateEvaluated", "CompetenceGateEvaluated",
+                           "ProactiveProposalEmitted", "ProactiveProposalResolved", "SessionBound",
+                           "ToolCallProposed", "ToolPolicyEvaluated", "ActionPlanned", "ActionStarted",
+                           "ActionCompleted", "CapabilityEvidenceRecorded", "VerificationStarted",
+                           "VerificationFinished", "RunComplete")
         return dict(schema_version=1, kind="forme-core-brain-entrypoints", grade="ControlledRuntime",
                     source_commit=self.source, composition_digest=binding["composition_manifest"],
-                    taxonomy_digest="sha256:" + "b" * 64, model_calls=2,
+                    taxonomy_digest="sha256:" + "b" * 64, model_calls=1,
                     streams=[dict(run="fixture:" + source, source=source, session_bound=binding,
                                   positions=[dict(seq=i, kind=kind, digest="sha256:" + "c" * 64)
                                              for i, kind in enumerate(kinds, 1)])
-                             for source in ("UserTurn", "Scheduler")])
+                             for source, kinds in (("UserTurn", owner_kinds), ("Schedule", scheduled_kinds))])
 
     def runtime(self, wave):
         value = dict(schema_version=1, kind="forme-core-brain-runtime", wave=wave, source_commit=self.source,
@@ -173,8 +179,10 @@ class EvidenceTests(unittest.TestCase):
 
     def test_entrypoint_ground_truth_and_sequence_cannot_be_forged(self):
         good = self.entrypoint()
-        for change in (lambda v: v.update(model_calls=1),
+        for change in (lambda v: v.update(model_calls=2),
                        lambda v: v["streams"][1].update(source="UserTurn"),
+                       lambda v: v["streams"][1].update(source="Scheduler"),
+                       lambda v: v["streams"][1].update(run=v["streams"][0]["run"]),
                        lambda v: v["streams"][1]["session_bound"].update(policy_profile="different"),
                        lambda v: v["streams"][1]["positions"][0].update(seq=2),
                        lambda v: v["streams"][1]["positions"].pop()):
@@ -182,6 +190,32 @@ class EvidenceTests(unittest.TestCase):
             change(value)
             with self.assertRaises(ValueError):
                 evidence.entrypoint_report(value)
+
+    def test_actual_scheduler_witness_uses_governed_action_instead_of_a_model_turn(self):
+        witness = Path(__file__).parents[2] / evidence.BASE / "core-brain-a-artifacts/entrypoints.json"
+        ranges = evidence.entrypoint_report(evidence.load(witness))
+        self.assertEqual(len(ranges), 2)
+        self.assertGreater(ranges[1]["last"], 1)
+
+    def test_scheduled_action_cannot_omit_gates_or_forge_a_model_turn(self):
+        good = self.entrypoint()
+        required = ("ValueGateEvaluated", "CompetenceGateEvaluated", "ProactiveProposalEmitted",
+                    "ProactiveProposalResolved", "ToolCallProposed", "ToolPolicyEvaluated",
+                    "ActionPlanned", "ActionStarted", "ActionCompleted", "CapabilityEvidenceRecorded",
+                    "VerificationStarted", "VerificationFinished")
+        for kind in required:
+            value = json.loads(json.dumps(good))
+            positions = value["streams"][1]["positions"]
+            positions[:] = [event for event in positions if event["kind"] != kind]
+            for seq, event in enumerate(positions, 1):
+                event["seq"] = seq
+            with self.subTest(missing=kind), self.assertRaises(ValueError):
+                evidence.entrypoint_report(value)
+        value = json.loads(json.dumps(good))
+        value["streams"][1]["positions"] = json.loads(json.dumps(value["streams"][0]["positions"]))
+        value["model_calls"] = 2
+        with self.assertRaises(ValueError):
+            evidence.entrypoint_report(value)
 
     def test_controlled_or_unavailable_product_does_not_become_live_pass(self):
         folder = evidence.wave_dir(self.root, "D")

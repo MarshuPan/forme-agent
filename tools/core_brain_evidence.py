@@ -174,12 +174,31 @@ def entrypoint_report(value):
                     or type(event["kind"]) is not str or not DIGEST.fullmatch(event["digest"])):
                 raise ValueError("entrypoint positions are discontinuous or invalid")
             kinds.append(event["kind"])
-        required = ("RunAccepted", "SessionBound", "ContextBuildStarted", "ContextBuildFinished",
-                    "ModelCallStarted", "ModelCallFinished", "RunComplete")
+        # These are two different formal workflows sharing one composition.
+        # A due notification executes its approved action without an LLM turn.
+        if stream["source"] == "UserTurn":
+            required = ("RunAccepted", "SessionBound", "ContextBuildStarted", "ContextBuildFinished",
+                        "ModelCallStarted", "ModelCallFinished", "VerificationStarted",
+                        "VerificationFinished", "RunComplete")
+            if kinds.count("ModelCallStarted") != 1 or kinds.count("ModelCallFinished") != 1:
+                raise ValueError("owner turn model accounting is incomplete or duplicated")
+        elif stream["source"] == "Schedule":
+            required = ("RunAccepted", "ValueGateEvaluated", "CompetenceGateEvaluated",
+                        "ProactiveProposalEmitted", "ProactiveProposalResolved", "SessionBound",
+                        "ToolCallProposed", "ToolPolicyEvaluated", "ActionPlanned", "ActionStarted",
+                        "ActionCompleted", "CapabilityEvidenceRecorded", "VerificationStarted",
+                        "VerificationFinished", "RunComplete")
+            if any(kind.startswith("ModelCall") for kind in kinds) or any(
+                kinds.count(kind) != 1 for kind in ("ActionPlanned", "ActionStarted", "ActionCompleted")
+            ):
+                raise ValueError("scheduled notification action accounting is invalid")
+        else:
+            raise ValueError("unexpected formal entrypoint source")
         cursor = -1
         for kind in required:
             cursor = kinds.index(kind, cursor + 1)
-        if kinds.count("RunAccepted") != 1 or kinds.count("SessionBound") != 1:
+        if (kinds.count("RunAccepted") != 1 or kinds.count("SessionBound") != 1
+                or kinds.count("RunComplete") != 1 or kinds[0] != "RunAccepted" or kinds[-1] != "RunComplete"):
             raise ValueError("duplicate entrypoint lifecycle")
         bound = stream["session_bound"]
         if not isinstance(bound, dict) or bound.get("composition_manifest") != value["composition_digest"]:
@@ -191,7 +210,8 @@ def entrypoint_report(value):
         sources.append(stream["source"])
         calls += kinds.count("ModelCallStarted")
         ranges.append({"stream": stream["run"], "first": 1, "last": len(positions)})
-    if bindings[0] != bindings[1] or sources[0] != "UserTurn" or sources[1] == "UserTurn" or calls != value["model_calls"]:
+    if (bindings[0] != bindings[1] or sources != ["UserTurn", "Schedule"] or calls != value["model_calls"]
+            or ranges[0]["stream"] == ranges[1]["stream"]):
         raise ValueError("entrypoint equivalence or ground-truth model count mismatch")
     return ranges
 
