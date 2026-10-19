@@ -1,0 +1,166 @@
+{
+  "artifact_type": "forme-m5-release-audit",
+  "body": {
+    "blocking": false,
+    "checks": [
+      {
+        "blocking": false,
+        "check_id": "release_tree",
+        "findings": [],
+        "input_digest": "sha256:03f22e901a6ce55dfcb1022fc6939eb9ccfe9ee03f5a6a36848f5bccb8091b97",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "git",
+        "tool_version": "git version 2.54.0.windows.1"
+      },
+      {
+        "blocking": false,
+        "check_id": "license_notice",
+        "findings": [],
+        "input_digest": "sha256:738e0fd8cb908fa86d22ed406d49ff623e850738980450ded1efa32b30e12d25",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-license-review",
+        "tool_version": "forme-release-audit/5"
+      },
+      {
+        "blocking": false,
+        "check_id": "direct_dependencies",
+        "findings": [],
+        "input_digest": "sha256:935282979c03960253ae1f18b99a051020c4cfaf0e670a524b50d6e218161a2a",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "cargo-metadata",
+        "tool_version": "cargo 1.97.0 (c980f4866 2026-06-30)"
+      },
+      {
+        "blocking": false,
+        "check_id": "borrowing_records",
+        "findings": [],
+        "input_digest": "sha256:3017ab659b447014b8e1b87aad38e7ebfa6053dc0b1aa72010c3e38e41c03fe8",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-borrowing-review",
+        "tool_version": "forme-release-audit/5"
+      },
+      {
+        "blocking": false,
+        "check_id": "upstream_copy",
+        "findings": [],
+        "input_digest": "sha256:ec337b2a980e9833295f379f4da51bfcd2d6f7028b964b8ffd395e09d5b8035b",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "compliance-doctor",
+        "tool_version": "forme-compliance-doctor/2"
+      },
+      {
+        "blocking": false,
+        "check_id": "acceptance_artifacts",
+        "findings": [],
+        "input_digest": "sha256:8d4576e689fc59eee76d60df604f5be6ff3c92bf3d1e3a8339f5af01e96048bc",
+        "observations": [],
+        "outcome": "pass",
+        "tool": "forme-artifact-scan",
+        "tool_version": "forme-release-audit/5"
+      },
+      {
+        "blocking": false,
+        "check_id": "vulnerability_audit",
+        "findings": [],
+        "input_digest": "sha256:8246dc0c6fd86555180a946804769a157c7c6b8c291063bff2b934ed2b3520dc",
+        "observations": [
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0194 affects locked quick-xml 0.30.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0195 affects locked quick-xml 0.30.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0194 affects locked quick-xml 0.39.4 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_ADVISORY",
+            "detail": "RUSTSEC-2026-0195 affects locked quick-xml 0.39.4 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_INFORMATIONAL_WARNING",
+            "detail": "cargo-audit unmaintained warning affects locked zbus_names 4.3.3 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_INFORMATIONAL_WARNING",
+            "detail": "cargo-audit unmaintained warning affects locked zvariant 5.13.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_INFORMATIONAL_WARNING",
+            "detail": "cargo-audit unmaintained warning affects locked zvariant_derive 5.13.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
+          }
+        ],
+        "outcome": "pass",
+        "tool": "cargo-audit",
+        "tool_version": "cargo-audit 0.22.2"
+      },
+      {
+        "blocking": false,
+        "check_id": "ecosystem_threat_profile",
+        "findings": [],
+        "input_digest": "sha256:581241693d564482182a8e86bede711e8f236f935229a4ad608d5810278d89e2",
+        "observations": [
+          {
+            "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
+            "detail": "typed ecosystem threat fixture passed",
+            "path": "test -p forme-protocol --test m5_contract"
+          },
+          {
+            "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
+            "detail": "typed ecosystem threat fixture passed",
+            "path": "test -p forme-capabilities --test m5_ecosystem_contract"
+          },
+          {
+            "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
+            "detail": "typed ecosystem threat fixture passed",
+            "path": "test -p forme-store --test m5_ecosystem_contract"
+          },
+          {
+            "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
+            "detail": "typed ecosystem threat fixture passed",
+            "path": "test -p forme-harness --test m5_ecosystem_contract"
+          },
+          {
+            "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
+            "detail": "typed ecosystem threat fixture passed",
+            "path": "test -p forme-harness --test m5_distribution_contract"
+          },
+          {
+            "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
+            "detail": "typed ecosystem threat fixture passed",
+            "path": "test -p forme-eval --test m5_artifact_contract"
+          },
+          {
+            "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
+            "detail": "typed ecosystem threat fixture passed",
+            "path": "run -p forme-eval --bin forme-m5-artifact-verify -- docs/acceptance/m5-artifacts"
+          }
+        ],
+        "outcome": "pass",
+        "tool": "cargo",
+        "tool_version": "cargo 1.97.0 (c980f4866 2026-06-30)"
+      }
+    ],
+    "outcome": "pass",
+    "root_digest": "sha256:a8d51542672baaed53c307d54ca40abdba2b69100504d59b1b0365ba91f7a251",
+    "schema_version": 1,
+    "tool_version": "forme-release-audit/5"
+  },
+  "digest": "sha256:31e5ad6a0ab75d16d87d2a514313430c237bb00a346400ff7a631d1c442cb7ea",
+  "schema_version": 1
+}
