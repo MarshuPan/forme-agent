@@ -1,7 +1,7 @@
 //! Route outcomes return to the existing owner memory and M3 candidate path.
 use crate::{internal_provenance, production::ProductionRuntime};
 use forme_protocol as p;
-use forme_store::EventStore;
+use forme_store::{EventStore, EvolutionProjection};
 
 impl ProductionRuntime {
     pub(crate) fn sediment_project_route(&self, record: &p::WorkRouteRecord) -> p::Result<()> {
@@ -16,7 +16,7 @@ impl ProductionRuntime {
         let provenance = internal_provenance(p::Source::Internal);
         let episode = p::NodeId(format!("route-episode:{}", route.route.0));
         let mut payloads = Vec::new();
-        let scope = p::Scope(self.config().workspace.0.clone());
+        let scope = route.main.scope.clone();
         let node = |id: p::NodeId, kind: &str, content: String| {
             p::EventPayload::MemoryNodeAppended(p::MemoryNodeAppendedPayload {
                 node_id: id,
@@ -117,16 +117,43 @@ impl ProductionRuntime {
             record.status,
             &record.conflicts,
         ))?;
+        let version = p::StrategyVersionRef(format!("route-proposal:{}", spec_digest.0));
+        let body = self.route_strategy_body(record, version.clone())?;
+        let prior = store.strategy_candidate(&candidate_id)?;
+        let baseline = match prior {
+            Some(prior) => prior.baseline,
+            None if store.has_active_strategies(&scope)? => store
+                .snapshot(scope.clone())?
+                .strategies
+                .into_iter()
+                .filter(|s| s.domain == p::StrategyDomain::Coordination && s.scope == scope)
+                .map(|s| s.version)
+                .next()
+                .unwrap_or(
+                    crate::brain_evolution_seed::repository_seed(
+                        p::StrategyDomain::Coordination,
+                        &scope,
+                    )?
+                    .version()
+                    .clone(),
+                ),
+            None => crate::brain_evolution_seed::repository_seed(
+                p::StrategyDomain::Coordination,
+                &scope,
+            )?
+            .version()
+            .clone(),
+        };
         let candidate = p::StrategyCandidate {
             schema_version: p::SchemaVersion(1),
             candidate: candidate_id.clone(),
             domain: p::StrategyDomain::Coordination,
             scope: route.main.scope.clone(),
             target_tier: p::StabilityTier::Stable,
-            proposed_version: p::StrategyVersionRef(format!("route-proposal:{}", spec_digest.0)),
-            baseline: p::StrategyVersionRef("coordination:seed-v1".into()),
-            spec_ref: p::ContentRef(format!("orchestration-evidence:{}", route.route.0)),
-            spec_digest,
+            proposed_version: version,
+            baseline: baseline.clone(),
+            spec_ref: body.content_ref().clone(),
+            spec_digest: body.digest().clone(),
             evidence: vec![
                 p::EvidenceRef(episode.0.clone()),
                 p::EvidenceRef(format!(
@@ -142,7 +169,7 @@ impl ProductionRuntime {
             },
             rollback_policy: p::StrategyRollbackPolicy {
                 schema_version: p::SchemaVersion(1),
-                known_good: p::StrategyVersionRef("coordination:seed-v1".into()),
+                known_good: baseline,
                 rollback_on_hard_regression: true,
                 owner_on_unverifiable: true,
             },

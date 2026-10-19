@@ -35,6 +35,7 @@ pub struct M3EvolutionHarness {
     governor: Arc<dyn StrategyEvolutionGovernor + Send + Sync>,
     sequence: AtomicU64,
     auto_activation_paused: AtomicBool,
+    initial_snapshot: Option<p::EvolutionSnapshot>,
 }
 
 impl M3EvolutionHarness {
@@ -45,6 +46,7 @@ impl M3EvolutionHarness {
             governor: Arc::new(ConservativeStrategyEvolutionGovernor),
             sequence: AtomicU64::new(1),
             auto_activation_paused: AtomicBool::new(false),
+            initial_snapshot: None,
         }
     }
 
@@ -59,6 +61,42 @@ impl M3EvolutionHarness {
     ) -> Self {
         self.governor = governor;
         self
+    }
+
+    pub(crate) fn with_initial_snapshot(
+        mut self,
+        snapshot: p::EvolutionSnapshot,
+    ) -> p::Result<Self> {
+        snapshot.validate()?;
+        self.initial_snapshot = Some(snapshot);
+        Ok(self)
+    }
+
+    fn current_snapshot(&self, scope: &p::Scope) -> p::Result<p::EvolutionSnapshot> {
+        if !self.store.has_active_strategies(scope)? {
+            if let Some(snapshot) = &self.initial_snapshot {
+                return Ok(snapshot.clone());
+            }
+        }
+        self.store.snapshot(scope.clone())
+    }
+
+    pub(crate) fn continue_control_stream(self, run: &p::RunId) -> p::Result<Self> {
+        let prefix = format!("m3-control:{}:", run.0);
+        let events = self
+            .store
+            .read_run(run.clone())
+            .collect::<p::Result<Vec<_>>>()?;
+        let next = events
+            .iter()
+            .filter(|e| e.event_id.0.starts_with(&prefix))
+            .filter_map(|e| e.event_id.0.rsplit(':').next()?.parse::<u64>().ok())
+            .max()
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or_else(|| p::Error("control sequence exhausted".into()))?;
+        self.sequence.store(next, Ordering::SeqCst);
+        Ok(self)
     }
 
     pub fn set_auto_activation_paused(&self, paused: bool) {
@@ -257,7 +295,7 @@ impl M3EvolutionHarness {
                 ground_truth: evaluation.ground_truth.clone(),
             }),
         )?;
-        let current = self.store.snapshot(candidate.scope.clone())?;
+        let current = self.current_snapshot(&candidate.scope)?;
         let decision = self.governor.decide(candidate, &evaluation, &current);
         Ok(EvolutionEvaluationResult {
             evaluation,
@@ -289,7 +327,7 @@ impl M3EvolutionHarness {
                 "recorded strategy candidate differs from promotion input".into(),
             ));
         }
-        let current = self.store.snapshot(candidate.scope.clone())?;
+        let current = self.current_snapshot(&candidate.scope)?;
         if !matches!(
             self.governor.decide(candidate, evaluation, &current),
             EvolutionDecision::Promote | EvolutionDecision::NeedOwner

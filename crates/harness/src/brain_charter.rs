@@ -11,11 +11,6 @@ impl ProductionRuntime {
     ) -> p::Result<Option<p::WorkspaceCharterRecord>> {
         let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
-        if *workspace != self.config().workspace {
-            return Err(p::Error(
-                "charter read is outside the runtime workspace".into(),
-            ));
-        }
         self.services().store.workspace_charter(workspace)
     }
 
@@ -27,7 +22,7 @@ impl ProductionRuntime {
     ) -> p::Result<p::WorkspaceCharterChangedPayload> {
         let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
-        if record.workspace != self.config().workspace || record.actor != p::Actor::Owner {
+        if record.workspace.0.trim().is_empty() || record.actor != p::Actor::Owner {
             return Err(p::Error(
                 "charter control is outside its owner or workspace".into(),
             ));
@@ -52,7 +47,7 @@ impl ProductionRuntime {
     ) -> p::Result<p::EventId> {
         let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
-        if change.charter.workspace != self.config().workspace || command.0.trim().is_empty() {
+        if change.charter.workspace.0.trim().is_empty() || command.0.trim().is_empty() {
             return Err(p::Error(
                 "charter command has an invalid workspace or identity".into(),
             ));

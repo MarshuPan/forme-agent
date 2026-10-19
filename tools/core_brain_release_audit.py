@@ -51,6 +51,9 @@ WAVES = {"A": (1, 6), "B": (7, 12), "C": (13, 18), "D": (19, 24)}
 # D-specific integration targets are closed inventories. Shared targets select
 # modules, case prefixes or exact names; historical S tests remain outside D.
 D_TARGETS = {
+    ("forme-harness", ("--test", "v1_brain_integration_closure")): (
+        "production_m3_resolves_immutable_bodies_binds_activated_versions_and_recovers",
+    ),
     ("forme-harness", ("--test", "m3_b_harness_contract")): ("c19_",),
     ("forme-harness", ("--test", "v1_core_brain_d_product")): (),
     ("forme-harness", ("--test", "v1_core_brain_d_runner")): (),

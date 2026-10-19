@@ -247,19 +247,6 @@ where
                 provenance: provenance.clone(),
                 evidence_priority: memory::EvidencePriority::Process,
             })?;
-        let verified = events
-            .iter()
-            .filter(|e| {
-                matches!(&e.payload,
-            p::EventPayload::VerificationFinished(p) if p.outcome == p::VerificationOutcome::Pass)
-            })
-            .map(|e| TemporalEvidence {
-                schema_version: p::SchemaVersion(1),
-                reference: p::EvidenceRef(e.event_id.0.clone()),
-                observed_at: e.ts_unix_ms,
-                verified_process: true,
-            })
-            .collect::<Vec<_>>();
         let failed = events.iter().any(|e| {
             matches!(
                 e.payload,
@@ -272,6 +259,11 @@ where
             .iter()
             .filter_map(|e| match &e.payload {
                 p::EventPayload::ToolCallProposed(p) => Some(p::CapabilityRef(p.tool.0.clone())),
+                p::EventPayload::CapabilityEvidenceRecorded(p)
+                    if e.provenance.trust_tier == p::TrustTier::VerifiedProcess =>
+                {
+                    Some(p.capability.clone())
+                }
                 _ => None,
             })
             .collect::<std::collections::BTreeSet<_>>();
@@ -282,6 +274,21 @@ where
         } else {
             capability
         } {
+            let verified = events
+                .iter()
+                .filter(|e| {
+                    matches!(&e.payload,
+                p::EventPayload::CapabilityEvidenceRecorded(p) if p.capability == capability
+                    && p.outcome.0 == "pass" && p.reliability.0 == "verified"
+                    && e.provenance.trust_tier == p::TrustTier::VerifiedProcess)
+                })
+                .map(|e| TemporalEvidence {
+                    schema_version: p::SchemaVersion(1),
+                    reference: p::EvidenceRef(e.event_id.0.clone()),
+                    observed_at: e.ts_unix_ms,
+                    verified_process: true,
+                })
+                .collect::<Vec<_>>();
             let mut observations = evidence.clone();
             observations.extend(verified.clone());
             observations.push(TemporalEvidence {
@@ -316,6 +323,12 @@ where
                 terminal.run_id.0,
                 p::sha256_content_digest(capability.0.as_bytes()).0
             ));
+            // Preserve candidates recorded by an older target encoding. A
+            // restart backfills missing observations; it never rewrites facts.
+            if self.memory.candidate_record(&id).is_some() {
+                ids.push(id);
+                continue;
+            }
             self.memory.create_candidate_spec(memory::CandidateSpec {
                 schema_version: p::SchemaVersion(1),
                 id: id.clone(),
@@ -412,16 +425,22 @@ where
         id: p::CandidateId,
         owner_confirmed: bool,
     ) -> p::Result<GovernanceDecision> {
-        let attribute = self
+        let (attribute, object) = self
             .candidate_records()
             .find_map(|record| {
-                (record.spec.id == id)
-                    .then(|| parse_agent_self(&record))
-                    .flatten()
+                if record.spec.id != id {
+                    return None;
+                }
+                Some((
+                    parse_agent_self(&record)?,
+                    semantic_target_object(&record.spec.target)?.0,
+                ))
             })
             .ok_or_else(|| p::Error("agent-self candidate is not registered".into()))?;
-        self.cognition
-            .govern_and_apply(governance_for_agent(id, attribute, owner_confirmed))
+        let mut candidate = governance_for_agent(id, attribute, owner_confirmed);
+        // Preserve the original target of historical eight-field candidates.
+        candidate.target.object = object;
+        self.cognition.govern_and_apply(candidate)
     }
 
     pub fn propose_partnership(
@@ -697,10 +716,14 @@ where
             .filter_map(|record| parse_agent_self(&record))
             .filter(|attribute| attribute.capability == key)
             .filter(|attribute| {
-                self.cognition.is_object_usable(&p::ObjectRef(format!(
-                    "agent-self:{}",
-                    attribute.capability.0
-                )))
+                self.cognition.stable_objects().iter().any(|s| {
+                    s.active
+                        && s.kind == StableCognitionKind::AgentSelf
+                        && s.scope.scope == attribute.scope
+                        && (s.object == agent_self_object(&attribute.capability, &attribute.scope)
+                            || s.object.0 == format!("agent-self:{}", attribute.capability.0))
+                        && self.cognition.is_object_usable(&s.object)
+                })
             })
             .max_by_key(|attribute| latest_time(&attribute.evidence))
     }
@@ -781,7 +804,7 @@ fn governance_for_agent(
         owner_confirmed,
         target: StableCognition {
             schema_version: p::SchemaVersion(1),
-            object: p::ObjectRef(format!("agent-self:{}", attribute.capability.0)),
+            object: agent_self_object(&attribute.capability, &attribute.scope),
             scope: map_scope(attribute.scope.clone()),
             kind: StableCognitionKind::AgentSelf,
             statement: format!(
@@ -958,7 +981,7 @@ fn decode_evidence(value: &str) -> Option<Vec<TemporalEvidence>> {
 
 fn encode_agent_self(attribute: &AgentSelfAttribute) -> p::CandidateTargetRef {
     p::CandidateTargetRef(format!(
-        "agent-self|{}|{}|{}|{}|{}|{}|{}|{}",
+        "agent-self|{}|{}|{}|{}|{}|{}|{}|{}|scoped-v1",
         escape(&attribute.capability.0),
         escape(&attribute.reliability.0),
         escape(attribute.gap.as_deref().unwrap_or("")),
@@ -971,7 +994,9 @@ fn encode_agent_self(attribute: &AgentSelfAttribute) -> p::CandidateTargetRef {
 }
 
 fn parse_agent_self(record: &memory::CandidateRecord) -> Option<AgentSelfAttribute> {
-    let fields = fields(&record.spec.target, "agent-self", 8)?;
+    let fields = fields(&record.spec.target, "agent-self", 9)
+        .filter(|f| f[8] == "scoped-v1")
+        .or_else(|| fields(&record.spec.target, "agent-self", 8))?;
     Some(AgentSelfAttribute {
         schema_version: record.spec.schema_version,
         capability: p::CapabilityRef(unescape(fields[0])),
@@ -1057,6 +1082,15 @@ fn parse_trust(record: &memory::CandidateRecord) -> Option<TrustProfile> {
 pub(crate) fn semantic_target_object(
     target: &p::CandidateTargetRef,
 ) -> Option<(p::ObjectRef, StableCognitionKind)> {
+    if let Some(fields) = fields(target, "agent-self", 9).filter(|f| f[8] == "scoped-v1") {
+        return Some((
+            agent_self_object(
+                &p::CapabilityRef(unescape(fields[0])),
+                &p::Scope(unescape(fields[3])),
+            ),
+            StableCognitionKind::AgentSelf,
+        ));
+    }
     if let Some(fields) = fields(target, "agent-self", 8) {
         return Some((
             p::ObjectRef(format!("agent-self:{}", unescape(fields[0]))),
@@ -1076,6 +1110,14 @@ pub(crate) fn semantic_target_object(
         ));
     }
     None
+}
+
+pub fn agent_self_object(capability: &p::CapabilityRef, scope: &p::Scope) -> p::ObjectRef {
+    p::ObjectRef(format!(
+        "agent-self:{}:{}",
+        capability.0,
+        p::sha256_content_digest(scope.0.as_bytes()).0
+    ))
 }
 
 fn fields<'a>(

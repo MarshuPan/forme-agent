@@ -47,9 +47,6 @@ impl ProductionRuntime {
     ) -> p::Result<p::EventId> {
         let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
-        if project.workspace != self.config().workspace {
-            return Err(p::Error("project workspace differs from runtime".into()));
-        }
         self.validate_project_resources(&project)?;
         self.append_orchestration(
             command,
@@ -63,16 +60,23 @@ impl ProductionRuntime {
         project: &p::WorkspaceProject,
     ) -> p::Result<()> {
         let harness = self.harness();
+        super::brain_workspaces::check_workspace(
+            &self.services().store,
+            &self.config().workspace,
+            &project.workspace,
+            &project.scope,
+        )?;
         if project.model != harness.config.model_profile
             || project
                 .capabilities
                 .iter()
                 .any(|c| !harness.governance.visible_capabilities.contains(c))
-            || !harness
-                .governance
-                .envelope
-                .as_ref()
-                .is_some_and(|e| p::charter_scope_contains(&e.scope, &project.scope))
+            || (!project.capabilities.is_empty()
+                && !harness
+                    .governance
+                    .envelope
+                    .as_ref()
+                    .is_some_and(|e| p::charter_scope_contains(&e.scope, &project.scope)))
         {
             return Err(p::Error(
                 "project requests unavailable model, capability or delegated scope".into(),
@@ -113,13 +117,31 @@ impl ProductionRuntime {
                 return Err(p::Error("orchestration command identity conflict".into()));
             }
         }
-        let revision = self.orchestration_snapshot()?.revision;
-        let fact = p::OrchestrationFact::seal(
-            self.config().workspace.clone(),
-            command,
-            revision,
-            operation,
-        )?;
+        let snapshot = self.orchestration_snapshot()?;
+        let workspace = match &operation {
+            p::OrchestrationOperation::ProjectDeclared(project)
+            | p::OrchestrationOperation::ProjectRevised { project, .. } => {
+                Some(project.workspace.clone())
+            }
+            p::OrchestrationOperation::RouteDeclared(route) => snapshot
+                .projects
+                .get(&route.project)
+                .map(|p| p.workspace.clone()),
+            p::OrchestrationOperation::NodeStarted { route, .. }
+            | p::OrchestrationOperation::NodeFinished { route, .. }
+            | p::OrchestrationOperation::NodeRetried { route, .. }
+            | p::OrchestrationOperation::RouteCancelled { route }
+            | p::OrchestrationOperation::ConflictReported { route, .. }
+            | p::OrchestrationOperation::RouteClosed { route, .. }
+            | p::OrchestrationOperation::Checkpoint { route, .. } => snapshot
+                .routes
+                .get(route)
+                .and_then(|r| snapshot.projects.get(&r.declaration.project))
+                .map(|p| p.workspace.clone()),
+        }
+        .ok_or_else(|| p::Error("orchestration operation has no registered workspace".into()))?;
+        let revision = snapshot.revision;
+        let fact = p::OrchestrationFact::seal(workspace, command, revision, operation)?;
         let provenance = if owner {
             p::Provenance {
                 source: p::Source::OwnerControl,
@@ -182,7 +204,11 @@ impl ProductionRuntime {
         now: p::Timestamp,
     ) -> p::Result<p::RouteDeclaration> {
         let state = self.orchestration_snapshot()?;
-        let route_key = p::canonical_digest(&(&self.config().workspace, &command))?.0;
+        let spec = state
+            .projects
+            .get(project)
+            .ok_or_else(|| p::Error("project is not declared".into()))?;
+        let route_key = p::canonical_digest(&(&spec.workspace, &command))?.0;
         let route_ref = p::ExecutionRouteRef(format!("project-route:{route_key}"));
         if let Some(record) = state.routes.get(&route_ref) {
             if record.declaration.project != project
@@ -205,7 +231,8 @@ impl ProductionRuntime {
             .workspace_charter(&spec.workspace)?
             .ok_or_else(|| p::Error("project has no charter".into()))?;
         let rules = p::CharterRules::parse(&charter)?;
-        let library = self.services().orchestration.clone();
+        let (library, active_coordination) =
+            self.project_orchestration_library(spec, &signature, &state)?;
         let selection = library.select(&signature_from_protocol(&signature));
         let parent = p::RunId(format!("project-segment:{route_key}"));
         let profile = c::SubagentProfile {
@@ -267,6 +294,16 @@ impl ProductionRuntime {
         let frame = self.services().coordination.frame(goal, &ctx);
         self.services().coordination.plan(&frame)?;
         let mut route = library.route(selection.pattern.clone(), &frame);
+        if let Some(active) = active_coordination {
+            if route.nodes.len() > usize::from(active.max_subagents) {
+                return Err(p::Error(
+                    "active coordination policy limits subagent count".into(),
+                ));
+            }
+            // An active policy cannot be bypassed through custom fallback or
+            // silently remove mandatory dependency/review nodes.
+            route = c::apply_coordination_strategy(&active, &route)?.route;
+        }
         route.reference = route_ref;
         if rules.max_nodes.is_some_and(|max| route.nodes.len() > max) {
             return Err(p::Error("charter limits route node count".into()));
@@ -612,8 +649,12 @@ impl ProductionRuntime {
                 run,
                 handle,
                 session,
-            } = h.prepare_ingress_internal_as(request, Vec::new(), Some(request_run.clone()))?
-            {
+            } = h.prepare_workspace_ingress(
+                request,
+                Vec::new(),
+                Some(request_run.clone()),
+                &state.projects[&route.project].workspace,
+            )? {
                 {
                     let mut record = handle
                         .record
@@ -693,12 +734,22 @@ impl ProductionRuntime {
             budget: Some(p::Budget("units:1".into())),
             idempotency_key: Some(p::IdempotencyKey(format!("parent:{}", route.route.0))),
         };
-        match h.prepare_ingress_internal_as(req.clone(), Vec::new(), Some(route.parent.clone()))? {
+        let workspace = self.orchestration_snapshot()?.projects[&route.project]
+            .workspace
+            .clone();
+        match h.prepare_workspace_ingress(
+            req.clone(),
+            Vec::new(),
+            Some(route.parent.clone()),
+            &workspace,
+        )? {
             super::PreparedSubmission::New { .. } => {}
             super::PreparedSubmission::Existing(_) => {
                 // Recreate only the coordination container. Children with
                 // incomplete effects are reconciled separately, never driven.
-                let context = (h.context_factory)(&req, &route.parent, &h.config)?;
+                let mut config = h.config.clone();
+                config.workspace = workspace.clone();
+                let context = (h.context_factory)(&req, &route.parent, &config)?;
                 let loop_ctx = forme_loop::RunCtx::new_with_input_provenance(
                     p::SessionId(req.session.0.clone()),
                     req.input.clone(),
@@ -709,6 +760,7 @@ impl ProductionRuntime {
                 )?;
                 let record = super::RunRecord {
                     request: req,
+                    workspace,
                     loop_ctx,
                     result: None,
                     final_output: None,
@@ -1199,7 +1251,7 @@ fn final_node_output(events: &[p::Event]) -> String {
         })
         .collect()
 }
-fn signature_from_protocol(s: &p::TaskSignature) -> c::ApplicabilitySignature {
+pub(crate) fn signature_from_protocol(s: &p::TaskSignature) -> c::ApplicabilitySignature {
     c::ApplicabilitySignature {
         schema_version: s.schema_version,
         decomposability: match s.partition {

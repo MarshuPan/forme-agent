@@ -66,6 +66,7 @@ impl ReactiveHarness {
     pub(crate) fn resolve_formal_tool(
         &self,
         run: &p::RunId,
+        workspace: &p::WorkspaceRef,
         tool: &ModelToolCall,
     ) -> Option<p::ActionIntent> {
         let binding = self.formal_tool_bindings.get(&tool.tool)?;
@@ -117,6 +118,14 @@ impl ReactiveHarness {
         if backend != binding.backend {
             return None;
         }
+        let scope = if self.project_directory.is_some() {
+            self.governance.envelope.as_ref()?.scope.clone()
+        } else {
+            p::Scope(workspace.0.clone())
+        };
+        if !p::charter_scope_contains(&binding.scope, &scope) {
+            return None;
+        }
         Some(p::ActionIntent {
             schema_version: p::SchemaVersion(1),
             intent_id: p::ActionId(format!(
@@ -128,7 +137,7 @@ impl ReactiveHarness {
             backend_hint: backend,
             capability_ref: binding.capability.clone(),
             action_type,
-            scope: binding.scope.clone(),
+            scope,
             risk_hint: binding.risk,
             expected_effect: if backend == p::BackendKind::Notification {
                 p::ExpectedEffect::Outward
@@ -227,8 +236,15 @@ impl ReactiveHarness {
             arguments: proposal.args.clone(),
             intent: None,
         };
+        let workspace = events
+            .iter()
+            .find_map(|e| match &e.payload {
+                p::EventPayload::SessionBound(bound) => Some(bound.workspace.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| self.config.workspace.clone());
         let mut intent = self
-            .resolve_formal_tool(run, &tool)
+            .resolve_formal_tool(run, &workspace, &tool)
             .ok_or_else(|| p::Error("approval tool binding is no longer available".into()))?;
         intent.source = accepted.source;
         if self
@@ -260,7 +276,9 @@ impl ReactiveHarness {
             budget: Some(p::Budget(format!("units:{max_turns}"))),
             idempotency_key: accepted.idempotency_key.clone(),
         };
-        let context = (self.context_factory)(&request, run, &self.config)?;
+        let mut config = self.config.clone();
+        config.workspace = workspace.clone();
+        let context = (self.context_factory)(&request, run, &config)?;
         let mut loop_ctx = forme_loop::RunCtx::new_with_input_provenance(
             accepted.session_ref.clone(),
             request.input.clone(),
@@ -306,6 +324,7 @@ impl ReactiveHarness {
         broker.take_events(); // Rehydration is a read, not a new approval fact.
         let record = RunRecord {
             request,
+            workspace,
             loop_ctx,
             result: None,
             final_output: None,

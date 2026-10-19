@@ -127,11 +127,21 @@ try {
             @{ Id = "C6-claim-conflict"; Package = "forme-store"; Target = @("--test", "approval_consumption"); Test = "same_nonce_with_changed_semantics_is_rejected_without_a_second_row" },
             @{ Id = "C6-model-registry"; Package = "forme-models"; Target = @("--lib"); Test = "registry::tests::json_config_is_bounded_closed_and_keeps_credentials_indirect" },
             @{ Id = "C6-model-incompatible"; Package = "forme-models"; Target = @("--lib"); Test = "registry::tests::tool_incompatibility_is_a_blocking_selection_error" },
-            @{ Id = "C6-model-degrade"; Package = "forme-models"; Target = @("--lib"); Test = "registry::tests::optional_profile_binding_failure_degrades_but_default_fails_closed" }
+            @{ Id = "C6-model-degrade"; Package = "forme-models"; Target = @("--lib"); Test = "registry::tests::optional_profile_binding_failure_degrades_but_default_fails_closed" },
+            @{ Id = "C2-multi-workspace-brain"; Package = "forme-harness"; Target = @("--test", "v1_brain_integration_closure"); Test = "one_owner_brain_runs_distinct_workspace_projects_and_replays_both" },
+            @{ Id = "C3-stable-statement-context"; Package = "forme-harness"; Target = @("--test", "v1_brain_integration_closure"); Test = "scoped_stable_statements_reach_the_model_and_retraction_removes_them" },
+            @{ Id = "C4-workspace-no-new-grant"; Package = "forme-harness"; Target = @("--test", "v1_brain_competence_closure"); Test = "registering_an_independent_workspace_does_not_grant_tools_or_cross_scope_actions" },
+            @{ Id = "C5-evolution-http"; Package = "forme-gateway"; Target = @("--test", "gatewayd_e2e"); Test = "s23_http_web_surface_uses_real_gateway_harness_and_event_stream" }
         )
     }
 
     $bGroups = @(
+        @{ Id = "C7-three-cognitive-models"; Package = "forme-harness"; Target = "v1_brain_integration_closure"; Tests = @(
+            "production_observes_all_three_models_without_self_promoting_or_duplicate_recovery"
+        ) },
+        @{ Id = "C7-live-competence"; Package = "forme-harness"; Target = "v1_brain_competence_closure"; Tests = @(
+            "competence_reads_real_verified_results_deduplicates_and_downgrades_on_failure_or_retraction"
+        ) },
         @{ Id = "C7-stable-replay"; Package = "forme-cognition"; Target = "v1_b0_stable_replay"; Tests = @(
             "promotions_replay_field_for_field_across_every_stable_family",
             "restart_keeps_reproduction_time_so_nothing_turns_stale",
@@ -218,6 +228,9 @@ try {
     )
 
     $cGroups = @(
+        @{ Id = "C18-activated-route-fitness"; Package = "forme-harness"; Target = "v1_brain_integration_closure"; Tests = @(
+            "route_history_changes_selection_only_after_governed_activation_and_replays"
+        ) },
         @{ Id = "C13-charter"; Package = "forme-harness"; Target = "v1_core_brain_c_charter"; Tests = @(
             "c13_charter_is_owner_bound_atomic_versioned_replayable_and_in_formal_context",
             "c13_concurrent_charter_cas_has_one_winner_and_identical_commands_are_durable"
@@ -275,6 +288,9 @@ try {
     )
 
     $dGroups = @(
+        @{ Id = "C19-production-m3"; Package = "forme-harness"; Target = @("--test", "v1_brain_integration_closure"); Tests = @(
+            "production_m3_resolves_immutable_bodies_binds_activated_versions_and_recovers"
+        ) },
         @{ Id = "C19-pinned-adaptation"; Package = "forme-harness"; Target = @("--test", "m3_b_harness_contract"); Tests = @(
             "c19_selected_provider_cannot_inherit_another_models_measured_adaptation"
         ) },

@@ -81,6 +81,42 @@ pub fn signature_score(
 }
 
 impl SeedOrchestrationLibrary {
+    pub fn with_active_patterns(&self, allowed: &[p::OrchestrationPatternRef]) -> p::Result<Self> {
+        if allowed.is_empty()
+            || allowed
+                .iter()
+                .any(|id| !self.patterns.iter().any(|p| &p.reference == id))
+        {
+            return Err(p::Error(
+                "active coordination references an unavailable pattern".into(),
+            ));
+        }
+        let mut library = self.clone();
+        library.patterns.retain(|p| allowed.contains(&p.reference));
+        Ok(library)
+    }
+    /// A governed caller may supply a pinned fitness view. This cannot change
+    /// the structural signature, compatibility rules, or acceptance threshold.
+    pub fn with_active_fitness(
+        &self,
+        fitness: &std::collections::BTreeMap<p::OrchestrationPatternRef, p::Confidence>,
+    ) -> p::Result<Self> {
+        if fitness
+            .values()
+            .any(|c| !c.0.is_finite() || !(0.0..=1.0).contains(&c.0))
+        {
+            return Err(p::Error(
+                "active pattern fitness must be finite and bounded".into(),
+            ));
+        }
+        let mut library = self.clone();
+        for pattern in &mut library.patterns {
+            if let Some(value) = fitness.get(&pattern.reference) {
+                pattern.fitness = *value;
+            }
+        }
+        Ok(library)
+    }
     pub fn index(&self) -> Vec<PatternIndexEntry> {
         self.patterns
             .iter()

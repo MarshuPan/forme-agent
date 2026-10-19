@@ -53,7 +53,7 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
             .env("FORME_GATEWAY_BIND", "127.0.0.1")
             .env("FORME_GATEWAY_PORT", gateway_address.port().to_string())
             .env("FORME_GATEWAY_TOKEN", TOKEN)
-            .env("FORME_GATEWAY_MAX_BODY_BYTES", "1024")
+            .env("FORME_GATEWAY_MAX_BODY_BYTES", "8192")
             .env("FORME_OWNER_ID", "owner:gateway-e2e")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -232,7 +232,7 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
             ("Origin", format!("http://{gateway_address}")),
             ("x-forme-csrf", "1".into()),
         ],
-        Some(&"x".repeat(2048)),
+        Some(&"x".repeat(16384)),
     );
     assert_status(&oversized, 413);
     let missing_csrf = http(
@@ -483,17 +483,110 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
         report
     );
 
+    let seed_request =
+        serde_json::json!({"schema_version":1,"domain":"Loop","workspace":"workspace:default"})
+            .to_string();
+    assert_status(
+        &http(
+            gateway_address,
+            "POST",
+            "/v1/evolution/seeds",
+            &[("Content-Type", "application/json".into())],
+            Some(&seed_request),
+        ),
+        401,
+    );
+    assert_status(
+        &http(
+            gateway_address,
+            "POST",
+            "/v1/evolution/seeds",
+            &[authorization(), ("Content-Type", "application/json".into())],
+            Some(&seed_request),
+        ),
+        403,
+    );
+    let seeded = http(
+        gateway_address,
+        "POST",
+        "/v1/evolution/seeds",
+        &mutation_headers(gateway_address),
+        Some(&seed_request),
+    );
+    assert_status(&seeded, 200);
+    let seed: forme_harness::ProductionStrategySpec =
+        serde_json::from_str(response_body(&seeded)).unwrap();
+    let repeated = http(
+        gateway_address,
+        "POST",
+        "/v1/evolution/seeds",
+        &mutation_headers(gateway_address),
+        Some(&seed_request),
+    );
+    assert_status(&repeated, 200);
+    assert_eq!(response_body(&repeated), response_body(&seeded));
+    let spec_request = serde_json::json!({"schema_version":1,"spec":{"Loop":{
+        "schema_version":1,"version":"loop:gateway-e2e:v2","scope":"workspace:default",
+        "content_ref":"unsealed","content_digest":"unsealed",
+        "compatibility":{"schema_version":1,"minimum_runtime_schema":1,"event_schema":1,"model_profile":null,"tool_schema":null,"backend_schema":null},
+        "phases":["Context","Deliberate","Policy","Approval","Execute","Verify","Checkpoint","Finish"],
+        "triggers":["Reactive"],"checkpoint_cadence_turns":1,"verification_cadence_turns":1,
+        "budget":{"schema_version":1,"max_turns":2,"max_tokens":4096,"max_wall_time_ms":10000,"max_cost_microunits":10000,"max_tool_calls":1},
+        "failure_fallback":"Stop"
+    }}});
+    assert_status(
+        &http(
+            gateway_address,
+            "POST",
+            "/v1/evolution/specs",
+            &[("Content-Type", "application/json".into())],
+            Some(&spec_request.to_string()),
+        ),
+        401,
+    );
+    assert_status(
+        &http(
+            gateway_address,
+            "POST",
+            "/v1/evolution/specs",
+            &[authorization(), ("Content-Type", "application/json".into())],
+            Some(&spec_request.to_string()),
+        ),
+        403,
+    );
+    let registered = http(
+        gateway_address,
+        "POST",
+        "/v1/evolution/specs",
+        &mutation_headers(gateway_address),
+        Some(&spec_request.to_string()),
+    );
+    assert_status(&registered, 200);
+    let spec: forme_harness::ProductionStrategySpec =
+        serde_json::from_str(response_body(&registered)).unwrap();
+    let mut changed = spec_request.clone();
+    changed["spec"]["Loop"]["budget"]["max_turns"] = serde_json::json!(3);
+    assert_status(
+        &http(
+            gateway_address,
+            "POST",
+            "/v1/evolution/specs",
+            &mutation_headers(gateway_address),
+            Some(&changed.to_string()),
+        ),
+        400,
+    );
     let evolution_run = p::RunId("run:gateway-e2e:evolution-candidate".into());
-    let untrusted_candidate = p::StrategyCandidate {
+    let mut untrusted_candidate = p::StrategyCandidate {
         schema_version: p::SchemaVersion(1),
         candidate: p::CandidateId("candidate:gateway-e2e:loop:v2".into()),
         domain: p::StrategyDomain::Loop,
-        scope: p::Scope("workspace:gateway-e2e".into()),
+        scope: p::Scope("workspace:default".into()),
         target_tier: p::StabilityTier::Stable,
-        proposed_version: p::StrategyVersionRef("loop:gateway-e2e:v2".into()),
-        baseline: p::StrategyVersionRef("loop:gateway-e2e:v1".into()),
-        spec_ref: p::ContentRef("content:loop:gateway-e2e:v2".into()),
-        spec_digest: p::SchemaDigest("digest:loop:gateway-e2e:v2".into()),
+        proposed_version: spec.version().clone(),
+        baseline: seed.version().clone(),
+        spec_ref: spec.content_ref().clone(),
+        spec_digest: spec.digest().clone(),
         evidence: vec![p::EvidenceRef("evidence:gateway-e2e".into())],
         provenance: p::Provenance {
             source: p::Source::Communication,
@@ -504,11 +597,26 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
         impact: p::EvolutionImpact::Cautious,
         rollback_policy: p::StrategyRollbackPolicy {
             schema_version: p::SchemaVersion(1),
-            known_good: p::StrategyVersionRef("loop:gateway-e2e:v1".into()),
+            known_good: seed.version().clone(),
             rollback_on_hard_regression: true,
             owner_on_unverifiable: true,
         },
     };
+    untrusted_candidate.spec_digest = p::SchemaDigest("tampered".into());
+    let bad_candidate =
+        serde_json::json!({"schema_version":1,"run":evolution_run,"candidate":untrusted_candidate})
+            .to_string();
+    assert_status(
+        &http(
+            gateway_address,
+            "POST",
+            "/v1/evolution/candidates",
+            &mutation_headers(gateway_address),
+            Some(&bad_candidate),
+        ),
+        400,
+    );
+    untrusted_candidate.spec_digest = spec.digest().clone();
     let candidate_body = serde_json::json!({
         "schema_version": 1,
         "run": evolution_run,
@@ -523,21 +631,47 @@ fn s23_http_web_surface_uses_real_gateway_harness_and_event_stream() {
         Some(&candidate_body),
     );
     assert_status(&candidate_response, 201);
+    let candidate_event: p::EventId =
+        serde_json::from_str(response_body(&candidate_response)).unwrap();
+    let cognition_stream = manifest["aggregate_refs"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .find(|(key, _)| key.contains("cognition"))
+        .unwrap()
+        .1
+        .as_str()
+        .unwrap();
     let candidate_events = http(
         gateway_address,
         "GET",
-        "/v1/runs/run:gateway-e2e:evolution-candidate/events?after=0",
+        &format!("/v1/runs/{cognition_stream}/events?after=0"),
         &[authorization()],
         None,
     );
     assert_status(&candidate_events, 200);
     let candidate_events = parse_sse(response_body(&candidate_events));
-    let p::EventPayload::CandidateCreated(candidate) = &candidate_events[0].payload else {
+    let candidate = candidate_events
+        .iter()
+        .find(|event| event.event_id == candidate_event)
+        .unwrap();
+    let p::EventPayload::CandidateCreated(candidate) = &candidate.payload else {
         panic!("evolution candidate event was not recorded")
     };
     let stamped = candidate.strategy_candidate.as_ref().unwrap();
     assert_eq!(stamped.provenance.actor, p::Actor::Owner);
     assert_eq!(stamped.provenance.trust_tier, p::TrustTier::OwnerInput);
+    let snapshot = http(
+        gateway_address,
+        "GET",
+        "/v1/evolution/snapshot?scope=workspace:default",
+        &[authorization()],
+        None,
+    );
+    assert_status(&snapshot, 200);
+    let snapshot: p::EvolutionSnapshot = serde_json::from_str(response_body(&snapshot)).unwrap();
+    assert_eq!(snapshot.strategies.len(), 1);
+    assert_eq!(snapshot.strategies[0].version, *seed.version());
 
     stop(&mut gatewayd.0);
     model_server.join().unwrap();

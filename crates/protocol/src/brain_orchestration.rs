@@ -464,6 +464,26 @@ impl OrchestrationLedger {
         workspace: &WorkspaceRef,
         operation: &OrchestrationOperation,
     ) -> Result<()> {
+        let project = match operation {
+            OrchestrationOperation::ProjectDeclared(project)
+            | OrchestrationOperation::ProjectRevised { project, .. } => Some(project),
+            OrchestrationOperation::RouteDeclared(route) => self.projects.get(&route.project),
+            OrchestrationOperation::NodeStarted { route, .. }
+            | OrchestrationOperation::NodeFinished { route, .. }
+            | OrchestrationOperation::NodeRetried { route, .. }
+            | OrchestrationOperation::RouteCancelled { route }
+            | OrchestrationOperation::ConflictReported { route, .. }
+            | OrchestrationOperation::RouteClosed { route, .. }
+            | OrchestrationOperation::Checkpoint { route, .. } => self
+                .routes
+                .get(route)
+                .and_then(|r| self.projects.get(&r.declaration.project)),
+        };
+        if project.is_some_and(|p| p.workspace != *workspace) {
+            return Err(Error(
+                "orchestration fact crosses the project's workspace".into(),
+            ));
+        }
         match operation {
             OrchestrationOperation::ProjectRevised {
                 project,

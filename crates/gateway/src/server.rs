@@ -290,6 +290,8 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
             get(auto_activation_status).post(set_auto_activation_status),
         )
         .route("/v1/evolution/candidates", post(record_strategy_candidate))
+        .route("/v1/evolution/seeds", post(initialize_strategy_seed))
+        .route("/v1/evolution/specs", post(register_strategy_spec))
         .route("/v1/evolution/evaluations", post(evaluate_strategy))
         .route("/v1/evolution/promotions", post(promote_strategy))
         .route("/v1/evolution/activations", post(activate_strategy))
@@ -1611,6 +1613,50 @@ async fn set_auto_activation_status(
         schema_version: p::SchemaVersion(1),
         paused,
     }))
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InitializeStrategySeedRequest {
+    schema_version: p::SchemaVersion,
+    domain: p::StrategyDomain,
+    workspace: p::WorkspaceRef,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RegisterStrategySpecRequest {
+    schema_version: p::SchemaVersion,
+    spec: forme_harness::ProductionStrategySpec,
+}
+
+async fn initialize_strategy_seed(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(request): Json<InitializeStrategySeedRequest>,
+) -> Result<Json<forme_harness::ProductionStrategySpec>, ApiError> {
+    require_schema(request.schema_version)?;
+    state.authorize(&headers, true)?;
+    let owner = state.owner.clone();
+    let runtime = state.runtime.clone();
+    let body = blocking(move || {
+        runtime.initialize_strategy_seed(&owner, request.domain, &request.workspace)
+    })
+    .await?;
+    Ok(Json(body))
+}
+
+async fn register_strategy_spec(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(request): Json<RegisterStrategySpecRequest>,
+) -> Result<Json<forme_harness::ProductionStrategySpec>, ApiError> {
+    require_schema(request.schema_version)?;
+    state.authorize(&headers, true)?;
+    let owner = state.owner.clone();
+    let runtime = state.runtime.clone();
+    let body = blocking(move || runtime.register_strategy_spec(&owner, request.spec)).await?;
+    Ok(Json(body))
 }
 
 async fn record_strategy_candidate(

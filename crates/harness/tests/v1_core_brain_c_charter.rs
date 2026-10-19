@@ -65,9 +65,12 @@ fn c13_charter_is_owner_bound_atomic_versioned_replayable_and_in_formal_context(
         .is_err());
     let mut bad = change.clone();
     bad.charter.workspace.0 = "workspace:other".into();
-    bad.charter.refresh_digest().unwrap();
     assert!(runtime
-        .apply_workspace_charter(&f.owner(), p::IdempotencyKey("cross".into()), bad)
+        .apply_workspace_charter(
+            &f.owner(),
+            p::IdempotencyKey("changed-with-old-digest".into()),
+            bad
+        )
         .is_err());
     let mut bad = change.clone();
     bad.charter.constraints.clear();

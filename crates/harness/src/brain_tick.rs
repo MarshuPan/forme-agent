@@ -341,7 +341,26 @@ impl HarnessCognitiveTick<'_> {
             .proactivity
             .tick(cognition::TickTrigger::Schedule, &snapshot);
         let mut ran = false;
-        for (index, impulse) in impulses.into_iter().enumerate() {
+        for (index, mut impulse) in impulses.into_iter().enumerate() {
+            let snapshot = if let Some(services) = self.harness.brain_services() {
+                let competence = services.competence_inputs_at(
+                    &impulse.scope,
+                    None,
+                    input.now,
+                    Some(&input.claim.range.to),
+                )?;
+                impulse.capability_evidence = competence
+                    .capability_evidence
+                    .iter()
+                    .map(|e| e.reference.clone())
+                    .collect();
+                cognition::CognitionSnapshot {
+                    competence,
+                    ..snapshot.clone()
+                }
+            } else {
+                snapshot.clone()
+            };
             let learning_record = impulse
                 .seed
                 .iter()

@@ -379,6 +379,7 @@ fn s44_s45_real_loopback_delivery_stays_inside_disclosure_and_harness_governance
             p::EventKind::CapabilityEvidenceRecorded,
             p::EventKind::VerificationStarted,
             p::EventKind::VerificationFinished,
+            p::EventKind::CapabilityEvidenceRecorded,
             p::EventKind::RunComplete,
         ]
     );

@@ -760,7 +760,16 @@ fn s41_s42_external_floor_is_plan_bound_and_harness_stamps_untrusted() {
                 | p::EventKind::CapabilityEvidenceRecorded
         )
     }) {
-        assert_eq!(event.provenance.trust_tier, p::TrustTier::Untrusted);
+        let independently_verified = matches!(&event.payload,
+            p::EventPayload::CapabilityEvidenceRecorded(p) if p.reliability.0 == "verified");
+        assert_eq!(
+            event.provenance.trust_tier,
+            if independently_verified {
+                p::TrustTier::VerifiedProcess
+            } else {
+                p::TrustTier::Untrusted
+            }
+        );
         assert_eq!(event.provenance.actor, p::Actor::System);
     }
     let output = events

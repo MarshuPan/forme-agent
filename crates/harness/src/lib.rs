@@ -48,12 +48,18 @@ use forme_store::{
 };
 
 mod brain_charter;
+mod brain_evolution;
+mod brain_evolution_seed;
 mod brain_models;
+mod brain_route_fitness;
+pub use brain_evolution::ProductionStrategySpec;
+pub use brain_evolution_seed::ProductionSeedSpec;
 mod brain_orchestration;
 mod brain_project_learning;
 mod brain_relevance;
 mod brain_tick;
 mod brain_workspace_supervision;
+mod brain_workspaces;
 mod formal_tools;
 pub use brain_relevance::RelevanceCase;
 mod m3_a;
@@ -703,6 +709,7 @@ struct EvolutionSimulationContext {
 
 struct RunRecord {
     request: p::RunRequest,
+    workspace: p::WorkspaceRef,
     loop_ctx: forme_loop::RunCtx,
     result: Option<p::RunResult>,
     final_output: Option<String>,
@@ -2003,7 +2010,9 @@ impl ReactiveHarness {
             return Ok(run);
         }
 
-        let prepared = self.prepare_ingress_internal_as(request.clone(), Vec::new(), Some(run))?;
+        let workspace = self.workspace_for_scope(&claim.command.envelope.scope)?;
+        let prepared =
+            self.prepare_workspace_ingress(request.clone(), Vec::new(), Some(run), &workspace)?;
         match prepared {
             PreparedSubmission::Existing(run) => Ok(run),
             PreparedSubmission::New {
@@ -2034,9 +2043,12 @@ impl ReactiveHarness {
         claim: &p::ScheduleClaim,
         now: p::Timestamp,
     ) -> p::Result<Arc<RunHandle>> {
-        let context = (self.context_factory)(request, run, &self.config)?;
+        let mut config = self.config.clone();
+        config.workspace = self.workspace_for_scope(&claim.command.envelope.scope)?;
+        let context = (self.context_factory)(request, run, &config)?;
         let mut record = RunRecord {
             request: request.clone(),
+            workspace: config.workspace,
             loop_ctx: forme_loop::RunCtx::new_with_input_provenance(
                 p::SessionId(request.session.0.clone()),
                 request.input.clone(),
@@ -2234,6 +2246,13 @@ impl ReactiveHarness {
             }) else {
                 continue;
             };
+            let workspace = events
+                .iter()
+                .find_map(|event| match &event.payload {
+                    p::EventPayload::SessionBound(bound) => Some(bound.workspace.clone()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| self.config.workspace.clone());
             if !events.iter().any(|event| {
                 matches!(
                     event.kind,
@@ -2294,7 +2313,7 @@ impl ReactiveHarness {
                     observations: vec![cognition::Observation {
                         schema_version: p::SchemaVersion(1),
                         source: p::Source::Internal,
-                        scope: p::Scope(self.config.workspace.0.clone()),
+                        scope: p::Scope(workspace.0.clone()),
                         grant_ref: None,
                         authorized: true,
                         seed: vec![p::NodeId(format!("evidence:{}", event.event_id.0))],
@@ -2350,7 +2369,7 @@ impl ReactiveHarness {
                         p::EventPayload::ObservationRecorded(p::ObservationRecordedPayload {
                             learning_reply: None,
                             source: p::Source::Internal,
-                            scope: p::Scope(self.config.workspace.0.clone()),
+                            scope: p::Scope(workspace.0.clone()),
                             grant_ref: None,
                         }),
                     )?;
@@ -2467,7 +2486,16 @@ impl ReactiveHarness {
                 budget: None,
                 idempotency_key: accepted.idempotency_key,
             };
-            let context = (self.context_factory)(&request, &run, &self.config)?;
+            let workspace = events
+                .iter()
+                .find_map(|e| match &e.payload {
+                    p::EventPayload::SessionBound(bound) => Some(bound.workspace.clone()),
+                    _ => None,
+                })
+                .unwrap_or_else(|| self.config.workspace.clone());
+            let mut config = self.config.clone();
+            config.workspace = workspace.clone();
+            let context = (self.context_factory)(&request, &run, &config)?;
             let mut loop_ctx = forme_loop::RunCtx::new_with_input_provenance(
                 accepted.session_ref.clone(),
                 request.input.clone(),
@@ -2506,6 +2534,7 @@ impl ReactiveHarness {
             loop_ctx.suspend(pending.clone());
             let record = RunRecord {
                 request,
+                workspace,
                 loop_ctx,
                 result: None,
                 final_output: None,
@@ -2625,7 +2654,7 @@ impl ReactiveHarness {
             .record
             .lock()
             .map_err(|_| p::Error("run state is unavailable".into()))?;
-        let scope = p::Scope(self.config.workspace.0.clone());
+        let scope = p::Scope(record.workspace.0.clone());
         let strategy_scope = self.m3_scope_override.as_ref().unwrap_or(&scope);
         let resolved_snapshot = if self.m3_scope_override.is_some() {
             self.evolution_seed.clone()
@@ -2650,11 +2679,7 @@ impl ReactiveHarness {
             (Some(runtime), Some(snapshot)) => {
                 Some(runtime.bind(snapshot, strategy_scope, &self.model.profile())?)
             }
-            (Some(_), None) => {
-                return Err(p::Error(
-                    "M3 domain runtime requires a pinned evolution snapshot".into(),
-                ));
-            }
+            (Some(_), None) => None,
             (None, _) => None,
         };
         if let Some(binding) = &m3_binding {
@@ -2687,7 +2712,7 @@ impl ReactiveHarness {
         record.evolution_snapshot_full = resolved_snapshot.clone();
         let federation_snapshot = self
             .federation
-            .snapshot(p::Scope(self.config.workspace.0.clone()))?;
+            .snapshot(p::Scope(record.workspace.0.clone()))?;
         record.federation_snapshot = (!federation_snapshot.grants.is_empty())
             .then_some(p::FederationSnapshotRef(federation_snapshot.digest.0));
         record.m3_binding = m3_binding;
@@ -2699,7 +2724,7 @@ impl ReactiveHarness {
                 policy_profile: self.config.policy_profile.clone(),
                 model_profile: self.config.model_profile.clone(),
                 toolset_ref: self.config.toolset_ref.clone(),
-                workspace: self.config.workspace.clone(),
+                workspace: record.workspace.clone(),
                 effect_mode,
                 evolution_snapshot: record.evolution_snapshot.clone(),
                 federation_snapshot: record.federation_snapshot.clone(),
@@ -3026,6 +3051,14 @@ impl ReactiveHarness {
             .collect::<Vec<_>>();
         let last_seq = events.last().map(|event| event.stream_seq).unwrap_or(0);
         let mut capabilities = self.governance.visible_capabilities.clone();
+        if self.brain_services.is_some()
+            && !scope_within(
+                &p::Scope(record.workspace.0.clone()),
+                &p::Scope(self.config.workspace.0.clone()),
+            )
+        {
+            capabilities.clear();
+        }
         if let (Some(runtime), Some(binding)) = (&self.m3_domains, &record.m3_binding) {
             capabilities = runtime.rank_capabilities(binding, capabilities)?;
         }
@@ -3042,7 +3075,7 @@ impl ReactiveHarness {
             .clone()
             .unwrap_or_else(|| p::AutonomyEnvelope {
                 schema_version: p::SchemaVersion(1),
-                scope: p::Scope(self.config.workspace.0.clone()),
+                scope: p::Scope(record.workspace.0.clone()),
                 capability: p::CapabilitySet {
                     schema_version: p::SchemaVersion(1),
                     capabilities: capabilities.clone(),
@@ -3194,7 +3227,7 @@ impl ReactiveHarness {
         directory: Option<&std::path::Path>,
     ) -> p::Result<SubagentExecution> {
         let parent_handle = self.run_handle(&parent)?;
-        let (parent_evolution, parent_snapshot_ref) = {
+        let (parent_evolution, parent_snapshot_ref, parent_workspace) = {
             let record = parent_handle
                 .record
                 .lock()
@@ -3202,6 +3235,7 @@ impl ReactiveHarness {
             (
                 record.evolution_snapshot_full.clone(),
                 record.evolution_snapshot.clone(),
+                record.workspace.clone(),
             )
         };
         if node.schema_version.0 == 0
@@ -3213,14 +3247,44 @@ impl ReactiveHarness {
                 "subagent profile is incomplete or selects an unavailable model/toolset".into(),
             ));
         }
-        let parent_grant = self.governance.delegation.as_ref().ok_or_else(|| {
+        let mut parent_grant = self.governance.delegation.clone().ok_or_else(|| {
             p::Error("subagent spawn requires an explicit delegation grant".into())
         })?;
-        let parent_envelope = self
+        let mut parent_envelope = self
             .governance
             .envelope
-            .as_ref()
+            .clone()
             .ok_or_else(|| p::Error("subagent spawn requires an autonomy envelope".into()))?;
+        // An owner-declared project may delegate computation in another partition,
+        // but registration never adds tool, network, or filesystem authority.
+        if !scope_within(&node.role.permission, &parent_envelope.scope)
+            && coordination::capability_refs(&node.resource_slice).is_empty()
+        {
+            if let Some(services) = &self.brain_services {
+                let ledger = self
+                    .store
+                    .orchestration_ledger(&services.aggregates.charter)?;
+                let declared = ledger.routes.values().any(|r| {
+                    r.declaration.parent == parent
+                        && ledger
+                            .projects
+                            .get(&r.declaration.project)
+                            .is_some_and(|p| {
+                                p.workspace == parent_workspace
+                                    && p.capabilities.is_empty()
+                                    && scope_within(&node.role.permission, &p.scope)
+                            })
+                });
+                if declared {
+                    parent_envelope.scope = p::Scope(parent_workspace.0.clone());
+                    parent_envelope.capability.capabilities.clear();
+                    parent_envelope.capability.permissions.clear();
+                    parent_envelope.action_type =
+                        vec![p::ActionType::Analyze, p::ActionType::Prepare];
+                    parent_grant.envelope = parent_envelope.clone();
+                }
+            }
+        }
         if !scope_within(&node.role.permission, &parent_envelope.scope) {
             return Err(p::Error(
                 "subagent permission is outside the parent's autonomy envelope".into(),
@@ -3331,13 +3395,13 @@ impl ReactiveHarness {
             child_harness.project_directory = directory.map(std::path::Path::to_path_buf);
             child_harness.configured_owner = self.configured_owner.clone();
             child_harness.capability_rechecker = self.capability_rechecker.clone();
-            child_harness.charter_workspace_override = Some(self.config.workspace.clone());
+            child_harness.charter_workspace_override = Some(parent_workspace.clone());
             if let Some(guard) = &self.authority_guard {
                 child_harness = child_harness.with_authority_guard(guard.clone());
             }
             if let Some(services) = &self.brain_services {
                 let hydrator = services.context_hydrator.clone();
-                let catalog_workspace = self.config.workspace.clone();
+                let catalog_workspace = parent_workspace.clone();
                 let permitted = node
                     .resource_slice
                     .items
@@ -3381,7 +3445,7 @@ impl ReactiveHarness {
         if let Some(snapshot) = parent_evolution {
             child_harness = child_harness
                 .with_evolution_seed(snapshot)?
-                .with_m3_scope_override(p::Scope(self.config.workspace.0.clone()));
+                .with_m3_scope_override(p::Scope(parent_workspace.0.clone()));
             if let Some(runtime) = &self.m3_domains {
                 child_harness = child_harness.with_m3_domain_runtime(runtime.clone());
             }
@@ -3703,7 +3767,7 @@ impl ReactiveHarness {
         if let (Some(runtime), Some(snapshot)) =
             (&self.m3_domains, record.evolution_snapshot_full.as_ref())
         {
-            let scope = p::Scope(self.config.workspace.0.clone());
+            let scope = p::Scope(record.workspace.0.clone());
             let strategy_scope = self.m3_scope_override.as_ref().unwrap_or(&scope);
             let binding = runtime.bind(snapshot, strategy_scope, &provider.profile())?;
             if binding.model_scaffold.as_ref().map(|plan| &plan.scaffold)
@@ -3866,7 +3930,7 @@ impl ReactiveHarness {
         let Some(mut intent) = tool
             .intent
             .clone()
-            .or_else(|| self.resolve_formal_tool(run, &tool))
+            .or_else(|| self.resolve_formal_tool(run, &record.workspace, &tool))
         else {
             self.append(
                 run.clone(),
@@ -3895,14 +3959,17 @@ impl ReactiveHarness {
             record.bound_envelope.as_ref(),
         );
         let mut evaluation = self.policy.evaluate_detailed(&context, &intent);
-        if let Err(error) = self.check_project_action(run, &intent) {
+        if let Err(error) = self
+            .check_project_action(run, &intent)
+            .and_then(|_| self.check_workspace_action(&record.workspace, &intent))
+        {
             evaluation.decision = p::PolicyDecision::Deny;
             evaluation.reason = p::ReasonRef(error.0);
         }
         if let Some(charter) = self.store.workspace_charter(
             self.charter_workspace_override
                 .as_ref()
-                .unwrap_or(&self.config.workspace),
+                .unwrap_or(&record.workspace),
         )? {
             let rules = p::CharterRules::parse(&charter)?;
             if let Err(error) = rules.check_action(&intent) {
@@ -4149,7 +4216,10 @@ impl ReactiveHarness {
         plan.validate_digest()?;
         // A charter may tighten while an approval is waiting. Re-read it at
         // the final driver boundary; an old approval cannot override it.
-        if let Err(error) = self.check_project_action(run, &intent) {
+        if let Err(error) = self
+            .check_project_action(run, &intent)
+            .and_then(|_| self.check_workspace_action(&record.workspace, &intent))
+        {
             return self.deny_action(
                 run,
                 handle,
@@ -4162,7 +4232,7 @@ impl ReactiveHarness {
         if let Some(charter) = self.store.workspace_charter(
             self.charter_workspace_override
                 .as_ref()
-                .unwrap_or(&self.config.workspace),
+                .unwrap_or(&record.workspace),
         )? {
             let rules = p::CharterRules::parse(&charter)?;
             if rules.check_action(&intent).is_err() || (rules.require_review && approval.is_none())
@@ -4332,7 +4402,14 @@ impl ReactiveHarness {
             .backends
             .execute(plan, &sink, handle.cancel_token.clone());
         match execution {
-            Ok(result) => self.after_action_result(run, handle, record, result, external_action),
+            Ok(result) => self.after_action_result(
+                run,
+                handle,
+                record,
+                result,
+                external_action,
+                &intent.capability_ref,
+            ),
             Err(error) => {
                 self.append_failure(
                     run,
@@ -4369,10 +4446,26 @@ impl ReactiveHarness {
         record: &mut RunRecord,
         result: ActionResult,
         external_action: bool,
+        capability: &p::CapabilityRef,
     ) -> p::Result<()> {
         match result.status {
             ActionStatus::Completed => {
-                if !self.verify(run, record)? {
+                let verified = self.verify(run, record)?;
+                self.append(
+                    run.clone(),
+                    Some(current_turn(run, record.loop_ctx.turn_index)),
+                    internal_provenance(p::Source::Internal),
+                    p::EventPayload::CapabilityEvidenceRecorded(
+                        p::CapabilityEvidenceRecordedPayload {
+                            capability: capability.clone(),
+                            outcome: p::CapabilityOutcome(
+                                if verified { "pass" } else { "fail" }.into(),
+                            ),
+                            reliability: p::Reliability("verified".into()),
+                        },
+                    ),
+                )?;
+                if !verified {
                     record
                         .loop_ctx
                         .terminate(p::RunStatus::Failed, StopReason::VerifyUnfixable);
@@ -4397,6 +4490,12 @@ impl ReactiveHarness {
                 self.finish_terminal(run, handle, record)
             }
             ActionStatus::Failed => {
+                self.append_failure(
+                    run,
+                    record,
+                    p::FailureClass::ExecutionFailure,
+                    "the execution backend returned a failed action",
+                )?;
                 if record.mode == RunMode::DirectAction {
                     record
                         .loop_ctx
@@ -4712,7 +4811,7 @@ impl ReactiveHarness {
                 failure_ref,
                 class,
                 impact: p::Impact::Medium,
-                scope: p::Scope(self.config.workspace.0.clone()),
+                scope: p::Scope(record.workspace.0.clone()),
                 related_refs: Vec::new(),
                 suggested_fix: Some(p::SuggestedFixRef(detail.to_owned())),
             }),
@@ -5034,6 +5133,24 @@ impl ReactiveHarness {
         prelude: Vec<IngressEvent>,
         forced_run: Option<p::RunId>,
     ) -> p::Result<PreparedSubmission> {
+        self.prepare_workspace_ingress(request, prelude, forced_run, &self.config.workspace)
+    }
+
+    fn prepare_workspace_ingress(
+        &self,
+        mut request: p::RunRequest,
+        prelude: Vec<IngressEvent>,
+        forced_run: Option<p::RunId>,
+        workspace: &p::WorkspaceRef,
+    ) -> p::Result<PreparedSubmission> {
+        if *workspace != self.config.workspace {
+            if let Some(key) = &request.idempotency_key {
+                request.idempotency_key = Some(p::IdempotencyKey(format!(
+                    "workspace-run:{}",
+                    p::canonical_digest(&(workspace, key))?.0
+                )));
+            }
+        }
         if request.source == p::Source::Replay {
             return Err(p::Error(
                 "exact replay requires the dedicated read-only replay audit path".into(),
@@ -5102,7 +5219,9 @@ impl ReactiveHarness {
                 }
             }
         }
-        let context = (self.context_factory)(&request, &run, &self.config)?;
+        let mut config = self.config.clone();
+        config.workspace = workspace.clone();
+        let context = (self.context_factory)(&request, &run, &config)?;
         let loop_ctx = forme_loop::RunCtx::new_with_input_provenance(
             session.clone(),
             request.input.clone(),
@@ -5113,6 +5232,7 @@ impl ReactiveHarness {
         )?;
         let record = RunRecord {
             request: request.clone(),
+            workspace: workspace.clone(),
             loop_ctx,
             result: None,
             final_output: None,
@@ -5725,7 +5845,11 @@ impl EvolutionGatewayControl for ReactiveHarness {
         run: p::RunId,
         candidate: p::StrategyCandidate,
     ) -> p::Result<p::EventId> {
-        self.evolution_control.record_candidate(run, candidate)
+        if self.brain_services.is_some() {
+            self.record_production_strategy_candidate(candidate)
+        } else {
+            self.evolution_control.record_candidate(run, candidate)
+        }
     }
 
     fn evaluate_strategy(

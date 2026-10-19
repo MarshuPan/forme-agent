@@ -11,6 +11,21 @@ use forme_memory::CandidateStore;
 use forme_protocol as p;
 use forme_store::{EventStore, SqliteEventStore};
 
+/// Provenance lookup across the shared owner's run streams. Content is not
+/// copied into this read-only projection.
+type GovernanceEvidenceMetadata = BTreeMap<String, (p::Timestamp, bool)>;
+type EvidenceLookup = Arc<
+    dyn Fn(&[p::EvidenceRef], &p::Scope) -> p::Result<GovernanceEvidenceMetadata> + Send + Sync,
+>;
+
+fn governance_evidence(event: &p::Event) -> (p::Timestamp, bool) {
+    (
+        event.ts_unix_ms,
+        event.provenance.trust_tier == p::TrustTier::VerifiedProcess
+            && !matches!(event.payload, p::EventPayload::ModelCallDelta(_)),
+    )
+}
+
 mod temporal;
 pub use temporal::*;
 
@@ -38,9 +53,9 @@ pub use m3_c::*;
 /// cognition boundary that already owns the memory dependency.
 pub type PersistentMemory = memory::EventSourcedMemory<SqliteEventStore>;
 pub use memory::{
-    Activated, ActivationConfig, ActivationRun, ActivationShape, EdgeKind, GraphQuery, MemoryEdge,
-    MemoryGraph, MemoryGraphSnapshot, MemoryNode, MemoryScope, NodeKind, RecallCue,
-    RelevanceBaseline, TimeSlice,
+    Activated, ActivationConfig, ActivationRun, ActivationShape, EdgeKind, EvidencePriority,
+    GraphQuery, MemoryEdge, MemoryGraph, MemoryGraphSnapshot, MemoryNode, MemoryScope, NodeKind,
+    RecallCue, RelevanceBaseline, TimeScale, TimeSlice,
 };
 /// The intention records `ProspectiveIntentions` exchanges, re-exported so a
 /// caller of that trait needs no direct memory dependency.
@@ -1474,6 +1489,51 @@ pub struct CognitiveRuntime<S: EventStore> {
     event_sequence: AtomicU64,
     thresholds: PromotionAsymmetry,
     clock: Clock,
+    evidence_lookup: Option<EvidenceLookup>,
+}
+
+impl CognitiveRuntime<SqliteEventStore> {
+    /// Resolve referenced facts across owner streams without inventing a
+    /// cross-stream event order. Only source metadata is returned.
+    pub fn with_owner_evidence_lookup(mut self) -> Self {
+        let store = self.store.clone();
+        self.evidence_lookup = Some(Arc::new(move |references, scope| {
+            let requested = references.iter().map(|r| &r.0).collect::<BTreeSet<_>>();
+            let mut found = GovernanceEvidenceMetadata::new();
+            for run in store.run_ids()? {
+                let events = store.read_run(run).collect::<p::Result<Vec<_>>>()?;
+                let run_scope = events.iter().find_map(|event| match &event.payload {
+                    p::EventPayload::SessionBound(bound) => {
+                        Some(p::Scope(bound.workspace.0.clone()))
+                    }
+                    _ => None,
+                });
+                for event in events {
+                    if requested.contains(&event.event_id.0) {
+                        let source_scope = match &event.payload {
+                            p::EventPayload::FailureEvidenceRecorded(p) => Some(&p.scope),
+                            p::EventPayload::MemoryNodeAppended(p) => Some(&p.scope),
+                            p::EventPayload::ObservationRecorded(p) => Some(&p.scope),
+                            _ => run_scope.as_ref(),
+                        };
+                        let (at, verified) = governance_evidence(&event);
+                        found.insert(
+                            event.event_id.0.clone(),
+                            (
+                                at,
+                                verified
+                                    && source_scope.is_some_and(|source| {
+                                        p::charter_scope_contains(source, scope)
+                                    }),
+                            ),
+                        );
+                    }
+                }
+            }
+            Ok(found)
+        }));
+        self
+    }
 }
 
 impl<S> CognitiveRuntime<S>
@@ -1532,6 +1592,7 @@ where
             event_sequence: AtomicU64::new(next),
             thresholds,
             clock: Arc::new(clock),
+            evidence_lookup: None,
         })
     }
 
@@ -1650,17 +1711,18 @@ where
             .cloned()
             .ok_or_else(|| p::Error("candidate has no supported semantic target".into()))?;
         let mut target = stable_from_proposal(&proposal);
-        let events = self
-            .store
-            .read_run(self.aggregate_run.clone())
-            .collect::<p::Result<Vec<_>>>()?;
+        let events = match &self.evidence_lookup {
+            Some(lookup) => lookup(&proposal.evidence, &proposal.scope.scope)?,
+            None => self
+                .store
+                .read_run(self.aggregate_run.clone())
+                .map(|e| e.map(|e| (e.event_id.0.clone(), governance_evidence(&e))))
+                .collect::<p::Result<GovernanceEvidenceMetadata>>()?,
+        };
         for evidence in &mut target.evidence {
-            let event = events.iter().find(|e| e.event_id.0 == evidence.reference.0);
-            evidence.observed_at = event.map_or(0, |e| e.ts_unix_ms);
-            evidence.verified_process = event.is_some_and(|e| {
-                e.provenance.trust_tier == p::TrustTier::VerifiedProcess
-                    && !matches!(e.payload, p::EventPayload::ModelCallDelta(_))
-            });
+            let event = events.get(&evidence.reference.0);
+            evidence.observed_at = event.map_or(0, |e| e.0);
+            evidence.verified_process = event.is_some_and(|e| e.1);
         }
         target.last_reproduced_at = target
             .evidence

@@ -48,6 +48,8 @@ pub struct BoundM3Domains {
     pub selection: BTreeMap<p::SelectionTarget, p::SelectionStrategySpec>,
     pub model_adaptation: Option<p::ModelAdaptationSpec>,
     pub model_scaffold: Option<ModelScaffoldPlan>,
+    selection_evidence: SelectionEvidenceSet,
+    seed_versions: Vec<p::StrategyVersionRef>,
 }
 
 impl BoundM3Domains {
@@ -57,6 +59,7 @@ impl BoundM3Domains {
 
     pub fn active_versions(&self) -> Vec<p::StrategyVersionRef> {
         let mut versions = Vec::new();
+        versions.extend(self.seed_versions.iter().cloned());
         if let Some(spec) = &self.loop_spec {
             versions.push(spec.version.clone());
         }
@@ -71,6 +74,7 @@ impl BoundM3Domains {
     }
 }
 
+#[derive(Clone)]
 pub struct M3DomainRuntime {
     compatibility: M3RuntimeCompatibility,
     loop_registry: Arc<dyn LoopRegistry + Send + Sync>,
@@ -79,6 +83,8 @@ pub struct M3DomainRuntime {
     model_registry: Arc<dyn ModelAdaptationRegistry + Send + Sync>,
     model_evidence: BTreeMap<p::ModelProfileRef, ModelOutcomeEvidence>,
     selection_evidence: SelectionEvidenceSet,
+    evidence_store: Option<forme_store::SqliteEventStore>,
+    production_registry: Option<Arc<crate::brain_evolution::ProductionStrategyRegistry>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -216,7 +222,22 @@ impl M3DomainRuntime {
             model_registry,
             model_evidence: evidence_by_model,
             selection_evidence,
+            evidence_store: None,
+            production_registry: None,
         })
+    }
+
+    pub(crate) fn with_production_evidence(mut self, store: forme_store::SqliteEventStore) -> Self {
+        self.evidence_store = Some(store);
+        self
+    }
+
+    pub(crate) fn with_production_registry(
+        mut self,
+        registry: Arc<crate::brain_evolution::ProductionStrategyRegistry>,
+    ) -> Self {
+        self.production_registry = Some(registry);
+        self
     }
 
     pub fn bind(
@@ -225,7 +246,41 @@ impl M3DomainRuntime {
         scope: &p::Scope,
         model: &ModelProfile,
     ) -> p::Result<BoundM3Domains> {
+        if let Some(store) = &self.evidence_store {
+            let mut pinned = self.clone();
+            let (models, selection) = crate::brain_evolution::production_evidence(store, scope)?;
+            pinned.model_evidence = models;
+            pinned.selection_evidence = selection;
+            pinned.evidence_store = None;
+            return pinned.bind(snapshot, scope, model);
+        }
         snapshot.validate()?;
+        let mut executable = snapshot.clone();
+        let mut seed_versions = Vec::new();
+        if let Some(registry) = &self.production_registry {
+            executable
+                .strategies
+                .retain(|active| !active.version.0.starts_with("repository-seed:"));
+            for active in snapshot
+                .strategies
+                .iter()
+                .filter(|s| s.version.0.starts_with("repository-seed:"))
+            {
+                let expected =
+                    crate::brain_evolution_seed::repository_seed(active.domain, &active.scope)?;
+                let body = registry.resolve(&active.version)?;
+                if body != expected
+                    || body.content_ref() != &active.spec_ref
+                    || body.digest() != &active.spec_digest
+                {
+                    return Err(p::Error(
+                        "repository baseline differs from this runtime".into(),
+                    ));
+                }
+                seed_versions.push(active.version.clone());
+            }
+        }
+        let snapshot = &executable;
         self.compatibility.validate()?;
         let loop_spec = self
             .resolve_active(snapshot, scope, p::StrategyDomain::Loop)?
@@ -293,6 +348,8 @@ impl M3DomainRuntime {
             selection,
             model_adaptation,
             model_scaffold,
+            selection_evidence: self.selection_evidence.clone(),
+            seed_versions,
         })
     }
 
@@ -340,7 +397,7 @@ impl M3DomainRuntime {
             candidates,
             &authorized,
         )?;
-        let ranked = rank_prefiltered(policy, &prefiltered, &self.selection_evidence)?;
+        let ranked = rank_prefiltered(policy, &prefiltered, &bound.selection_evidence)?;
         Ok(ranked
             .ordered
             .into_iter()

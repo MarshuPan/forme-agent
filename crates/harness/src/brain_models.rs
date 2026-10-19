@@ -26,9 +26,13 @@ impl BrainServices {
                 .stable_snapshot_at(cursor.position(&self.aggregates.memory_cognition))?,
             None => self.cognition.stable_objects(),
         };
-        let usable = stable
+        let mut usable = stable
             .iter()
-            .filter(|s| s.active && p::charter_scope_contains(&s.scope.scope, scope));
+            .filter(|s| s.active && p::charter_scope_contains(&s.scope.scope, scope))
+            .collect::<Vec<_>>();
+        // General knowledge is considered before the most specific current
+        // scope. A broader, older self/trust record cannot replace it.
+        usable.sort_by_key(|s| (s.scope.scope.0.len(), s.last_reproduced_at));
         let mut inputs = c::CompetenceInputs::default();
         let mut maps = Vec::new();
         for object in usable {
@@ -38,8 +42,10 @@ impl BrainServices {
                 | c::StableCognitionKind::BlindSpot
                 | c::StableCognitionKind::ResourceRelation => maps.push(object),
                 c::StableCognitionKind::AgentSelf
-                    if capability
-                        .is_some_and(|cap| object.object.0 == format!("agent-self:{}", cap.0)) =>
+                    if capability.is_some_and(|cap| {
+                        object.object == c::agent_self_object(cap, &object.scope.scope)
+                            || object.object.0 == format!("agent-self:{}", cap.0)
+                    }) =>
                 {
                     inputs.self_model = Some(c::AgentSelfInput {
                         schema_version: p::SchemaVersion(1),
@@ -48,16 +54,19 @@ impl BrainServices {
                     });
                 }
                 c::StableCognitionKind::Trust => {
-                    let ceiling =
-                        if object.confidence.0 < 0.8 || object.statement.contains("Untrusted") {
-                            c::InterventionLevel::L1Suggest
-                        } else if object.statement.contains("Established")
-                            && object.statement.contains("Bounded")
-                        {
-                            c::InterventionLevel::L4Autonomous
-                        } else {
-                            c::InterventionLevel::L3ActWithApproval
-                        };
+                    let ceiling = if object.confidence.0 < 0.8 {
+                        c::InterventionLevel::L1Suggest
+                    } else {
+                        match object.statement.as_str() {
+                            "trust=Established; delegation=Bounded" => {
+                                c::InterventionLevel::L4Autonomous
+                            }
+                            "trust=Established; delegation=ApprovalRequired" => {
+                                c::InterventionLevel::L3ActWithApproval
+                            }
+                            _ => c::InterventionLevel::L1Suggest,
+                        }
+                    };
                     inputs.trust = Some(c::TrustInput {
                         schema_version: p::SchemaVersion(1),
                         reference: p::TrustProfileRef(object.object.0.clone()),
@@ -84,8 +93,17 @@ impl BrainServices {
                 .collect::<p::Result<Vec<_>>>()?;
             let mut tool = None;
             let mut completed = None;
-            let mut run_scope = None;
+            let run_scope = events.iter().find_map(|e| match &e.payload {
+                p::EventPayload::SessionBound(b) => Some(p::Scope(b.workspace.0.clone())),
+                _ => None,
+            });
             let mut verified_turns = std::collections::BTreeSet::new();
+            let typed_turns = events.iter().filter(|e|
+                cursor.is_none_or(|cursor| e.stream_seq <= cursor.position(&run))
+                && e.ts_unix_ms >= cutoff && e.ts_unix_ms <= now)
+                .filter(|e| matches!(&e.payload,
+                p::EventPayload::CapabilityEvidenceRecorded(_) if e.provenance.trust_tier == p::TrustTier::VerifiedProcess))
+                .map(|e| e.turn_id.clone()).collect::<std::collections::BTreeSet<_>>();
             for e in events {
                 if cursor.is_some_and(|cursor| e.stream_seq > cursor.position(&run)) {
                     break;
@@ -94,9 +112,6 @@ impl BrainServices {
                     continue;
                 }
                 match &e.payload {
-                    p::EventPayload::SessionBound(bound) => {
-                        run_scope = Some(p::Scope(bound.workspace.0.clone()))
-                    }
                     p::EventPayload::ToolCallProposed(proposed) => {
                         tool = Some((p::CapabilityRef(proposed.tool.0.clone()), e.turn_id.clone()));
                         completed = None;
@@ -107,6 +122,7 @@ impl BrainServices {
                     }
                     p::EventPayload::VerificationFinished(result)
                         if capability.is_some()
+                            && !typed_turns.contains(&e.turn_id)
                             && run_scope
                                 .as_ref()
                                 .is_some_and(|s| p::charter_scope_contains(s, scope))
@@ -136,6 +152,30 @@ impl BrainServices {
                                 },
                             ),
                         });
+                    }
+                    p::EventPayload::CapabilityEvidenceRecorded(result)
+                        if Some(&result.capability) == capability
+                            && e.provenance.trust_tier == p::TrustTier::VerifiedProcess
+                            && result.reliability.0 == "verified"
+                            && run_scope
+                                .as_ref()
+                                .is_some_and(|s| p::charter_scope_contains(s, scope))
+                            && completed.as_ref() == Some(&e.turn_id)
+                            && verified_turns.insert(e.turn_id.clone()) =>
+                    {
+                        let passed = result.outcome.0 == "pass";
+                        inputs.verification.push(c::VerificationEvidenceInput {
+                            schema_version: p::SchemaVersion(1),
+                            reference: p::EvidenceRef(e.event_id.0.clone()),
+                            passed,
+                        });
+                        inputs.capability_evidence.push(c::CapabilityEvidenceInput {
+                            schema_version: p::SchemaVersion(1),
+                            reference: p::CapabilityEvidenceRef(e.event_id.0.clone()),
+                            verified_success: passed,
+                            reliability: p::Confidence(if passed { 0.9 } else { 0.0 }),
+                        });
+                        tool = Some((result.capability.clone(), e.turn_id.clone()));
                     }
                     p::EventPayload::FailureEvidenceRecorded(failure)
                         if p::charter_scope_contains(&failure.scope, scope)
