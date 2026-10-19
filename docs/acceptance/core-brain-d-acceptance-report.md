@@ -20,6 +20,7 @@
 | `6ee8ea4`、`1fdf884`、`1d1f671` | 四波封闭清单、逐名运行 receipt、A 正式入口与 B 三相 tick 见证及汇总校验。 |
 | `547d08b`、`5ffcf74` | 先约定原生工具往返关联，再修复 assistant tool_calls/tool_call_id、审批恢复续接；严格 HTTP fixture 验证实际消息。 |
 | `1a79b57`、`8e31e21` | 扫描 JSON 解码后的私有路径/URL；Git 保留证据原始字节，避免换行破坏摘要。 |
+| `62cba47`、`025ad3d` | 区分正式 owner model turn 与 Schedule 通知的受治理 action；真实导出回归与漏门/伪造路径负测试。 |
 
 保留 18 crates、既定内部依赖边和 99 EventKinds；前 97 项保持 M5 exact prefix。本波没有新增内核或里程碑编号。原工作区已有的许可证相关修改没有混入上述提交。
 
@@ -67,7 +68,7 @@ A/B/C 本轮专项日志：`forme-d-regression-abc-7a2377ebf6ba475285d141f0ed73b
 
 `5ffcf74` 在单工具契约内保存原生调用 ID/参数，工具结果与 assistant 调用关联，审批等待及恢复后仍保持关联；孤立/错配/重复/未完成的往返在 provider 边界拒绝。当前不支持的多个工具 proposal 在产生副作用前拒绝，非原生 handoff 不伪造 tool result。
 
-第二轮从干净验收检出运行，源码为 `1a79b570a38467b4c533a3a9f4dc14c76086ea9a`，实际 profile 为 `compatible:gpt-6.1-sol`。六类各两次；正式 runner 与独立 `forme-core-brain-d-artifact-verify --require-pass` 均返回 0。
+工具修复后的真实重验通过。随后封存发现 A 入口校验器错误地要求到期通知也调用模型；`025ad3d` 改为分别检查对话与受治理工具路径，没有改 runtime 或放松主动门/策略/完成证据。因为工具也属于源码输入，又从干净验收检出重新采集全部四波与真实 C24，当前受理源码为 `025ad3dca3c84e7e10a7eb937a44148c599fa560`，实际 profile 为 `compatible:gpt-6.1-sol`。六类各两次；正式 runner 与独立 `forme-core-brain-d-artifact-verify --require-pass` 均返回 0。
 
 | 类别 | 答案质量 | direct-model 质量基线 | 工作流 | 不可验证 |
 |---|---|---|---|---|
@@ -78,9 +79,9 @@ A/B/C 本轮专项日志：`forme-d-regression-abc-7a2377ebf6ba475285d141f0ed73b
 | AskToLearn | 2/2 | 2/2 | 2/2 | 0 |
 | FailureRecoordination | 2/2 | 2/2 | 2/2 | 0 |
 
-当前 `core-brain-d-artifacts/` 的产品工件为 `LiveConfigured / Pass`，内容 digest：`sha256:2a166a343580f45aeb6c4616616e96c9c81b5120e06fb2de1fd7ccdacff63a80`。价格未配置，费用保持 unknown；不把它写成免费。端点与凭证没有进入便携工件；本机模型配置继续只留在忽略目录。
+当前 `core-brain-d-artifacts/` 的产品工件为 `LiveConfigured / Pass`，内容 digest：`sha256:027af5b21114b0e4da85950e49fa6cbb8feaefbb2c094847ead9a1ee7b23e7b7`。价格未配置，费用保持 unknown；不把它写成免费。端点与凭证没有进入便携工件；本机模型配置继续只留在忽略目录。
 
-本轮修复后完整工作区测试为 **597 passed、0 failed、5 默认 ignored**；fmt、check、strict Clippy、compliance 均 PASS。A/B/C/D runtime 按冻结名称重新采集为 **43/48/35/70** 项，来源输入一致；D runtime 不单独代替 live C24。证据工具 Python 10 项（其中 1 项因 Windows 无符号链接权限跳过）、core release audit Python 22 项通过。
+本轮修复后完整工作区测试为 **597 passed、0 failed、5 默认 ignored**；fmt、check、strict Clippy、compliance 均 PASS。A/B/C/D runtime 按冻结名称重新采集为 **43/48/35/70** 项，来源输入一致；D runtime 不单独代替 live C24。证据工具 Python 12 项（11 通过、1 项因 Windows 无符号链接权限跳过）、core release audit Python 22 项通过。
 
 剩余动作为封存四波与总清单、独立校验、干净树 core/M5 发布 receipt 和 Final 总门。通过后在本报告单独补记；`main` 合入是另一项状态。
 

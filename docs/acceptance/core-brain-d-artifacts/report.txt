@@ -1,6 +1,6 @@
 C24: Pass
 Evidence grade: LiveConfigured
-Source commit: 1a79b570a38467b4c533a3a9f4dc14c76086ea9a
+Source commit: 025ad3dca3c84e7e10a7eb937a44148c599fa560
 
 Primary protocol: fresh production runtime/SQLite/File fixtures; all store stream positions witnessed. Multi-agent and long-workspace cases start with a real owner turn through formal ingress before owner project controls; route output determines their final answer. Child-only sessions currently do not inherit the composition manifest.
 Baseline: one direct call to the configured default provider for the same arithmetic question, without tools, memory, orchestration or fallback. It measures factual answer quality, not baseline workflow completion.
