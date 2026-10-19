@@ -73,7 +73,7 @@ class ReleaseAuditTests(unittest.TestCase):
             'members = ["crates/core"]\n'
             'resolver = "2"\n\n'
             "[workspace.package]\n"
-            'license = "Apache-2.0"\n',
+            'license = "MIT"\n',
         )
         self.write(
             "crates/core/Cargo.toml",
@@ -84,10 +84,13 @@ class ReleaseAuditTests(unittest.TestCase):
             "publish = false\n",
         )
         self.write("crates/core/src/lib.rs", "#![forbid(unsafe_code)]\npub fn fixture() {}\n")
-        self.write("LICENSE", "Apache License\nVersion 2.0, January 2004\n")
+        self.write(
+            "LICENSE",
+            "MIT License\n\nPermission is hereby granted, free of charge, to any person\n",
+        )
         self.write(
             "NOTICE",
-            "forme\nCopyright 2026 forme contributors\nApache-2.0 release fixture.\n",
+            "forme\nCopyright 2026 forme contributors\nMIT release fixture.\n",
         )
         self.write(
             "docs/compliance/third-party-dependencies.md",
@@ -236,6 +239,20 @@ class ReleaseAuditTests(unittest.TestCase):
         self.assertIn("NOTICE_MISSING", codes)
         self.assertIn("PROJECT_LICENSE_UNSUPPORTED", codes)
         self.assertIn("BORROWING_LICENSE_BLOCKED", codes)
+
+    def test_the_retired_apache_profile_is_license_drift(self) -> None:
+        self.write("LICENSE", "Apache License\nVersion 2.0, January 2004\n")
+        self.write(
+            "Cargo.toml",
+            "[workspace]\n"
+            'members = ["crates/core"]\n'
+            'resolver = "2"\n\n'
+            "[workspace.package]\n"
+            'license = "Apache-2.0"\n',
+        )
+        codes = self.codes(self.report())
+        self.assertIn("PROJECT_LICENSE_UNSUPPORTED", codes)
+        self.assertIn("WORKSPACE_LICENSE_DRIFT", codes)
 
     def test_unpinned_dependency_and_lock_table_drift_are_blocking(self) -> None:
         self.write(

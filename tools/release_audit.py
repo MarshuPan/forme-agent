@@ -19,6 +19,8 @@ from typing import Callable, Iterable
 
 SCHEMA_VERSION = 1
 TOOL_VERSION = "forme-release-audit/3"
+# The owner-selected project license every release tree must declare.
+PROJECT_LICENSE = "MIT"
 ARTIFACT_TYPE = "forme-m3-release-audit"
 ARTIFACT_DOMAIN = b"forme-m3-release-audit-v1\0"
 ARTIFACT_PREFIX = "docs/acceptance/m3-release-audit-artifacts/"
@@ -555,13 +557,14 @@ def _license_notice_check(root: Path, dependencies: list[DependencyDecl]) -> Com
     if not license_text:
         findings.append(AuditFinding("LICENSE_MISSING", "LICENSE", "root project license is required"))
     elif BAD_LICENSE.search(license_text) or not (
-        "Apache License" in license_text and "Version 2.0" in license_text
+        "MIT License" in license_text
+        and "Permission is hereby granted, free of charge" in license_text
     ):
         findings.append(
             AuditFinding(
                 "PROJECT_LICENSE_UNSUPPORTED",
                 "LICENSE",
-                "the frozen release profile requires the Apache-2.0 project license",
+                f"the release profile requires the {PROJECT_LICENSE} project license",
             )
         )
     if not notice_text:
@@ -589,12 +592,12 @@ def _license_notice_check(root: Path, dependencies: list[DependencyDecl]) -> Com
         try:
             workspace = tomllib.loads(workspace_path.read_text(encoding="utf-8"))
             declared = workspace.get("workspace", {}).get("package", {}).get("license")
-            if declared != "Apache-2.0":
+            if declared != PROJECT_LICENSE:
                 findings.append(
                     AuditFinding(
                         "WORKSPACE_LICENSE_DRIFT",
                         "Cargo.toml",
-                        "workspace.package.license must be Apache-2.0",
+                        f"workspace.package.license must be {PROJECT_LICENSE}",
                     )
                 )
         except (OSError, tomllib.TOMLDecodeError) as error:
