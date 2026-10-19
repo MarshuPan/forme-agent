@@ -1,8 +1,8 @@
 # V1 核心大脑运行闭合：整体验收状态
 
-日期：2026-10-19。当前分支：`main`；已从 `94fe6f1` 快进合入 `shu/v1-core-brain-a@a1fe0df`，保留完整分波提交历史。
+日期：2026-10-20。当前分支：`main`；已从 `94fe6f1` 快进合入 `shu/v1-core-brain-a@a1fe0df`，保留完整分波提交历史。
 
-**七项默认大脑补闭与 A–D 已通过技术 Final，并合入本地 main。** 2026-10-19 22:23:54（Asia/Shanghai），干净检出 `5e4f697` 的完整 Final 总门实际返回 0，受测源码为 `b9ea670accdae0f59122aa62333cb172e18416e4`；该 Apache-2.0 输入的结果保留在 §2–3。当前正在单独收口 MIT 许可证与发布审计变更，新的验证见 §5，不能用旧回执替代新输入。owner 日常使用验收、发布包与远端发布分别记录。
+**七项默认大脑补闭与 A–D 已通过技术 Final，并合入本地 main。** 历史 Apache-2.0 输入及其验收结果保留在 §2–3；MIT 发布输入的当前重验见 §5。owner 日常使用验收、发布包与远端发布分别记录。
 
 ## 1. 本轮补齐的七项运行链
 
@@ -62,5 +62,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-clos
 
 - owner 指令“开始合入和收尾”后，将已验收 `a1fe0df` 快进合入本地 main；没有 squash、改写历史或丢弃分波提交。
 - 原工作区六项许可证相关改动在切换 main 前后逐文件 SHA-256 一致；按独立文档与审计实现提交收口，项目 MIT 与第三方依赖自身条款分开维护。
-- MIT/Cargo 元数据与审计源码改变发布输入，正在从干净提交重新采集四波、真实 C24 和 current-tree 回执。当前此步骤仍在执行，未标为新的 Final PASS。
+- MIT/Cargo 元数据与审计源码的当前重验已经完成：18 个 workspace crate 的 Cargo metadata 均解析为 MIT；运行实现未改变，四波新证据、真实 C24 和 current-tree 回执均重新绑定当前发布输入。
+- 2026-10-20 01:40:34（Asia/Shanghai），干净主线 `4c6f738934d2312ab4824320dac071b61e1968d9` 的完整 `verify-core-brain-closure.ps1 -Wave Final` 实际返回 **0**，末行为 `core-brain-closure (Final): PASS`。完整 workspace 测试为 **604 passed、0 failed、5 默认 ignored**；fmt、check、strict Clippy、compliance、S1-S99、真实 golden、A/B/C/D **47/50/36/71（共 204）** 项、四波封闭清单、typed verifier 和 current-tree core receipt 比对全部通过。
+- 当前 core receipt 为 `sha256:8c2fbe9679dad28344cc3efe8dd3d1ca31999a05559d93365499ae7414c807b3`，其 outcome 为 `pass`；四波清单 digest 为 `sha256:ff13bf88ff28ecdea52b691ea429841200143b9df9afe24b5618c1429ffbe9a6`。C24 产品工件绑定 `2f65fcee4c0b9ba793fdc9045825ecd1af807e68`，grade 为 `LiveConfigured`，内容 digest 为 `sha256:2fd21a8e253d107251d5e6c0c87d683cae25c1bfccc0bcc727af05903d2e7465`；六类工作流各 2/2，费用仍为 unknown。
+- 本轮一次先行 Final 在嵌套 D RuntimeOnly 复跑时被 core 审计拒绝，未计为通过；随后独立 D RuntimeOnly、core audit 和完整 Final 重跑均返回 0。日志仅保留在本机 OS temp，不作为便携证明。
 - 本地模型配置仍只在忽略目录中；当前操作未创建安装包、GitHub release 或推送远端，未代替 owner 的日常使用验收。

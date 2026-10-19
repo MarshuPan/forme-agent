@@ -1,9 +1,9 @@
 # V1 核心大脑 D 波实现与验收报告
 
-- 日期：2026-10-19。
+- 日期：2026-10-20。
 - 当前分支：`main`；已从 `94fe6f1` 快进合入 `shu/v1-core-brain-a@a1fe0df`。§3–5、§7 保留各自历史受测输入；当前合入与 MIT 重验见总验收报告 §5。
 - 契约：`requirements/15-16`、canonical §28、`architecture/09`、`prd/23` D 波。
-- 当前状态：**七项默认大脑补闭、D 波及 V1 Final 技术验收已通过并合入本地 main。** 补闭轮源码为 `b9ea670`，完整 Final 通过的干净检出为 `5e4f697`，记录见 §7。§3–5 仅记录 `025ad3d` 及更早源码；MIT 发布输入的重验与 owner 日常使用验收分别记录，不冒用历史回执。
+- 当前状态：**七项默认大脑补闭、D 波及 V1 Final 技术验收已通过并合入本地 main。** 补闭轮与前轮源码事实保留在 §3–7；MIT 发布输入的当前重验见 §8，不冒用历史回执。
 
 ## 1. 提交与范围
 
@@ -121,6 +121,14 @@ core release receipt 为 `sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01
 
 2026-10-19 22:23:54（Asia/Shanghai），干净检出 `5e4f69788bc54ec859b034c4092f0d5f66ee9168` 的完整 `verify-core-brain-closure.ps1 -Wave Final` 实际返回 **0**，末行为 `core-brain-closure (Final): PASS`。完整工作区 **604 passed、0 failed、5 默认 ignored**；默认忽略用例在相应真实场景门中显式执行。fmt/check/strict Clippy/compliance、65 项 Python 工具门（64 通过、1 项权限相关跳过）、S1–S99、真实 golden、四波 204 项场景和全部独立工件校验通过。
 
-本轮 core release receipt：`sha256:2caabec7c64f7ea047115463f95e6b164f0a647799c200734a81e6af16881b11`，仓库回执与总门重新计算结果一致。M5 current-tree receipt 见 `m5-release-audit-artifacts/`；最终报告收口后刷新它，并复核 core 根摘要和四波清单。旧 §5 的回执只保留历史事实。第一次在证据更新期间执行的总门未通过发布审计，返回 1，未计为通过；本轮是提交证据、依次重封回执后从干净检出取得的完整通过。
+本轮历史 core release receipt 为 `sha256:2caabec7c64f7ea047115463f95e6b164f0a647799c200734a81e6af16881b11`；后续 MIT 主线结果见 §8。第一次在证据更新期间执行的总门未通过发布审计，返回 1，未计为通过；历史事实不被当前结果改写。
 
-完整成功日志 `forme-v1-final-gate-b9ea670-614f216bccc9409198f9a976961fc13f.log` 留在本机 OS temp。两个当前报告与 M5 receipt 被 core 根摘要明确排除，报告/回执收口不改变受测代码或场景清单。原工作区六项既有修改不纳入，`main` 未动。
+完整成功日志 `forme-v1-final-gate-b9ea670-614f216bccc9409198f9a976961fc13f.log` 留在本机 OS temp。两个当前报告与 M5 receipt 被 core 根摘要明确排除，报告/回执收口不改变受测代码或场景清单。原工作区六项既有修改不纳入；在该历史记录时 `main` 未动。
+
+## 8. MIT 发布输入后的当前主线重验
+
+2026-10-20 01:40:34（Asia/Shanghai），干净主线 `4c6f738934d2312ab4824320dac071b61e1968d9` 的完整 `verify-core-brain-closure.ps1 -Wave Final` 实际返回 **0**，末行为 `core-brain-closure (Final): PASS`。完整 workspace 测试为 **604 passed、0 failed、5 默认 ignored**；fmt、check、strict Clippy、compliance、S1-S99、真实 golden、A/B/C/D **47/50/36/71（共 204）** 项、四波封闭清单、typed verifier 和 current-tree core receipt 比对全部通过。
+
+本轮 18 个 workspace crate 的 Cargo metadata 均解析为 MIT。当前 core receipt 为 `sha256:8c2fbe9679dad28344cc3efe8dd3d1ca31999a05559d93365499ae7414c807b3`；四波清单 digest 为 `sha256:ff13bf88ff28ecdea52b691ea429841200143b9df9afe24b5618c1429ffbe9a6`。C24 产品工件绑定 `2f65fcee4c0b9ba793fdc9045825ecd1af807e68`，grade 为 `LiveConfigured`，内容 digest 为 `sha256:2fd21a8e253d107251d5e6c0c87d683cae25c1bfccc0bcc727af05903d2e7465`；ColdDialogue、ComplexTools、LongWorkspace、MultiAgent、AskToLearn、FailureRecoordination 六类各 2/2，费用仍为 unknown。
+
+本轮一次先行 Final 在嵌套 D RuntimeOnly 复跑时被 core 审计拒绝，未计为通过；随后独立 D RuntimeOnly、core audit 和完整 Final 重跑均返回 0。日志仅保留在本机 OS temp；模型端点、凭证和 owner 数据未进入 Git 或便携工件。上述技术证据不证明长期认知收益，也不替代 owner 日常使用验收、安装包发布或远端发布授权。
