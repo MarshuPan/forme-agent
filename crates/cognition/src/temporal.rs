@@ -160,6 +160,215 @@ where
         }
     }
 
+    /// Reviews a recorded semantic candidate through its domain governor.
+    /// An owner click is confirmation, not permission to invent a stable object.
+    pub fn review_candidate(
+        &self,
+        id: p::CandidateId,
+        owner_confirmed: bool,
+    ) -> p::Result<GovernanceDecision> {
+        if self.memory.user_candidate(&id).is_some() {
+            return self.review_user_candidate(id, owner_confirmed);
+        }
+        let record = self
+            .memory
+            .candidate_record(&id)
+            .ok_or_else(|| p::Error("candidate is not registered".into()))?;
+        if parse_agent_self(&record).is_some() {
+            self.review_agent_self_candidate(id, owner_confirmed)
+        } else if parse_partnership(&record).is_some() {
+            self.review_partnership_candidate(id, owner_confirmed)
+        } else if parse_trust(&record).is_some() {
+            self.review_trust_candidate(id, owner_confirmed)
+        } else {
+            self.cognition
+                .review_recorded_map_candidate(id, owner_confirmed)
+        }
+    }
+
+    /// Durable, idempotent observations from a terminal owner run. These are
+    /// facts about this interaction, never inferred personality or permission.
+    pub fn observe_terminal_run(&self, events: &[p::Event]) -> p::Result<Vec<p::CandidateId>> {
+        let Some(terminal) = events.iter().rev().find(|e| {
+            matches!(
+                e.payload,
+                p::EventPayload::RunComplete(_)
+                    | p::EventPayload::RunAborted(_)
+                    | p::EventPayload::RunFailed(_)
+                    | p::EventPayload::RunLimited(_)
+            )
+        }) else {
+            return Ok(Vec::new());
+        };
+        let Some((accepted, input)) = events.iter().find_map(|e| match &e.payload {
+            p::EventPayload::RunAccepted(p)
+                if matches!(p.source, p::Source::UserTurn | p::Source::Communication)
+                    && e.provenance.trust_tier == p::TrustTier::OwnerInput =>
+            {
+                Some((e, &p.input_ref))
+            }
+            _ => None,
+        }) else {
+            return Ok(Vec::new());
+        };
+        let Some(scope) = events.iter().find_map(|e| match &e.payload {
+            p::EventPayload::SessionBound(p) => Some(p::Scope(p.workspace.0.clone())),
+            _ => None,
+        }) else {
+            return Ok(Vec::new());
+        };
+        let evidence = vec![TemporalEvidence {
+            schema_version: p::SchemaVersion(1),
+            reference: p::EvidenceRef(accepted.event_id.0.clone()),
+            observed_at: accepted.ts_unix_ms,
+            verified_process: true,
+        }];
+        let provenance = p::Provenance {
+            source: p::Source::Internal,
+            actor: p::Actor::System,
+            trust_tier: p::TrustTier::VerifiedProcess,
+            caused_by: Some(terminal.event_id.clone()),
+        };
+        let user_id = p::CandidateId(format!("run-user:{}", terminal.run_id.0));
+        self.memory
+            .create_user_attribute_candidate(memory::UserAttributeCandidate {
+                schema_version: p::SchemaVersion(1),
+                candidate_id: user_id.clone(),
+                attribute: p::UserAttributeRef("interaction-goal".into()),
+                value: p::UserAttributeValueRef(input.0.clone()),
+                evidence: vec![evidence[0].reference.clone()],
+                confidence: p::Confidence(0.5),
+                first_observed_at: accepted.ts_unix_ms,
+                last_updated_at: accepted.ts_unix_ms,
+                stability: p::StabilityTier::Working,
+                scope: scope.clone(),
+                conflicts: vec![],
+                feedback: vec![],
+                provenance: provenance.clone(),
+                evidence_priority: memory::EvidencePriority::Process,
+            })?;
+        let verified = events
+            .iter()
+            .filter(|e| {
+                matches!(&e.payload,
+            p::EventPayload::VerificationFinished(p) if p.outcome == p::VerificationOutcome::Pass)
+            })
+            .map(|e| TemporalEvidence {
+                schema_version: p::SchemaVersion(1),
+                reference: p::EvidenceRef(e.event_id.0.clone()),
+                observed_at: e.ts_unix_ms,
+                verified_process: true,
+            })
+            .collect::<Vec<_>>();
+        let failed = events.iter().any(|e| {
+            matches!(
+                e.payload,
+                p::EventPayload::ActionFailed(_)
+                    | p::EventPayload::ActionOutcomeUnknown(_)
+                    | p::EventPayload::FailureEvidenceRecorded(_)
+            )
+        });
+        let capability = events
+            .iter()
+            .filter_map(|e| match &e.payload {
+                p::EventPayload::ToolCallProposed(p) => Some(p::CapabilityRef(p.tool.0.clone())),
+                _ => None,
+            })
+            .collect::<std::collections::BTreeSet<_>>();
+        let mut ids = vec![user_id];
+        // A text-only reply is observed ability, not independently verified success.
+        for capability in if capability.is_empty() {
+            std::collections::BTreeSet::from([p::CapabilityRef("owner-dialogue".into())])
+        } else {
+            capability
+        } {
+            let mut observations = evidence.clone();
+            observations.extend(verified.clone());
+            observations.push(TemporalEvidence {
+                schema_version: p::SchemaVersion(1),
+                reference: p::EvidenceRef(terminal.event_id.0.clone()),
+                observed_at: terminal.ts_unix_ms,
+                verified_process: false,
+            });
+            let attribute = AgentSelfAttribute {
+                schema_version: p::SchemaVersion(1),
+                capability: capability.clone(),
+                reliability: p::Reliability(
+                    if failed {
+                        "failed"
+                    } else if verified.is_empty() {
+                        "observed-unverified"
+                    } else {
+                        "verified"
+                    }
+                    .into(),
+                ),
+                gap: failed.then(|| "result needs correction before increased autonomy".into()),
+                evidence: observations,
+                confidence: p::Confidence(if failed { 0.4 } else { 0.5 }),
+                stability: p::StabilityTier::Working,
+                scope: scope.clone(),
+                provenance: provenance.clone(),
+                initial_profile: false,
+            };
+            let id = p::CandidateId(format!(
+                "run-self:{}:{}",
+                terminal.run_id.0,
+                p::sha256_content_digest(capability.0.as_bytes()).0
+            ));
+            self.memory.create_candidate_spec(memory::CandidateSpec {
+                schema_version: p::SchemaVersion(1),
+                id: id.clone(),
+                target: encode_agent_self(&attribute),
+                evidence_refs: attribute
+                    .evidence
+                    .iter()
+                    .map(|e| e.reference.clone())
+                    .collect(),
+                confidence: attribute.confidence,
+                provenance: provenance.clone(),
+                target_tier: attribute.stability,
+            })?;
+            ids.push(id);
+        }
+        let approvals = events
+            .iter()
+            .filter_map(|e| match &e.payload {
+                p::EventPayload::ApprovalResolved(p) => {
+                    Some(format!("approval:{}={:?}", p.approval_id.0, p.outcome))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let state = PartnershipState {
+            schema_version: p::SchemaVersion(1),
+            scope,
+            complement: if approvals.is_empty() {
+                vec!["owner supplies goals; brain prepares and verifies within policy".into()]
+            } else {
+                approvals
+            },
+            // An observed approval never grants future delegation.
+            delegation_state: DelegationState::None,
+            evidence: evidence.clone(),
+            stability: p::StabilityTier::Working,
+            last_updated_at: terminal.ts_unix_ms,
+            provenance: provenance.clone(),
+        };
+        let id = p::CandidateId(format!("run-partnership:{}", terminal.run_id.0));
+        self.memory.create_candidate_spec(memory::CandidateSpec {
+            schema_version: p::SchemaVersion(1),
+            id: id.clone(),
+            target: encode_partnership(&state),
+            evidence_refs: evidence.into_iter().map(|e| e.reference).collect(),
+            confidence: p::Confidence(0.5),
+            provenance,
+            target_tier: state.stability,
+        })?;
+        ids.push(id);
+        Ok(ids)
+    }
+
     pub fn review_user_candidate(
         &self,
         id: p::CandidateId,

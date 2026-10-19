@@ -2766,27 +2766,36 @@ fn s27_candidate_review_compares_state_and_retraction_schedules_reevaluation() {
             }),
         ))
         .unwrap();
-    inspect_store
-        .append(raw_event(
-            "s27-candidate",
-            &run,
-            p::EventPayload::CandidateCreated(p::CandidateCreatedPayload {
-                candidate_id: candidate.clone(),
-                target: p::CandidateTargetRef("user-model:review-style".into()),
-                evidence_refs: vec![p::EvidenceRef("failure:s27".into())],
-                confidence: p::Confidence(0.8),
-                provenance: p::Provenance {
-                    source: p::Source::Internal,
-                    actor: p::Actor::System,
-                    trust_tier: p::TrustTier::VerifiedProcess,
-                    caused_by: None,
-                },
-                target_tier: p::StabilityTier::Working,
-                capability_update: None,
-                strategy_candidate: None,
-            }),
-        ))
-        .unwrap();
+    let backing = Arc::new(inspect_store.clone());
+    let memory = forme_cognition::open_persistent_memory(backing.clone(), run.clone()).unwrap();
+    let cognition = forme_cognition::CognitiveRuntime::open(backing, memory, run.clone()).unwrap();
+    forme_cognition::CognitiveMapStore::propose_update(
+        &cognition,
+        forme_cognition::CognitiveMapUpdateProposal {
+            schema_version: p::SchemaVersion(1),
+            candidate_id: Some(candidate.clone()),
+            scope: forme_cognition::MapScope {
+                schema_version: p::SchemaVersion(1),
+                scope: p::Scope("workspace:test".into()),
+            },
+            kind: forme_cognition::MapUpdateKind::BlindSpot,
+            confidence: p::Confidence(0.5),
+            evidence: vec![p::EvidenceRef("s27-failure".into())],
+            frame: None,
+            quality: None,
+            blindspot: Some(p::BlindSpotModelRef("blindspot:s27".into())),
+            resource: None,
+            reflection_inputs: vec![],
+            statement: "Check the recorded failure before claiming competence".into(),
+            provenance: p::Provenance {
+                source: p::Source::Internal,
+                actor: p::Actor::System,
+                trust_tier: p::TrustTier::VerifiedProcess,
+                caused_by: None,
+            },
+        },
+    )
+    .unwrap();
     let promote = p::CandidateReviewCommand {
         schema_version: p::SchemaVersion(1),
         run: run.clone(),
@@ -2814,7 +2823,7 @@ fn s27_candidate_review_compares_state_and_retraction_schedules_reevaluation() {
             evidence: vec![p::EvidenceRef("failure:s27".into())],
             retraction: Some(p::CandidateRetraction {
                 schema_version: p::SchemaVersion(1),
-                target: p::ObjectRef("user-model:review-style".into()),
+                target: p::ObjectRef("blindspot:s27".into()),
                 lineage: p::LineageRef("lineage:s27".into()),
                 derived_refs: vec![p::ObjectRef("cognitive-map:s27".into())],
             }),
@@ -2822,6 +2831,9 @@ fn s27_candidate_review_compares_state_and_retraction_schedules_reevaluation() {
     )
     .unwrap();
     let events = harness.stream_events(run).events();
+    assert!(events.iter().any(
+        |e| matches!(&e.payload, p::EventPayload::CandidatePromoted(p) if p.stable.is_some())
+    ));
     let tail = events
         .iter()
         .rev()

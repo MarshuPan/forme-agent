@@ -520,12 +520,16 @@ impl CompetenceGate for EvidenceCompetenceGate {
             .filter(|item| {
                 item.verified_success && item.reliability.0 >= self.thresholds.verified.0
             })
-            .count()
-            + context
-                .verification
-                .iter()
-                .filter(|item| item.passed)
-                .count();
+            .map(|item| item.reference.0.as_str())
+            .chain(
+                context
+                    .verification
+                    .iter()
+                    .filter(|item| item.passed)
+                    .map(|item| item.reference.0.as_str()),
+            )
+            .collect::<BTreeSet<_>>()
+            .len();
         let strong = context
             .capability_evidence
             .iter()
@@ -1630,6 +1634,56 @@ where
             | GovernanceDecision::Decay => {}
         }
         Ok(decision)
+    }
+
+    /// Build the governance request from recorded facts, never from a UI's
+    /// guessed target. Low-confidence observations remain candidates.
+    pub fn review_recorded_map_candidate(
+        &self,
+        id: p::CandidateId,
+        owner_confirmed: bool,
+    ) -> p::Result<GovernanceDecision> {
+        let proposal = self
+            .lock_state()?
+            .proposals
+            .get(&id)
+            .cloned()
+            .ok_or_else(|| p::Error("candidate has no supported semantic target".into()))?;
+        let mut target = stable_from_proposal(&proposal);
+        let events = self
+            .store
+            .read_run(self.aggregate_run.clone())
+            .collect::<p::Result<Vec<_>>>()?;
+        for evidence in &mut target.evidence {
+            let event = events.iter().find(|e| e.event_id.0 == evidence.reference.0);
+            evidence.observed_at = event.map_or(0, |e| e.ts_unix_ms);
+            evidence.verified_process = event.is_some_and(|e| {
+                e.provenance.trust_tier == p::TrustTier::VerifiedProcess
+                    && !matches!(e.payload, p::EventPayload::ModelCallDelta(_))
+            });
+        }
+        target.last_reproduced_at = target
+            .evidence
+            .iter()
+            .map(|e| e.observed_at)
+            .max()
+            .unwrap_or(0);
+        self.govern_and_apply(GovernanceCandidate {
+            schema_version: p::SchemaVersion(1),
+            candidate_id: id,
+            direction: if target.kind == StableCognitionKind::BlindSpot {
+                ChangeDirection::CautionIncreasing
+            } else {
+                ChangeDirection::ConfidenceOrAutonomyIncreasing
+            },
+            confidence: proposal.confidence,
+            evidence: target.evidence.clone(),
+            impact: p::Impact::Medium,
+            provenance: proposal.provenance,
+            conflicts: vec![],
+            owner_confirmed,
+            target,
+        })
     }
 
     /// A governed change may only name the object its candidate recorded;

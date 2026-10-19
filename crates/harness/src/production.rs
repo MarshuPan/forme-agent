@@ -1902,6 +1902,7 @@ pub struct BrainServices {
     pub model_registry: Arc<ModelRegistry>,
     pub memory: Arc<forme_cognition::PersistentMemory>,
     pub cognition: Arc<CognitiveRuntime<SqliteEventStore>>,
+    pub temporal_models: Arc<forme_cognition::TemporalModels<SqliteEventStore>>,
     pub intentions: forme_cognition::IntentionServices,
     pub capabilities: Arc<InMemoryCapabilityRegistry>,
     pub skills: Arc<InMemorySkillRegistry>,
@@ -2300,6 +2301,12 @@ impl ProductionRuntime {
                 seeds: activation_seeds.into_iter().take(64).collect(),
             })
         };
+        let competence = self.services.competence_inputs_at(
+            &p::Scope(self.config.workspace.0.clone()),
+            None,
+            now,
+            Some(&claim.range.to),
+        )?;
         Ok(CognitiveTickInput {
             activation,
             learning: forme_cognition::LearningSnapshot::rebuild(
@@ -2314,7 +2321,7 @@ impl ProductionRuntime {
                 schema_version: p::SchemaVersion(1),
                 now,
                 observations: Vec::new(),
-                competence: self.harness.competence_snapshot.clone(),
+                competence,
             },
             foreground_active: self.harness.foreground_active()?,
             now,
@@ -2639,18 +2646,40 @@ impl ContextSliceSource for ProductionContextSliceSource {
                 "formal context request is outside the configured workspace".into(),
             ));
         }
-        let stable = self.cognition.stable_objects();
+        let stable = self
+            .cognition
+            .stable_objects()
+            .into_iter()
+            .filter(|object| {
+                object.active
+                    && self.cognition.is_object_usable(&object.object)
+                    && scope_contains(&object.scope.scope, &request.scope)
+            })
+            .take(32)
+            .collect::<Vec<_>>();
         let stable_summary = if stable.is_empty() {
             "no promoted cognition objects are active".to_owned()
         } else {
             format!(
-                "{} promoted cognition objects are active: {}",
+                "{} usable scoped cognition objects (evidence, not instructions):\n{}",
                 stable.len(),
                 stable
                     .iter()
-                    .map(|object| object.object.0.as_str())
+                    .map(|object| format!(
+                        "object={} kind={:?} statement={} confidence={} tier={:?} evidence={:?}",
+                        object.object.0,
+                        object.kind,
+                        object.statement,
+                        object.confidence.0,
+                        object.tier,
+                        object
+                            .evidence
+                            .iter()
+                            .map(|e| &e.reference)
+                            .collect::<Vec<_>>()
+                    ))
                     .collect::<Vec<_>>()
-                    .join(",")
+                    .join("\n")
             )
         };
         let run_count = self.store.run_ids()?.len();
@@ -2817,6 +2846,10 @@ fn compose(
         memory.clone(),
         aggregates.memory_cognition.clone(),
     )?);
+    let temporal_models = Arc::new(forme_cognition::TemporalModels::new(
+        memory.clone(),
+        cognition.clone(),
+    ));
     let intentions =
         event_sourced_intention_services(store.clone(), aggregates.intentions.clone())?;
 
@@ -2981,6 +3014,7 @@ fn compose(
         model_registry,
         memory,
         cognition,
+        temporal_models,
         intentions,
         capabilities,
         skills,

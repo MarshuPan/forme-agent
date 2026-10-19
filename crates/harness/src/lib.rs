@@ -48,6 +48,7 @@ use forme_store::{
 };
 
 mod brain_charter;
+mod brain_models;
 mod brain_orchestration;
 mod brain_project_learning;
 mod brain_relevance;
@@ -3885,6 +3886,8 @@ impl ReactiveHarness {
             return Ok(Flow::Terminal);
         };
         intent.source = record.request.source;
+        record.competence_inputs =
+            self.refresh_competence(&intent.scope, Some(&intent.capability_ref))?;
         let context = self.governance.policy_context(
             record.loop_ctx.session.clone(),
             self.config.toolset_ref.clone(),
@@ -4018,6 +4021,8 @@ impl ReactiveHarness {
         mut plan: ExecutionPlan,
         approval: Option<forme_approval::ApprovalGrant>,
     ) -> p::Result<()> {
+        record.competence_inputs =
+            self.refresh_competence(&intent.scope, Some(&intent.capability_ref))?;
         let turn = Some(current_turn(run, record.loop_ctx.turn_index));
         let provenance = internal_provenance(record.request.source);
         let policy_context = self.governance.policy_context(
@@ -4812,6 +4817,13 @@ impl ReactiveHarness {
         });
         record.resume_state = None;
         record.pending_action = None;
+        if let Some(services) = &self.brain_services {
+            let events = self
+                .store
+                .read_run(run.clone())
+                .collect::<p::Result<Vec<_>>>()?;
+            services.temporal_models.observe_terminal_run(&events)?;
+        }
         handle.changed.notify_all();
         Ok(())
     }
@@ -5553,7 +5565,15 @@ impl GatewayControl for ReactiveHarness {
             .store
             .read_run(command.run.clone())
             .collect::<p::Result<Vec<_>>>()?;
-        let session = run_session(&initial_events)?;
+        let session = if self
+            .brain_services
+            .as_ref()
+            .is_some_and(|s| s.aggregates.memory_cognition == command.run)
+        {
+            p::SessionId(format!("brain-review:{}", command.run.0))
+        } else {
+            run_session(&initial_events)?
+        };
         let session_lock = self.session_lock(&session)?;
         let _session_guard = session_lock
             .lock()
@@ -5592,17 +5612,29 @@ impl GatewayControl for ReactiveHarness {
                     p::CandidateReviewState::Candidate | p::CandidateReviewState::Downgraded
                 ) =>
             {
-                self.append(
-                    command.run,
-                    None,
-                    provenance,
-                    p::EventPayload::CandidatePromoted(p::CandidatePromotedPayload {
-                        candidate_id: command.candidate,
-                        by: p::DecisionActor::User,
-                        reason,
-                        stable: None,
-                    }),
-                )?;
+                let decision = if let Some(services) = self
+                    .brain_services
+                    .as_ref()
+                    .filter(|services| services.aggregates.memory_cognition == command.run)
+                {
+                    services
+                        .temporal_models
+                        .review_candidate(command.candidate, true)?
+                } else {
+                    let store = Arc::new(self.store.clone());
+                    let memory =
+                        cognition::open_persistent_memory(store.clone(), command.run.clone())?;
+                    let runtime = Arc::new(cognition::CognitiveRuntime::open(
+                        store,
+                        memory.clone(),
+                        command.run,
+                    )?);
+                    cognition::TemporalModels::new(memory, runtime)
+                        .review_candidate(command.candidate, true)?
+                };
+                if decision != cognition::GovernanceDecision::Promote {
+                    return Err(p::Error(format!("candidate remains governed: {decision:?}; owner confirmation does not replace evidence")));
+                }
             }
             p::CandidateReviewDecision::Reject
                 if candidate.state == p::CandidateReviewState::Candidate =>
@@ -5674,6 +5706,10 @@ impl GatewayControl for ReactiveHarness {
                 )?;
             }
             _ => return Err(p::Error("candidate review transition is invalid".into())),
+        }
+        if let Some(services) = &self.brain_services {
+            services.memory.refresh_projection()?;
+            services.cognition.refresh_projection()?;
         }
         Ok(())
     }
@@ -6395,7 +6431,11 @@ fn candidate_snapshot(
                 });
             }
             p::EventPayload::CandidatePromoted(payload) if &payload.candidate_id == candidate => {
-                candidate_state_mut(&mut snapshot)?.state = p::CandidateReviewState::Promoted;
+                let current = candidate_state_mut(&mut snapshot)?;
+                current.state = p::CandidateReviewState::Promoted;
+                if let Some(stable) = &payload.stable {
+                    current.target = p::CandidateTargetRef(stable.object.0.clone());
+                }
             }
             p::EventPayload::CandidateRejected(payload) if &payload.candidate_id == candidate => {
                 candidate_state_mut(&mut snapshot)?.state = p::CandidateReviewState::Rejected;
@@ -7222,6 +7262,7 @@ impl FederationActionGateway for ReactiveHarness {
         request: p::RunRequest,
         intent: p::ActionIntent,
     ) -> p::Result<RemoteActionSubmission> {
+        let inputs = self.refresh_competence(&intent.scope, Some(&intent.capability_ref))?;
         self.federation.prepare_remote_action(
             run,
             request,
@@ -7229,7 +7270,7 @@ impl FederationActionGateway for ReactiveHarness {
             &self.governance,
             &self.config,
             self.competence.as_ref(),
-            &self.competence_snapshot,
+            &inputs,
         )
     }
 }
