@@ -19,7 +19,8 @@ use crate::RunGateway;
 
 const CSRF_HEADER: &str = "x-forme-csrf";
 const MAX_RESPONSE_BYTES: u64 = 16 * 1024 * 1024;
-const POLL_INTERVAL: Duration = Duration::from_millis(100);
+const POLL_INITIAL_INTERVAL: Duration = Duration::from_millis(250);
+const POLL_MAX_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Owner bearer token for the local daemon; never printed.
 #[derive(Clone)]
@@ -250,6 +251,7 @@ impl RunGateway for HttpGatewayClient {
     fn wait_run(&self, run: p::RunId) -> p::Result<p::RunResult> {
         let path = format!("/v1/runs/{}", path_segment(&run.0));
         let deadline = Instant::now() + self.wait_timeout;
+        let mut poll_interval = POLL_INITIAL_INTERVAL;
         loop {
             let summary: p::RunSummary = self.get_json(&path)?;
             if let Some(result) = summary.result {
@@ -265,7 +267,9 @@ impl RunGateway for HttpGatewayClient {
                     "run did not reach a terminal state before the wait bound".into(),
                 ));
             }
-            std::thread::sleep(POLL_INTERVAL);
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            std::thread::sleep(remaining.min(poll_interval));
+            poll_interval = next_poll_interval(poll_interval);
         }
     }
 
@@ -344,6 +348,13 @@ fn parse_event_page(body: &[u8]) -> Vec<p::Event> {
         .collect()
 }
 
+fn next_poll_interval(current: Duration) -> Duration {
+    current
+        .checked_mul(2)
+        .unwrap_or(POLL_MAX_INTERVAL)
+        .min(POLL_MAX_INTERVAL)
+}
+
 /// Percent-encodes one path segment; identifiers keep `:` readable.
 fn path_segment(value: &str) -> String {
     let mut encoded = String::with_capacity(value.len());
@@ -406,5 +417,29 @@ mod tests {
     fn path_segments_are_percent_encoded() {
         assert_eq!(path_segment("run:1:2"), "run:1:2");
         assert_eq!(path_segment("a/b?c"), "a%2Fb%3Fc");
+    }
+
+    #[test]
+    fn run_polling_uses_bounded_exponential_backoff() {
+        let intervals = [
+            POLL_INITIAL_INTERVAL,
+            next_poll_interval(POLL_INITIAL_INTERVAL),
+            next_poll_interval(next_poll_interval(POLL_INITIAL_INTERVAL)),
+            next_poll_interval(next_poll_interval(next_poll_interval(
+                POLL_INITIAL_INTERVAL,
+            ))),
+            POLL_MAX_INTERVAL,
+        ];
+        assert_eq!(
+            intervals,
+            [
+                Duration::from_millis(250),
+                Duration::from_millis(500),
+                Duration::from_secs(1),
+                Duration::from_secs(2),
+                Duration::from_secs(2),
+            ]
+        );
+        assert_eq!(next_poll_interval(Duration::MAX), POLL_MAX_INTERVAL);
     }
 }
