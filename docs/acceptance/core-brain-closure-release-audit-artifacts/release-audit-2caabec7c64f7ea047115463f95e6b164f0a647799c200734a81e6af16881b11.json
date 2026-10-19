@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:fef9d2f82d4e549513492bf8879f5b4a3778f8760abd011bc657ae58f19cef85",
+        "input_digest": "sha256:e6092716aba69efa1d16f46ec9dac2cf0715508dcdd53affef3222c1ceb02351",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:0aead8075910cc0e33524a7d822d553ae169b9805a2ffd09baac0b9a0cff209c",
+        "input_digest": "sha256:217a7c6cccbae1b8f685a17215c624d55c1ad637365fbdadb3855e0e18553194",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -57,7 +57,7 @@
         "blocking": false,
         "check_id": "acceptance_artifacts",
         "findings": [],
-        "input_digest": "sha256:673196330a9dc28c2452eeffca0d4313b6fae3440e9738bc4dfbec06307e1857",
+        "input_digest": "sha256:807c02b8c621a885cf4e0c471f84ce29e71dff76f3d4d2e400e5653510892030",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-artifact-scan",
@@ -113,7 +113,7 @@
         "blocking": false,
         "check_id": "ecosystem_threat_profile",
         "findings": [],
-        "input_digest": "sha256:581241693d564482182a8e86bede711e8f236f935229a4ad608d5810278d89e2",
+        "input_digest": "sha256:ce5d904a35f445129e5aa4751d6223da42a42e3f5372e505258fb71b617d85b6",
         "observations": [
           {
             "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
@@ -159,7 +159,7 @@
         "blocking": false,
         "check_id": "core_brain_closure",
         "findings": [],
-        "input_digest": "sha256:9f3604325e18a3258a0f63e1dcd22f1d4f0844f86064ba6d6d67f559a778d9f6",
+        "input_digest": "sha256:d4f1ebb0d34c1a1084a6cbc22f9dd616c38fbe4914cc2a974df0f373cdc9151d",
         "observations": [
           {
             "code": "CORE_BRAIN_CLOSURE_VERIFIED",
@@ -173,10 +173,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:b2899b8874d694ea07c30b95724fbf8b1bffa3f8321157b0229f7a43d2f805ed",
+    "root_digest": "sha256:47deba697a29aea1d506b4f4725517262fa2a826c1a9cb257a4c50d2ddc787ed",
     "schema_version": 1,
     "tool_version": "forme-core-brain-release-audit/1"
   },
-  "digest": "sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01df04cf0a5ae68aaae",
+  "digest": "sha256:2caabec7c64f7ea047115463f95e6b164f0a647799c200734a81e6af16881b11",
   "schema_version": 1
 }
