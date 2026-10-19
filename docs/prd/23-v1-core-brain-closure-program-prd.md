@@ -12,6 +12,14 @@
 
 ## 1. 全局集成契约
 
+### 1.0 默认运行链补闭（既有能力，不新增里程碑）
+
+- owner 只有一份 `BrainServices`、memory/cognition/TemporalModels、M3 registries；workspace 是请求与项目的作用域，`config.workspace` 只是默认入口，不是 owner 唯一可用项目。新 workspace 必须经 owner 的项目/charter 控制登记；未登记 scope 不得取得上下文或执行权限。
+- 正式 run 的可信输入、工具结果、验证、失败与审批反馈进入三模型候选；不推断未陈述的人格、不把模型回答当成功证据、不自动扩大 trust/delegation。候选通过同一个 EvolutionGovernor 晋升，`CandidatePromoted` 必须携带可重放的 `StableCognitionRecord`；人工确认也不能绕过证据门。
+- context 只带当前 workspace/祖先 scope 下仍可用的稳定认知正文、种类、置信度、tier 和 evidence；撤销/派生失效对象不可进入。能力门在每次动作出口和审批恢复后重建相关 capability/scope 的结果、失败、稳定认知与 trust 输入；冷启动仍按低上限处理。
+- 默认装配 M3 domain runtime；没有激活快照时使用 seed 行为，不能因此阻断普通 run。已激活的版本在 run 开始时绑定；未激活路线经验只提供 evidence，不修改 active policy。
+- route 经验按项目 workspace 记录；后续选择可读取已激活的 selection/coordination 版本及其可追溯适配证据。成功与失败都留痕，不能用无证据的 fitness 常数冒充学习。
+
 ### 1.1 模块 owner
 
 | 能力 | Owner crate | 只允许的 consumer/协作 |
