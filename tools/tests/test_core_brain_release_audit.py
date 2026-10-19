@@ -88,6 +88,10 @@ class ScriptedCommands:
             output = "" if self.empty_lists else "".join(name + ": test\n" for name in sorted(names))
         elif Path(command[0]).name.startswith("forme-core-brain-d-artifact-verify"):
             output, code = f"core-brain-d artifact: {self.verdict}\n", self.verifier_code
+        elif command[:2] == ["cargo", "run"]:
+            for wave in ("b", "c"):
+                if f"forme-core-brain-{wave}-artifact-verify" in command:
+                    output = f"core-brain-{wave} artifact: PASS\n"
         if self.failure is not None and self.failure(command):
             code = 1
         return subprocess.CompletedProcess(command, code, output, "")
@@ -102,6 +106,11 @@ class CoreBrainReleaseAuditTests(unittest.TestCase):
         self.environment.start()
         self.addCleanup(self.environment.stop)
         self.commands = ScriptedCommands(self.root)
+        # Audit-glue tests use their own fake subprocesses. The companion's
+        # schema/source/closed-set negatives are exercised by its separate suite.
+        self.bundle_verifier = mock.patch.object(core.evidence, "verify_bundle", return_value={"verdict": "Pass"})
+        self.bundle_verifier.start()
+        self.addCleanup(self.bundle_verifier.stop)
 
     def write(self, relative, value="self-authored fixture\n"):
         path = self.root / relative
@@ -207,6 +216,18 @@ class CoreBrainReleaseAuditTests(unittest.TestCase):
         (self.root / "crates/store/src/content.rs").unlink()
         check = core.core_brain_closure_check(self.root, self.commands)
         self.assertIn("CORE_BRAIN_FIXTURE_MISSING", self.codes(check.findings))
+
+    def test_closed_bundle_and_independent_b_c_verifiers_are_blocking(self):
+        self.fixtures()
+        with mock.patch.object(core.evidence, "verify_bundle", side_effect=ValueError("invalid fixture")):
+            check = core.core_brain_closure_check(self.root, self.commands)
+            self.assertIn("CORE_BRAIN_EVIDENCE_INVALID", self.codes(check.findings))
+        with mock.patch.object(core.evidence, "verify_bundle", return_value={"verdict": "Unverifiable"}):
+            check = core.core_brain_closure_check(self.root, self.commands)
+            self.assertIn("CORE_BRAIN_EVIDENCE_UNVERIFIABLE", self.codes(check.findings))
+        self.commands.failure = lambda c: "forme-core-brain-c-artifact-verify" in c
+        check = core.core_brain_closure_check(self.root, self.commands)
+        self.assertIn("CORE_BRAIN_TYPED_EVIDENCE_FAILED", self.codes(check.findings))
 
     def test_zero_test_success_and_incomplete_d_inventory_are_rejected(self):
         self.fixtures()

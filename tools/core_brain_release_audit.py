@@ -23,6 +23,13 @@ if PROFILE_SPEC is None or PROFILE_SPEC.loader is None:
 m5 = importlib.util.module_from_spec(PROFILE_SPEC)
 sys.modules[PROFILE_SPEC.name] = m5
 PROFILE_SPEC.loader.exec_module(m5)
+EVIDENCE_SPEC = importlib.util.spec_from_file_location(
+    "forme_core_brain_evidence", Path(__file__).with_name("core_brain_evidence.py")
+)
+if EVIDENCE_SPEC is None or EVIDENCE_SPEC.loader is None:
+    raise RuntimeError("core-brain evidence verifier could not be loaded")
+evidence = importlib.util.module_from_spec(EVIDENCE_SPEC)
+EVIDENCE_SPEC.loader.exec_module(evidence)
 audit = m5.audit
 audit.TOOL_VERSION = "forme-core-brain-release-audit/1"
 audit.ARTIFACT_TYPE = "forme-core-brain-release-audit"
@@ -70,6 +77,8 @@ REQUIRED_FILES = {
     "tools/verify-m2-workspace-contract.ps1",
     "tools/core_brain_release_audit.py",
     "tools/tests/test_core_brain_release_audit.py",
+    "tools/core_brain_evidence.py",
+    "tools/tests/test_core_brain_evidence.py",
     "crates/store/src/content.rs",
     "crates/store/src/backup.rs",
     "crates/store/src/at_rest.rs",
@@ -82,6 +91,8 @@ REQUIRED_FILES = {
     "crates/harness/src/product_golden_runner.rs",
     "crates/harness/src/product_golden_runner_tests.rs",
     "crates/harness/src/bin/forme-core-brain-d-golden.rs",
+    "docs/acceptance/core-brain-closure-artifacts/manifest.json",
+    *{f"docs/acceptance/core-brain-{wave}-artifacts/manifest.json" for wave in "abcd"},
 }
 
 
@@ -295,6 +306,22 @@ def core_brain_closure_check(root: Path, runner=None):
         if runtime.returncode or "core-brain-runtime (D): PASS (runtime only; not wave D or Final acceptance)" not in runtime.stdout.splitlines():
             findings.append(_finding("RUNTIME_FAILED", GATE, "D exact runtime scenarios, including the ignored CLI case, did not pass"))
     findings.extend(verify_product_artifact(root, root / PRODUCT_ARTIFACT, runner))
+    try:
+        bundle = evidence.verify_bundle(root, rows)
+        if bundle["verdict"] != "Pass":
+            findings.append(_finding("EVIDENCE_UNVERIFIABLE", "docs/acceptance/core-brain-closure-artifacts", "all four wave manifests must pass; runtime evidence alone cannot close D"))
+    except (OSError, ValueError, KeyError, TypeError, RecursionError):
+        findings.append(_finding("EVIDENCE_INVALID", "docs/acceptance/core-brain-closure-artifacts", "closed wave inventories, source receipts or aggregate references are missing, stale or unsafe"))
+    # A manifest digest never replaces the existing independent typed verifier.
+    for wave, names in (("b", ("relevance-comparison",)), ("c", ("patterns", "conflict", "recovery", "isolation", "supervision", "learning"))):
+        for name in names:
+            typed = _invoke([
+                "cargo", "run", "--locked", "--target-dir", str(root / "target"), "-p", "forme-eval",
+                "--bin", f"forme-core-brain-{wave}-artifact-verify", "--",
+                f"docs/acceptance/core-brain-{wave}-artifacts/{name}.json",
+            ], root, runner)
+            if typed.returncode or f"core-brain-{wave} artifact: PASS" not in typed.stdout.splitlines():
+                findings.append(_finding("TYPED_EVIDENCE_FAILED", f"docs/acceptance/core-brain-{wave}-artifacts/{name}.json", "typed evidence did not pass its independent verifier"))
     if not findings:
         observations.append(_finding("CLOSURE_VERIFIED", PRODUCT_ARTIFACT, "C1-C24 compiled inventory, current graph, D runtime and six live C24 tasks verified"))
     return audit._result("core_brain_closure", "forme-core-brain-verifier", audit.TOOL_VERSION,
@@ -368,7 +395,7 @@ def run_core_brain_release_audit(root: Path):
 
 
 def _exit_code(findings) -> int:
-    return 2 if any(f.code in {"CORE_BRAIN_C24_UNVERIFIABLE", "CORE_BRAIN_ARTIFACT_MISSING", "CORE_BRAIN_C24_VERIFIER_UNAVAILABLE"} for f in findings) else (1 if findings else 0)
+    return 2 if any(f.code in {"CORE_BRAIN_C24_UNVERIFIABLE", "CORE_BRAIN_ARTIFACT_MISSING", "CORE_BRAIN_C24_VERIFIER_UNAVAILABLE", "CORE_BRAIN_EVIDENCE_UNVERIFIABLE"} for f in findings) else (1 if findings else 0)
 
 
 def main(argv: list[str] | None = None) -> int:

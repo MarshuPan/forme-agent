@@ -5,7 +5,9 @@ param(
     # Runtime evidence alone never closes C24, wave D, or Final.
     [switch]$RuntimeOnly,
     # Read-only machine inventory, also used by the independent release audit.
-    [switch]$ListScenarios
+    [switch]$ListScenarios,
+    # Capture sanitized exact execution receipts and fresh A/C witnesses.
+    [string]$EvidenceOutput
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +15,8 @@ Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $priorCArtifactRoot = $env:FORME_CORE_C_ARTIFACT_DIR
+$priorAArtifactRoot = $env:FORME_CORE_A_ARTIFACT_DIR
+$priorBArtifactRoot = $env:FORME_CORE_B_ARTIFACT_DIR
 $priorTargetDirectory = $env:CARGO_TARGET_DIR
 $priorCliBinary = $env:FORME_CLI_BIN
 $priorGatewayBinary = $env:FORME_GATEWAYD_BIN
@@ -21,6 +25,7 @@ $temporaryReleaseRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("forme-core
 $gateExitCode = 1
 Push-Location $repoRoot
 try {
+    $script:scenarioReceipts = [System.Collections.Generic.List[object]]::new()
     if ($RuntimeOnly -and $Wave -cne "D") {
         throw "-RuntimeOnly is supported only with -Wave D; it cannot close D or Final"
     }
@@ -67,6 +72,12 @@ try {
         if ($ran.Count -ne 1) {
             throw "[$($Scenario.Id)] did not run exactly one named test: $($Scenario.Test)"
         }
+        $script:scenarioReceipts.Add([ordered]@{
+            wave = $script:activeWave; id = $Scenario.Id; package = $Scenario.Package
+            target = @($Scenario.Target); test = $Scenario.Test
+            include_ignored = ($Scenario.ContainsKey("IncludeIgnored") -and [bool]$Scenario.IncludeIgnored)
+            passed = 1; failed = 0; ignored = 0
+        })
         Write-Host "[$($Scenario.Id)] PASS"
     }
 
@@ -381,6 +392,7 @@ try {
     }
 
     if ($ListScenarios) {
+        if ($EvidenceOutput) { throw "-ListScenarios cannot capture execution evidence" }
         $inventory = @(
             foreach ($requested in $requestedWaves) {
                 foreach ($scenario in $waveScenarios[$requested]) {
@@ -397,6 +409,14 @@ try {
         )
         ConvertTo-Json -InputObject ([ordered]@{ schema_version = 1; scenarios = $inventory }) -Depth 6
         return
+    }
+
+    $captureSource = (& git rev-parse HEAD | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "Cannot bind evidence to the current source commit" }
+    if ($EvidenceOutput) {
+        $EvidenceOutput = [System.IO.Path]::GetFullPath($EvidenceOutput)
+        if (Test-Path -LiteralPath $EvidenceOutput) { throw "Evidence output must be a new directory" }
+        New-Item -ItemType Directory -Path $EvidenceOutput | Out-Null
     }
 
     $localTarget = Join-Path $repoRoot "target"
@@ -442,15 +462,23 @@ try {
     $env:FORME_CLI_BIN = (Resolve-Path (Join-Path $localTarget "debug/forme-cli.exe")).Path
     $env:FORME_GATEWAYD_BIN = (Resolve-Path (Join-Path $localTarget "debug/forme-gatewayd.exe")).Path
     foreach ($requested in $requestedWaves) {
+        $script:activeWave = $requested
+        $captureRoot = $null
+        if ($EvidenceOutput) {
+            $captureRoot = if ($Wave -ceq "Final") { Join-Path $EvidenceOutput $requested.ToLowerInvariant() } else { $EvidenceOutput }
+            New-Item -ItemType Directory -Path $captureRoot -Force | Out-Null
+            if ($requested -ceq "A") { $env:FORME_CORE_A_ARTIFACT_DIR = $captureRoot }
+            if ($requested -ceq "B") { $env:FORME_CORE_B_ARTIFACT_DIR = $captureRoot }
+        }
         if ($requested -ceq "C") {
-            $env:FORME_CORE_C_ARTIFACT_DIR = $temporaryCArtifactRoot
+            $env:FORME_CORE_C_ARTIFACT_DIR = if ($captureRoot) { $captureRoot } else { $temporaryCArtifactRoot }
         }
         foreach ($scenario in $waveScenarios[$requested]) {
             Invoke-Scenario $scenario
         }
         if ($requested -ceq "C") {
             foreach ($name in @("patterns", "conflict", "recovery", "isolation", "supervision", "learning")) {
-                foreach ($root in @($temporaryCArtifactRoot, (Join-Path $repoRoot "docs/acceptance/core-brain-c-artifacts"))) {
+                foreach ($root in @($env:FORME_CORE_C_ARTIFACT_DIR, (Join-Path $repoRoot "docs/acceptance/core-brain-c-artifacts"))) {
                     Invoke-Checked -Label "C13-C18 $name artifact independent verification" -Program "cargo" -Arguments @(
                         "run", "-p", "forme-eval", "--bin", "forme-core-brain-c-artifact-verify", "--", (Join-Path $root "$name.json")
                     )
@@ -463,6 +491,19 @@ try {
                 "docs/acceptance/core-brain-b-artifacts/relevance-comparison.json"
             )
         }
+        if ($captureRoot) {
+            $runtimePath = Join-Path $captureRoot "runtime.json"
+            $runtimeReport = [ordered]@{
+                schema_version = 1; kind = "forme-core-brain-runtime"; wave = $requested
+                source_commit = $captureSource
+                scenarios = @($script:scenarioReceipts | Where-Object { $_.wave -ceq $requested })
+            }
+            [System.IO.File]::WriteAllText($runtimePath, (ConvertTo-Json -InputObject $runtimeReport -Depth 12), [System.Text.UTF8Encoding]::new($false))
+            Invoke-Checked "Seal current-source $requested runtime evidence" "py" @(
+                "-3", (Join-Path $PSScriptRoot "core_brain_evidence.py"), "--root", $repoRoot,
+                "--seal-runtime", $requested, "--runtime", $runtimePath
+            )
+        }
         if ($requested -ceq "D") {
             if ($RuntimeOnly) {
                 Write-Host "[PASS] core-brain-wave-D-runtime (C24 live evidence not evaluated; D/Final remain open)"
@@ -472,6 +513,10 @@ try {
                 "-3", (Join-Path $PSScriptRoot "core_brain_release_audit.py"), "--root", $repoRoot,
                 "--verify-product", (Join-Path $repoRoot "docs/acceptance/core-brain-d-artifacts/product-golden.json")
             )
+            Invoke-Checked "D closed portable evidence inventory" "py" @(
+                "-3", (Join-Path $PSScriptRoot "core_brain_evidence.py"), "--root", $repoRoot,
+                "--verify-wave", "D", "--require-pass"
+            )
         }
         Write-Host "[PASS] core-brain-wave-$requested"
     }
@@ -480,6 +525,10 @@ try {
         return
     }
     if ($Wave -ceq "Final") {
+        Invoke-Checked "Closed four-wave portable evidence inventory" "py" @(
+            "-3", (Join-Path $PSScriptRoot "core_brain_evidence.py"), "--root", $repoRoot,
+            "--verify", "--require-pass"
+        )
         $auditScript = Join-Path $PSScriptRoot "core_brain_release_audit.py"
         $repositoryReleaseRoot = Join-Path $repoRoot "docs/acceptance/core-brain-closure-release-audit-artifacts"
         Invoke-Checked "Current clean-tree core-brain release audit" "py" @(
@@ -501,6 +550,8 @@ finally {
     foreach ($entry in @(
         @{ Name = "FORME_CLI_BIN"; Previous = $priorCliBinary },
         @{ Name = "FORME_GATEWAYD_BIN"; Previous = $priorGatewayBinary }
+        @{ Name = "FORME_CORE_A_ARTIFACT_DIR"; Previous = $priorAArtifactRoot }
+        @{ Name = "FORME_CORE_B_ARTIFACT_DIR"; Previous = $priorBArtifactRoot }
     )) {
         if ($null -eq $entry.Previous) {
             Remove-Item -LiteralPath ("Env:" + $entry.Name) -ErrorAction SilentlyContinue

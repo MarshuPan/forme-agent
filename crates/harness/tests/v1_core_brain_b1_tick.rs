@@ -612,6 +612,52 @@ fn c7_one_window_observes_then_reflects_then_maintains_over_a_fixed_range() {
             consumed: report.event_range.to.clone(),
         })
     );
+    if let Some(directory) = std::env::var_os("FORME_CORE_B_ARTIFACT_DIR") {
+        let source_commit = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+        assert!(source_commit.status.success());
+        let stream_heads: std::collections::BTreeMap<_, _> = store
+            .run_ids()
+            .unwrap()
+            .into_iter()
+            .map(|run| {
+                let last = events(&store, &run).last().unwrap().stream_seq;
+                (run.0, last)
+            })
+            .collect();
+        let positions: Vec<_> = tick
+            .iter()
+            .map(|event| {
+                serde_json::json!({"seq": event.stream_seq, "kind": event.kind,
+                    "digest": p::canonical_digest(event).unwrap()})
+            })
+            .collect();
+        let snapshot: Vec<_> = stable
+            .iter()
+            .map(|object| {
+                serde_json::json!({"object": object.object, "active": object.active,
+                    "confidence": object.confidence})
+            })
+            .collect();
+        let artifact = serde_json::json!({
+            "schema_version": 1, "kind": "forme-core-brain-tick", "grade": "ControlledRuntime",
+            "source_commit": String::from_utf8(source_commit.stdout).unwrap().trim(),
+            "composition_digest": runtime.manifest().digest,
+            "cognition_snapshot": p::canonical_digest(&snapshot).unwrap(),
+            "report_digest": report.digest, "run": report.run, "stream_heads": stream_heads,
+            "phases": ["ObserveAndPropose", "ReflectAndCandidate", "MaintainMemory"],
+            "positions": positions, "tick_model_calls": report.model_calls(),
+            "endpoint_calls_before": calls, "endpoint_calls_after": model.calls()
+        });
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            PathBuf::from(directory).join("tick.json"),
+            serde_json::to_vec_pretty(&artifact).unwrap(),
+        )
+        .unwrap();
+    }
     drop(store);
     drop(harness);
     drop(runtime);

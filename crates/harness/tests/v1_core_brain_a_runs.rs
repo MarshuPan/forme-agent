@@ -817,6 +817,46 @@ fn c5_scheduler_pass_runs_through_the_same_runtime_as_owner_turns() {
         .unwrap()
         .iter()
         .any(|job| job.intention.id == intention && job.run == Some(scheduled.clone())));
+    if let Some(directory) = std::env::var_os("FORME_CORE_A_ARTIFACT_DIR") {
+        let source_commit = std::process::Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .output()
+            .unwrap();
+        assert!(source_commit.status.success());
+        let streams: Vec<_> = [&turn, &scheduled]
+            .into_iter()
+            .map(|run| {
+                let positions: Vec<_> = events(&store, run)
+                    .iter()
+                    .map(|event| {
+                        serde_json::json!({
+                            "seq": event.stream_seq,
+                            "kind": event.kind,
+                            "digest": p::canonical_digest(event).unwrap()
+                        })
+                    })
+                    .collect();
+                serde_json::json!({
+                    "run": run, "source": source(run),
+                    "session_bound": session_bound(&store, run), "positions": positions
+                })
+            })
+            .collect();
+        let artifact = serde_json::json!({
+            "schema_version": 1, "kind": "forme-core-brain-entrypoints",
+            "grade": "ControlledRuntime",
+            "source_commit": String::from_utf8(source_commit.stdout).unwrap().trim(),
+            "composition_digest": runtime.manifest().digest,
+            "taxonomy_digest": p::canonical_digest(&p::EventKind::ALL.to_vec()).unwrap(),
+            "model_calls": model.calls(), "streams": streams
+        });
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(
+            PathBuf::from(directory).join("entrypoints.json"),
+            serde_json::to_vec_pretty(&artifact).unwrap(),
+        )
+        .unwrap();
+    }
     drop(harness);
     drop(store);
     drop(runtime);
