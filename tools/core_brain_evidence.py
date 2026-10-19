@@ -117,6 +117,8 @@ def scan(path: Path):
             elif isinstance(value, list):
                 for child in value:
                     walk(child)
+            elif isinstance(value, str) and FORBIDDEN.search(value):
+                raise ValueError("private path, endpoint or secret marker in decoded evidence")
         walk(load(path))
 
 

@@ -161,7 +161,9 @@ class EvidenceTests(unittest.TestCase):
     def test_private_material_is_rejected_without_echoing_values(self):
         path = evidence.wave_dir(self.root, "B") / "relevance-comparison.json"
         for text in ('{"base_url":"hidden"}', '{"note":"https://private.example.invalid"}',
-                     '{"note":"/home/owner/data"}', '{"note":"bearer fixture-value"}'):
+                     '{"note":"/home/owner/data"}', '{"note":"bearer fixture-value"}',
+                     json.dumps({"note": r"C:\Users\fixture\private"}),
+                     '{"note":"\\u0068ttps://private.example.invalid"}'):
             path.write_text(text, encoding="utf-8")
             with self.subTest(text=text), self.assertRaises(ValueError):
                 evidence.manifest_body(self.root, "B", self.rows)
