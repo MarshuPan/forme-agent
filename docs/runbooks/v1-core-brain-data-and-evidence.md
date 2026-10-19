@@ -115,3 +115,13 @@ pwsh -NoProfile -File tools/verify-core-brain-closure.ps1 -Wave Final
 ```
 
 Final 还要求 A–C、S1–S99、fmt/check/test/strict-clippy/compliance、当前干净树 release audit。发布检查只能用该 checkout 的 `target/debug`；不得借共享 target、旧 receipt 或自报最终回答通过。分支实现、真实价值通过和 main 合入是三个单独状态。
+
+## 7. 分波证据清单与最终汇总
+
+`verify-core-brain-closure.ps1 -Wave A|B|C|D -EvidenceOutput <新目录>` 在逐名测试全部实际通过后，导出该波 `runtime.json`。其中只记录冻结场景身份、恰好一次执行的计数、源码提交和输入摘要，不导出完整 shell 日志。A 波同时导出正式 owner turn/scheduler 的脱敏事件位置、共同 SessionBound 快照和模型端点实际调用数；这些是受控 HTTP 运行证据，不冒充真实模型质量。C 波同时导出本次重新生成的六份 typed 工件。
+
+将运行报告与各波 typed 工件放入 `core-brain-{a,b,c,d}-artifacts/` 后，由 `tools/core_brain_evidence.py --capture-wave A|B|C|D` 生成 `manifest.json`。清单采用封闭字段与文件集合，绑定源码/场景清单/输入摘要、每个文件的字节摘要、证据等级、事件范围和配置/模型/策略快照引用，以及秘密/私有路径扫描结果。`README.md` 是唯一可选说明文件，也必须纳入摘要；不允许额外文件、嵌套目录、符号链接或未知字段。
+
+`--assemble` 生成 `core-brain-closure-artifacts/manifest.json`，只引用四波清单及其摘要和共同源码输入，不把报告或发布 receipt 纳入自身，避免循环摘要。`--verify` 离线校验封闭集合、全部引用、源码与执行清单一致性；源码验真需要本地 Git 历史，不发起模型/工具副作用。typed B/C/D 内容仍由原有独立 Rust verifier 判定，不能只凭 JSON 中的 Pass。
+
+D 的 `runtime.json` 即使通过，缺少 live C24 时 D 清单与汇总仍必须是 `Unverifiable`。正式 D/Final 和 release audit 额外要求这些清单、独立 typed 校验与 C24 全部通过。证据包只证明绑定源码及有界场景；不证明真实用户数月收益，也不是签名远端证明。历史波次报告不回写；当前源码重验写入新清单。
