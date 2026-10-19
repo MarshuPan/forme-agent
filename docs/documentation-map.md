@@ -203,12 +203,12 @@ flowchart TD
 - PRD 必须同时包含功能描述、实施步骤、测试和验收标准。
 - 如果引入外部依赖、代码复用或协议兼容，必须记录来源、forme 重新设计方式和复制风险。
 
-## 下一步建议
+## 当前维护与发布边界
 
-M0-M5 均已走完整条 `requirements -> architecture -> PRD -> implementation -> acceptance` 流水线并合入 main。下一步不自造 M6，按已冻结的 V1 核心大脑闭合链实施：
+M0-M5 与 V1 核心大脑 A–D 均已走完整条 `requirements -> architecture -> PRD -> implementation -> acceptance` 流水线并合入本地 main。后续维护沿用已冻结的闭合契约，不自造 M6；当前许可证重验和发布回执见总验收报告：
 
 1. `acceptance/m5-acceptance-report.md` 与 `tools/verify-m5.ps1` 固定为 S1-S99 回归入口；M4 report/verify 继续作为内含历史门。
 2. M2 86-kind 必须继续是 M3 89-kind、M4 93-kind、M5 97-kind 与 V1 closure 99-kind 的严格前缀；18-crate 图、Harness-first、执行前重查、能力门、candidate/activation/authorization 分离与 single authority 不可回退。
-3. 按 `prd/23` A→B→C→D 实施；每波独立提交、验收报告并复跑 S1-S99，最终 C1-C24 和真实 golden/release gate 全绿。
+3. `prd/23` A→B→C→D 的实现顺序与独立提交、验收报告保留为已完成历史；后续变更继续复跑 S1-S99、对应 C1-C24 场景和真实 golden/release gate。
 4. `WorkspaceCharterChanged` 与 `DataLifecycleApplied` 是唯一获准的新事件；第三个新增事件或冻结 trait/依赖图变化必须先回文档经 owner 确认。
 5. 任何公开发布仍由 owner 单独决定；release audit 是工程证据，不替代法律意见或外部发布授权。

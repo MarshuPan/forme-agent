@@ -1,112 +1,112 @@
 {
-  "composition_digest": "sha256:113b96c9d763e3fd7b635836fad5c17524d11dd2a81c75b2d47004a71c307c0d",
+  "composition_digest": "sha256:eea5bca5e226fb0acf002334e35064a5dd1a7103b2fbc330b99e1de60e71a988",
   "grade": "ControlledRuntime",
   "kind": "forme-core-brain-entrypoints",
   "model_calls": 1,
   "schema_version": 1,
-  "source_commit": "b9ea670accdae0f59122aa62333cb172e18416e4",
+  "source_commit": "2f65fcee4c0b9ba793fdc9045825ecd1af807e68",
   "streams": [
     {
       "positions": [
         {
-          "digest": "sha256:9ce6db76dbc7f5097c6c5f62809b5416f19878223bcdef22dfc7a2fb9b40cee0",
+          "digest": "sha256:ccf627016d3fc416cd83e34247e4e557b95edc8798157022d2296394e4c9a811",
           "kind": "RunAccepted",
           "seq": 1
         },
         {
-          "digest": "sha256:f7324de9e95346d5354d71dbf4cbc4d6bf1dd6ade9a09b2f8f178df211d727aa",
+          "digest": "sha256:8c3abfa38e6f548bfc3fe2c04a655406e8020fdde5c5a2dcf410e49a084d4a9f",
           "kind": "SessionBound",
           "seq": 2
         },
         {
-          "digest": "sha256:fe2a707e5e8365c8443252833f124ae48b919bd11e5d25e67233d6b4111135ba",
+          "digest": "sha256:b49211c08672ad6e5c685f2ec4218647ef676adac65e8f1d278e6b2f5031903d",
           "kind": "GoalFramed",
           "seq": 3
         },
         {
-          "digest": "sha256:e8729b28b5527f48bbc327eb3e13b0e6c448bcebbce8da2d4cba7af7a982b6e9",
+          "digest": "sha256:00573a38bddbb2e94956b3314c053a0782b03faafa2ac343a3ccdca2b7e2897e",
           "kind": "ResourcePlanned",
           "seq": 4
         },
         {
-          "digest": "sha256:71136eeea602418c02f5523ef1f5e58c4f5da89c20501635956736f4a3d832cf",
+          "digest": "sha256:6286ae27632751b37601d61fe8ca96f06fd9a3d30591caee6dbdb3f90f74fd9f",
           "kind": "DoneContractSet",
           "seq": 5
         },
         {
-          "digest": "sha256:f8fba32360ce9e9ae1308aa01cd626f368dedb6a64748dc7be95a6ca0cd4064a",
+          "digest": "sha256:4a36ad763b943a2f1d7ef7d18c496d56fa4f3f4177a340171e74430b51a6a8d4",
           "kind": "AutonomyEnvelopeSet",
           "seq": 6
         },
         {
-          "digest": "sha256:76a3249bf294cb2d89157ac9074da525d211890144a1a12871a2a551a1e68f4e",
+          "digest": "sha256:50a7f4af7ac4a3c86809d1f01d7bb7ac7f007ef9bcdcbff70b2a648d931c77d3",
           "kind": "DecisionTraceRecorded",
           "seq": 7
         },
         {
-          "digest": "sha256:cea113f1f093c254085df7a6b3b124858f249036479ff0161d4fed033d5a7dfb",
+          "digest": "sha256:dc93bf35d0b65b4f50653d3f6d618301f4ffb0f98a6083f3fd74763ffab2ce59",
           "kind": "DecisionTraceRecorded",
           "seq": 8
         },
         {
-          "digest": "sha256:0f11ddb207a993f239a151940d7c4cd96131db26e4cb717a5410b4e4bd002099",
+          "digest": "sha256:3697f77d41b1963eb3bb462dc61dfcfc756b9bd3da8e96ec2dcb39584a0e8ed8",
           "kind": "TurnStarted",
           "seq": 9
         },
         {
-          "digest": "sha256:867b37a2573b9ecbdb2ec24759f292c9ffa3b4c94a3bfb0223c7281609712869",
+          "digest": "sha256:9b961c33313815acd52f952bfd82640580c999c3204f8297ae21b06f11e49bd3",
           "kind": "ContextBuildStarted",
           "seq": 10
         },
         {
-          "digest": "sha256:0a7ae777049b0cc3d5fb0706bec1e8973ceff9015b0b23720d81d6dc3ad6b42c",
+          "digest": "sha256:5da6a6ad95c28e57aae35583db95e6522b2da5e6093005f405620867e3ae07ca",
           "kind": "ContextBuildFinished",
           "seq": 11
         },
         {
-          "digest": "sha256:509184b99ef4251eed3c5a34e3a6f53f254ba3cea7fc79d8cb8bdbd6816adbad",
+          "digest": "sha256:4e1b7c30fb8c1da738185f845e629871b1a0a9bd18f7369a52e406b5fa4dc82c",
           "kind": "ModelCallStarted",
           "seq": 12
         },
         {
-          "digest": "sha256:736dc2c976d2073f8ca68b6e6912673b4385dc6b9e32f9f328a83dd43c18b63b",
+          "digest": "sha256:6bacbd000b2e655c03751fbfd8f66d037a4655a8dde39f562f3be0cd32e3ce0a",
           "kind": "ModelCallDelta",
           "seq": 13
         },
         {
-          "digest": "sha256:5d9d4fa1f7ef5ecbf3cdbcf90f94178d9cbdee1e10cf89d3acc375bb2de9aa6f",
+          "digest": "sha256:7f75b2dc3987e50a7c75bb7d54f33dc5d52a7644ce5ab3ff5b45842142939c37",
           "kind": "ModelCallFinished",
           "seq": 14
         },
         {
-          "digest": "sha256:6dcd67782f2cd29efd2652f7bcd98eb096175ae2772307a3afe8019ef938bad2",
+          "digest": "sha256:026989aa4cca66f4b91ff7b3030379f1de27f657ca7d6ecb92cc1e5c1e6db68d",
           "kind": "OutputClassified",
           "seq": 15
         },
         {
-          "digest": "sha256:2f5b85919abab19e9199c5cdffb35b092400f8c0a092e87a9a2112629bbf4874",
+          "digest": "sha256:5b8cfcb843b601f43e32a9e91a4e06f6b49cda8206beda1ea19c200df9c05d78",
           "kind": "VerificationStarted",
           "seq": 16
         },
         {
-          "digest": "sha256:bcedb32423a4795d1b461ebdb6f3749a46c4dbd0d9f30768724de74e2351dc02",
+          "digest": "sha256:23f813b706e80dc017f1eb30681e26f15716d0946e975dce3abfd7db1a44d7e5",
           "kind": "VerificationFinished",
           "seq": 17
         },
         {
-          "digest": "sha256:bbcc749a713e620c4b7b7f1a5e9e3edd1d7e33c8e6605aa68e29d0148b31f61c",
+          "digest": "sha256:76792dcffb53e08048e287a65425fe1c2d8f0abd5b3dd5629400f9f6c12091c8",
           "kind": "TurnComplete",
           "seq": 18
         },
         {
-          "digest": "sha256:a18a4f524ba626c6a3103456de9da9b4914d8ba61b9877bbfe2aa5b00a9b604d",
+          "digest": "sha256:18b830e6e90d8bf47e05f16b8a2ba7bab9112fbff7fa0144c6a87d529d92f49f",
           "kind": "RunComplete",
           "seq": 19
         }
       ],
-      "run": "run:1792417027515236900:1",
+      "run": "run:1792423967039433300:1",
       "session_bound": {
-        "composition_manifest": "sha256:113b96c9d763e3fd7b635836fad5c17524d11dd2a81c75b2d47004a71c307c0d",
+        "composition_manifest": "sha256:eea5bca5e226fb0acf002334e35064a5dd1a7103b2fbc330b99e1de60e71a988",
         "model_profile": "model:v1a-runs",
         "policy_profile": "policy:default-deny",
         "toolset_ref": "toolset:forme-production",
@@ -117,129 +117,129 @@
     {
       "positions": [
         {
-          "digest": "sha256:5619641b241c911c3de4515e61566894da13f159f041d680dea5a427d52c418b",
+          "digest": "sha256:fd1c342d6f45869e450485d5c5211c37332fd710957a02bfa1e2cc09776c0d56",
           "kind": "RunAccepted",
           "seq": 1
         },
         {
-          "digest": "sha256:0d0734223210d6b07ba699903777589ad965948b6cc976a07b370cbe4ebba6b1",
+          "digest": "sha256:5eb623d37a23005333c3d220bb4a2e9a8c71232f63ad09242c797a551ee51fab",
           "kind": "ObservationRecorded",
           "seq": 2
         },
         {
-          "digest": "sha256:75f90e28f6ce79f241a5b2bd1d54bc59fb61ce35ff473e357a1d0062908eb700",
+          "digest": "sha256:5feda0d0c1f47054cee3e6ec29408e0bc7e2faf70214c4764e4c68fe4576b462",
           "kind": "OpportunityDetected",
           "seq": 3
         },
         {
-          "digest": "sha256:d79845741486d29684e95e4dfbe5c56e01d9f7afc25bda16f10603259df34f02",
+          "digest": "sha256:a7e880b3ebfe7ea479c787da2940aff25aa0a44b9ab5a2ff962221145d40b074",
           "kind": "ValueGateEvaluated",
           "seq": 4
         },
         {
-          "digest": "sha256:baf930a9224471a9b1958c34e9bb05d48fccc064a8d3a4b0376512212cd0524c",
+          "digest": "sha256:840ee9b6ed1c0da1b5410a06d0405de228bcb24e92898a2c6404cd5891673a71",
           "kind": "ImpulseRaised",
           "seq": 5
         },
         {
-          "digest": "sha256:d71dfd84aec68a0fa7d6878c84ef96ca0b07d23a31ab9a8be17e2ae331cb60a9",
+          "digest": "sha256:7e9b57aeece89952007d6b87e948eae6ec8d5b789dc50f34335db1e68757351d",
           "kind": "CompetenceGateEvaluated",
           "seq": 6
         },
         {
-          "digest": "sha256:dbe2dac5c1163ac343c6f8a1252b0777cd21c7d4616f51579bd0d3290447c651",
+          "digest": "sha256:eafa81e6503591b44fb9edba6946ff61292ddcbcee46bc7fdeaa701eb26b390e",
           "kind": "DecisionTraceRecorded",
           "seq": 7
         },
         {
-          "digest": "sha256:c2d3fb7b9eb39e7990622fc0f2aeb8ab1229a043ecf73a3525d7a94ca3a5e619",
+          "digest": "sha256:1af9c85cdd059fc65d30892a2dbb4848b9d502ab4cf711bad139b21a404e678a",
           "kind": "ProactiveProposalEmitted",
           "seq": 8
         },
         {
-          "digest": "sha256:8d7cb89d5204f03b34be32668c9b4710389028ab7af9a3388b86e5af9968317e",
+          "digest": "sha256:bff35b20b25ee5604f5565baab2026972bd9577c9380f827a55b716a99b2a454",
           "kind": "ProactiveProposalResolved",
           "seq": 9
         },
         {
-          "digest": "sha256:1c0ebb288bf0954cde7c944e6ff99ea90f30377b05d81fa69e9d2f8f6821ffd5",
+          "digest": "sha256:037d30227878001f5feea2380b632fd9b1f8b0ebc6e080b30acbcab682b71c71",
           "kind": "SessionBound",
           "seq": 10
         },
         {
-          "digest": "sha256:32f335924de96a4579377143e66d20d6a0d8a013f6d74c2d142bbb323335bc46",
+          "digest": "sha256:66228160dc1dbe5ce03cc237c3a1cd9f9f1d2336b7bd174b24193613ac7b398c",
           "kind": "ToolCallProposed",
           "seq": 11
         },
         {
-          "digest": "sha256:1121c001ae524b5827b2ffca2237d6a68acff04774391c8a0f0a51d33784cceb",
+          "digest": "sha256:8eb541258bfe4c9c11a90a69fd986193931db28591db0a89ab07b257a6b60b6d",
           "kind": "ToolPolicyEvaluated",
           "seq": 12
         },
         {
-          "digest": "sha256:a1e54f87d5e641c25a52039fc6784f312369d0427ab01095827c91573fd90f6b",
+          "digest": "sha256:635c2368a7498f2e64e4f93cc9b9d13de99236a22ffc83a2b752da97a6ce1dc3",
           "kind": "ToolPolicyEvaluated",
           "seq": 13
         },
         {
-          "digest": "sha256:5f3557721b84a72912380bee258cded3b1b1ca879070f05f40dfd76b6bdc9724",
+          "digest": "sha256:6c1085e5f31dfe365396d7786babfbed555b1441ab8d959d0e0414b09403dc86",
           "kind": "CompetenceGateEvaluated",
           "seq": 14
         },
         {
-          "digest": "sha256:bac60eb98547853a3ba728e6283bb4fd4bd093ee3768f465cec78ce919efe198",
+          "digest": "sha256:a101a8d4354ffdda249e5a343c108e8ad5bcda5b389f7ffc654631d1bf869180",
           "kind": "ToolPolicyEvaluated",
           "seq": 15
         },
         {
-          "digest": "sha256:a8f213c19e8945ccfcf1f865dfeeba571b878731662b3c5e2096a8cf53dc6617",
+          "digest": "sha256:d71c084f7a21f350446bdc918f82bc3c440d57d45ac47756a2e633a9017c9045",
           "kind": "ActionPlanned",
           "seq": 16
         },
         {
-          "digest": "sha256:30dbc9902370a0882d0443f3e293d7f07d6299e5132a1be6b69e67fc37a5bc17",
+          "digest": "sha256:42df8387e5ae9babd990b12356d0ff4acea3a65ef875a5a1fc964bd61b6b3b33",
           "kind": "ActionStarted",
           "seq": 17
         },
         {
-          "digest": "sha256:ee80915139932e86bcc4e1a748455d4ac14185ea7e9043d3ad7d389e07edd8ef",
+          "digest": "sha256:fa4f3d644ce63b66098dd7004755bf580393341351bb6c1c35865748b5079372",
           "kind": "ActionOutputDelta",
           "seq": 18
         },
         {
-          "digest": "sha256:0c9a2d8d91f20505d38e05bd48cf0863b042ddf5712139072ae004f5049979e4",
+          "digest": "sha256:28ad8826d384110a90c38c300dd3bd2933c555b78d598d44102ba9e82de7bfbb",
           "kind": "ActionCompleted",
           "seq": 19
         },
         {
-          "digest": "sha256:6d3912f48dc65c3b8d0f95028dbde27215f4f3ff4b0bd6b3d2dfc61aa623699b",
+          "digest": "sha256:06415097f0e0e0b8804467419f08c7b3d10bc1ebfd722ac746c06d7350cdcaa4",
           "kind": "CapabilityEvidenceRecorded",
           "seq": 20
         },
         {
-          "digest": "sha256:a45c180aa5706e002d4706b80cfcb027d44aa90a81ec04aa57aecb50b0609cf6",
+          "digest": "sha256:b47bdd6c676ea5834a4209d703d1e648e06f53cec066b6af343bd051053c313c",
           "kind": "VerificationStarted",
           "seq": 21
         },
         {
-          "digest": "sha256:57266d3e69144ea4a7c257f08c69c6e8aeb38ac9481fe20d2c4c039056c666b3",
+          "digest": "sha256:d59d776ce6a3f817603ee1acedff14c841d3e0acd9ecc5c1af556e69d8807502",
           "kind": "VerificationFinished",
           "seq": 22
         },
         {
-          "digest": "sha256:6a9daa593fd01f1ff9a0715dbadc8d9cbb944fbf9491c8c209e66c2beb3fc843",
+          "digest": "sha256:3a7522636b8453158ceaaeb5ed4a25308e31e13c848136e160ef1fab3f2bbee7",
           "kind": "CapabilityEvidenceRecorded",
           "seq": 23
         },
         {
-          "digest": "sha256:864b3d0d650b673ba010c3ec4caee127f3f83533ac4cf150437f203bb6318f29",
+          "digest": "sha256:3ca7a09f80a12687c7b1dfe65323f9d702e1b611ceed72b47db7795e226ac21b",
           "kind": "RunComplete",
           "seq": 24
         }
       ],
       "run": "run:schedule:intention:due-now",
       "session_bound": {
-        "composition_manifest": "sha256:113b96c9d763e3fd7b635836fad5c17524d11dd2a81c75b2d47004a71c307c0d",
+        "composition_manifest": "sha256:eea5bca5e226fb0acf002334e35064a5dd1a7103b2fbc330b99e1de60e71a988",
         "model_profile": "model:v1a-runs",
         "policy_profile": "policy:default-deny",
         "toolset_ref": "toolset:forme-production",
