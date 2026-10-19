@@ -19,6 +19,7 @@
 - context 只带当前 workspace/祖先 scope 下仍可用的稳定认知正文、种类、置信度、tier 和 evidence；撤销/派生失效对象不可进入。能力门在每次动作出口和审批恢复后重建相关 capability/scope 的结果、失败、稳定认知与 trust 输入；冷启动仍按低上限处理。
 - 默认装配 M3 domain runtime；没有激活快照时使用 seed 行为，不能因此阻断普通 run。已激活的版本在 run 开始时绑定；未激活路线经验只提供 evidence，不修改 active policy。
 - 首次启用一个 M3 domain 时，owner 可显式登记当前内置行为为 repository seed 基线。它必须由运行时生成并通过独立的正文/版本/作用域等价校验、专用初始化 governor、candidate→evaluation→promotion→CAS activation；不得将任意自定义策略或模拟质量分数冒充 seed。该基线绑定内置实现摘要，执行仍走原有内置路径，可作为首个真实升级的持久回滚目标；启动本身不伪造历史 M3 事件。后续升级仍走原 ConservativeStrategyEvolutionGovernor。
+- 正式 owner control companion：`POST /v1/evolution/seeds` 接收 `{schema_version,domain,workspace}`，只初始化该运行时生成的内置基线；`POST /v1/evolution/specs` 接收 `{schema_version,spec}`，登记带版本/作用域的不可变类型化正文并返回运行时封存的内容引用与摘要。两者均要求 owner 认证、Origin/CSRF 和 schema 校验；正文登记不构成提升或激活。现有 candidate 接口必须匹配已登记正文，候选事实进入共享 cognition aggregate，以其返回 event id 和 manifest 中 aggregate ref 查询，不再另建入口私有候选流。
 - route 经验按项目 workspace 记录；后续选择可读取已激活的 selection/coordination 版本及其可追溯适配证据。成功与失败都留痕，不能用无证据的 fitness 常数冒充学习。
 
 ### 1.1 模块 owner

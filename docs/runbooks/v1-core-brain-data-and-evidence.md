@@ -129,3 +129,15 @@ A 波的 owner turn 必须有 context/model 完整往返；`Schedule` 通知 run
 `--assemble` 生成 `core-brain-closure-artifacts/manifest.json`，只引用四波清单及其摘要和共同源码输入，不把报告或发布 receipt 纳入自身，避免循环摘要。`--verify` 离线校验封闭集合、全部引用、源码与执行清单一致性；源码验真需要本地 Git 历史，不发起模型/工具副作用。typed B/C/D 内容仍由原有独立 Rust verifier 判定，不能只凭 JSON 中的 Pass。
 
 D 的 `runtime.json` 即使通过，缺少 live C24 时 D 清单与汇总仍必须是 `Unverifiable`。正式 D/Final 和 release audit 额外要求这些清单、独立 typed 校验与 C24 全部通过。证据包只证明绑定源码及有界场景；不证明真实用户数月收益，也不是签名远端证明。历史波次报告不回写；当前源码重验写入新清单。
+
+## 8. 默认大脑与 M3 控制
+
+同一 owner 的 workspace 是共享大脑下的隔离项目分区。先通过既有 charter 接口登记工作区，再登记/规划项目。登记不授予文件、网络、工具或子代理权限；不同 scope 的画像、信任和结果证据不能相互抬高能力门。实际模型上下文读取该 scope 中仍然有效的稳定认知正文，候选/撤销/失效内容不作为稳定判断输入。
+
+没有 active strategy 时默认 runtime 使用内置行为，不阻断普通任务。首次升级前，owner 通过 `POST /v1/evolution/seeds` 提交 `{schema_version:1,domain:"Loop",workspace:"workspace:default"}`（domain 也支持 Coordination、CapabilitySelection、ModelSelection、BackendSelection、ModelAdaptation）。接口要求与其他 mutation 相同的 Bearer、Origin 和 CSRF。初始化记录内置行为与当前编译实现的等价性，不是模型质量提升证据；重复初始化不重置已激活策略。
+
+`POST /v1/evolution/specs` 接收 `{schema_version:1,spec:<ProductionStrategySpec>}`，返回封存后的正文、内容引用和摘要。正文登记不改变 active policy；同 version 的不同正文被拒，升级必须新 version。随后原有 candidates/evaluations/promotions/activations 接口仍依序走 governor、独立评估和 owner 控制。候选必须匹配返回的 domain/scope/version/ref/digest；没有正文或参数被替换时拒绝。候选事件进入 manifest 的 `aggregate_refs.memory_cognition`，用返回的 event id 在该流查询。
+
+路线成功和失败都会沉淀为 episode/候选，但只有某个已激活 Coordination 策略明确绑定的、早于候选快照的同类任务证据，才影响后续模式适配分数。晚到或未激活经验不改变运行中策略。第一次升级可以回滚到已登记的内置 seed；seed 绑定编译实现摘要，不跨不相容构建静默复用。
+
+永久闭合门将七项补闭检查分别归入既有 C1–C24，不另造里程碑或场景编号。受控 HTTP、真实文件操作及重启证据证明接线与治理；真实 C24 六类任务另外重采，不把本节检查当作长期学习收益证明。
