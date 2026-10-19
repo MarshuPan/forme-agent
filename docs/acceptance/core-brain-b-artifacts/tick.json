@@ -1,0 +1,106 @@
+{
+  "cognition_snapshot": "sha256:c6d43d6b0741197e871f45442f0948599ebf62eeaf76c43393a91b7849a7b2ee",
+  "composition_digest": "sha256:6a05dd5f3ac5b5b75cdb2842a7ce6b9cc66be37aedc5eecd9480882e501c0477",
+  "endpoint_calls_after": 1,
+  "endpoint_calls_before": 1,
+  "grade": "ControlledRuntime",
+  "kind": "forme-core-brain-tick",
+  "phases": [
+    "ObserveAndPropose",
+    "ReflectAndCandidate",
+    "MaintainMemory"
+  ],
+  "positions": [
+    {
+      "digest": "sha256:fd68a391232af1c31138770b1abdb07162d705b06e034d24017fb85d83664c92",
+      "kind": "ObservationRecorded",
+      "seq": 1
+    },
+    {
+      "digest": "sha256:b5f7c195f0bfa44e582c8a7adedd6b0289fe47eda82c0dec29d842cecab4098d",
+      "kind": "OpportunityDetected",
+      "seq": 2
+    },
+    {
+      "digest": "sha256:d3a637394c4d5acfa3b6784b92a0a1cc8e18df5e92c1d2dd64a7e0583feaedde",
+      "kind": "ValueGateEvaluated",
+      "seq": 3
+    },
+    {
+      "digest": "sha256:0823f62f28f2de9624d8473922002b228f13a44442c2e458a073bb401903be7d",
+      "kind": "ImpulseRaised",
+      "seq": 4
+    },
+    {
+      "digest": "sha256:fb809f67f3b900347480cdf27df9fa344edaad0b910bb5cc679707f22754cb9d",
+      "kind": "CompetenceGateEvaluated",
+      "seq": 5
+    },
+    {
+      "digest": "sha256:9b1f7b5ccd2d7ef94879d4be89d4a16b7b163da5858637707e38f867001d47be",
+      "kind": "DecisionTraceRecorded",
+      "seq": 6
+    },
+    {
+      "digest": "sha256:21432bf125a709be505417520d0aad7cf83e69bdcddc77e8132a461817f0fa69",
+      "kind": "ProactiveProposalEmitted",
+      "seq": 7
+    },
+    {
+      "digest": "sha256:e620dde3e01358a5e56c018ad39becfba66170d21f0640303f9957c65b84cfbe",
+      "kind": "ObservationRecorded",
+      "seq": 8
+    },
+    {
+      "digest": "sha256:adf2f5415c8bd02f94f3f5efea4ad09b3d7f7d5f28cf0a63f97bc667985788e3",
+      "kind": "OpportunityDetected",
+      "seq": 9
+    },
+    {
+      "digest": "sha256:49a8edb838c4ee9a9d0da57e099dfec8565e2010195c3a76b6094919090b9cc9",
+      "kind": "ValueGateEvaluated",
+      "seq": 10
+    },
+    {
+      "digest": "sha256:67d39def3e89c3e34d8d34f719a8c81b8ed781bebc57dda68e3bcb1b5e7c5f96",
+      "kind": "ImpulseRaised",
+      "seq": 11
+    },
+    {
+      "digest": "sha256:f82472a81e496b134c0acfa59f524aa4485bf4e9a3d8a94e57fbe17feaad7801",
+      "kind": "CompetenceGateEvaluated",
+      "seq": 12
+    },
+    {
+      "digest": "sha256:61e3486d53cffa240fbbaf9ee98106f5b1ee1aebd587bbfe6ccc6da794f4610c",
+      "kind": "DecisionTraceRecorded",
+      "seq": 13
+    },
+    {
+      "digest": "sha256:78f3618bf140a1dba2a44bb54c518862b8fc5625f8e4441cd5f2121793a4f058",
+      "kind": "ProactiveProposalEmitted",
+      "seq": 14
+    },
+    {
+      "digest": "sha256:de0b715af89a17d51d5008e8e0938493050863068667945bf98c54fbdd87d792",
+      "kind": "ReflectionProduced",
+      "seq": 15
+    },
+    {
+      "digest": "sha256:2b4ab5fe0ded5fee8c6d6064471d75915702eea2fc9aa704f609b5d2b89e498d",
+      "kind": "MemoryMaintenanceApplied",
+      "seq": 16
+    }
+  ],
+  "report_digest": "sha256:3e97941016ccd49d6b65be1b5724b6177ed0eced5099ccdec7fdfe43900656a1",
+  "run": "brain-tick:1792381672423",
+  "schema_version": 1,
+  "source_commit": "1a79b570a38467b4c533a3a9f4dc14c76086ea9a",
+  "stream_heads": {
+    "brain-tick:1792381672423": 16,
+    "brain:memory_cognition:0234a2f918ae3d452aae72d2775198c991106c8e8dd84cf1b1a1e26c8c282475": 14,
+    "run:1792381672224963200:1": 19,
+    "run:b1-order-failed": 3
+  },
+  "tick_model_calls": 0
+}

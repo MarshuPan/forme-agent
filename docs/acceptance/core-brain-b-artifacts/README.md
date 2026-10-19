@@ -1,5 +1,7 @@
 # B 波相关性对照工件
 
+`runtime.json` 是当前源码 B 波全部逐名场景的执行记录；`tick.json` 补充三相 tick 的连续事件位置、范围、phase 顺序、认知/report 摘要及实际调用计数。tick 自身零模型调用与 owner turn 的真实端点调用分别记录，不能用自报计数代替。`manifest.json` 同时绑定这两份记录及下述相关性工件，校验命令为 `tools/core_brain_evidence.py --verify-wave B --require-pass`。
+
 `relevance-comparison.json` 是 C11 的受控 HTTP 对照记录，不是真实线上 provider 或长期价值证明。标签由独立 fixture 给定；模型选择本身不是正确标签。该用例刻意保留负结果：同一快照、候选集、任务与 K 下，扩散选错、直接模型选对，运行时因此推荐 `DirectModel`。
 
 验证命令：

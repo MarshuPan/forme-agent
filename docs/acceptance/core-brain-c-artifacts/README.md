@@ -1,6 +1,6 @@
 # C 波项目与编排证据
 
-本目录的六份 versioned JSON 由 repository-owned fixtures 生成，源码基线为 `db29cbb83f044eff8baf05f08e179295de229574`。证据等级固定为 `controlled-http-real-runtime-sqlite-files`：受控 HTTP 模型、正式 ProductionRuntime、真实 SQLite、文件和 Gateway 子进程。它们不证明线上模型质量、某种编排优于直接模型或长期主动价值。
+本目录的六份 versioned JSON 由 repository-owned fixtures 生成，本轮源码与全部逐名场景执行结果由 `runtime.json` 和 `manifest.json` 绑定，每份工件另外保留自身的生成提交。证据等级固定为 `controlled-http-real-runtime-sqlite-files`：受控 HTTP 模型、正式 ProductionRuntime、真实 SQLite、文件和 Gateway 子进程。它们不证明线上模型质量、某种编排优于直接模型或长期主动价值。
 
 | 文件 | 证明范围 |
 |---|---|
@@ -22,12 +22,8 @@ cargo run -p forme-eval --bin forme-core-brain-c-artifact-verify -- docs/accepta
 重新生成方法：
 
 ```powershell
-$env:FORME_CORE_C_ARTIFACT_DIR = 'C:\code\forme\docs\acceptance\core-brain-c-artifacts'
-try {
-    cargo test -p forme-harness --test v1_core_brain_c_orchestration -- --test-threads=1
-} finally {
-    Remove-Item Env:FORME_CORE_C_ARTIFACT_DIR -ErrorAction SilentlyContinue
-}
+$capture = Join-Path $env:TEMP ('forme-c-evidence-' + [guid]::NewGuid().ToString('N'))
+pwsh -File tools/verify-core-brain-closure.ps1 -Wave C -EvidenceOutput $capture
 ```
 
 应先提交待验证源码，再生成工件，确保 `source_commit` 指向实际实现。时间、事件 ID 和本地路径 hash 会随运行变化，不要求两次工件字节相等。`tools/verify-core-brain-closure.ps1 -Wave C` 在临时目录重新生成六例，同时独立验证新工件与仓库工件；不会覆盖本目录。

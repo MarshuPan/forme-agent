@@ -3,7 +3,7 @@
 - 日期：2026-10-19。
 - 分支：`shu/v1-core-brain-a`；未合入 `main`。
 - 契约：`requirements/15-16`、canonical §28、`architecture/09`、`prd/23` D 波。
-- 结论：**C19–C23 实现与 D 波 70 项运行场景自检 PASS；C24 真实配置模型不可用，保持 UNVERIFIABLE；D 整波与 V1 Final 尚未通过。**
+- 结论：**C19–C23 实现、D 波 70 项运行场景与 C24 真实模型六类各两次试验及独立校验 PASS；四波封存、current-tree release audit 与 Final 总门正在闭合，尚不提前声明 Final PASS。**
 
 ## 1. 提交与范围
 
@@ -17,6 +17,9 @@
 | `8589918` | D 的精确运行清单、live-only 正式门与独立 closure release audit。 |
 | `3289ed2` | 对齐 `chacha20poly1305` 许可证顺序与 Cargo metadata；干净检出 M5 release audit 复核通过。 |
 | `fd791e2` | 数据控制 companion、D 证据规则和操作手册；文档单独提交。 |
+| `6ee8ea4`、`1fdf884`、`1d1f671` | 四波封闭清单、逐名运行 receipt、A 正式入口与 B 三相 tick 见证及汇总校验。 |
+| `547d08b`、`5ffcf74` | 先约定原生工具往返关联，再修复 assistant tool_calls/tool_call_id、审批恢复续接；严格 HTTP fixture 验证实际消息。 |
+| `1a79b57`、`8e31e21` | 扫描 JSON 解码后的私有路径/URL；Git 保留证据原始字节，避免换行破坏摘要。 |
 
 保留 18 crates、既定内部依赖边和 99 EventKinds；前 97 项保持 M5 exact prefix。本波没有新增内核或里程碑编号。原工作区已有的许可证相关修改没有混入上述提交。
 
@@ -32,7 +35,9 @@
 
 Gateway mutation 均经 owner Bearer、Origin、CSRF 与 closed DTO；CLI 经真实 daemon 调用同一 runtime，没有新建私有 SQLite writer。离线迁移是单独 operator，要求停 daemon、源 authority owner 一致、批准 digest/expiry 和新目标。
 
-## 3. 已执行检查
+## 3. 首次 D 波检查（历史记录）
+
+以下是配置真实模型前的历史检查；当时 C24 为不可验证，没有回写成通过。最新重验见第 4 节。
 
 | 检查 | 本轮结果 |
 |---|---|
@@ -54,13 +59,30 @@ Windows 首次全量并发构建触发系统 paging/metadata mmap 失败，不�
 
 A/B/C 本轮专项日志：`forme-d-regression-abc-7a2377ebf6ba475285d141f0ed73b8bd.log`。C24 产品工件 digest 为 `sha256:9367f6f43292c61967d0fe9cd24be92c6ef300312fba095be701582929c7d340`；`core_brain_release_audit.py --verify-product` 明确返回 `CORE_BRAIN_C24_UNVERIFIABLE` 与 exit 2，未将零试验误判为通过。
 
-## 4. C24 与剩余门
+## 4. 本轮真实 C24、修复与重验
 
 已提供六类固定工作流的 production runner：冷启动、文件工具、跨 SQLite 重启的长期 workspace、多 child、AskToLearn、失败后重协调；每类至少两次，另有 direct-model 答案质量基线。typed verifier 核对固定 selector、完整 stream 位置/内容 hash、实际 profile/call/usage、approval/plan/scope/expiry、route ledger、文件与重启证据。
 
-当前 `core-brain-d-artifacts/` 是正式 runner 实际生成的 **Unavailable** 工件，源码 `8589918`，六类均为零次试验。缺凭证不能升级为 live，受控 HTTP 也不能通过 C24；`-RuntimeOnly` 仅证明运行与治理自检。
+首次真实运行绑定源码 `1d1f671`：五类各 2/2 通过，但工具类两次真实写文件后均无法完成模型续接，verifier 返回 `Unverifiable` / exit 2。原因是发送了孤立 `role=tool`，缺少原始 assistant 调用与 call ID。该记录保存在 `../archive/acceptance/core-brain-c24-1d1f671/`；未算作成功，也没有降低 selector。
 
-剩余动作：配置支持工具调用的真实模型，在新目录运行 runner，核对真实结果并按失败事实修复，独立校验 PASS 后更新便携工件；随后 D 正式门、current-tree release receipt 和 Final 门才能通过。最终与 `main` 合入分别记录。
+`5ffcf74` 在单工具契约内保存原生调用 ID/参数，工具结果与 assistant 调用关联，审批等待及恢复后仍保持关联；孤立/错配/重复/未完成的往返在 provider 边界拒绝。当前不支持的多个工具 proposal 在产生副作用前拒绝，非原生 handoff 不伪造 tool result。
+
+第二轮从干净验收检出运行，源码为 `1a79b570a38467b4c533a3a9f4dc14c76086ea9a`，实际 profile 为 `compatible:gpt-6.1-sol`。六类各两次；正式 runner 与独立 `forme-core-brain-d-artifact-verify --require-pass` 均返回 0。
+
+| 类别 | 答案质量 | direct-model 质量基线 | 工作流 | 不可验证 |
+|---|---|---|---|---|
+| ColdDialogue | 2/2 | 2/2 | 2/2 | 0 |
+| ComplexTools | 2/2 | 2/2 | 2/2 | 0 |
+| LongWorkspace | 2/2 | 2/2 | 2/2 | 0 |
+| MultiAgent | 2/2 | 2/2 | 2/2 | 0 |
+| AskToLearn | 2/2 | 2/2 | 2/2 | 0 |
+| FailureRecoordination | 2/2 | 2/2 | 2/2 | 0 |
+
+当前 `core-brain-d-artifacts/` 的产品工件为 `LiveConfigured / Pass`，内容 digest：`sha256:2a166a343580f45aeb6c4616616e96c9c81b5120e06fb2de1fd7ccdacff63a80`。价格未配置，费用保持 unknown；不把它写成免费。端点与凭证没有进入便携工件；本机模型配置继续只留在忽略目录。
+
+本轮修复后完整工作区测试为 **597 passed、0 failed、5 默认 ignored**；fmt、check、strict Clippy、compliance 均 PASS。A/B/C/D runtime 按冻结名称重新采集为 **43/48/35/70** 项，来源输入一致；D runtime 不单独代替 live C24。证据工具 Python 10 项（其中 1 项因 Windows 无符号链接权限跳过）、core release audit Python 22 项通过。
+
+剩余动作为封存四波与总清单、独立校验、干净树 core/M5 发布 receipt 和 Final 总门。通过后在本报告单独补记；`main` 合入是另一项状态。
 
 ## 5. 实际边界
 
@@ -68,4 +90,4 @@ A/B/C 本轮专项日志：`forme-d-regression-abc-7a2377ebf6ba475285d141f0ed73b
 - 备份不含 key。恢复需正确 resolver；新 DB 不会自动获得旧 `.content-keys`，authority 切换必须显式执行。
 - 迁移成功的新库不等于旧源、失败目标或旧备份已清除；它们仍需 owner 管理。
 - 六类短周期基准不证明通用复杂任务能力、编排优于直接模型或数月主动价值。direct baseline 不完成相同工作流；activation/memory/routing 等机制的独立对照不能由共同算术答案替代。
-- C24/D/Final 未通过前，不声明 V1 可打包日常使用。
+- 有界验收通过不等于长期日常使用质量已经证明；Final 发布门和 `main` 合入分别记录。

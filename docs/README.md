@@ -19,7 +19,7 @@ flowchart LR
 
 ## 当前里程碑
 
-**整体状态：开发中，尚未达到可打包和日常使用的阶段。** M0–M5 已逐阶段实现并验收；当前正在进行 V1 核心大脑运行闭合（A 默认装配 → B 持续认知 → C 项目与编排 → D 产品闭合），完成 D 波并通过 C1–C24 与发布门后，才进入可打包使用状态。下面按时间顺序记录各阶段结果。
+**main 的发布状态：开发中。** M0–M5 已逐阶段实现并验收。V1 核心大脑运行闭合（A 默认装配 → B 持续认知 → C 项目与编排 → D 产品闭合）的当前分支验收状态统一记录在 `acceptance/core-brain-closure-acceptance-report.md`；分支验证、owner 验收与 main 合入分别记录。通过 C1–C24、永久回归和发布门，并完成 owner/main 收口后，才更新正式发布状态。下面按时间顺序记录各阶段结果。
 
 M0 已完成：18 个 crate、164 个 Rust 测试与 8 个合规 fixture 全绿，`prd/01` §7 的 S1-S22 全部通过，真实配置模型已沿 `Gateway -> Harness -> Loop` 产生完整 13 事件审计链，原创合规门的 upstream/license/copy 三项均为 PASS。逐场景证据见 `acceptance/m0-acceptance-report.md`，固定回归入口为 `tools/verify-m0.ps1`。
 
@@ -33,7 +33,7 @@ M4 已沿 `requirements/11-12 -> canonical §26 -> architecture/07 -> prd/21 -> 
 
 M5 已沿 `requirements/13-14 -> canonical §27 -> architecture/08 -> prd/22 -> acceptance` 完整闭合。A/B/C 分别完成 publisher/admission、plan-bound lifecycle/既有 registry、M4-bound remote distribution/release；18 crates、97 EventKinds、379 个非忽略 Rust tests + 4 个显式真实 golden、29 个 Python gate、S1-S99、deterministic typed artifacts、strict Clippy 与 clean-tree release audit 全绿。最终报告见 `acceptance/m5-acceptance-report.md`；工程结果已合入 main。
 
-V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23`。它不是 M6，而是把 M0-M5 的能力装进同一个默认、持久、可恢复的大脑运行时。最终门为 S1-S99 + C1-C24、前 97 exact prefix 后追加 2 个 R 事件、18-crate 图、真实 golden 与 release audit。**A/B/C 已在 `shu/v1-core-brain-a` 分支实现并通过整波自检；D 的 C19–C23 实现及 70 项运行场景自检 PASS，C24 真实模型证据 UNVERIFIABLE，D 正式门与 V1 Final 仍未通过；均未合入 `main`。** A/B/C 历史报告保留；D 多模型、看板、备份恢复、加密/迁移/真实删除及六任务 runner 依据见 `acceptance/core-brain-d-acceptance-report.md`，当前整体验收状态见 `acceptance/core-brain-closure-acceptance-report.md`。不可把分支实现、受控测试或不可验证工件当作可打包使用证明。
+V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23`。它不是 M6，而是把 M0-M5 的能力装进同一个默认、持久、可恢复的大脑运行时。最终门为 S1-S99 + C1-C24、前 97 exact prefix 后追加 2 个 R 事件、18-crate 图、真实 golden 与 release audit。A/B/C 历史报告保留；D 多模型、看板、备份恢复、加密/迁移/真实删除、原生工具消息续接修复与六任务 runner 依据见 `acceptance/core-brain-d-acceptance-report.md`。当前源码、真实试验、分波清单、Final 与 main 状态只在 `acceptance/core-brain-closure-acceptance-report.md` 汇总，四波封闭证据入口为 `acceptance/core-brain-closure-artifacts/manifest.json`。受控测试或不可验证工件不能替代真实任务与发布门。
 
 ## 目录职责
 

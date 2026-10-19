@@ -1,0 +1,11 @@
+C24: Unverifiable
+Evidence grade: LiveConfigured
+Source commit: 1d1f6718e1cbdcd3c33f27e8bd5ea793d7b4328d
+
+Primary protocol: fresh production runtime/SQLite/File fixtures; all store stream positions witnessed. Multi-agent and long-workspace cases start with a real owner turn through formal ingress before owner project controls; route output determines their final answer. Child-only sessions currently do not inherit the composition manifest.
+Baseline: one direct call to the configured default provider for the same arithmetic question, without tools, memory, orchestration or fallback. It measures factual answer quality, not baseline workflow completion.
+Owner learning answers and file approvals are self-authored fixture-owner controls.
+Production and test builds use the same grade classifier. Loopback, localhost, .invalid and unresolvable endpoints remain Controlled even with --live. Private IPs alone do not exclude a configured real provider. Endpoint classification checks current address resolution and cannot attest the operator-declared upstream model or proxy provenance. Raw endpoints are never exported.
+Latency is measured wall-clock time including primary runtime construction and restart, excluding scratch cleanup. Usage sums recorded finishes; failed-call usage may be unknown. Cost is a configured-rate estimate when both rates are known; failed calls and unknown prices remain None.
+The short supervision cadence exercises two checkpointed segments across an actual close/reopen; it is not a longitudinal value study.
+This artifact does not run CLI/Gateway release gates or isolate activation/memory/routing ablations, and is not a V1 closure declaration. Source commit identifies HEAD; this runner does not assert a clean working tree.

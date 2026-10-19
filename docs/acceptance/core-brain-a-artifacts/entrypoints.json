@@ -1,0 +1,247 @@
+{
+  "composition_digest": "sha256:766cc8b734f4ada8c5804e0776adcf1e22031c2d7494da7896e65e9a3e55eb3b",
+  "grade": "ControlledRuntime",
+  "kind": "forme-core-brain-entrypoints",
+  "model_calls": 1,
+  "schema_version": 1,
+  "source_commit": "1a79b570a38467b4c533a3a9f4dc14c76086ea9a",
+  "streams": [
+    {
+      "positions": [
+        {
+          "digest": "sha256:b8eb4d71d1d87d65e783d11f906935808adc3b6684775185ccb590ae11370ef7",
+          "kind": "RunAccepted",
+          "seq": 1
+        },
+        {
+          "digest": "sha256:00b45c168b3b408747e81bf751a6d06d44af3ec996da62be4ca679ea0c49721a",
+          "kind": "SessionBound",
+          "seq": 2
+        },
+        {
+          "digest": "sha256:62ad826bf97db7e4adb3733c382947d932983c70b7b54ef26880948499cd7967",
+          "kind": "GoalFramed",
+          "seq": 3
+        },
+        {
+          "digest": "sha256:44f5a98a2d70bab4badee25201f9801d7c7f6b027d09e04ae9cc320412f02984",
+          "kind": "ResourcePlanned",
+          "seq": 4
+        },
+        {
+          "digest": "sha256:c993caa67a8e53c8f014d9075e10d10eb10d12841a0c6224bc35a2af345b310b",
+          "kind": "DoneContractSet",
+          "seq": 5
+        },
+        {
+          "digest": "sha256:05d548f859f0997480edff6d14eb0b4ef0df30b8de17408a96ee858afa7a8877",
+          "kind": "AutonomyEnvelopeSet",
+          "seq": 6
+        },
+        {
+          "digest": "sha256:a84511a93c4129c770f8bac44530558c9a163e703ae8fc8b21f075d7b13bcbbc",
+          "kind": "DecisionTraceRecorded",
+          "seq": 7
+        },
+        {
+          "digest": "sha256:71c537f26e94ee421f4fa249fcccd10e7bddab6509760d9c79ea56274a27444c",
+          "kind": "DecisionTraceRecorded",
+          "seq": 8
+        },
+        {
+          "digest": "sha256:e2a494a83c6942e91390433f35e1fb66d7536a75c0b776c687badcb03804238e",
+          "kind": "TurnStarted",
+          "seq": 9
+        },
+        {
+          "digest": "sha256:8d6c5054eaa700d5f4d266db35e78549f1b76bd238c830bbb452b1f4156dc064",
+          "kind": "ContextBuildStarted",
+          "seq": 10
+        },
+        {
+          "digest": "sha256:7b71d7e2a7d115ab0eaab61c8064588199c12fe79b3f9bee67c455e72019556f",
+          "kind": "ContextBuildFinished",
+          "seq": 11
+        },
+        {
+          "digest": "sha256:3853544980f6b403ada2fcfc674cd95a2f28ff8245afad6a5a3501cef5285a1d",
+          "kind": "ModelCallStarted",
+          "seq": 12
+        },
+        {
+          "digest": "sha256:0f01b45113e888ee571711bf732bde239bd05dd3f88b419f5259db0e6cb0ef5e",
+          "kind": "ModelCallDelta",
+          "seq": 13
+        },
+        {
+          "digest": "sha256:16b04ce4a272f489a8b18a8d6d41eb946440c92a260ee6ae91b721172c246909",
+          "kind": "ModelCallFinished",
+          "seq": 14
+        },
+        {
+          "digest": "sha256:429bd66bae47c6d5ff6af3e473f95834cc49c069873259eb56b3b3c1cfb8fb02",
+          "kind": "OutputClassified",
+          "seq": 15
+        },
+        {
+          "digest": "sha256:5e992765b6b8942aae9c902aa525be55336865d8b52ee1f43dac8c60f6ad7736",
+          "kind": "VerificationStarted",
+          "seq": 16
+        },
+        {
+          "digest": "sha256:9842597bad96bc0609318021a7fbc1413189f221910126ea8d2437913ac599ac",
+          "kind": "VerificationFinished",
+          "seq": 17
+        },
+        {
+          "digest": "sha256:28fe5e802ab7b6d2d565ee614855dea59980c2b5d1e45662dd61a1b000aea4b0",
+          "kind": "TurnComplete",
+          "seq": 18
+        },
+        {
+          "digest": "sha256:a2cd61231ab87f061ddc543c2b8046f442ffd89b9b86ad808f7fbfbaf0402929",
+          "kind": "RunComplete",
+          "seq": 19
+        }
+      ],
+      "run": "run:1792381648505601700:1",
+      "session_bound": {
+        "composition_manifest": "sha256:766cc8b734f4ada8c5804e0776adcf1e22031c2d7494da7896e65e9a3e55eb3b",
+        "model_profile": "model:v1a-runs",
+        "policy_profile": "policy:default-deny",
+        "toolset_ref": "toolset:forme-production",
+        "workspace": "workspace:default"
+      },
+      "source": "UserTurn"
+    },
+    {
+      "positions": [
+        {
+          "digest": "sha256:b5833b900e5e004cede1c6e6e693bc0b790686a466404a5f8fa9fa9e82c7cf79",
+          "kind": "RunAccepted",
+          "seq": 1
+        },
+        {
+          "digest": "sha256:c56b71cedcfe0b63f5232dbe462b3aa43fbeaadfbf5e29d7f60e95eac1202e9e",
+          "kind": "ObservationRecorded",
+          "seq": 2
+        },
+        {
+          "digest": "sha256:e453edf22232424cfa0b19b866c6c5931108b1df9ebe7797e5c46882a7d681f5",
+          "kind": "OpportunityDetected",
+          "seq": 3
+        },
+        {
+          "digest": "sha256:d52f3ad6dac710b042c98ed910039f89de453fedc78fe7957fa39ffec96b9df4",
+          "kind": "ValueGateEvaluated",
+          "seq": 4
+        },
+        {
+          "digest": "sha256:7f09d7a9efa717ac5c1e60a83df8b6d047903b0058983b9d8b6c2ade25d42f72",
+          "kind": "ImpulseRaised",
+          "seq": 5
+        },
+        {
+          "digest": "sha256:778fafa247fa8860cbe114f6412cdfe0cbb948819a8c5fed56b00aff85e612a3",
+          "kind": "CompetenceGateEvaluated",
+          "seq": 6
+        },
+        {
+          "digest": "sha256:868c777852a50a21f82fa32e251a671f78a48109e5e8c8f45202f9b053c9601e",
+          "kind": "DecisionTraceRecorded",
+          "seq": 7
+        },
+        {
+          "digest": "sha256:a0e252a82b36bd18a45f6a0e1e9fa5afffc3a18825445459cd47d11bb0ef3dca",
+          "kind": "ProactiveProposalEmitted",
+          "seq": 8
+        },
+        {
+          "digest": "sha256:f26e24c61ce0578ac17394e61eb35636d19a5b456bd7eb8ff5024a1af2074e81",
+          "kind": "ProactiveProposalResolved",
+          "seq": 9
+        },
+        {
+          "digest": "sha256:657720578b8a45cd1912cedc7c89e3a0dcac46ee0b5396786cc3e4befb1a9faf",
+          "kind": "SessionBound",
+          "seq": 10
+        },
+        {
+          "digest": "sha256:908be81426d660724a8c1912bda561afece758374b77e31c788c4c0ac7576352",
+          "kind": "ToolCallProposed",
+          "seq": 11
+        },
+        {
+          "digest": "sha256:665a3ec6f94bd4383789302cdec3cd7f479994f41138cbfdfba63ecbdf8d6902",
+          "kind": "ToolPolicyEvaluated",
+          "seq": 12
+        },
+        {
+          "digest": "sha256:675b50b761dcf66883d223c71a41c46fa04e380ddec15e94fccdd5035ff80f1b",
+          "kind": "ToolPolicyEvaluated",
+          "seq": 13
+        },
+        {
+          "digest": "sha256:475ab03d25cbf2a6af3489974bbb2bb3a51029e062e2b594b5859fc11737c438",
+          "kind": "CompetenceGateEvaluated",
+          "seq": 14
+        },
+        {
+          "digest": "sha256:7c0d599d80385d4738bc32874174714878c5acdf7547c91aab9af1fa53446543",
+          "kind": "ToolPolicyEvaluated",
+          "seq": 15
+        },
+        {
+          "digest": "sha256:b5c21c437dc4303c310f16fabb911ca6d9934e71f04b2359103fcad1234d7a40",
+          "kind": "ActionPlanned",
+          "seq": 16
+        },
+        {
+          "digest": "sha256:1c03b9d2aa73533f02868d41c89438857d5bc9189285497c2983f6a9dc1fbf9d",
+          "kind": "ActionStarted",
+          "seq": 17
+        },
+        {
+          "digest": "sha256:95a9c0bdfe18f06fb87d1b2d20ade973739dd6b11f54b4849e2f24ed75bde67a",
+          "kind": "ActionOutputDelta",
+          "seq": 18
+        },
+        {
+          "digest": "sha256:73d84dd8e47c5f72835a3c33d0516a7decb781205b0a8a344c36ed8eacd6291d",
+          "kind": "ActionCompleted",
+          "seq": 19
+        },
+        {
+          "digest": "sha256:252821a094c08c32c288892f27a6414fdff109f3486832e93362cc96e110c50b",
+          "kind": "CapabilityEvidenceRecorded",
+          "seq": 20
+        },
+        {
+          "digest": "sha256:e0b3add16328db9bf75f4ff218c79e3c2be2a0c5736892c1b93247871d7021b3",
+          "kind": "VerificationStarted",
+          "seq": 21
+        },
+        {
+          "digest": "sha256:29af625ed346a3ad85859fa1bedfd52b048b3ae8c663e0031348b0e4781bc08a",
+          "kind": "VerificationFinished",
+          "seq": 22
+        },
+        {
+          "digest": "sha256:7c40d5d881432211ca27e8ac669eb79370b0b8c2a5c81e967129e4abf7749d78",
+          "kind": "RunComplete",
+          "seq": 23
+        }
+      ],
+      "run": "run:schedule:intention:due-now",
+      "session_bound": {
+        "composition_manifest": "sha256:766cc8b734f4ada8c5804e0776adcf1e22031c2d7494da7896e65e9a3e55eb3b",
+        "model_profile": "model:v1a-runs",
+        "policy_profile": "policy:default-deny",
+        "toolset_ref": "toolset:forme-production",
+        "workspace": "workspace:default"
+      },
+      "source": "Schedule"
+    }
+  ],
+  "taxonomy_digest": "sha256:653675e926e44858cbe7a8ece29173a17a1ac1a7e2b0db961a3a2f0cd9249cbc"
+}
