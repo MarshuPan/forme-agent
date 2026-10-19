@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:03f22e901a6ce55dfcb1022fc6939eb9ccfe9ee03f5a6a36848f5bccb8091b97",
+        "input_digest": "sha256:cf93501f8d6ac71df81e0c129c9bf58ac2be97289fcf2fe9428cdf4be3c1f8ca",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:ec337b2a980e9833295f379f4da51bfcd2d6f7028b964b8ffd395e09d5b8035b",
+        "input_digest": "sha256:6285f5b50bcca74ec0e415f3f7e30c7d793ecdf09ced12a8bf7e9451f88782d2",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -157,10 +157,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:a8d51542672baaed53c307d54ca40abdba2b69100504d59b1b0365ba91f7a251",
+    "root_digest": "sha256:c9b4864b52ad433033c18b31092a40965ef7e9636659e8edfe237a73b21aa5e9",
     "schema_version": 1,
     "tool_version": "forme-release-audit/5"
   },
-  "digest": "sha256:31e5ad6a0ab75d16d87d2a514313430c237bb00a346400ff7a631d1c442cb7ea",
+  "digest": "sha256:fefd84852ae1dde92191fbafa2914c48dfe6d66f3cad4a59a54a650d9b5e57f8",
   "schema_version": 1
 }
