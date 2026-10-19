@@ -3,7 +3,7 @@
 - 日期：2026-10-19。
 - 分支：`shu/v1-core-brain-a`；未合入 `main`。
 - 契约：`requirements/15-16`、canonical §28、`architecture/09`、`prd/23` D 波。
-- 当前状态：**七项默认大脑补闭已实现，四波及真实 C24 通过，Final 与发布回执正在重验。** 当前源码为 `b9ea670`；本轮记录见 §7。§3–5 仅记录 `025ad3d` 及更早源码的历史验收，不作为本轮通过证明。owner 人工验收与 `main` 合入仍分别记录。
+- 当前状态：**七项默认大脑补闭、D 波及 V1 Final 分支技术验收 PASS。** 当前源码为 `b9ea670`，完整 Final 通过的干净检出为 `5e4f697`；本轮记录见 §7。§3–5 仅记录 `025ad3d` 及更早源码的历史验收。owner 人工验收与 `main` 合入仍分别记录。
 
 ## 1. 提交与范围
 
@@ -113,10 +113,14 @@ core release receipt 为 `sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01
 
 ## 7. 七项默认大脑补闭后的当前源码重验
 
-实现提交 `b9ea670accdae0f59122aa62333cb172e18416e4` 补齐多 workspace 共享大脑、普通运行到三模型候选、稳定认知正文进入 context、统一 governor 提升、实时能力输入、默认 M3 正文/seed/回滚及受治理路线适配。逐项行为、七个新增永久测试与反向断言见 `core-brain-closure-acceptance-report.md` §1；冻结契约与运行手册分别见 `prd/23` §1.0 和 `runbooks/v1-core-brain-data-and-evidence.md` §8。
+实现提交 `dd07152`、`b9ea670accdae0f59122aa62333cb172e18416e4` 补齐多 workspace 共享大脑、普通运行到三模型候选、稳定认知正文进入 context、统一 governor 提升、实时能力输入、默认 M3 正文/seed/回滚及受治理路线适配。逐项行为、七个新增永久测试与反向断言见 `core-brain-closure-acceptance-report.md` §1；冻结契约与运行手册分别见 `prd/23` §1.0 和 `runbooks/v1-core-brain-data-and-evidence.md` §8。
 
 从干净验收检出重新采集 A/B/C/D 为 **47/50/36/71** 项逐名运行，全数通过。C 的六份新工件分别通过独立 verifier。源码、场景清单和文件摘要已重新封存，汇总 digest 为 `sha256:b957358c7b639fdca4863de548ccd187a4fd7a55d9fdaedb3290f2c016f276db`，四波封闭清单 `--verify --require-pass` 返回 0。
 
 同一源码的真实 C24 六类各两次，质量、直接模型质量基线与工作流均各 2/2，不可验证为 0；正式 runner、独立 typed verifier 与源码一致性 verifier 全部返回 0。新的产品 digest 为 `sha256:9e7c0a2a03cfee4f2fccb40754baa42383f1bf48acfdbc5a1777f55246ef647a`。凭证与端点未导出，价格未知仍为 unknown。该证据不证明长期认知收益；受控集成测试也不自动成为 live 质量证据。
 
-本轮 Final 正在重跑，core 与 M5 current-tree receipt 依次重封。旧 §5 的回执仅保留历史事实；完整总门返回码和本轮回执完成后更新本节。两个当前报告被 core 根摘要明确排除，最终报告收口仍须刷新受影响的 M5 receipt 并复核当前根摘要。原工作区六项既有修改不纳入，`main` 未动。
+2026-10-19 22:23:54（Asia/Shanghai），干净检出 `5e4f69788bc54ec859b034c4092f0d5f66ee9168` 的完整 `verify-core-brain-closure.ps1 -Wave Final` 实际返回 **0**，末行为 `core-brain-closure (Final): PASS`。完整工作区 **604 passed、0 failed、5 默认 ignored**；默认忽略用例在相应真实场景门中显式执行。fmt/check/strict Clippy/compliance、65 项 Python 工具门（64 通过、1 项权限相关跳过）、S1–S99、真实 golden、四波 204 项场景和全部独立工件校验通过。
+
+本轮 core release receipt：`sha256:2caabec7c64f7ea047115463f95e6b164f0a647799c200734a81e6af16881b11`，仓库回执与总门重新计算结果一致。M5 current-tree receipt 见 `m5-release-audit-artifacts/`；最终报告收口后刷新它，并复核 core 根摘要和四波清单。旧 §5 的回执只保留历史事实。第一次在证据更新期间执行的总门未通过发布审计，返回 1，未计为通过；本轮是提交证据、依次重封回执后从干净检出取得的完整通过。
+
+完整成功日志 `forme-v1-final-gate-b9ea670-614f216bccc9409198f9a976961fc13f.log` 留在本机 OS temp。两个当前报告与 M5 receipt 被 core 根摘要明确排除，报告/回执收口不改变受测代码或场景清单。原工作区六项既有修改不纳入，`main` 未动。

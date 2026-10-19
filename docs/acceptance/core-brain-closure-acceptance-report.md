@@ -2,7 +2,7 @@
 
 日期：2026-10-19。分支：`shu/v1-core-brain-a`；`main` 仍为 `94fe6f1`。
 
-**本轮七项默认大脑补闭已实现，四波运行证据及真实 C24 已通过；Final 正在重验和重封发布回执。** 当前受测源码是 `b9ea670accdae0f59122aa62333cb172e18416e4`。此前 `03d2159` 的 Final PASS 是历史事实，只绑定当时的 `025ad3d` 输入，不能替代本轮验收。owner 人工验收与 `main` 合入仍分别记录。
+**本轮七项默认大脑补闭及 V1 Final 分支技术验收 PASS。** 2026-10-19 22:23:54（Asia/Shanghai），干净检出 `5e4f697` 的完整 Final 总门实际返回 0；受测源码是 `b9ea670accdae0f59122aa62333cb172e18416e4`。此前 `03d2159` 的 Final PASS 是历史事实，只绑定当时的 `025ad3d` 输入。owner 人工验收与 `main` 合入仍分别记录。
 
 ## 1. 本轮补齐的七项运行链
 
@@ -34,7 +34,7 @@ C24 来自干净源码 `b9ea670`，正式 runner 返回 `Pass (LiveConfigured)`�
 
 ## 3. Final 与发布回执
 
-本轮正在按下列完整命令重验；发布回执重封完成前，不将旧回执作为当前树证明：
+本轮在干净检出 `5e4f69788bc54ec859b034c4092f0d5f66ee9168` 执行下列完整命令，实际返回 **0**，末行为 `core-brain-closure (Final): PASS`：
 
 ```powershell
 $env:CARGO_BUILD_JOBS = '2'
@@ -42,13 +42,17 @@ $env:CARGO_TARGET_DIR = Join-Path $pwd 'target'
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-closure.ps1 -Wave Final
 ```
 
-当前实现的 fmt/check/完整工作区测试/strict Clippy/compliance 已通过；完整 Final 还要求 S1–S99、真实 browser/API/evolution/federation/ecosystem golden、四波逐名执行、独立 typed verifier 和当前干净树 core/M5 receipt 重算一致。最终返回码与本轮回执在完成后更新本节。
+完整工作区为 **604 passed、0 failed、5 默认 ignored**；这 5 项真实进程用例均由各自场景门显式运行。fmt/check/strict Clippy/compliance、S1–S99、真实 browser/API/evolution/federation/ecosystem golden、四波 204 项逐名执行、独立 typed verifier 和当前干净树 core/M5 receipt 重算比对全部通过。Python 工具门 65 项：64 通过，1 项因本机 Windows 无符号链接权限跳过。
+
+本轮 core receipt 为 `sha256:2caabec7c64f7ea047115463f95e6b164f0a647799c200734a81e6af16881b11`，目录 `core-brain-closure-release-audit-artifacts/`。M5 current-tree receipt 见 `m5-release-audit-artifacts/`；报告收口后单独刷新该回执，不把其摘要写入受它约束的报告。两个当前报告与 M5 receipt 被 core 根摘要明确排除，报告收口后继续验证该根摘要、源码和四波清单一致。
+
+证据更新期间的第一次总门未通过发布审计，返回 1，未计为 PASS；先提交新证据并重封两类回执，再从干净检出完成本轮总门。完整成功日志 `forme-v1-final-gate-b9ea670-614f216bccc9409198f9a976961fc13f.log` 保留在本机 OS temp；便携证明是已提交的 typed 工件和封闭清单。
 
 此前 2026-10-19 13:05（Asia/Shanghai）`03d2159` 的完整 Final 返回 0，源码输入是 `025ad3d`，四波为 43/48/35/70 项。它与首次真实工具调用失败、修复后的历史通过结果均保留，不改写成当前源码证据；详细历史见 `core-brain-d-acceptance-report.md` §3–5。
 
 ## 4. 验证范围与实现限制
 
-本轮保持 18 crates、99 EventKinds、前 97 exact prefix 与既定依赖方向。实现提交为 `b9ea670`；此前契约与操作文档单独提交，数据和验收报告另外提交。原工作区六项许可证相关既有修改逐文件 hash 保持不变；本机模型配置与密钥未进入 Git 或便携工件。
+本轮保持 18 crates、99 EventKinds、前 97 exact prefix 与既定依赖方向。实现提交为 `dd07152`、`b9ea670`；契约、操作文档、数据和验收报告分别提交。原工作区六项许可证相关既有修改逐文件 hash 保持不变；本机模型配置与密钥未进入 Git 或便携工件。
 
 七项新增测试使用受控 HTTP、正式运行时、真实文件和 SQLite 重启，证明接线与治理。真实 C24 的六类短周期工作流另行验证；两者均不证明数月认知收益或编排普遍优于直接模型。当前项目规划仍接收类型化任务签名，路线经验采用受治理的成功/失败适配分数，不将其描述成通用自然语言到 DAG 推断、成本最优化或完整在线优化器。首次 seed 的等价性校验也不等于模型质量提升证据。
 
