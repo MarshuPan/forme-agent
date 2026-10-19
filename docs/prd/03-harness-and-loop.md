@@ -103,6 +103,7 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
   - `Final` → `Verification → Compaction? → TurnComplete → Terminal(Complete)`;
   - `Tool` → **咽喉点序列**(§5.1)→ 结果入上下文 → 回 `TurnStarted` 续;
   - `Handoff` → `HandoffRequested/Resolved`(无目标/成环 → `StopReason::HandoffNoTargetOrLoop`)。
+- **工具消息续接**：按 prd/16 §5.1 保留原始 assistant proposal 与 call ID，结果关联同一调用并保持 provenance/data treatment；审批等待/恢复不得丢失关联。该内部消息补全不改变冻结 `ModelProvider`、Harness 或事件签名。
 - **§5.1 工具咽喉点序列(不可乱序)**:
   ```
   ToolCallProposed

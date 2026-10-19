@@ -57,6 +57,12 @@ pub trait ConfigDoctor {
 - **ConfigDoctor**:检查 provider/credential/capability/MCP server/plugin manifest/filesystem·shell permission；M1-B 追加 scheduler tick/lease/max claims 与 notification availability/permission → 报告 + 解释；**配置错误显式报告,不表现为运行时猜测**。
 - **能力自适应(canonical §20)**:coordination 读 `ModelProfile.capability` 决定脚手架——弱模型加结构(更细分步/更多验证)、强模型减结构;不可靠 fallback → 更保守(能力门封更低)。
 
+### 5.1 原生工具调用往返
+
+`ModelProvider::call` 签名保持不变。内部 `ModelMessage` 采用带 schema version 的工具交换 companion，分别携带 assistant proposal 的原始 call ID、函数名、参数，以及对应结果的 call ID。兼容 Chat Completions 的 provider 必须发送 assistant `tool_calls`，随后发送具有相同 `tool_call_id` 的 tool result；不得只发送一个孤立的 `role=tool` 文本，也不得把实际工具调用改写成 owner 指令。
+
+Loop 在别名解析前保留模型原始调用；审批等待、拒绝、失败或成功回填均使用该关联。结果继续保留 source/trust/data treatment，关联不授予执行权限。未知副作用仍保持挂起，不能为获得工具结果而重做动作。非原生 handoff 的完成观察按普通来源化数据回填，不能伪造原生 tool call。当前单工具输出契约下，不支持的多工具并行 proposal 必须在任何执行前 fail closed，不能静默只执行第一项。
+
 ## 6. 错误/安全/权限/审批
 
 - **错误 → FailureTaxonomy**:配置错误经 ConfigDoctor 显式化(非运行时猜测)。
@@ -79,6 +85,7 @@ pub trait ConfigDoctor {
 
 - **ConfigDoctor 矩阵行**:provider/credential/capability/MCP/plugin/fs·shell/scheduler/notification 可检查 + 解释;配置错误显式非运行时猜测。
 - **单元**:config precedence;secrets 分离(无明文泄漏);ConfigDoctor 捕获错配;弱/强模型脚手架输入不同。
+- **工具往返**：严格 HTTP 夹具校验 assistant call/result ID、参数、原始函数名和结果 data treatment；孤立/错配/重复 result、未完成 exchange 和多工具 proposal 均拒绝。真实 C24 必须在审批后的实际文件写入之后继续调用模型并取得 final output。
 
 ## 10. 验收
 
