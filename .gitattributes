@@ -1,1 +1,4 @@
 *.sh text eol=lf
+# Evidence manifests bind exact bytes, including README/report line endings.
+docs/acceptance/core-brain-*-artifacts/* -text
+docs/archive/acceptance/core-brain-c24-*/* -text
