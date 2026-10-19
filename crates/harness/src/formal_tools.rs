@@ -269,6 +269,11 @@ impl ReactiveHarness {
             self.config.loop_budget.clone(),
             request_provenance(&request),
         )?;
+        // ToolCallProposed stores the registered catalog reference. Restore
+        // its deterministic provider alias without repeating the model/action.
+        let mut native_call = tool.clone();
+        native_call.tool = p::ToolRef(forme_models::ToolDefinition::catalog_alias(&tool.tool.0)?);
+        loop_ctx.record_model_tool_call(&native_call)?;
         loop_ctx.budget.max_turns = loop_ctx
             .budget
             .max_turns

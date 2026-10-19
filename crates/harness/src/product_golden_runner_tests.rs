@@ -50,6 +50,29 @@ impl ControlledProvider {
                                     || s.contains("file write:")
                             })
                         });
+                        if tool_finished {
+                            let index = messages.iter().position(|m| m["role"] == "tool").unwrap();
+                            assert!(index > 0);
+                            let call = &messages[index - 1];
+                            let result = &messages[index];
+                            assert_eq!(call["role"], "assistant");
+                            assert_eq!(call["tool_calls"][0]["id"], "c24-controlled-write");
+                            assert_eq!(result["tool_call_id"], call["tool_calls"][0]["id"]);
+                            assert_eq!(
+                                call["tool_calls"][0]["function"]["name"],
+                                ToolDefinition::catalog_alias("capability:file").unwrap()
+                            );
+                            let arguments: p::ActionParameters = serde_json::from_str(
+                                call["tool_calls"][0]["function"]["arguments"]
+                                    .as_str()
+                                    .unwrap(),
+                            )
+                            .unwrap();
+                            assert!(matches!(arguments, p::ActionParameters::File {
+                                operation: p::FileOperation::Write, path, ..
+                            } if path == FILE_TARGET));
+                            assert!(result["content"].as_str().unwrap().starts_with("[Data;"));
+                        }
                         let response = if needs_selection {
                             final_response("[]")
                         } else if let Some(tools) = tools.filter(|_| !tool_finished) {

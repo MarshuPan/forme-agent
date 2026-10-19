@@ -168,6 +168,7 @@ pub struct RunCtx {
     bound_strategy: Option<p::LoopStrategySpec>,
     model_scaffold: Option<p::ModelScaffoldProfile>,
     messages: Vec<ModelMessage>,
+    pending_model_tool_call: Option<p::ToolCallId>,
     final_output: Option<String>,
     events: Vec<p::EventPayload>,
 }
@@ -227,6 +228,7 @@ impl RunCtx {
             bound_strategy: None,
             model_scaffold: None,
             messages: vec![ModelMessage::input(input.0, input_provenance)],
+            pending_model_tool_call: None,
             final_output: None,
             events: Vec::new(),
         })
@@ -327,11 +329,36 @@ impl RunCtx {
         )
     }
 
+    /// Records the native model proposal, also used to rehydrate a persisted
+    /// approval wait. This appends no execution facts and grants no authority.
+    pub fn record_model_tool_call(&mut self, call: &forme_models::ModelToolCall) -> p::Result<()> {
+        if self.pending_model_tool_call.is_some() || call.call_id.0.trim().is_empty() {
+            return Err(p::Error(
+                "model tool exchange is already pending or incomplete".into(),
+            ));
+        }
+        self.messages.push(ModelMessage::tool_call(
+            call,
+            p::Provenance {
+                source: p::Source::Internal,
+                actor: p::Actor::Agent,
+                trust_tier: p::TrustTier::Untrusted,
+                caused_by: None,
+            },
+        ));
+        self.pending_model_tool_call = Some(call.call_id.clone());
+        Ok(())
+    }
+
     pub fn continue_after_tool_with_provenance(
         &mut self,
         outcome: ResolvedOutcome,
         provenance: p::Provenance,
     ) -> p::Result<()> {
+        let call_id = self
+            .pending_model_tool_call
+            .take()
+            .ok_or_else(|| p::Error("tool observation has no pending model call".into()))?;
         let content = match outcome {
             ResolvedOutcome::Completed(_, output) => output,
             ResolvedOutcome::Failed(_, detail) => format!("tool failure: {detail}"),
@@ -342,7 +369,7 @@ impl RunCtx {
                 turn_index: self.turn_index,
             }));
         self.messages
-            .push(ModelMessage::data(MessageRole::Tool, content, provenance));
+            .push(ModelMessage::tool_result(call_id, content, provenance));
         self.turn_index = self.turn_index.saturating_add(1);
         self.effect = LoopEffect::None;
         self.state = LoopState::TurnComplete;
@@ -362,7 +389,7 @@ impl RunCtx {
                 turn_index: self.turn_index,
             }));
         self.messages.push(ModelMessage::data(
-            MessageRole::Tool,
+            MessageRole::User,
             resolution
                 .result
                 .unwrap_or_else(|| "handoff completed".into()),
@@ -605,6 +632,7 @@ impl LoopEngine for ReactiveLoopEngine {
                 LoopState::Verification,
             ),
             ModelOutput::Tool(mut tool) => {
+                ctx.record_model_tool_call(&tool)?;
                 if let Some(reference) = tool_aliases.get(&tool.tool.0) {
                     tool.tool = reference.clone();
                 }
@@ -867,6 +895,36 @@ mod tests {
         assert_eq!(tool.provenance.trust_tier, p::TrustTier::Untrusted);
         assert_eq!(tool.treatment, ModelContentTreatment::UntrustedData);
         assert!(tool.transport_content().starts_with("[UntrustedData;"));
+        let assistant = requests[1]
+            .messages
+            .iter()
+            .find(|message| {
+                matches!(
+                    message.tool_exchange,
+                    Some(forme_models::ModelToolExchange::Call { .. })
+                )
+            })
+            .unwrap();
+        assert_eq!(assistant.role, MessageRole::Assistant);
+        match (&assistant.tool_exchange, &tool.tool_exchange) {
+            (
+                Some(forme_models::ModelToolExchange::Call { call_id, .. }),
+                Some(forme_models::ModelToolExchange::Result {
+                    call_id: result_id, ..
+                }),
+            ) => {
+                assert_eq!(call_id, result_id);
+                assert_eq!(call_id.0, "tool-call:untrusted-roundtrip");
+            }
+            _ => panic!("native tool exchange is missing"),
+        }
+        drop(requests);
+        assert!(ctx
+            .continue_after_tool(ResolvedOutcome::Completed(
+                p::ActionResultRef("duplicate-result".into()),
+                "duplicate".into()
+            ))
+            .is_err());
     }
 
     #[test]

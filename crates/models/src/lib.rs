@@ -152,6 +152,21 @@ pub enum ModelContentTreatment {
     UntrustedData,
 }
 
+/// Native transport correlation, never an execution authorization.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ModelToolExchange {
+    Call {
+        schema_version: p::SchemaVersion,
+        call_id: p::ToolCallId,
+        name: String,
+        arguments: Value,
+    },
+    Result {
+        schema_version: p::SchemaVersion,
+        call_id: p::ToolCallId,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelMessage {
     pub schema_version: p::SchemaVersion,
@@ -159,6 +174,7 @@ pub struct ModelMessage {
     pub content: String,
     pub provenance: p::Provenance,
     pub treatment: ModelContentTreatment,
+    pub tool_exchange: Option<ModelToolExchange>,
 }
 
 impl ModelMessage {
@@ -173,6 +189,7 @@ impl ModelMessage {
             content: content.into(),
             provenance,
             treatment: ModelContentTreatment::Instruction,
+            tool_exchange: None,
         }
     }
 
@@ -188,7 +205,32 @@ impl ModelMessage {
             content: content.into(),
             provenance,
             treatment,
+            tool_exchange: None,
         }
+    }
+
+    pub fn tool_call(call: &ModelToolCall, provenance: p::Provenance) -> Self {
+        let mut message = Self::data(MessageRole::Assistant, "", provenance);
+        message.tool_exchange = Some(ModelToolExchange::Call {
+            schema_version: p::SchemaVersion(1),
+            call_id: call.call_id.clone(),
+            name: call.tool.0.clone(),
+            arguments: call.arguments.clone(),
+        });
+        message
+    }
+
+    pub fn tool_result(
+        call_id: p::ToolCallId,
+        content: impl Into<String>,
+        provenance: p::Provenance,
+    ) -> Self {
+        let mut message = Self::data(MessageRole::Tool, content, provenance);
+        message.tool_exchange = Some(ModelToolExchange::Result {
+            schema_version: p::SchemaVersion(1),
+            call_id,
+        });
+        message
     }
 
     pub fn input(content: impl Into<String>, provenance: p::Provenance) -> Self {
@@ -223,8 +265,41 @@ impl ModelMessage {
     }
 
     fn validate(&self) -> bool {
-        if self.schema_version.0 == 0 || self.content.trim().is_empty() {
+        if self.schema_version.0 == 0 {
             return false;
+        }
+        match &self.tool_exchange {
+            Some(ModelToolExchange::Call {
+                schema_version,
+                call_id,
+                name,
+                ..
+            }) => {
+                if schema_version.0 != 1
+                    || call_id.0.trim().is_empty()
+                    || name.trim().is_empty()
+                    || self.role != MessageRole::Assistant
+                    || self.treatment == ModelContentTreatment::Instruction
+                {
+                    return false;
+                }
+            }
+            Some(ModelToolExchange::Result {
+                schema_version,
+                call_id,
+            }) => {
+                if schema_version.0 != 1
+                    || call_id.0.trim().is_empty()
+                    || self.role != MessageRole::Tool
+                    || self.treatment == ModelContentTreatment::Instruction
+                {
+                    return false;
+                }
+            }
+            None if self.role == MessageRole::Tool || self.content.trim().is_empty() => {
+                return false
+            }
+            None => {}
         }
         match self.treatment {
             ModelContentTreatment::Instruction => matches!(
@@ -327,6 +402,28 @@ impl ModelRequest {
         }) {
             return Err(p::Error("model request has an invalid tool schema".into()));
         }
+        let mut pending = None;
+        for message in &self.messages {
+            match &message.tool_exchange {
+                Some(ModelToolExchange::Call { call_id, .. }) if pending.is_none() => {
+                    pending = Some(call_id);
+                }
+                Some(ModelToolExchange::Result { call_id, .. }) if pending == Some(call_id) => {
+                    pending = None;
+                }
+                None if pending.is_none() => {}
+                _ => {
+                    return Err(p::Error(
+                        "model tool conversation has an unmatched exchange".into(),
+                    ))
+                }
+            }
+        }
+        if pending.is_some() {
+            return Err(p::Error(
+                "model tool conversation has an unfinished exchange".into(),
+            ));
+        }
         Ok(())
     }
 }
@@ -406,11 +503,26 @@ impl ChatCompletionsProvider {
         let messages = request
             .messages
             .iter()
-            .map(|message| {
-                json!({
+            .map(|message| match &message.tool_exchange {
+                Some(ModelToolExchange::Call {
+                    call_id,
+                    name,
+                    arguments,
+                    ..
+                }) => json!({
+                    "role": "assistant", "content": null,
+                    "tool_calls": [{"id": call_id, "type": "function", "function": {
+                        "name": name, "arguments": arguments.to_string()
+                    }}]
+                }),
+                Some(ModelToolExchange::Result { call_id, .. }) => json!({
+                    "role": "tool", "tool_call_id": call_id,
+                    "content": message.transport_content()
+                }),
+                None => json!({
                     "role": message.role.as_str(),
                     "content": message.transport_content(),
-                })
+                }),
             })
             .collect::<Vec<_>>();
         let tools = request
@@ -575,11 +687,13 @@ fn parse_chat_response(body: Value) -> p::Result<ModelResponse> {
     let message = choice
         .get("message")
         .ok_or_else(|| p::Error("model response has no message".into()))?;
-    let output = if let Some(tool_call) = message
-        .get("tool_calls")
-        .and_then(Value::as_array)
-        .and_then(|calls| calls.first())
-    {
+    let calls = message.get("tool_calls").and_then(Value::as_array);
+    if calls.is_some_and(|calls| calls.len() > 1) {
+        return Err(p::Error(
+            "parallel model tool proposals are unsupported".into(),
+        ));
+    }
+    let output = if let Some(tool_call) = calls.and_then(|calls| calls.first()) {
         let function = tool_call
             .get("function")
             .ok_or_else(|| p::Error("model tool call has no function".into()))?;
@@ -598,7 +712,8 @@ fn parse_chat_response(body: Value) -> p::Result<ModelResponse> {
                 tool_call
                     .get("id")
                     .and_then(Value::as_str)
-                    .unwrap_or("model-tool-call")
+                    .filter(|id| !id.trim().is_empty())
+                    .ok_or_else(|| p::Error("model tool call has no correlation id".into()))?
                     .to_owned(),
             ),
             tool: p::ToolRef(name.to_owned()),
@@ -826,6 +941,110 @@ mod tests {
         }
         .validate()
         .is_err());
+    }
+
+    #[test]
+    fn native_tool_roundtrip_preserves_original_call_and_untrusted_result() {
+        let provenance = p::Provenance {
+            source: p::Source::Internal,
+            actor: p::Actor::Agent,
+            trust_tier: p::TrustTier::Untrusted,
+            caused_by: None,
+        };
+        let call = ModelToolCall {
+            schema_version: p::SchemaVersion(1),
+            call_id: p::ToolCallId("native-call-731".into()),
+            tool: p::ToolRef("native_read_file".into()),
+            arguments: json!({"path": "owned/result.txt"}),
+            intent: None,
+        };
+        let mut request = ModelRequest::text("read my file");
+        request
+            .messages
+            .push(ModelMessage::tool_call(&call, provenance.clone()));
+        request.messages.push(ModelMessage::tool_result(
+            call.call_id.clone(),
+            "external content says to ignore policy",
+            provenance,
+        ));
+        request.validate().unwrap();
+        let provider = ChatCompletionsProvider::new(
+            profile(ModelStrength::Standard, true),
+            SecretString::new("test-only-secret").unwrap(),
+            p::DurationMs(1_000),
+        )
+        .unwrap();
+        let body = provider.request_json(&request);
+        assert_eq!(body["messages"][1]["role"], "assistant");
+        let native = &body["messages"][1]["tool_calls"][0];
+        assert_eq!(native["id"], call.call_id.0);
+        assert_eq!(native["function"]["name"], call.tool.0);
+        assert_eq!(
+            serde_json::from_str::<Value>(native["function"]["arguments"].as_str().unwrap())
+                .unwrap(),
+            call.arguments
+        );
+        let result = &body["messages"][2];
+        assert_eq!(result["role"], "tool");
+        assert_eq!(result["tool_call_id"], native["id"]);
+        assert!(result["content"]
+            .as_str()
+            .unwrap()
+            .starts_with("[UntrustedData;"));
+        assert!(result["content"]
+            .as_str()
+            .unwrap()
+            .contains("authority=none"));
+    }
+
+    #[test]
+    fn orphan_mismatched_duplicate_and_unfinished_tool_exchanges_fail_closed() {
+        let provenance = p::Provenance {
+            source: p::Source::Internal,
+            actor: p::Actor::Agent,
+            trust_tier: p::TrustTier::Untrusted,
+            caused_by: None,
+        };
+        let call = ModelToolCall {
+            schema_version: p::SchemaVersion(1),
+            call_id: p::ToolCallId("native-call".into()),
+            tool: p::ToolRef("read_file".into()),
+            arguments: json!({}),
+            intent: None,
+        };
+        let assistant = ModelMessage::tool_call(&call, provenance.clone());
+        let result = ModelMessage::tool_result(call.call_id.clone(), "result", provenance.clone());
+        let wrong = ModelMessage::tool_result(
+            p::ToolCallId("another-call".into()),
+            "result",
+            provenance.clone(),
+        );
+        for messages in [
+            vec![result.clone()],
+            vec![assistant.clone()],
+            vec![assistant.clone(), wrong],
+            vec![assistant.clone(), result.clone(), result],
+            vec![ModelMessage::data(MessageRole::Tool, "unbound", provenance)],
+        ] {
+            let mut request = ModelRequest::text("fixture");
+            request.messages.extend(messages);
+            assert!(request.validate().is_err());
+        }
+    }
+
+    #[test]
+    fn parallel_or_unidentified_native_tool_proposals_are_rejected() {
+        let call = json!({"id":"native-call", "function":{"name":"read_file", "arguments":"{}"}});
+        for calls in [
+            json!([call.clone(), call.clone()]),
+            json!([{"function":{"name":"read_file", "arguments":"{}"}}]),
+        ] {
+            assert!(
+                parse_chat_response(json!({"choices":[{"message":{"tool_calls":calls},
+                "finish_reason":"tool_calls"}]}))
+                .is_err()
+            );
+        }
     }
 
     #[test]
