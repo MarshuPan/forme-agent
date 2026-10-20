@@ -82,6 +82,10 @@ impl HostAuth {
     pub fn domain(&self) -> HostCredentialDomain {
         self.domain
     }
+
+    pub(crate) fn proof_ref(&self) -> &p::SchemaDigest {
+        &self.proof_ref
+    }
 }
 
 pub trait HostManagement: Send + Sync {
