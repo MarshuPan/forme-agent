@@ -119,10 +119,19 @@
       "allowed_sha256": []
     },
     {
+      "source": "windows-service 0.8.1 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public typed SCM APIs for builtin product services; do not copy source, examples, fixtures, errors, or naming.",
+      "notice_action": "Review locked transitive licenses, notices, and reachable advisories before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
       "source": "ed25519-dalek 2.2.0 public crate API",
       "license": "BSD-3-Clause",
       "copy_risk": "low",
-      "implementation_rule": "Use only the public Ed25519 verification API behind project-owned publisher and admission contracts; do not copy source, examples, fixtures, errors, test vectors, or naming.",
+      "implementation_rule": "Use only the public Ed25519 verification API behind project-owned publisher, admission, and pinned installed-product release contracts; do not copy source, examples, fixtures, errors, test vectors, or naming.",
       "notice_action": "Preserve the BSD notice and review locked transitive notices before release.",
       "allowed_paths": [],
       "allowed_sha256": []

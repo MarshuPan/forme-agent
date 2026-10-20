@@ -7,6 +7,7 @@ mod browser;
 mod computer;
 mod external;
 mod file;
+pub mod installed;
 mod mcp;
 mod notification;
 mod planner;
