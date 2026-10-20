@@ -13,6 +13,8 @@
 
 ## 1. Rust workspace 与 crate 边界
 
+安装/常驻服务/Web 产品化增量见 [architecture/10](10-installed-product-and-web-workbench-architecture.md)：它在下表现有 crate 中新增宿主/传输入口，不增加内部边或脑 EventKind。限定前端许可例外仅见 canonical §29.8，不扩展到本篇内核实现。
+
 **原则**:
 
 - **依赖单向向下**:低层 crate 不依赖高层。`protocol` 在最底,无依赖,人人依赖它。

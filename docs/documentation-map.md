@@ -11,6 +11,7 @@
 - 全局入口是 `docs/README.md`，本文档是跨目录关系矩阵，各子目录 `README.md` 只解释本目录内部文档。
 - 早期规划 `planning/01-14` 与早期架构基线 `architecture/00-01` 已归档到 `archive/`，不再更新，不作为现行口径。
 - M0-M5 的 requirements、architecture、PRD 与 acceptance 是冻结的回归基线；V1 核心大脑闭合按 `prd/23` A/B/C/D 实施，不新增里程碑编号。
+- 常驻服务/Web 产品化另沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`；当前仅文档，待代码与 IP01–IP24 原生验收，不命名 M6。
 
 ## 目录级关系
 
@@ -18,18 +19,18 @@
 |---|---|---|---|---|---|
 | `runbooks/` | operator 如何通过正式入口和离线工具执行受治理操作。 | `canonical §28`、`architecture/09`、`prd/23` 及生产接口。 | 数据控制与 C24 真实证据操作手册。 | 当前 `v1-core-brain-data-and-evidence.md`。 | 操作手册不授予权限、不替代审批/验收、不宣称未经验证的完成状态。 |
 | `planning/` | 仍在使用的规划设计。 | 早期规划（已归档）与 requirements 反馈。 | 多 Agent 编排的单脑模型与编排库。 | 当前仅 `15`。 | 规划结论必须再进入 requirements 固定。 |
-| `requirements/` | 要做什么、不做什么、优先级、范围决策和验收方向。 | 早期规划（已归档）与各阶段验收结论。 | 需求范围、能力域、完整核心闭环、非目标、验收方向。 | M0-M5 已落地；`15`-`16` 冻结 V1 核心大脑闭合且不是 M6。 | 不写实现细节，不扩大 planning 未确认的范围。 |
-| `architecture/` | 如何实现 requirements。 | `requirements/` 与 canonical 契约。 | Rust 模块、协议、状态机、数据流、存储、安全和扩展设计。 | M0-M5 已实现；`09` 冻结 V1 闭合且保持 18 crates/single authority。 | `00/01` 不当作最终技术方案；新增范围必须从 requirements 下推。 |
-| `prd/` | 按什么功能和步骤实现。 | `requirements/` 与 `architecture/`。 | 可执行任务、接口/数据约束、测试和验收。 | `01`–`22` 已实现；`23` 是当前 A-D 实施契约。 | 不在 PRD 中新增需求或复制第三方实现。 |
+| `requirements/` | 要做什么、不做什么、优先级、范围决策和验收方向。 | 早期规划（已归档）与各阶段验收结论。 | 需求范围、能力域、完整核心闭环、非目标、验收方向。 | M0-M5/V1 已落地；`17`–`18` 是待实施的产品化 P/IP 范围。 | 不写实现细节，不扩大已确认范围。 |
+| `architecture/` | 如何实现 requirements。 | `requirements/` 与 canonical 契约。 | Rust 模块、协议、状态机、数据流、存储、安全和扩展设计。 | `03`–`09` 对应实现已合入；`10` 为常驻/Web 设计，待实施。 | 保持 18 crates/single authority；新增范围从 requirements 下推。 |
+| `prd/` | 按什么功能和步骤实现。 | `requirements/` 与 `architecture/`。 | 可执行任务、接口/数据约束、测试和验收。 | `01`–`23` 对应实现已合入；`24`–`26` 为待实施产品化契约。 | 不新增需求；前端例外只按精确来源/许可边界。 |
 | `acceptance/` | 如何证明实现符合 requirements 与 PRD。 | 实现、场景测试、合规门。 | 逐场景证据、最终门结果、残余风险。 | M0-M5 有 final 证据；V1 历史分波报告保留，当前状态统一见 core-brain-closure 报告与封闭清单。 | 不能只用最终回答或 happy path 代替事件序列和反向断言。 |
-| `compliance/` | 依赖来源与许可证是否清楚。 | `Cargo.lock`、direct dependencies。 | 依赖清单。 | 随依赖维护。 | 发布审计读取，不能与实际依赖脱节。 |
+| `compliance/` | 依赖来源与许可证是否清楚。 | Cargo/frontend locks、direct dependencies、已授权前端范围。 | 依赖清单与 frontend-reuse-policy。 | 规则已补；当前没有导入上游 UI。 | 实际来源/NOTICE/SBOM 对账，禁止 blanket copy allowlist。 |
 | `archive/` | 设计是如何演进过来的。 | 早期规划与架构基线。 | 无（只读）。 | 已归档。 | 不作为现行口径，冲突时以 canonical 与 requirements 为准。 |
 
 ## 当前主文档关系
 
 | 文档 | 当前角色 | 主要上游 | 主要下游 | 关系说明 |
 |---|---|---|---|---|
-| `architecture/canonical-contract.md` | 跨文档唯一口径契约。 | `archive/planning/01-14`、`planning/15`、requirements、外部 review 反馈。 | 全部正式 architecture/PRD。 | §1-28 收敛三内核、治理、输入安全、模型潮线、M2-M5 与 V1 核心大脑运行闭合。 |
+| `architecture/canonical-contract.md` | 跨文档唯一口径契约。 | `archive/planning/01-14`、`planning/15`、requirements、外部 review 反馈。 | 全部正式 architecture/PRD。 | §1–28 收敛内核与治理；§29 固定常驻服务/Web 与限定前端复用，待实施。 |
 | `planning/15-multi-agent-orchestration.md` | 多 Agent 执行编排补强。 | 早期协调内核与自我模型规划（已归档）、`architecture/02-proactive-cognitive-kernel`、`requirements/02` R12。 | requirements 中 subagent/delegation、Orchestrator、Workspace 边界；architecture 中协调、执行、并发与冲突治理的引用关系。 | 单脑模型（认知集中、执行分布）：Orchestrator 非内核、子代理无认知、资源统一在大脑、结果整合回大脑。 |
 | `requirements/01-vision-and-scope.md` | 第一份需求文档。 | `archive/planning/01-14`、`planning/15`。 | `requirements/02-capability-requirements.md`。 | 已固定愿景、用户、问题、范围、非目标和关键约束。 |
 | `requirements/02-capability-requirements.md` | 能力需求文档。 | `requirements/01`、`archive/planning/05-14`。 | `requirements/03-foundation-scope-decisions.md`。 | 已固定能力域、阶段边界和验收方向，并被 `03` 进一步收敛 M0 范围。 |
@@ -121,6 +122,18 @@
 | `acceptance/core-brain-closure-artifacts/manifest.json` | 同一源码输入下四波封闭清单的唯一证据汇总入口。 | 各波 runtime、A 入口/B tick、B/C typed 工件与 D 真实试验。 | 独立离线复核、Final 与 current-tree release audit。 | 绑定文件/源码/场景摘要、事件范围、快照与隐私扫描；不包含发布 receipt，避免循环摘要。 |
 | `acceptance/core-brain-c-artifacts/` | 八模式、冲突、未知恢复、文件隔离、监管、经验回流六份 typed artifacts。 | 正式 runtime、受控 HTTP 模型、真实 SQLite/文件/进程与完整 stream hash 见证。 | 离线 ledger/预算/终态/候选校验和 C 波永久门。 | 生成源码与范围绑定在当前 manifest，校验不需凭证；不证明线上模型质量或编排优于直接模型。 |
 
+## 产品化文档链（待实施）
+
+| 文档 | 角色 | 上游 | 下游/状态 |
+|---|---|---|---|
+| [requirements/17](requirements/17-installed-product-scope-decisions.md) | 产品范围 P01–P16。 | 已实现单脑基线、owner 安装/UI 决策。 | requirements/18、canonical §29、architecture/10；设计已确认。 |
+| [requirements/18](requirements/18-installed-product-verification-strategy.md) | IP01–IP24 原生验收。 | requirements/17、永久 S/C 门。 | prd/24–26、产品验收；尚未执行。 |
+| [architecture/10](architecture/10-installed-product-and-web-workbench-architecture.md) | 系统服务、认领/身份/网络、分权、数据、升级、Web。 | requirements/17–18、canonical §29、architecture/03/09。 | prd/24–26；待实施，18-crate/99-kind 不变。 |
+| [prd/24](prd/24-installer-and-service-lifecycle.md) | 安装与系统服务生命周期。 | architecture/10、requirements/17–18。 | 原生包/宿主/隔离与 IP 验收；待实施。 |
+| [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 认证/配置/API/SSE 与 IP 验收；待实施。 |
+| [prd/26](prd/26-web-workbench.md) | 五面 Web 工作台。 | architecture/10、prd/25 API。 | 静态 UI/IP17–24；待实施。 |
+| [frontend-reuse-policy](compliance/frontend-reuse-policy.md) | owner 指定的前端许可/来源边界。 | canonical §12/§29.8、DeepSeek 公开来源。 | prd/17/26、导入前 gate；当前未导入源码/依赖。 |
+
 ## 依赖图
 
 ```mermaid
@@ -190,6 +203,12 @@ flowchart TD
   ClosureB --> ClosureC["C\n项目 + 编排"]
   ClosureC --> ClosureD["D\n产品闭合"]
   ClosureD --> FinalClosure["acceptance/V1 closure\nS1-S99 + C1-C24"]
+  FinalClosure --> ProductReq["requirements/17-18\nP01-P16 + IP01-IP24"]
+  ProductReq --> ProductArc["canonical §29 + architecture/10\n常驻服务与 Web（待实施）"]
+  ProductArc --> Product24["prd/24\n安装/服务"]
+  Product24 --> Product25["prd/25\n初始化/认证/配置/API"]
+  Product25 --> Product26["prd/26\nWeb 工作台"]
+  Product26 --> ProductGate["产品验收（未开始）\nIP24 联合 + 原 S/C 回归"]
 ```
 
 ## 后续写作准入
@@ -210,5 +229,5 @@ M0-M5 与 V1 核心大脑 A–D 均已走完整条 `requirements -> architecture
 1. `acceptance/m5-acceptance-report.md` 与 `tools/verify-m5.ps1` 固定为 S1-S99 回归入口；M4 report/verify 继续作为内含历史门。
 2. M2 86-kind 必须继续是 M3 89-kind、M4 93-kind、M5 97-kind 与 V1 closure 99-kind 的严格前缀；18-crate 图、Harness-first、执行前重查、能力门、candidate/activation/authorization 分离与 single authority 不可回退。
 3. `prd/23` A→B→C→D 的实现顺序与独立提交、验收报告保留为已完成历史；后续变更继续复跑 S1-S99、对应 C1-C24 场景和真实 golden/release gate。
-4. `WorkspaceCharterChanged` 与 `DataLifecycleApplied` 是唯一获准的新事件；第三个新增事件或冻结 trait/依赖图变化必须先回文档经 owner 确认。
+4. `WorkspaceCharterChanged` 与 `DataLifecycleApplied` 是 V1 闭合唯一获准的新事件；产品化管理/认证 facts 不新增 EventKind、不写脑表。第三个新增脑事件或冻结 trait/依赖图变化必须先回文档经 owner 确认。
 5. 任何公开发布仍由 owner 单独决定；release audit 是工程证据，不替代法律意见或外部发布授权。

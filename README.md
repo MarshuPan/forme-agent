@@ -15,6 +15,13 @@ months-long cognitive benefit, general task quality, or owner daily-use
 acceptance. No release package or remote publication is implied by a local
 merge.
 
+The installed-product and browser-workbench design is now documented in
+[the product scope](docs/requirements/17-installed-product-scope-decisions.md)
+and [architecture](docs/architecture/10-installed-product-and-web-workbench-architecture.md),
+with implementation PRDs 24-26 and separate IP01-IP24 acceptance criteria.
+Native installers, system services, account setup, and the new Web UI are
+planned; this documentation update does not implement or release them.
+
 ### Milestone history
 
 M0 is complete. The first governed core loop is

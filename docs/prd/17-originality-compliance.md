@@ -6,7 +6,7 @@
 
 - **实现**:requirements/03 **D15**(原创与合规:CI/doctor 边界)。
 - **架构**:无运行时 crate(build-time tooling);贯穿全工程。
-- **口径**:canonical **§12**(开源原创 CI 门)。
+- **口径**:canonical **§12**(开源原创 CI 门)；产品化前端限定例外仅按 **§29.8** 与 [frontend-reuse-policy](../compliance/frontend-reuse-policy.md)。
 - **验收**:主证 **S22**(原创 CI/Doctor)。
 - **不偏离**:M0 即建 CI 门(不等发布前);完整法律审计留发布期。
 
@@ -53,6 +53,7 @@ pub trait ComplianceDoctor {
 - **语料完整性**:linked worktree 必须从 Git common dir 定位主 worktree 的本地 `research/upstreams/`；语料缺失、不可读或 scanner 失败均 fail closed，不能把“没有扫描输入”解释成 PASS。
 - **误报边界**:标准语言/框架样板（例如仅含常见 trait 的 Rust `derive`）不单独作为长 prompt/错误/文档表达命中；exact/normalized/token/naming/directory 检查仍继续执行。
 - **来源记录**:需协议兼容/依赖/复用时记 `BorrowingRecord`(source/license/copy_risk/implementation_rule/notice)后放行。
+- **产品化 UI 例外**：owner 已授权的 DeepSeek 前端按 frontend-reuse-policy 逐文件/revision/digest/license/NOTICE 分类；不得 blanket 忽略目录、放宽未知许可或引入上游 runtime。当前没有导入代码；导入前须先扩展精确记录/fixture 检查，现有 doctor 不因本文件自动支持例外。prompt、错误文案、目录体系、fixture 和后端仍禁止复制。
 - **失败 → 不 release-ready**。
 
 ## 6. 错误/安全/权限/审批
@@ -84,6 +85,7 @@ pub trait ComplianceDoctor {
 
 - **S22(总纲 §7.5)**:构造 upstream import / GPL 材料 / 复制内容 / corpus 缺失 → blocking fail;合规对照树与 linked worktree 共享 corpus → 通过;来源记录后放行。
 - **单元**:三项检查各自生效;失败阻断 release-ready。
+- **前端导入前增量门**：精确许可 UI 白名单通过；未声明文件、上游更新摘要失配、Cordis/服务端/插件依赖、缺 notice 和范围外 fixture 均阻断；不得以该增量重写历史 S22 receipt。
 
 ## 10. 验收
 

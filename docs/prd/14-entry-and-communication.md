@@ -2,6 +2,8 @@
 
 模块实施级 PRD。归属 `cli` + `gateway` + `communication` crate。CLI 与 Local Gateway 双入口(同 run/同 event);Communication Fabric 是对外触手的统一控制面。照 `prd/01 §10` 模板。
 
+本篇保留 M0 双入口与沟通契约。后续安装式产品的独立 Web/账号/内部身份桥由 [prd/25](25-bootstrap-auth-and-web-access.md) 与 canonical §29 增量承接；不把原 loopback bearer 基线当作已完成网页登录，也不放开内部 Gateway 监听范围。
+
 ## 0. 定位与承上
 
 - **实现**:requirements/03 **D1**(CLI + Local Gateway 双入口)、**D16**(Communication Fabric);结构 **4**(双入口)、**21**(Communication Fabric 数据边界)。

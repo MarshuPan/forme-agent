@@ -25,6 +25,8 @@ M5 由 `requirements/13-14` 定义为“受治理能力生态”。`08-m5-govern
 
 V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-core-brain-runtime-closure-architecture.md` 激活 canonical §28，把默认 composition、持续认知、项目/编排闭环和数据/价值闭合分为 A/B/C/D 四波；只允许在 M5 97-kind 后追加两个 R 组事件，不新增 crate、依赖边或内核。
 
+常驻服务与 Web 产品化由 `requirements/17–18`、canonical §29 与 `10` 定义，实施承接 `prd/24–26`，独立使用 IP01–IP24 验收。当前仅设计文档，未实现原生安装器/账号/新 UI；不另建大脑或改变冻结 crate 图。
+
 ## 当前文档
 
 | 文档 | 作用 | 状态 |
@@ -44,6 +46,7 @@ V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-
 | `07-m4-federated-runtime-architecture.md` | M4 增量架构，定义 single authority、peer grants、TLS RemoteExecutor、lease/fencing、read-only replication、OwnerClient control 和 checkpoint handoff。 | 已实现并通过 S70-S84 自验收；18-crate 图不变，EventKind 从 89 末尾 additive 到 93。 |
 | `08-m5-governed-capability-ecosystem-architecture.md` | M5 增量架构，定义 publisher grant、signed package admission、plan-bound lifecycle、registry 接入和 federated distribution。 | M5-A/B/C 已实现并验收；18-crate 图不变，EventKind 从 93 末尾 additive 到 97。 |
 | `09-v1-core-brain-runtime-closure-architecture.md` | V1 核心大脑运行闭合架构，定义唯一 production composition、持久 owner 大脑、默认 context、三相 tick、八套编排、多模型真实性、dashboard、备份/加密/删除。 | 文档已冻结；当前 A–D/C24/Final 与 main 状态见 `../acceptance/core-brain-closure-acceptance-report.md`。不是 M6，99 EventKinds 与 18-crate 图不变。 |
+| [10-installed-product-and-web-workbench-architecture.md](10-installed-product-and-web-workbench-architecture.md) | 整体安装、系统服务、Web/core/维护/worker 边界、bootstrap/身份/配置、网络、升级恢复及五个工作面。 | 已确认设计，待实施/原生验收；18-crate 图与 99 EventKinds 不变。 |
 | `m5-a-protocol-compatibility.md` | M5-A publisher/package/admission 与四个 Q 组事件的兼容边界。 | 已随 M5-A 激活；93-kind exact prefix、legacy/fail-closed contracts PASS。 |
 | `m5-b-protocol-compatibility.md` | M5-B install plan/lifecycle/approval 与 registry projection 的兼容边界。 | 已随 M5-B 激活；legacy admission 不产生 Installed/Enabled。 |
 | `m5-c-protocol-compatibility.md` | M5-C distribution receipt、M4 binding 与 portable evidence 的兼容边界。 | 已随 M5-C 激活；self-report/legacy receipt 不产生 verified distribution。 |
@@ -64,5 +67,5 @@ V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-
 
 - 重新定义产品愿景。
 - 绕过 requirements 新增需求。
-- 直接复制第三方的代码、结构、prompt、文档或测试。
+- 超出 canonical §29.8/前端逐文件许可例外，直接复制第三方代码、结构、prompt、文档或测试；该例外不含 core/插件/服务端/fixture。
 - 写成实施任务清单；任务拆解应进入 `docs/prd/`。

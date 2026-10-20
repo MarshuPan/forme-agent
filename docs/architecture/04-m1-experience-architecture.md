@@ -2,6 +2,8 @@
 
 本文实现 `requirements/05-m1-scope-decisions.md` 与 `06-m1-verification-strategy.md`。它是 M0 `03-foundation-architecture.md` 之上的增量架构：M0 crate 图、86 个 EventKind、harness-first、store 单写者和治理 enforce 点继续有效；M1 只增加控制面、后台服务、评价投影和按需能力装载。
 
+本篇的 Local Web Console 是 M1 loopback 基线。后续产品化账号/LAN/独立 Rust Web 接入按 [architecture/10](10-installed-product-and-web-workbench-architecture.md)，内部 Gateway 仍 loopback，不引入桌面壳或 Node 后端；该增量当前仅有文档。
+
 ## 0. 状态与激活边界
 
 - 本文固定 M1 目标架构；M1-A 已激活并通过 S23-S28，M1-B 已激活并通过 S29-S33，M1-C 已激活并通过 S34-S37、A/B/M0 回归与合规门。

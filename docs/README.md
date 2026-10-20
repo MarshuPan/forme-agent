@@ -35,16 +35,22 @@ M5 已沿 `requirements/13-14 -> canonical §27 -> architecture/08 -> prd/22 -> 
 
 V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> canonical §28 -> architecture/09 -> prd/23`。它不是 M6，而是把 M0-M5 的能力装进同一个默认、持久、可恢复的大脑运行时。最终门为 S1-S99 + C1-C24、前 97 exact prefix 后追加 2 个 R 事件、18-crate 图、真实 golden 与 release audit。A/B/C 历史报告保留；D 多模型、看板、备份恢复、加密/迁移/真实删除、原生工具消息续接修复与六任务 runner 依据见 `acceptance/core-brain-d-acceptance-report.md`。当前源码、真实试验、分波清单、Final 与 main 状态只在 `acceptance/core-brain-closure-acceptance-report.md` 汇总，四波封闭证据入口为 `acceptance/core-brain-closure-artifacts/manifest.json`。受控测试或不可验证工件不能替代真实任务与发布门。
 
+## 常驻服务与 Web 工作台（待实施）
+
+产品化方案已形成 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`：原生整体安装、OS 系统服务、唯一大脑、账号初始化、本地/LAN Web 与五个工作面。它不是 M6；**本轮仅文档，安装器、原生服务、账号与新 UI 尚未实施/验收**。
+
+从 [产品架构](architecture/10-installed-product-and-web-workbench-architecture.md) 看全貌；实施按 [安装与服务](prd/24-installer-and-service-lifecycle.md) → [初始化与 Web 接入](prd/25-bootstrap-auth-and-web-access.md) → [工作台](prd/26-web-workbench.md)，使用独立 IP01–IP24 验收。DeepSeek 仅限 [前端许可复用边界](compliance/frontend-reuse-policy.md)，不引入其核心或插件系统。
+
 ## 目录职责
 
 | 目录 | 作用 | 当前状态 |
 |---|---|---|
 | `planning/` | 仍在直接使用的规划设计。 | 当前仅 `15` 多 Agent 编排。 |
-| `requirements/` | 固定 forme 要做什么、不做什么、面向谁、优先级和验收方向。 | M0-M5 已落实；`15`–`16` 冻结 V1 核心大脑闭合 B1-B24/C1-C24，明确不是 M6。 |
-| `architecture/` | 设计如何实现需求，包括 Rust 模块、协议、数据流、状态机、存储、权限和扩展边界。 | `03`–`09` 对应实现已合入本地 main；保持 18-crate/single authority，证据边界见当前总验收报告。 |
-| `prd/` | 形成可执行的实施型 PRD：功能描述、实施步骤、关键技术约束、测试和验收标准。 | `01`–`23` 对应 M0-M5 与 A–D 已合入；C1–C24 和 S1–S99 继续作为永久门。 |
+| `requirements/` | 固定 forme 要做什么、不做什么、面向谁、优先级和验收方向。 | M0-M5/V1 已落实；`17`–`18` 新定产品化 P01–P16/IP01–IP24，待实施。 |
+| `architecture/` | 设计如何实现需求，包括 Rust 模块、协议、数据流、状态机、存储、权限和扩展边界。 | `03`–`09` 对应实现已合入本地 main；`10` 为待实施的安装/服务/Web 架构，保持 18-crate/single authority。 |
+| `prd/` | 形成可执行的实施型 PRD：功能描述、实施步骤、关键技术约束、测试和验收标准。 | `01`–`23` 对应 M0-M5 与 A–D 已合入；`24`–`26` 文档已制定、待实施，历史 S/C 门继续回归。 |
 | `acceptance/` | 保存验收报告、逐场景证据和最终门结果。 | M0-M5、V1 A–D/真实 C24/Final 有通过证据；当前源码、许可证重验和 main 状态统一见 closure 报告，历史失败与 Unavailable 记录保留。 |
-| `compliance/` | 直接依赖的来源、许可证与复制风险清单。 | 随依赖变化维护，发布审计读取。 |
+| `compliance/` | 直接依赖的来源、许可证与复制风险清单。 | 随依赖变化维护；frontend-reuse-policy 固定限定前端例外，当前未导入源码。 |
 | `runbooks/` | 正式入口和离线 owner 操作手册。 | `v1-core-brain-data-and-evidence.md` 说明模型配置、备份/恢复、真实删除、旧明文迁移与 C24 证据运行。 |
 | `archive/` | 早期规划 `planning/01-14` 与早期架构基线 `architecture/00-01`。 | 已归档，不再更新，不作为现行口径。 |
 
@@ -55,6 +61,7 @@ V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> 
 - `architecture/` 负责实现设计，不重新定义产品愿景和范围。
 - `prd/` 不能发明新需求，只能把已确认的 requirements 和 architecture 拆成可执行任务。
 - 所有设计与实现必须遵守 `architecture/canonical-contract.md` §12、`prd/17-originality-compliance.md` 和 `requirements/03-foundation-scope-decisions.md` 的原创性与合规边界。只有在实现引入依赖、代码复用或协议兼容时，才记录具体来源。
+- 唯一已批准的前端源码例外按 canonical §29.8 与 `compliance/frontend-reuse-policy.md` 逐文件审查；不扩大到内核/插件/服务端/fixture，不引用 research/upstreams。
 - 进入正式架构前，跨文档唯一口径以 `architecture/canonical-contract.md` 为准，尤其是主动等级、稳定性、失败分类、对象 owner、并发、撤销、schema、身份、对外动作、策略进化、联邦运行时和开源 CI 边界。
 
 更细的文档关系见 `documentation-map.md`。

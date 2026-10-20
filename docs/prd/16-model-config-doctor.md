@@ -2,6 +2,8 @@
 
 模块实施级 PRD。归属 `models` + `config` crate。模型渠道接入(经 prd/05)、配置分层与密钥分离、配置体检。照 `prd/01 §10` 模板。
 
+本篇的 M0/developer 配置基线保持有效。已安装服务的持久 typed config、显式来源覆盖、secret 写入与 active revision ack 由 [prd/25](25-bootstrap-auth-and-web-access.md) 和 architecture/10 §5.2 承接；不要求普通用户配 shell env，不将静态 doctor 结果虚报成真实模型测试。
+
 ## 0. 定位与承上
 
 - **实现**:requirements/03 **D13**(ModelProvider/ModelProfile/credential/base_url/capability/cost·rate limit/config precedence/secrets/ConfigDoctor)。

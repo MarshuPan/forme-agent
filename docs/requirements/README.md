@@ -42,6 +42,8 @@
 | `14-m5-verification-strategy.md` | 第十四份需求文档，把 M5 转成 S85–S99，并固定 S1–S84、93-kind prefix 与 18-crate 图为永久回归门；S1-S99 已全绿。 |
 | `15-v1-core-brain-closure-scope-decisions.md` | 冻结 V1 核心大脑运行闭合 B1–B24：唯一 composition、持续认知、长期项目/编排、多模型、数据治理与价值基线；明确不是 M6。 |
 | `16-v1-core-brain-closure-verification-strategy.md` | 把 B1–B24 转成 C1–C24，并固定 S1–S99、97-kind prefix、18-crate 图和真实/重启/反向证据为永久门。 |
+| [17-installed-product-scope-decisions.md](17-installed-product-scope-decisions.md) | 固定产品化 P01–P16：整体安装、OS 常驻服务、单脑、账号初始化、本地/LAN Web、隔离与五个工作面；设计已确认，待实施。 |
+| [18-installed-product-verification-strategy.md](18-installed-product-verification-strategy.md) | 定义独立 IP01–IP24、原生平台/浏览器/安全与恢复证据，不冒用历史 S/C 门；尚未执行产品化验收。 |
 
 ## 本目录推进关系
 
@@ -57,3 +59,4 @@
 10. M3 验收后，评审 `11`–`12` 与 canonical §26，冻结 M4 单 Owner 联邦边界与 S70–S84，再进入 `architecture/07` 和 `prd/21`；未通过规格 review 不写实现，每波继续停下 owner review。
 11. M4 封板后，评审 `13`–`14` 与 canonical §27，冻结 M5 受治理能力生态与 S85–S99，再进入 `architecture/08` 和 `prd/22`；catalog、signature、admission 与 permission 必须保持分离。
 12. M5 合入后，不创造 M6；评审 `15`–`16` 与 canonical §28，按 `architecture/09`、`prd/23` 的 A→B→C→D 把已有模块闭合为默认 forme 大脑，C1–C24 与 S1–S99 同时通过才算完成。
+13. V1 闭合后，产品化按 `17`–`18`、canonical §29、`architecture/10` 和 `prd/24–26` 形成安装/常驻/Web 实施链；当前为文档阶段，不重命名 M6、不宣称安装器已完成。

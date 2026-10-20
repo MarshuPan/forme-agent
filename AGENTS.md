@@ -6,16 +6,17 @@
 
 1. `docs/prd/01-foundation-implementation-prd.md` — 总纲:§9 集成契约(防各自为战)、§10 模板与跨切规范。
 2. 当前任务若属于 V1 核心大脑闭合，先读 `docs/prd/23-v1-core-brain-closure-program-prd.md` 对应 A/B/C/D 波；否则读负责模块的 `docs/prd/NN-*.md`。
-3. `docs/architecture/canonical-contract.md` §1–28 — 唯一口径;同名对象/判断以它为准，V1 闭合重点为 §28。
+3. `docs/architecture/canonical-contract.md` §1–29 — 唯一口径;同名对象/判断以它为准，V1 闭合重点为 §28，安装/常驻服务/Web 工作台重点为 §29。
 4. `docs/architecture/09-v1-core-brain-runtime-closure-architecture.md` — 当前 composition、持续认知、编排、多模型与数据闭合架构。
 5. `docs/architecture/03-foundation-architecture.md` — 冻结 crate 图、事件分类(§2.1.1)、trait 签名(§4.7/§5.6)、治理 enforce 点(§6)。
+6. 安装/系统服务/Web 任务另读 `docs/requirements/17-18`、`docs/architecture/10-installed-product-and-web-workbench-architecture.md` 及对应 `docs/prd/24-26`；它们是产品化实施输入，当前尚未实施，不是 M6。
 
 ## 硬规则(违反 = 返工)
 
 1. **依赖方向即架构**:crate 依赖边只能是 `architecture/03 §1` 表中列出的;禁止新增边、禁止反向依赖。
-2. **事件是模块间唯一事实交换**:`EventKind` 只活在 `forme-protocol`;所有稳定状态变更必须落事件(append 只经 `forme-store` 单写者);新增事件类型必须先改 architecture §2.1.1 再改代码。
+2. **事件是大脑模块间唯一事实交换**:`EventKind` 只活在 `forme-protocol`;所有稳定脑状态变更必须落事件(append 只经 `forme-store` 单写者);新增事件类型必须先改 architecture §2.1.1 再改代码。安装/认证/服务管理事实按 canonical §29 独立持久化，不属于脑事件，也不得写脑表或推进 run。
 3. **PRD 里的 trait 签名与协议对象是冻结契约**:实现它,不重设计;要改先提文档变更,经确认后代码跟进。
-4. **原创性(canonical §12)**:严禁复制任何第三方项目的源码、prompt、错误文案、命名体系、目录结构、测试 fixture;`research/upstreams/` 永不引用;每次提交前 `bash tools/compliance-doctor.sh` 必须 PASS。
+4. **原创性(canonical §12)**:严禁复制第三方项目的源码、prompt、错误文案、命名体系、目录结构、测试 fixture；唯一限定例外为 owner 已授权的 DeepSeek 前端 UI，严格按 `docs/compliance/frontend-reuse-policy.md` 逐文件审查/白名单/NOTICE，不含其内核、插件框架、服务端、prompt 或 fixture。`research/upstreams/` 永不引用;每次提交前 `bash tools/compliance-doctor.sh` 必须 PASS。
 5. **每 crate `#![forbid(unsafe_code)]`**;每个协议对象带 `SchemaVersion`(canonical §9)。
 6. **治理不变量不得绕过**(architecture §6):harness-first、执行前重查、能力门在出口、候选先于稳定、trust 不覆盖 permission、审批绑定 plan digest(防 TOCTOU)、`stream_seq` 为排序权威、副作用不明绝不盲重试。
 7. **V1 闭合不是 M6**:不新增内核/crate/依赖边；前 97 EventKinds strict prefix，只允许 `WorkspaceCharterChanged`、`DataLifecycleApplied` 末尾 additive；C1–C24 不是 S100+。
@@ -23,6 +24,7 @@
 9. **测试**:按模块 PRD §9 + prd/01 §7 的场景规格——事件序列断言(非最终回答)、正反场景、三类正确性;fixture 自建,不抄第三方。
 10. **模型事实不得造假**:每次 call 前绑定具体 provider，事件记录实际 profile；禁止内部 fallback 仍自报 primary。
 11. **默认大脑不得退化**:正式 CLI/Gateway/scheduler 必须使用同一 ProductionRuntime；不得用空 context、入口私有 memory、NoopProactivity 或测试 builder 冒充完成。
+12. **产品壳不能旁路大脑**:Web 不直调模型/工具/脑数据库；系统安装提权不等于 Agent 无限 root/SYSTEM；维护命令与 AgentExecution 分域。关闭网页不停止服务，core 离线仍可受认证维护；产品验收用 IP01–IP24，不借历史 S/C 或跨编译宣称原生平台已通过。
 
 ## 当前构建顺序
 

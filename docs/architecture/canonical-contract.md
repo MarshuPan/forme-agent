@@ -1,6 +1,6 @@
 # Canonical Architecture Contract
 
-本文档是进入 `03-foundation-architecture.md` 前的跨文档契约。它不定义 Rust crate、数据库表、API 签名或实施任务；它只固定那些已经在 planning / requirements / architecture 基线中反复出现、但必须收敛为唯一口径的概念。
+本文档是进入 `03-foundation-architecture.md` 前建立、随正式增量设计维护的跨文档契约。它不定义 Rust crate、数据库表、API 签名或实施任务；它固定那些已经在 planning / requirements / architecture 基线中反复出现、但必须收敛为唯一口径的概念。§29 承接安装、系统服务与 Web 工作台的已确认设计，实施状态由对应 PRD/验收单独记录。
 
 后续正式架构、PRD 和实现如果遇到同名对象或同类判断，以本文档为准。
 
@@ -202,7 +202,7 @@ M0 至少区分三类参与者：
 原创性和合规不应只在发布前检查。M0 开始就需要 CI/doctor 方向的边界：
 
 - `research/upstreams/**` 不进入 build/import/include 路径。
-- 不复制第三方源码、目录结构、prompt、文档、错误信息、测试 fixture 或命名体系。
+- 不复制第三方源码、目录结构、prompt、文档、错误信息、测试 fixture 或命名体系；唯一已授权的限定例外为 §29.8 的前端 UI 白名单，须逐文件许可证/来源审查，不能类推到内核或测试。
 - 来源不明或未获授权的材料不进入 release tree。
 - GPL 或未知许可证材料默认不进入主工程；若需要依赖或复用，必须先做 license review。
 - 具体复用公开实现、协议兼容或依赖时，记录 source、license、copy_risk、implementation_rule 和 notice action。
@@ -636,4 +636,58 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 7. **长期数据治理是运行协议的一部分**：敏感 payload 在不可变链前必须进入应用层 envelope 或安全内容引用；明文、密钥和可利用的 SecretRef 标识不能进入 event、trace、manifest、backup 或 artifact。删除必须同时验证原文、FTS、summary/vector/graph/candidate 等派生索引和内容密钥，保留无原文 tombstone；远端只报告可验证的 disposition，未知不得伪称完成。
 8. **route 运行语义不可由“子代理无认知”替代**：每个 route node 必须有状态、依赖失败策略、父子取消传播、父预算原子预留/回收、隔离 workspace/scope/toolset、声明式 retry 和 unknown no-retry；子代理只回传 summary/result，真实副作用仍经各自 Harness 治理。
 9. **状态声明必须区分 branch 与 main**：文档可以记录分支上的实现草案，但“已完成/已闭合/可作为永久回归基线”只在对应 commit 已通过独立验收、clean-tree release audit 并合入 `main` 后使用。未合入的 A/B/C/D 只能标为进行中或待验收。
+
+## 29. 安装、常驻服务与 Web 工作台
+
+本节固定 requirements/17–18、architecture/10、prd/24–26 的产品化边界。当前为已确认的设计，不表示安装器、原生系统服务、账号或新 Web UI 已实现；不是 M6。
+
+### 29.1 一个产品、一个大脑
+
+- 原生安装包部署完整产品，OS 系统服务负责长期运行，用户只需浏览器。关闭网页/网页登录退出/OS 用户注销不停止非交互任务；主机休眠或关机时本机计算停止。
+- Web、系统管理、核心与执行辅助职责分开；只有现有 ProductionRuntime/authority EventStore 拥有主脑。Web 和 core 可独立故障/恢复，core 未配置或离线时仍能受认证初始化/维护。
+- 服务模式 CLI、Web、scheduler 复用同一 owner/store/writer；不为每设备、浏览器、workspace 或 child agent 新建大脑。始终保留 18-crate 图、99 EventKinds 与现有治理。
+
+### 29.2 身份与认领
+
+- 安装认领先证明本机管理权，再建立账号密码并绑定唯一 OwnerId，不能由 LAN 首个访问者抢占。headless 通过本机管理通道/SSH tunnel 完成。
+- 账号、稳定 owner、OS 服务身份和行动权限分离。登录只建立入口身份，不提高 trust/permission/envelope。改密码/本地恢复不得更换 OwnerId、清空脑或重建数据 keys。
+- 浏览器只有 Web session，不持内部 Gateway bearer/provider key/数据 key。可信 AuthContext 来自已认证 transport/session，不能由 payload、转发头或 loopback 来源伪造。
+
+### 29.3 特权与网络
+
+- 安装获得服务管理权，日常 Web/brain/工具按实际 OS 身份分权。工具进程不得继承 brain keys/DB/管理目录的访问权；无法隔离则能力 blocked。
+- 特权 helper 只接受分域的 typed owner maintenance 或 Harness-bound AgentExecution；不暴露任意 shell。Agent 动作仍经最终计划、当前 policy/permission/envelope/能力门、审批/nonce 与未知副作用治理。
+- 交互桌面依赖已授权用户会话与 OS 隐私权限；系统服务常驻不等于能在注销/锁屏时绕过桌面限制。
+- Web 默认本地，LAN 显式开启 HTTPS/Host/Origin/firewall，证书真实信任单独确认；内部 Gateway 继续 loopback-only，不默认公网开放。
+
+### 29.4 产品管理事实与大脑事实
+
+- 稳定脑事实只经既有 forme-store 单写者/EventKind/stream_seq。安装、认证、config/release revision 与服务生命周期使用独立版本化产品管理/认证记录，其写者和事务边界固定。
+- 产品 journal/session DB 不属于第二脑/第二 writer，不能写 brain 表、生成认知事实或直接推进 run；仅使用安全 operation/run refs 关联。产品 cursor 与脑 cursor 不互换。
+- 所有新增 DTO 带 SchemaVersion。新 bin/产品 DTO 不意味着获准改冻结 trait、crate 依赖图或新增 EventKind；需要这些变化时必须先有明确兼容设计。
+
+### 29.5 配置、数据与恢复
+
+- 已安装服务以版本化持久 typed config 为主要来源；开发环境兼容显式标注来源，不能静默覆盖网页保存值。保存/校验/应用/核心 ack 分开；进行中 run 保持固定快照。
+- 服务能无交互解密原脑，登录口令不能是唯一数据 key。数据和备份沿用 §28.7；外部 key resolver 不入普通备份，恢复材料单独管理，缺 key 不得虚报恢复。
+- 旧脑接管、历史明文迁移和 restore 先只读校验/备份，在新目标验证后 owner 显式切换；错误 key/owner/占用库不能自动退为空脑。
+- 程序、数据、配置、key、日志/backup/workspace 路径独立且绝对化。卸载默认保留 owner 数据；额外删除必须另有明确范围。
+
+### 29.6 升级与维护
+
+- 更新包签名、兼容性、排空、一致性备份、版本切换、健康验证与恢复是一条持久可追溯事务；模型不能自行替换产品程序。
+- 每个长期服务只有一个生命周期 supervisor。未知副作用只取原 receipt/只读 probe/owner 裁决，不因重启/升级/回滚盲重放；代码回滚不撤销外部动作。
+- core 离线维护不提供任意 DB/shell/写入后门；对 store 的离线操作必须与在线 writer 互斥。
+
+### 29.7 Web 事实与产品验收
+
+- 对话、工作空间、收件箱、记忆与认知、设置共用同一正式 API/event 投影。UI 不直调模型、工具或脑数据库，不私有化 stable memory，不伪造隐藏思维链/进度。
+- command/control/approval 保留幂等、CAS、最终 plan binding；SSE 按 cursor 续接，未知结果不包装成普通 retry。登录/命令/事件读取分别限流，读流不得饿死正常对话。
+- 产品验收用 IP01–IP24，历史 S1–S99/C1–C24 继续回归。目标平台只有经真实安装、系统服务和浏览器验证才可声明支持；跨编译/截图/旧 receipt 不算通过。
+
+### 29.8 限定前端复用
+
+- owner 已授权 DeepSeek 的页面结构、可分离 UI 组件与对话交互；按 `docs/compliance/frontend-reuse-policy.md` 固定 source revision、逐文件许可/摘要白名单、notice/SBOM 和解耦检查。
+- 不包含其内核、插件/宿主框架、服务端、模型/记忆/编排、prompt、错误文案、目录体系或 fixture；耦合组件在 forme 中原创实现。
+- 此例外不扩展到其他来源，不允许 `research/upstreams/**` build/import，不关闭 copy detection，不豁免 GPL/未知许可；未获逐文件审查的内容继续受 §12 禁止复制规则约束。
 

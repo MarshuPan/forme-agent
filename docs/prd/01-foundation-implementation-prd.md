@@ -164,6 +164,7 @@ W8 失败学习 + 验证(FailureEvidence/verifier/trace)—— 从 W1 起跨切�
 - M0 从第一天建立 CI/doctor 原创合规门(D15/S22):`research/upstreams/**` 本地参考材料不进 build/import/include;不复制第三方源码/文档/prompt/错误信息/目录结构/命名/测试 fixture;GPL/未知许可证材料默认不进主工程。
 - 需公开协议兼容/依赖/复用时,记录 source、license、copy_risk、implementation_rule、notice action。
 - 检查失败不能进 release-ready;发布前另需完整 LICENSE/NOTICE 与依赖安全审计(不在 M0 承诺,canonical §12 / requirements/04 "开源发布前")。
+- 后续产品化唯一限定例外为 canonical §29.8 的 DeepSeek UI：按 `../compliance/frontend-reuse-policy.md` 逐文件许可/来源审查。它不改变 M0 历史边界，不扩展到 core/prompt/错误/fixture，也不允许 research/upstreams import。
 
 ## 7. 逐场景测试规格
 
@@ -367,7 +368,7 @@ W8 失败学习 + 验证(FailureEvidence/verifier/trace)—— 从 W1 起跨切�
 - **协议对象**(architecture/03 §2):RunRequest/Event/Run/Session/Turn/ToolCall/ActionIntent/ApprovalRequest/协调约束/候选/沟通对象。**跨模块只经协议对象传递,不传内部类型**。
 - **事件分类**(architecture/03 §2.1.1,≈60 类):模块只能发/收这套事件;新增类型必须进 §2.1.1、不破坏 protocol。**事件是模块间唯一的事实交换与审计面**。
 - **trait 边界**(architecture/03 §4.7 承重墙 + §5.6 认知层):模块实现/依赖 trait,不依赖对方实现。
-- **不变量**(architecture/03 §6 / canonical §1–22):每个模块守其涉及的不变量(harness-first、执行前重查、能力门出口、候选先于稳定、单写者、schema 版本、防投毒…)。
+- **不变量**(architecture/03 §6 / canonical §1–29):每个模块守其涉及的不变量(harness-first、执行前重查、能力门出口、候选先于稳定、单写者、schema 版本、防投毒…)；安装/认证宿主事实不写脑表，细分按 canonical §29。
 
 ### 9.2 四个一等接入缝(经统一接入框架 prd/05)
 
@@ -408,9 +409,21 @@ W8 失败学习 + 验证(FailureEvidence/verifier/trace)—— 从 W1 起跨切�
 - 认知可观测/纠偏 canonical §17 并入 prd/03 harness + prd/10 认知,不单独成篇。
 - **MCP 调用边界(避免 07↔08 循环)**:capabilities(07)只做 MCP **接入**(discovery/allowlist/metadata + server 进程生命周期);MCP 工具**调用**是 `ActionIntent{backend=Mcp}`,经 harness 咽喉(过 policy)交 execution(08)`McpBackend` 执行并发 `McpCallEvent`。server stdio handle 为 protocol 类型(prd/02),经 `ExecutionPlan` 传入,故 07 不依赖 08、08 不依赖 07。`BackendKind` 亦属 protocol(prd/02)。
 
+### 9.5 常驻服务与 Web 产品化接入
+
+该增量承接 requirements/17–18、canonical §29、architecture/10，不是 M6。与 M0 模块索引共用原 crate/trait 边界，当前状态为**文档已制定、待实施**。
+
+| PRD | 职责 | 归属与集成 | 验收 |
+|---|---|---|---|
+| [24](24-installer-and-service-lifecycle.md) | 原生安装、系统服务、隔离 worker、升级恢复与卸载。 | execution/gateway/cli/protocol 既有图；HostManagement/产品 journal，不写脑表。 | 主验 IP01–03/IP10–16。 |
+| [25](25-bootstrap-auth-and-web-access.md) | 认领/账号/配置、Web API、LAN 与内部身份认证。 | gateway + protocol，复用 Harness 外观；core 离线可维护。 | 主验 IP04–09/IP13/IP21–22。 |
+| [26](26-web-workbench.md) | 五个 Web 工作面、对话/审批/续接与受限前端复用。 | 仅静态前端与正式 API/event client，无另一套 runtime。 | 主验 IP17–23。 |
+
+顺序 24→25→26，最后 IP24 联合安装验收；重叠场景联合核验。历史 S1–S99/C1–C24 不变；产品化不静默增加 EventKind/内部依赖边，不把旧 release receipt 当成新安装包证据。
+
 ## 10. 模块 PRD 模板与跨切规范
 
-### 10.1 每模块 PRD 模板(固定 11 节)
+### 10.1 每模块 PRD 模板(固定第 0–11 节)
 
 每份 `prd/02`+ 照此写,写到"照着能一字不落实现":
 
