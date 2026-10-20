@@ -93,7 +93,7 @@ fn broker_crash_fixture(path: PathBuf) {
     let broker = ProductHostBroker::open_with_service_manager(
         &path,
         "installation-1",
-        TOKEN.into(),
+        forme_execution::installed::HostCredentials::legacy_maintenance(TOKEN.into()),
         p::ProductTarget::WindowsX86_64,
         "0.1.0".into(),
         CrashServices(path.clone()),

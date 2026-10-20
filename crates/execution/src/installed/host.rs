@@ -4,17 +4,83 @@ use forme_protocol as p;
 
 use super::{NativeServiceManager, ProductJournal, SystemServiceManager};
 
+/// Credentials for the two product control planes. The maintenance and
+/// execution values are intentionally separate so one leaked domain cannot be
+/// upgraded into the other by changing a request body.
+#[derive(Clone)]
+pub struct HostCredentials {
+    maintenance: String,
+    agent_execution: Option<String>,
+}
+
+impl HostCredentials {
+    pub fn new(maintenance: String, agent_execution: Option<String>) -> p::Result<Self> {
+        let credentials = Self {
+            maintenance,
+            agent_execution,
+        };
+        credentials.validate()?;
+        Ok(credentials)
+    }
+
+    pub fn legacy_maintenance(maintenance: String) -> Self {
+        Self {
+            maintenance,
+            agent_execution: None,
+        }
+    }
+
+    pub fn maintenance(&self) -> &str {
+        &self.maintenance
+    }
+
+    pub fn agent_execution(&self) -> Option<&str> {
+        self.agent_execution.as_deref()
+    }
+
+    fn validate(&self) -> p::Result<()> {
+        validate_bearer(&self.maintenance, "maintenance")?;
+        if let Some(agent) = self.agent_execution.as_deref() {
+            validate_bearer(agent, "agent execution")?;
+            if agent == self.maintenance {
+                return Err(p::Error(
+                    "maintenance and agent credentials must be distinct".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn validate_bearer(value: &str, domain: &str) -> p::Result<()> {
+    if value.len() < 32 || value.chars().any(char::is_whitespace) {
+        return Err(p::Error(format!("{domain} credential is malformed")));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostCredentialDomain {
+    OwnerMaintenance,
+    AgentExecution,
+}
+
 /// The only authenticated capability accepted by the local maintenance broker.
 /// The bearer value is kept by the caller; the broker exposes only its digest.
 #[derive(Clone)]
 pub struct HostAuth {
     proof_ref: p::SchemaDigest,
     actor: p::MaintenanceActorClass,
+    domain: HostCredentialDomain,
 }
 
 impl HostAuth {
     pub fn actor(&self) -> p::MaintenanceActorClass {
         self.actor
+    }
+
+    pub fn domain(&self) -> HostCredentialDomain {
+        self.domain
     }
 }
 
@@ -38,8 +104,10 @@ pub trait HostManagement: Send + Sync {
 
 pub struct ProductHostBroker<M = SystemServiceManager> {
     journal: ProductJournal,
-    bearer: String,
-    bearer_digest: p::SchemaDigest,
+    maintenance_bearer: String,
+    maintenance_digest: p::SchemaDigest,
+    agent_bearer: Option<String>,
+    agent_digest: Option<p::SchemaDigest>,
     target: p::ProductTarget,
     install_id: String,
     active_release: String,
@@ -57,7 +125,7 @@ impl ProductHostBroker<SystemServiceManager> {
         Self::open_with_service_manager(
             journal_path,
             install_id,
-            bearer,
+            HostCredentials::legacy_maintenance(bearer),
             target,
             active_release,
             SystemServiceManager,
@@ -69,21 +137,25 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
     pub fn open_with_service_manager(
         journal_path: &Path,
         install_id: &str,
-        bearer: String,
+        credentials: HostCredentials,
         target: p::ProductTarget,
         active_release: String,
         services: M,
     ) -> p::Result<Self> {
-        if bearer.len() < 32 || bearer.chars().any(char::is_whitespace) {
-            return Err(p::Error("host management bearer is malformed".into()));
-        }
+        credentials.validate()?;
         p::validate_product_id(install_id)?;
         p::validate_release_id(&active_release)?;
-        let bearer_digest = p::canonical_digest(&bearer)?;
+        let maintenance_digest = p::canonical_digest(&credentials.maintenance())?;
+        let agent_digest = credentials
+            .agent_execution()
+            .map(|value| p::canonical_digest(&value))
+            .transpose()?;
         Ok(Self {
             journal: ProductJournal::open(journal_path, install_id)?,
-            bearer,
-            bearer_digest,
+            maintenance_bearer: credentials.maintenance().to_owned(),
+            maintenance_digest,
+            agent_bearer: credentials.agent_execution().map(str::to_owned),
+            agent_digest,
             target,
             install_id: install_id.into(),
             active_release,
@@ -95,9 +167,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         self.target
     }
 
-    fn verify_auth(&self, auth: &HostAuth) -> p::Result<()> {
-        if auth.actor != p::MaintenanceActorClass::LocalAdministrator
-            || auth.proof_ref != self.bearer_digest
+    fn verify_maintenance_auth(&self, auth: &HostAuth) -> p::Result<()> {
+        if auth.domain != HostCredentialDomain::OwnerMaintenance
+            || auth.actor != p::MaintenanceActorClass::LocalAdministrator
+            || auth.proof_ref != self.maintenance_digest
         {
             return Err(p::Error("host management authorization is invalid".into()));
         }
@@ -230,7 +303,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
 
 impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
     fn authenticate(&self, bearer: &str) -> p::Result<HostAuth> {
-        let expected = self.bearer.as_bytes();
+        let expected = self.maintenance_bearer.as_bytes();
         let actual = bearer.as_bytes();
         if expected.len() != actual.len()
             || expected
@@ -244,13 +317,14 @@ impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
             return Err(p::Error("host management bearer is invalid".into()));
         }
         Ok(HostAuth {
-            proof_ref: self.bearer_digest.clone(),
+            proof_ref: self.maintenance_digest.clone(),
             actor: p::MaintenanceActorClass::LocalAdministrator,
+            domain: HostCredentialDomain::OwnerMaintenance,
         })
     }
 
     fn status(&self, auth: &HostAuth) -> p::Result<p::HostStatus> {
-        self.verify_auth(auth)?;
+        self.verify_maintenance_auth(auth)?;
         self.status_for()
     }
 
@@ -260,7 +334,7 @@ impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
         request: p::HostManagementRequest,
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
-        self.verify_auth(auth)?;
+        self.verify_maintenance_auth(auth)?;
         request.validate()?;
         if request.command.actor_proof.proof_ref != auth.proof_ref.0 {
             return Err(p::Error(
@@ -293,7 +367,7 @@ impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
         operation_id: &str,
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
-        self.verify_auth(auth)?;
+        self.verify_maintenance_auth(auth)?;
         p::validate_product_id(operation_id)?;
         let operation = self.operation_state(operation_id)?;
         if operation.stage == p::MaintenanceStage::Committed {
@@ -379,8 +453,39 @@ impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
     }
 
     fn operation(&self, auth: &HostAuth, operation_id: &str) -> p::Result<p::MaintenanceOperation> {
-        self.verify_auth(auth)?;
+        self.verify_maintenance_auth(auth)?;
         p::validate_product_id(operation_id)?;
         self.operation_state(operation_id)
+    }
+}
+
+impl<M: NativeServiceManager> ProductHostBroker<M> {
+    /// Authenticate the execution domain without granting it any maintenance
+    /// operation. The returned auth can only be consumed by a future typed
+    /// worker dispatch surface.
+    pub fn authenticate_agent(&self, bearer: &str) -> p::Result<HostAuth> {
+        let Some(expected_bearer) = self.agent_bearer.as_deref() else {
+            return Err(p::Error(
+                "agent execution authentication is not configured".into(),
+            ));
+        };
+        let expected = expected_bearer.as_bytes();
+        let actual = bearer.as_bytes();
+        if expected.len() != actual.len()
+            || expected
+                .iter()
+                .zip(actual)
+                .fold(0_u8, |difference, (left, right)| {
+                    difference | (left ^ right)
+                })
+                != 0
+        {
+            return Err(p::Error("agent execution authorization is invalid".into()));
+        }
+        Ok(HostAuth {
+            proof_ref: self.agent_digest.clone().expect("validated agent digest"),
+            actor: p::MaintenanceActorClass::OwnerReauthenticated,
+            domain: HostCredentialDomain::AgentExecution,
+        })
     }
 }

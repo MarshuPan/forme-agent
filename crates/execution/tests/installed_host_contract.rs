@@ -7,13 +7,14 @@ use std::sync::Arc;
 
 use ed25519_dalek::{Signer, SigningKey};
 use forme_execution::installed::{
-    file_digest, reject_linked_ancestors, HostManagement, NativeServiceManager, ProductHostBroker,
-    ProductJournal, ReleaseKeyring,
+    file_digest, reject_linked_ancestors, HostCredentials, HostManagement, NativeServiceManager,
+    ProductHostBroker, ProductJournal, ReleaseKeyring,
 };
 use forme_protocol as p;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 const HOST_TOKEN: &str = "host-token-abcdefghijklmnopqrstuvwxyz-0123456789";
+const AGENT_TOKEN: &str = "agent-token-abcdefghijklmnopqrstuvwxyz-0123456789";
 struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {
@@ -135,7 +136,7 @@ fn test_broker(temp: &Temp, services: FakeServices) -> ProductHostBroker<FakeSer
     ProductHostBroker::open_with_service_manager(
         &temp.journal(),
         "installation-1",
-        HOST_TOKEN.into(),
+        HostCredentials::legacy_maintenance(HOST_TOKEN.into()),
         p::ProductTarget::WindowsX86_64,
         "0.1.0".into(),
         services,
@@ -171,6 +172,34 @@ fn host_broker_rejects_wrong_proof_and_stale_release_without_writing() {
         broker.status(&auth).unwrap().product_state,
         p::ProductState::Stopped
     );
+}
+
+#[test]
+fn maintenance_and_agent_credentials_are_distinct_and_non_interchangeable() {
+    let temp = Temp::new();
+    let broker = ProductHostBroker::open_with_service_manager(
+        &temp.journal(),
+        "installation-1",
+        HostCredentials::new(HOST_TOKEN.into(), Some(AGENT_TOKEN.into())).unwrap(),
+        p::ProductTarget::WindowsX86_64,
+        "0.1.0".into(),
+        FakeServices::new(p::NativeServiceState::Stopped),
+    )
+    .unwrap();
+    let maintenance = broker.authenticate(HOST_TOKEN).unwrap();
+    let agent = broker.authenticate_agent(AGENT_TOKEN).unwrap();
+    assert_eq!(
+        maintenance.domain(),
+        forme_execution::installed::HostCredentialDomain::OwnerMaintenance
+    );
+    assert_eq!(
+        agent.domain(),
+        forme_execution::installed::HostCredentialDomain::AgentExecution
+    );
+    assert!(broker.status(&agent).is_err());
+    assert!(broker.authenticate(AGENT_TOKEN).is_err());
+    assert!(broker.authenticate_agent(HOST_TOKEN).is_err());
+    assert!(HostCredentials::new(HOST_TOKEN.into(), Some(HOST_TOKEN.into())).is_err());
 }
 
 #[test]

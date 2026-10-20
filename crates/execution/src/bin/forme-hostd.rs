@@ -4,10 +4,11 @@ use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::Duration;
 
-use forme_execution::installed::{HostManagement, ProductHostBroker};
+use forme_execution::installed::{HostCredentials, HostManagement, ProductHostBroker};
 use forme_protocol as p;
 
 const MAX_REQUEST: usize = 1_048_576;
@@ -21,6 +22,29 @@ fn main() {
 }
 
 fn run() -> p::Result<()> {
+    #[cfg(windows)]
+    {
+        match windows_service::service_dispatcher::start(
+            p::BuiltinServiceId::Host.service_name(),
+            ffi_service_main,
+        ) {
+            Ok(()) => return Ok(()),
+            Err(windows_service::Error::Winapi(error)) if error.raw_os_error() == Some(1063) => {}
+            Err(error) => {
+                return Err(p::Error(format!(
+                    "Windows service dispatcher failed: {error}"
+                )))
+            }
+        }
+    }
+    run_host(None, true, || Ok(()))
+}
+
+fn run_host(
+    shutdown: Option<Receiver<()>>,
+    announce: bool,
+    on_ready: impl FnOnce() -> p::Result<()>,
+) -> p::Result<()> {
     let bind = std::env::var("FORME_HOST_BIND").unwrap_or_else(|_| "127.0.0.1:8766".into());
     let address: SocketAddr = bind
         .parse()
@@ -32,32 +56,51 @@ fn run() -> p::Result<()> {
         .map_err(|_| p::Error("host broker could not bind its private endpoint".into()))?;
     let journal = required_path("FORME_HOST_JOURNAL_PATH")?;
     let install_id = required("FORME_INSTALL_ID")?;
-    let token = load_or_create_token()?
+    let maintenance_token = load_or_create_token()?
         .ok_or_else(|| p::Error("host management token is unavailable".into()))?;
+    let credentials = HostCredentials::new(
+        maintenance_token,
+        std::env::var("FORME_AGENT_EXECUTION_TOKEN").ok(),
+    )?;
     let target = target_from_environment()?;
     let active_release =
         std::env::var("FORME_ACTIVE_RELEASE").unwrap_or_else(|_| "unconfigured".into());
-    let broker = Arc::new(ProductHostBroker::open(
+    let broker = Arc::new(ProductHostBroker::open_with_service_manager(
         &journal,
         &install_id,
-        token,
+        credentials,
         target,
         active_release,
+        forme_execution::installed::SystemServiceManager,
     )?);
-    println!(
-        "FORME_HOST_URL=http://{}",
-        listener
-            .local_addr()
-            .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
-    );
-    if let Some(path) = token_path() {
-        println!("FORME_HOST_TOKEN_PATH={}", path.display());
+    if announce {
+        println!(
+            "FORME_HOST_URL=http://{}",
+            listener
+                .local_addr()
+                .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
+        );
+        if let Some(path) = token_path() {
+            println!("FORME_HOST_TOKEN_PATH={}", path.display());
+        }
+        let _ = std::io::stdout().flush();
     }
-    let _ = std::io::stdout().flush();
+    if shutdown.is_some() {
+        listener
+            .set_nonblocking(true)
+            .map_err(|_| p::Error("host broker shutdown mode could not start".into()))?;
+    }
+    on_ready()?;
     let connections = Arc::new(AtomicUsize::new(0));
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
+    loop {
+        if let Some(receiver) = shutdown.as_ref() {
+            match receiver.try_recv() {
+                Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+        match listener.accept() {
+            Ok((stream, _)) => {
                 if connections.fetch_add(1, Ordering::AcqRel) >= 16 {
                     connections.fetch_sub(1, Ordering::AcqRel);
                     drop(stream);
@@ -76,10 +119,75 @@ fn run() -> p::Result<()> {
                     let _ = handle_connection(stream, broker);
                 });
             }
+            Err(error) if shutdown.is_some() && error.kind() == std::io::ErrorKind::WouldBlock => {
+                if let Some(receiver) = shutdown.as_ref() {
+                    let _ = receiver.recv_timeout(Duration::from_millis(100));
+                }
+            }
             Err(_) => return Err(p::Error("host broker accept failed".into())),
         }
     }
     Ok(())
+}
+
+#[cfg(windows)]
+windows_service::define_windows_service!(ffi_service_main, windows_service_main);
+
+#[cfg(windows)]
+fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
+    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
+    let service_name = p::BuiltinServiceId::Host.service_name();
+    let handler =
+        move |event| -> windows_service::service_control_handler::ServiceControlHandlerResult {
+            use windows_service::service::ServiceControl;
+            use windows_service::service_control_handler::ServiceControlHandlerResult;
+            match event {
+                ServiceControl::Stop | ServiceControl::Shutdown => {
+                    let _ = shutdown_tx.send(());
+                    ServiceControlHandlerResult::NoError
+                }
+                ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
+                _ => ServiceControlHandlerResult::NotImplemented,
+            }
+        };
+    let status = match windows_service::service_control_handler::register(service_name, handler) {
+        Ok(status) => status,
+        Err(_) => return,
+    };
+    use windows_service::service::{
+        ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType,
+    };
+    let _ = status.set_service_status(ServiceStatus {
+        service_type: ServiceType::OWN_PROCESS,
+        current_state: ServiceState::StartPending,
+        controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+        exit_code: ServiceExitCode::Win32(0),
+        checkpoint: 1,
+        wait_hint: Duration::from_secs(10),
+        process_id: None,
+    });
+    let result = run_host(Some(shutdown_rx), false, || {
+        status
+            .set_service_status(ServiceStatus {
+                service_type: ServiceType::OWN_PROCESS,
+                current_state: ServiceState::Running,
+                controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+                exit_code: ServiceExitCode::Win32(0),
+                checkpoint: 0,
+                wait_hint: Duration::default(),
+                process_id: None,
+            })
+            .map_err(|_| p::Error("host service could not report readiness".into()))
+    });
+    let _ = status.set_service_status(ServiceStatus {
+        service_type: ServiceType::OWN_PROCESS,
+        current_state: ServiceState::Stopped,
+        controls_accepted: ServiceControlAccept::empty(),
+        exit_code: ServiceExitCode::Win32(if result.is_ok() { 0 } else { 1 }),
+        checkpoint: 0,
+        wait_hint: Duration::default(),
+        process_id: None,
+    });
 }
 
 fn handle_connection(mut stream: TcpStream, broker: Arc<ProductHostBroker>) -> p::Result<()> {
