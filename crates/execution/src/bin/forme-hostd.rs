@@ -2,7 +2,7 @@
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
@@ -37,12 +37,13 @@ fn run() -> p::Result<()> {
             }
         }
     }
-    run_host(None, true, || Ok(()))
+    run_host(None, true, false, || Ok(()))
 }
 
 fn run_host(
     shutdown: Option<Receiver<()>>,
     announce: bool,
+    managed_credentials: bool,
     on_ready: impl FnOnce() -> p::Result<()>,
 ) -> p::Result<()> {
     let bind = std::env::var("FORME_HOST_BIND").unwrap_or_else(|_| "127.0.0.1:8766".into());
@@ -56,12 +57,16 @@ fn run_host(
         .map_err(|_| p::Error("host broker could not bind its private endpoint".into()))?;
     let journal = required_path("FORME_HOST_JOURNAL_PATH")?;
     let install_id = required("FORME_INSTALL_ID")?;
-    let maintenance_token = load_or_create_token()?
-        .ok_or_else(|| p::Error("host management token is unavailable".into()))?;
-    let credentials = HostCredentials::new(
-        maintenance_token,
-        std::env::var("FORME_AGENT_EXECUTION_TOKEN").ok(),
-    )?;
+    let credentials = if managed_credentials {
+        load_managed_credentials()?
+    } else {
+        let maintenance_token = load_or_create_token()?
+            .ok_or_else(|| p::Error("host management token is unavailable".into()))?;
+        HostCredentials::new(
+            maintenance_token,
+            std::env::var("FORME_AGENT_EXECUTION_TOKEN").ok(),
+        )?
+    };
     let target = target_from_environment()?;
     let active_release =
         std::env::var("FORME_ACTIVE_RELEASE").unwrap_or_else(|_| "unconfigured".into());
@@ -166,7 +171,7 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
         wait_hint: Duration::from_secs(10),
         process_id: None,
     });
-    let result = run_host(Some(shutdown_rx), false, || {
+    let result = run_host(Some(shutdown_rx), false, true, || {
         status
             .set_service_status(ServiceStatus {
                 service_type: ServiceType::OWN_PROCESS,
@@ -482,6 +487,60 @@ fn load_or_create_token() -> p::Result<Option<String>> {
     file.sync_all()
         .map_err(|_| p::Error("host token could not be synced".into()))?;
     Ok(Some(token))
+}
+
+fn load_managed_credentials() -> p::Result<HostCredentials> {
+    let maintenance_path = required_path("FORME_HOST_MAINTENANCE_TOKEN_PATH")?;
+    let agent_path = required_path("FORME_HOST_AGENT_TOKEN_PATH")?;
+    if same_path(&maintenance_path, &agent_path) {
+        return Err(p::Error(
+            "maintenance and agent credential paths must be distinct".into(),
+        ));
+    }
+    HostCredentials::new(
+        read_managed_credential(&maintenance_path, "maintenance")?,
+        Some(read_managed_credential(&agent_path, "agent execution")?),
+    )
+}
+
+fn read_managed_credential(path: &Path, domain: &str) -> p::Result<String> {
+    forme_execution::installed::reject_linked_ancestors(path)?;
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|_| p::Error(format!("{domain} credential file is unavailable")))?;
+    if !metadata.is_file() {
+        return Err(p::Error(format!(
+            "{domain} credential path is not a regular file"
+        )));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 {
+            return Err(p::Error(format!(
+                "{domain} credential file permissions are too broad"
+            )));
+        }
+    }
+    let value = std::fs::read_to_string(path)
+        .map_err(|_| p::Error(format!("{domain} credential file cannot be read")))?;
+    let value = value.trim_end_matches(['\r', '\n']).to_owned();
+    if value.is_empty() || value.chars().any(char::is_whitespace) {
+        return Err(p::Error(format!("{domain} credential file is malformed")));
+    }
+    Ok(value)
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    let left = left.to_string_lossy().replace('\\', "/");
+    let right = right.to_string_lossy().replace('\\', "/");
+    #[cfg(windows)]
+    {
+        left.eq_ignore_ascii_case(&right)
+    }
+    #[cfg(not(windows))]
+    {
+        left == right
+    }
 }
 
 fn target_from_environment() -> p::Result<p::ProductTarget> {
