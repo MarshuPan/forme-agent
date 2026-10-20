@@ -272,23 +272,21 @@ impl WorkerIsolation for ProcessWorkerIsolation {
         permit: &p::WorkerPermit,
         now: p::Timestamp,
     ) -> p::Result<()> {
-        let child = self.spawn_worker(job, permit)?;
         let mut children = self
             .children
             .lock()
             .map_err(|_| p::Error("worker process registry is unavailable".into()))?;
-        if children
-            .insert(
-                job.job_id.clone(),
-                RunningWorker {
-                    child,
-                    started_at: now,
-                },
-            )
-            .is_some()
-        {
+        if children.contains_key(&job.job_id) {
             return Err(p::Error("worker process is already admitted".into()));
         }
+        let child = self.spawn_worker(job, permit)?;
+        children.insert(
+            job.job_id.clone(),
+            RunningWorker {
+                child,
+                started_at: now,
+            },
+        );
         Ok(())
     }
 

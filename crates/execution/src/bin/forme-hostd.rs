@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use std::collections::BTreeSet;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -8,7 +9,9 @@ use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::Duration;
 
-use forme_execution::installed::{HostCredentials, HostManagement, ProductHostBroker};
+use forme_execution::installed::{
+    HostCredentials, HostManagement, IsolatedExecutorHost, ProductHostBroker, WorkerRuntimeConfig,
+};
 use forme_protocol as p;
 
 const MAX_REQUEST: usize = 1_048_576;
@@ -46,15 +49,8 @@ fn run_host(
     managed_credentials: bool,
     on_ready: impl FnOnce() -> p::Result<()>,
 ) -> p::Result<()> {
-    let bind = std::env::var("FORME_HOST_BIND").unwrap_or_else(|_| "127.0.0.1:8766".into());
-    let address: SocketAddr = bind
-        .parse()
-        .map_err(|_| p::Error("host broker requires a numeric loopback address".into()))?;
-    if !address.ip().is_loopback() {
-        return Err(p::Error("host broker must remain loopback-only".into()));
-    }
-    let listener = TcpListener::bind(address)
-        .map_err(|_| p::Error("host broker could not bind its private endpoint".into()))?;
+    let development_workers =
+        development_process_workers(std::env::args().skip(1), managed_credentials)?;
     let journal = required_path("FORME_HOST_JOURNAL_PATH")?;
     let install_id = required("FORME_INSTALL_ID")?;
     let credentials = if managed_credentials {
@@ -70,6 +66,10 @@ fn run_host(
     let target = target_from_environment()?;
     let active_release =
         std::env::var("FORME_ACTIVE_RELEASE").unwrap_or_else(|_| "unconfigured".into());
+    let agent_digest = credentials
+        .agent_execution()
+        .map(|value| p::canonical_digest(&value))
+        .transpose()?;
     let broker = Arc::new(ProductHostBroker::open_with_service_manager(
         &journal,
         &install_id,
@@ -78,25 +78,40 @@ fn run_host(
         active_release,
         forme_execution::installed::SystemServiceManager,
     )?);
+    let has_agent = agent_digest.is_some();
+    let worker = load_worker_host(&journal, agent_digest, development_workers)?;
+    let mut endpoints = vec![HostEndpoint::bind(
+        "FORME_HOST_BIND",
+        "127.0.0.1:8766",
+        EndpointDomain::Maintenance,
+    )?];
+    if has_agent {
+        endpoints.push(HostEndpoint::bind(
+            "FORME_AGENT_EXECUTION_BIND",
+            "127.0.0.1:8767",
+            EndpointDomain::AgentExecution,
+        )?);
+    }
     if announce {
-        println!(
-            "FORME_HOST_URL=http://{}",
-            listener
-                .local_addr()
-                .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
-        );
+        for endpoint in &endpoints {
+            let name = match endpoint.domain {
+                EndpointDomain::Maintenance => "FORME_HOST_URL",
+                EndpointDomain::AgentExecution => "FORME_AGENT_EXECUTION_URL",
+            };
+            println!(
+                "{name}=http://{}",
+                endpoint
+                    .listener
+                    .local_addr()
+                    .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
+            );
+        }
         if let Some(path) = token_path() {
             println!("FORME_HOST_TOKEN_PATH={}", path.display());
         }
         let _ = std::io::stdout().flush();
     }
-    if shutdown.is_some() {
-        listener
-            .set_nonblocking(true)
-            .map_err(|_| p::Error("host broker shutdown mode could not start".into()))?;
-    }
     on_ready()?;
-    let connections = Arc::new(AtomicUsize::new(0));
     loop {
         if let Some(receiver) = shutdown.as_ref() {
             match receiver.try_recv() {
@@ -104,35 +119,90 @@ fn run_host(
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
         }
-        match listener.accept() {
-            Ok((stream, _)) => {
-                if connections.fetch_add(1, Ordering::AcqRel) >= 16 {
-                    connections.fetch_sub(1, Ordering::AcqRel);
-                    drop(stream);
-                    continue;
-                }
-                let broker = broker.clone();
-                let connections = connections.clone();
-                std::thread::spawn(move || {
-                    struct ConnectionGuard(Arc<AtomicUsize>);
-                    impl Drop for ConnectionGuard {
-                        fn drop(&mut self) {
-                            self.0.fetch_sub(1, Ordering::AcqRel);
-                        }
+        let mut accepted = false;
+        for endpoint in &endpoints {
+            match endpoint.listener.accept() {
+                Ok((stream, _)) => {
+                    accepted = true;
+                    if endpoint.connections.fetch_add(1, Ordering::AcqRel) >= 16 {
+                        endpoint.connections.fetch_sub(1, Ordering::AcqRel);
+                        drop(stream);
+                        continue;
                     }
-                    let _guard = ConnectionGuard(connections);
-                    let _ = handle_connection(stream, broker);
-                });
-            }
-            Err(error) if shutdown.is_some() && error.kind() == std::io::ErrorKind::WouldBlock => {
-                if let Some(receiver) = shutdown.as_ref() {
-                    let _ = receiver.recv_timeout(Duration::from_millis(100));
+                    let broker = broker.clone();
+                    let worker = worker.clone();
+                    let connections = endpoint.connections.clone();
+                    let domain = endpoint.domain;
+                    std::thread::spawn(move || {
+                        struct ConnectionGuard(Arc<AtomicUsize>);
+                        impl Drop for ConnectionGuard {
+                            fn drop(&mut self) {
+                                self.0.fetch_sub(1, Ordering::AcqRel);
+                            }
+                        }
+                        let _guard = ConnectionGuard(connections);
+                        let _ = handle_connection(stream, broker, worker, domain);
+                    });
                 }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(_) => return Err(p::Error("host broker accept failed".into())),
             }
-            Err(_) => return Err(p::Error("host broker accept failed".into())),
+        }
+        if !accepted {
+            // A single supervisor owns both listeners and shutdown. Domain
+            // connection budgets remain independent.
+            std::thread::sleep(Duration::from_millis(10));
         }
     }
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum EndpointDomain {
+    Maintenance,
+    AgentExecution,
+}
+
+struct HostEndpoint {
+    listener: TcpListener,
+    domain: EndpointDomain,
+    connections: Arc<AtomicUsize>,
+}
+
+impl HostEndpoint {
+    fn bind(key: &str, default: &str, domain: EndpointDomain) -> p::Result<Self> {
+        let address: SocketAddr = std::env::var(key)
+            .unwrap_or_else(|_| default.into())
+            .parse()
+            .map_err(|_| p::Error("host broker requires a numeric loopback address".into()))?;
+        if !address.ip().is_loopback() {
+            return Err(p::Error("host broker must remain loopback-only".into()));
+        }
+        let listener = TcpListener::bind(address)
+            .map_err(|_| p::Error("host broker could not bind its private endpoint".into()))?;
+        listener
+            .set_nonblocking(true)
+            .map_err(|_| p::Error("host broker nonblocking mode is unavailable".into()))?;
+        Ok(Self {
+            listener,
+            domain,
+            connections: Arc::new(AtomicUsize::new(0)),
+        })
+    }
+}
+
+fn development_process_workers(
+    args: impl IntoIterator<Item = String>,
+    managed: bool,
+) -> p::Result<bool> {
+    let args: Vec<_> = args.into_iter().collect();
+    match args.as_slice() {
+        [] => Ok(false),
+        [flag] if flag == "--development-process-workers" && !managed => Ok(true),
+        _ => Err(p::Error(
+            "host arguments are invalid for this execution mode".into(),
+        )),
+    }
 }
 
 #[cfg(windows)]
@@ -195,7 +265,12 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
     });
 }
 
-fn handle_connection(mut stream: TcpStream, broker: Arc<ProductHostBroker>) -> p::Result<()> {
+fn handle_connection(
+    mut stream: TcpStream,
+    broker: Arc<ProductHostBroker>,
+    worker: Arc<dyn IsolatedExecutorHost>,
+    domain: EndpointDomain,
+) -> p::Result<()> {
     stream
         .set_read_timeout(Some(Duration::from_secs(10)))
         .and_then(|_| stream.set_write_timeout(Some(Duration::from_secs(10))))
@@ -207,28 +282,26 @@ fn handle_connection(mut stream: TcpStream, broker: Arc<ProductHostBroker>) -> p
             return Ok(());
         }
     };
-    let bearer = match request
-        .header("authorization")
-        .and_then(|value| value.strip_prefix("Bearer "))
-    {
-        Some(value) => value,
-        None => {
-            write_error(
-                &mut stream,
-                401,
-                p::Error("host broker authorization is required".into()),
-            )?;
-            return Ok(());
-        }
-    };
-    let auth = match broker.authenticate(bearer) {
+    let expected_host = stream
+        .local_addr()
+        .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
+        .to_string();
+    if request.header("host") != Some(expected_host.as_str()) {
+        write_error(
+            &mut stream,
+            400,
+            p::Error("host request authority is invalid".into()),
+        )?;
+        return Ok(());
+    }
+    let auth = match authenticate_request(broker.as_ref(), &request, domain) {
         Ok(auth) => auth,
         Err(error) => {
             write_error(&mut stream, 401, error)?;
             return Ok(());
         }
     };
-    match route(&request, broker.as_ref(), &auth) {
+    match route(&request, broker.as_ref(), worker.as_ref(), &auth) {
         Ok((status, body)) => write_response(&mut stream, status, &body),
         Err(error) => {
             write_error(&mut stream, 400, error)?;
@@ -240,6 +313,7 @@ fn handle_connection(mut stream: TcpStream, broker: Arc<ProductHostBroker>) -> p
 fn route(
     request: &Request,
     broker: &ProductHostBroker,
+    worker: &dyn IsolatedExecutorHost,
     auth: &forme_execution::installed::HostAuth,
 ) -> p::Result<(u16, Vec<u8>)> {
     let body = match (request.method.as_str(), request.path.as_str()) {
@@ -272,9 +346,112 @@ fn route(
             serde_json::to_vec(&broker.execute(auth, id, now_ms())?)
                 .map_err(|_| p::Error("host execution response failed".into()))?
         }
+        ("POST", "/v1/agent/workers/dispatch") => {
+            let request: p::WorkerDispatchRequest = serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("worker dispatch body is invalid".into()))?;
+            let now = now_ms();
+            request.validate_at(now)?;
+            serde_json::to_vec(&worker.dispatch(auth, request.job, request.permit, now)?)
+                .map_err(|_| p::Error("worker dispatch response failed".into()))?
+        }
+        ("GET", path) if path.starts_with("/v1/agent/workers/") => {
+            let job_id = worker_id(path, "/v1/agent/workers/", "")?;
+            serde_json::to_vec(&worker.probe(auth, job_id, now_ms())?)
+                .map_err(|_| p::Error("worker probe response failed".into()))?
+        }
+        ("POST", path) if path.starts_with("/v1/agent/workers/") && path.ends_with("/cancel") => {
+            let job_id = worker_id(path, "/v1/agent/workers/", "/cancel")?;
+            serde_json::to_vec(&worker.cancel(auth, job_id, now_ms())?)
+                .map_err(|_| p::Error("worker cancel response failed".into()))?
+        }
         _ => return Ok((404, b"{}".to_vec())),
     };
     Ok((200, body))
+}
+
+fn authenticate_request(
+    broker: &ProductHostBroker,
+    request: &Request,
+    domain: EndpointDomain,
+) -> p::Result<forme_execution::installed::HostAuth> {
+    if is_agent_path(&request.path) != matches!(domain, EndpointDomain::AgentExecution) {
+        return Err(p::Error(
+            "host request is outside this endpoint's authorization domain".into(),
+        ));
+    }
+    let bearer = request
+        .header("authorization")
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .ok_or_else(|| p::Error("host broker authorization is required".into()))?;
+    if is_agent_path(&request.path) {
+        broker.authenticate_agent(bearer)
+    } else {
+        broker.authenticate(bearer)
+    }
+}
+
+fn is_agent_path(path: &str) -> bool {
+    path == "/v1/agent/workers/dispatch" || path.starts_with("/v1/agent/workers/")
+}
+
+fn worker_id<'a>(path: &'a str, prefix: &str, suffix: &str) -> p::Result<&'a str> {
+    let value = path
+        .strip_prefix(prefix)
+        .and_then(|value| value.strip_suffix(suffix))
+        .filter(|value| !value.is_empty() && !value.contains('/'))
+        .ok_or_else(|| p::Error("worker route job id is invalid".into()))?;
+    p::validate_product_id(value).map_err(|_| p::Error("worker route job id is invalid".into()))?;
+    Ok(value)
+}
+
+fn load_worker_host(
+    host_journal: &Path,
+    agent_digest: Option<p::SchemaDigest>,
+    development_workers: bool,
+) -> p::Result<Arc<dyn IsolatedExecutorHost>> {
+    if let Some(config_path) = std::env::var_os("FORME_WORKER_CONFIG_PATH") {
+        let digest = agent_digest.ok_or_else(|| {
+            p::Error("worker configuration requires an agent execution credential".into())
+        })?;
+        let config = WorkerRuntimeConfig::load(&PathBuf::from(config_path))?;
+        let mut protected = vec![host_journal.to_path_buf()];
+        for key in [
+            "FORME_HOST_MAINTENANCE_TOKEN_PATH",
+            "FORME_HOST_AGENT_TOKEN_PATH",
+        ] {
+            if let Some(path) = std::env::var_os(key) {
+                protected.push(PathBuf::from(path));
+            }
+        }
+        if let Some(path) = token_path() {
+            protected.push(path);
+        }
+        config.validate_protected_paths(
+            &protected.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
+        )?;
+        return if development_workers {
+            Ok(Arc::new(config.open_development_process_host(digest)?))
+        } else {
+            Ok(Arc::new(config.open_host(digest)?))
+        };
+    }
+
+    // Development and maintenance-only hosts still expose the typed route,
+    // but it remains fail-closed until a managed worker config is installed.
+    let digest = agent_digest
+        .or_else(|| p::canonical_digest(&"unconfigured-agent-execution").ok())
+        .ok_or_else(|| p::Error("worker execution digest is unavailable".into()))?;
+    let worker_journal = host_journal.with_extension("worker.jsonl");
+    Ok(Arc::new(
+        forme_execution::installed::WorkerExecutorHost::open(
+            &worker_journal,
+            digest,
+            p::AuthorityEpoch(1),
+            [p::Scope("workspace:unconfigured".into())]
+                .into_iter()
+                .collect::<BTreeSet<_>>(),
+        )?,
+    ))
 }
 
 struct Request {
@@ -578,6 +755,16 @@ fn now_ms() -> p::Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn service_mode_never_accepts_the_development_process_switch() {
+        let flag = vec!["--development-process-workers".into()];
+        assert!(development_process_workers(flag.clone(), true).is_err());
+        assert!(development_process_workers(flag, false).unwrap());
+        assert!(!development_process_workers(Vec::new(), true).unwrap());
+        assert!(!development_process_workers(Vec::new(), false).unwrap());
+        assert!(development_process_workers(vec!["--unknown".into()], false).is_err());
+    }
 
     #[test]
     fn ordinary_http11_is_parsed_and_ambiguous_or_browser_requests_are_rejected() {

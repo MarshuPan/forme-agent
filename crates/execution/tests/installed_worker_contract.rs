@@ -299,3 +299,127 @@ fn repeated_cancel_after_an_unsettled_cancel_never_calls_the_isolator_twice() {
     assert!(host.cancel(&agent, &job.job_id, 12).is_err());
     assert_eq!(isolation.cancelled.load(Ordering::SeqCst), 1);
 }
+
+#[test]
+fn cancelled_observation_replays_the_exact_cancel_receipt() {
+    let temp = Temp::new();
+    let (_broker, _maintenance, agent) = auths(&temp);
+    let isolation = FakeIsolation::default();
+    let (job, permit) = make_job(100);
+    let receipt;
+    {
+        let host = host(&temp, isolation.clone());
+        host.dispatch(&agent, job.clone(), permit, 10).unwrap();
+        receipt = host.cancel(&agent, &job.job_id, 20).unwrap();
+        let observation = host.probe(&agent, &job.job_id, 21).unwrap();
+        observation.validate().unwrap();
+        assert_eq!(observation.state, p::WorkerState::Cancelled);
+        assert_eq!(observation.outcome, Some(receipt.outcome));
+        assert_eq!(observation.receipt_ref, receipt.receipt_ref);
+    }
+    let host = host(&temp, isolation.clone());
+    let observation = host.probe(&agent, &job.job_id, 22).unwrap();
+    observation.validate().unwrap();
+    assert_eq!(observation.state, p::WorkerState::Cancelled);
+    assert_eq!(observation.receipt_ref, receipt.receipt_ref);
+    assert_eq!(isolation.admitted.load(Ordering::SeqCst), 1);
+    assert_eq!(isolation.cancelled.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn concurrent_cancel_and_probe_cannot_duplicate_the_platform_effect() {
+    let temp = Temp::new();
+    let (_broker, _maintenance, agent) = auths(&temp);
+    let isolation = FakeIsolation::default();
+    let host = host(&temp, isolation.clone());
+    let (job, permit) = make_job(100);
+    host.dispatch(&agent, job.clone(), permit, 10).unwrap();
+    std::thread::scope(|scope| {
+        let mut calls = Vec::new();
+        for _ in 0..12 {
+            calls.push(scope.spawn(|| {
+                let _ = host.cancel(&agent, &job.job_id, 20);
+                host.probe(&agent, &job.job_id, 21)
+                    .unwrap()
+                    .validate()
+                    .unwrap();
+            }));
+        }
+        for call in calls {
+            call.join().unwrap();
+        }
+    });
+    let final_state = host.probe(&agent, &job.job_id, 22).unwrap();
+    final_state.validate().unwrap();
+    assert_eq!(final_state.state, p::WorkerState::Cancelled);
+    assert_eq!(isolation.cancelled.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn cancellation_waits_for_admission_to_finish_before_touching_the_platform() {
+    struct BlockingIsolation {
+        entered: std::sync::mpsc::Sender<()>,
+        release: std::sync::Mutex<std::sync::mpsc::Receiver<()>>,
+        cancelled: std::sync::mpsc::Sender<()>,
+    }
+    impl WorkerIsolation for BlockingIsolation {
+        fn admit(&self, _: &p::WorkerJob, _: &p::WorkerPermit) -> p::Result<()> {
+            self.entered.send(()).unwrap();
+            self.release
+                .lock()
+                .unwrap()
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .unwrap();
+            Ok(())
+        }
+        fn cancel(&self, job: &p::WorkerJob) -> p::Result<p::WorkerCancelReceipt> {
+            self.cancelled.send(()).unwrap();
+            FakeIsolation::default().cancel(job)
+        }
+    }
+    let temp = Temp::new();
+    let (_broker, _maintenance, agent) = auths(&temp);
+    let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+    let (release_tx, release_rx) = std::sync::mpsc::channel();
+    let (cancelled_tx, cancelled_rx) = std::sync::mpsc::channel();
+    let host = host(
+        &temp,
+        BlockingIsolation {
+            entered: entered_tx,
+            release: std::sync::Mutex::new(release_rx),
+            cancelled: cancelled_tx,
+        },
+    );
+    let (job, permit) = make_job(100);
+    std::thread::scope(|scope| {
+        let admission = scope.spawn(|| host.dispatch(&agent, job.clone(), permit, 10).unwrap());
+        entered_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        let (calling_tx, calling_rx) = std::sync::mpsc::channel();
+        let host_ref = &host;
+        let agent_ref = &agent;
+        let job_id = &job.job_id;
+        let cancellation = scope.spawn(move || {
+            calling_tx.send(()).unwrap();
+            host_ref.cancel(agent_ref, job_id, 20).unwrap()
+        });
+        calling_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .unwrap();
+        let premature = cancelled_rx
+            .recv_timeout(std::time::Duration::from_millis(100))
+            .is_ok();
+        release_tx.send(()).unwrap();
+        admission.join().unwrap().validate().unwrap();
+        cancellation.join().unwrap().validate_for(&job).unwrap();
+        assert!(
+            !premature,
+            "cancel reached the platform while admission was unfinished"
+        );
+    });
+    host.probe(&agent, &job.job_id, 21)
+        .unwrap()
+        .validate()
+        .unwrap();
+}

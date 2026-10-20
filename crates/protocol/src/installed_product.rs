@@ -936,6 +936,23 @@ impl WorkerPermit {
     }
 }
 
+/// The only wire request that can admit a worker. The execution host accepts
+/// the exact job and permit together; it never derives a permit from a job.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkerDispatchRequest {
+    pub schema_version: SchemaVersion,
+    pub job: WorkerJob,
+    pub permit: WorkerPermit,
+}
+
+impl WorkerDispatchRequest {
+    pub fn validate_at(&self, now: Timestamp) -> Result<()> {
+        version(self.schema_version)?;
+        self.permit.validate_for(&self.job, now)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorkerReceipt {
@@ -1073,7 +1090,7 @@ impl WorkerCancelReceipt {
         if self.observed_at <= 0 {
             return Err(Error("worker cancel receipt timestamp is invalid".into()));
         }
-        if let Some(reference) = self.receipt_ref.as_ref().or(self.reason_ref.as_ref()) {
+        for reference in self.receipt_ref.iter().chain(self.reason_ref.iter()) {
             validate_worker_ref(reference, "worker cancel reference")?;
         }
         if !matches!(

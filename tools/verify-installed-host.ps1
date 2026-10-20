@@ -66,6 +66,42 @@ try {
         Invoke-NamedTest "forme-execution" @("--test", "installed_host_contract") "symlinked_host_paths_are_rejected_before_open"
     }
 
+    Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "tests::service_mode_never_accepts_the_development_process_switch"
+
+    foreach ($name in @(
+        "worker_requires_agent_domain_and_real_isolation",
+        "worker_binds_plan_scope_epoch_deadline_and_nonce_before_side_effect",
+        "worker_admission_is_idempotent_and_restart_marks_exact_job_unknown",
+        "worker_receipt_and_cancel_are_bound_to_the_original_job",
+        "repeated_cancel_after_an_unsettled_cancel_never_calls_the_isolator_twice",
+        "cancelled_observation_replays_the_exact_cancel_receipt",
+        "concurrent_cancel_and_probe_cannot_duplicate_the_platform_effect",
+        "cancellation_waits_for_admission_to_finish_before_touching_the_platform"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") $name }
+
+    foreach ($name in @(
+        "process_worker_uses_registered_program_and_reports_completion",
+        "process_worker_preserves_failed_exit_as_failed_receipt",
+        "process_worker_cancel_kills_running_child_without_retry"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_process_contract") $name }
+
+    foreach ($name in @(
+        "managed_worker_config_rejects_schema_scope_and_profile_ambiguity",
+        "managed_worker_config_rejects_writable_path_overlap_and_protected_files",
+        "managed_worker_config_load_is_bounded_closed_and_outside_worker_paths"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_config_contract") $name }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+        Invoke-NamedTest "forme-execution" @("--test", "installed_worker_config_contract") "managed_worker_config_rejects_linked_files_and_workspaces"
+    }
+
+    foreach ($name in @(
+        "hostd_dispatches_registered_worker_and_keeps_maintenance_domain_out",
+        "hostd_cancels_the_original_worker_job_without_a_second_dispatch",
+        "hostd_default_config_cannot_enable_an_unsandboxed_worker",
+        "concurrent_http_dispatches_run_the_original_worker_once",
+        "invalid_worker_requests_and_routes_have_no_admission_or_side_effect"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_host_worker_transport") $name }
+
     Write-Host "installed-host-foundation: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }

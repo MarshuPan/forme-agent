@@ -32,6 +32,10 @@ impl Daemon {
         ));
         std::fs::create_dir(&root).unwrap();
         let mut child = Command::new(env!("CARGO_BIN_EXE_forme-hostd"))
+            .env_remove("FORME_WORKER_CONFIG_PATH")
+            .env_remove("FORME_AGENT_EXECUTION_TOKEN")
+            .env_remove("FORME_HOST_STATE_ROOT")
+            .env_remove("FORME_HOST_TOKEN_PATH")
             .env("FORME_HOST_BIND", "127.0.0.1:0")
             .env("FORME_HOST_JOURNAL_PATH", root.join("host.jsonl"))
             .env("FORME_INSTALL_ID", "http-contract-install")

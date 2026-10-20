@@ -69,6 +69,7 @@ struct WorkerRecord {
     permit: p::WorkerPermit,
     state: p::WorkerState,
     receipt: Option<p::WorkerReceipt>,
+    cancel_receipt: Option<p::WorkerCancelReceipt>,
     reason_ref: Option<String>,
 }
 
@@ -119,6 +120,7 @@ impl WorkerProjection {
                         permit: *permit.clone(),
                         state: p::WorkerState::Pending,
                         receipt: None,
+                        cancel_receipt: None,
                         reason_ref: None,
                     },
                 );
@@ -186,6 +188,7 @@ impl WorkerProjection {
                     _ => return Err(invalid_journal()),
                 };
                 record.reason_ref = receipt.reason_ref.clone();
+                record.cancel_receipt = Some(receipt.clone());
             }
             WorkerFact::Unknown {
                 job_id,
@@ -519,6 +522,16 @@ fn observation(record: &WorkerRecord, now: p::Timestamp) -> p::WorkerObservation
                 receipt.ground_truth_refs.clone(),
             )
         })
+        .or_else(|| {
+            record.cancel_receipt.as_ref().map(|receipt| {
+                (
+                    Some(receipt.outcome),
+                    receipt.receipt_ref.clone(),
+                    None,
+                    Vec::new(),
+                )
+            })
+        })
         .unwrap_or_else(|| {
             (
                 match record.state {
@@ -632,6 +645,10 @@ pub trait IsolatedExecutorHost: Send + Sync {
 }
 
 pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation> {
+    // Keep the durable transition and platform effect in one control-plane
+    // critical section. Journal locking alone cannot prevent probe/cancel
+    // from observing the gap between Started and process creation.
+    operations: Mutex<()>,
     journal: WorkerJournal,
     agent_credential_digest: p::SchemaDigest,
     authority_epoch: p::AuthorityEpoch,
@@ -674,6 +691,7 @@ impl<I: WorkerIsolation> WorkerExecutorHost<I> {
             validate_workspace_scope(scope)?;
         }
         Ok(Self {
+            operations: Mutex::new(()),
             journal: WorkerJournal::open(journal_path)?,
             agent_credential_digest,
             authority_epoch,
@@ -737,6 +755,7 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation> {
         self.verify(auth)?;
+        let _operation = self.operations.lock().map_err(|_| storage_error())?;
         self.validate_admission(&job, &permit, now)?;
         let (fresh, observation) = self.journal.admit(job.clone(), permit.clone(), now)?;
         if !fresh {
@@ -762,6 +781,7 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation> {
         self.verify(auth)?;
+        let _operation = self.operations.lock().map_err(|_| storage_error())?;
         match self.refresh_isolation(job_id, now) {
             Ok(observation) => Ok(observation),
             Err(error) => {
@@ -779,6 +799,7 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
         now: p::Timestamp,
     ) -> p::Result<p::WorkerCancelReceipt> {
         self.verify(auth)?;
+        let _operation = self.operations.lock().map_err(|_| storage_error())?;
         let job = self.journal.job(job_id)?;
         let observation = match self.refresh_isolation(job_id, now) {
             Ok(observation) => observation,
@@ -841,6 +862,7 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation> {
         self.verify(auth)?;
+        let _operation = self.operations.lock().map_err(|_| storage_error())?;
         if receipt.authority_epoch != self.authority_epoch {
             return Err(p::Error("worker receipt authority epoch is stale".into()));
         }

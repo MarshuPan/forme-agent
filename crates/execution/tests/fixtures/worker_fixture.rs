@@ -1,11 +1,19 @@
 #![forbid(unsafe_code)]
 
+use std::io::Write;
 use std::{env, fs, thread, time::Duration};
 
 fn main() {
     let workspace = env::current_dir().expect("worker fixture workspace");
     let marker = workspace.join("worker-fixture-ran");
-    fs::write(marker, b"worker fixture completed").expect("worker fixture marker");
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(marker)
+        .expect("worker fixture marker");
+    file.write_all(b"worker fixture completed\n")
+        .expect("worker fixture append");
+    file.sync_all().expect("worker fixture durable marker");
     let sleep_ms = env::args()
         .skip(1)
         .find_map(|arg| {
