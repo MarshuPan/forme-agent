@@ -4,7 +4,7 @@
 
 - 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P01–P04、P09–P11、P15，主验 IP01–IP03、IP10–IP16，参与 IP24。
 - 架构为 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §1–4、§7–9；服从 canonical §7/9/12/24/26/28/29。
-- 当前是**待实施 PRD**，不宣称安装器、服务或平台隔离已存在。它不重开 M0–M5，不增加内核/crate/依赖边。
+- 当前是**分阶段实施 PRD**：宿主底板、worker admission 与受注册入口的真实子进程基础已有代码，但不宣称安装器、原生服务或平台强隔离已完成。它不重开 M0–M5，不增加内核/crate/依赖边。
 
 ## 1. 职责与边界
 
