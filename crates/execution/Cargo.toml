@@ -46,5 +46,11 @@ bench = false
 name = "forme-hostd"
 path = "src/bin/forme-hostd.rs"
 
+[[bin]]
+name = "forme-worker-fixture"
+path = "tests/fixtures/worker_fixture.rs"
+test = false
+bench = false
+
 [dev-dependencies]
 rcgen = "=0.14.8"

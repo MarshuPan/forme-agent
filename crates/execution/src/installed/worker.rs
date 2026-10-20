@@ -551,7 +551,39 @@ fn observation(record: &WorkerRecord, now: p::Timestamp) -> p::WorkerObservation
 /// silently execute a worker as the brain service account.
 pub trait WorkerIsolation: Send + Sync {
     fn admit(&self, job: &p::WorkerJob, permit: &p::WorkerPermit) -> p::Result<()>;
+
+    fn admit_at(
+        &self,
+        job: &p::WorkerJob,
+        permit: &p::WorkerPermit,
+        _now: p::Timestamp,
+    ) -> p::Result<()> {
+        self.admit(job, permit)
+    }
+
     fn cancel(&self, job: &p::WorkerJob) -> p::Result<p::WorkerCancelReceipt>;
+
+    /// Return a durable receipt only when the underlying worker has a known
+    /// terminal result. The default keeps non-process fixtures observation
+    /// only; it never invents a completion outcome.
+    fn observe(
+        &self,
+        _job: &p::WorkerJob,
+        _now: p::Timestamp,
+    ) -> p::Result<Option<p::WorkerReceipt>> {
+        Ok(None)
+    }
+
+    /// The timestamp-aware form lets a real process adapter bind a cancel
+    /// receipt to the actual observation time without changing older test
+    /// adapters that implement `cancel`.
+    fn cancel_at(
+        &self,
+        job: &p::WorkerJob,
+        _now: p::Timestamp,
+    ) -> p::Result<p::WorkerCancelReceipt> {
+        self.cancel(job)
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -675,6 +707,25 @@ impl<I: WorkerIsolation> WorkerExecutorHost<I> {
         }
         Ok(())
     }
+
+    fn refresh_isolation(
+        &self,
+        job_id: &str,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerObservation> {
+        let current = self.journal.observation(job_id, now)?;
+        if matches!(
+            current.state,
+            p::WorkerState::Pending | p::WorkerState::Running
+        ) {
+            let job = self.journal.job(job_id)?;
+            if let Some(receipt) = self.isolation.observe(&job, now)? {
+                receipt.validate_for(&job)?;
+                self.journal.record_receipt(receipt, now)?;
+            }
+        }
+        self.journal.observation(job_id, now)
+    }
 }
 
 impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
@@ -691,12 +742,17 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
         if !fresh {
             return Ok(observation);
         }
-        if let Err(error) = self.isolation.admit(&job, &permit) {
+        // Make the Running transition durable before asking the platform to
+        // create a process. If process creation succeeds and the journal
+        // write were attempted afterwards, a storage failure could leave a
+        // side effect without a recoverable state boundary.
+        let started = self.journal.start(&job.job_id, now)?;
+        if let Err(error) = self.isolation.admit_at(&job, &permit, now) {
             let reason = p::canonical_digest(&("worker-admission-unknown", &job.job_id))?.0;
             self.journal.mark_unknown(&job.job_id, reason, now)?;
             return Err(error);
         }
-        self.journal.start(&job.job_id, now)
+        Ok(started)
     }
 
     fn probe(
@@ -706,7 +762,14 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation> {
         self.verify(auth)?;
-        self.journal.observation(job_id, now)
+        match self.refresh_isolation(job_id, now) {
+            Ok(observation) => Ok(observation),
+            Err(error) => {
+                let reason = p::canonical_digest(&("worker-observation-unknown", job_id))?.0;
+                self.journal.mark_unknown(job_id, reason, now)?;
+                Err(error)
+            }
+        }
     }
 
     fn cancel(
@@ -717,7 +780,14 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
     ) -> p::Result<p::WorkerCancelReceipt> {
         self.verify(auth)?;
         let job = self.journal.job(job_id)?;
-        let observation = self.journal.observation(job_id, now)?;
+        let observation = match self.refresh_isolation(job_id, now) {
+            Ok(observation) => observation,
+            Err(error) => {
+                let reason = p::canonical_digest(&("worker-observation-unknown", job_id))?.0;
+                self.journal.mark_unknown(job_id, reason, now)?;
+                return Err(error);
+            }
+        };
         match observation.state {
             p::WorkerState::Unknown => {
                 return Ok(p::WorkerCancelReceipt {
@@ -751,7 +821,7 @@ impl<I: WorkerIsolation> IsolatedExecutorHost for WorkerExecutorHost<I> {
             p::WorkerState::Pending | p::WorkerState::Running => {}
         }
         self.journal.request_cancel(job_id, now)?;
-        let receipt = match self.isolation.cancel(&job) {
+        let receipt = match self.isolation.cancel_at(&job, now) {
             Ok(receipt) => receipt,
             Err(error) => {
                 let reason = p::canonical_digest(&("worker-cancel-unknown", job_id))?.0;
