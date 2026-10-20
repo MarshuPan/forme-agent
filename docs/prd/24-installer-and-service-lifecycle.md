@@ -78,6 +78,16 @@ trait IsolatedExecutorHost {
 
 未认领时经本机证明产生的有限 setup 身份只可 Inspect 已识别数据/PrepareRestore 候选与完成 claim，不具有普通 owner-maintenance 权限；不能启动任务、替换 release 或改任意服务。此限制由 broker 检查，不能只在向导隐藏按钮。
 
+### 4.1 Worker 控制面与受管配置（24.2 增量）
+
+内部原型使用两个独立 loopback listener：`FORME_HOST_BIND`（默认 `127.0.0.1:8766`）仅提供 OwnerMaintenance；`FORME_AGENT_EXECUTION_BIND`（默认 `127.0.0.1:8767`）仅提供 AgentExecution。即使持有正确 token，调用另一个 listener 上的路由也被拒绝。两个域分别限制连接；该原型仍不是原生 IPC peer identity 或完整安装验收。
+
+AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/workers/{job_id}`、`POST /v1/agent/workers/{job_id}/cancel`。dispatch 使用版本化 closed `WorkerDispatchRequest { schema_version, job, permit }`，验证 exact job/permit binding；查询和取消只引用原 job，不创建替代任务。
+
+`FORME_WORKER_CONFIG_PATH` 指向受保护的绝对 JSON 文件。`WorkerRuntimeConfig` 含 `schema_version, authority_epoch, journal_path, runtime_root, allowed_scopes, workspace_roots, launch_profiles`；每个 profile 含 `schema_version, sandbox_profile_ref, program, args`。读取上限 4 MiB；拒绝未知字段、重复 scope/profile、缺失映射、链接、路径别名或交叠。配置、worker journal、runtime、workspace 与注册程序不得互相成为可写覆盖目标；broker 另拒绝 worker journal 与管理 journal/凭据文件混用。结构检查不替代实际 ACL 和执行时身份验证。
+
+默认配置加载**不启用普通进程 adapter**。没有已验证的平台隔离实现时，服务可提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，开发证据不得登记为安全沙箱或 IP10 PASS。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
@@ -103,6 +113,8 @@ worker 使用独立低权限身份启动；最小 env/handles，仅装载本 pla
 会话 helper 仅在 owner 指定的 OS 会话启动，受 grant/TTL/会话 liveness 约束。OS 注销后撤销桌面执行能力，broker/core 仍常驻。会话 helper 不能获得私有 keys、brain DB 或安装管理 API。
 
 特权动作经 Harness 最终 recheck、ActionStarted 与 one-shot 授权进入 broker；broker 还检查本地 typed-operation allowlist/permit binding。接收后失联只查原 job receipt；核心死亡、超时或 worker 无终态均保留 Unknown，不生成第二 job 盲重试。
+
+同一 worker host 串行化 admission/start、probe/receipt 与 cancel/receipt 的状态迁移，防止并发请求在写日志与启动/终止进程之间交错。取消回执必须保留在 journal 投影中，后续查询和重启重放均返回一致的 `Cancelled/Cancelled` 或 `Unknown/Unknown`；不得返回“已取消但 outcome 为空”。重复查询/取消/dispatch 不能重复启动或终止进程，终态不得被晚到的 receipt 覆盖。
 
 ### 5.4 升级与恢复
 
