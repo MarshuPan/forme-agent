@@ -44,7 +44,7 @@
 | `21-m4-program-prd.md` | M4 Program PRD：peer trust plane/RemoteExecutor、multi-peer read-only replication/OwnerClient control、checkpoint continuity，以及 S70–S84 分波门。 | M4-A/B/C 与 owner 最终验收 PASS，已封板。 |
 | `22-m5-program-prd.md` | M5 Program PRD：publisher/admission、plan-bound lifecycle/registry、federated distribution/release，以及 S85–S99 分波门。 | 完成：M5-A/B/C、S1-S99、真实 ecosystem golden、typed artifacts 与 release audit 均 PASS。 |
 | `23-v1-core-brain-closure-program-prd.md` | V1 核心大脑闭合 Program PRD：默认 composition、持续认知、长期项目/编排、多模型、dashboard、数据保护与 C1–C24。 | 文档与承重协议已冻结；当前分波、真实 C24、Final 与 main 状态统一见 `../acceptance/core-brain-closure-acceptance-report.md`；明确不是 M6。 |
-| [24-installer-and-service-lifecycle.md](24-installer-and-service-lifecycle.md) | 原生安装、系统常驻、宿主管理、隔离执行、升级/恢复/卸载。 | 文档已制定，待实施。 |
+| [24-installer-and-service-lifecycle.md](24-installer-and-service-lifecycle.md) | 原生安装、系统常驻、宿主管理、隔离执行、升级/恢复/卸载。 | 24.1 宿主底板与 24.2 worker admission 基础已实现；24.3、原生隔离与安装验收待完成。 |
 | [25-bootstrap-auth-and-web-access.md](25-bootstrap-auth-and-web-access.md) | 初始化认领、单 owner 账号/session、typed config、LAN HTTPS 与 Web/core 认证/API。 | 文档已制定，待实施。 |
 | [26-web-workbench.md](26-web-workbench.md) | 对话、工作空间、收件箱、记忆/认知、设置五面与前端限定复用。 | 文档已制定，待实施。 |
 
@@ -68,6 +68,6 @@ V1 核心大脑闭合已完成 `requirements/15-16 -> canonical §28 -> architec
 
 ## 写作边界
 
-产品化沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`，先 24、再 25、再 26，最后 IP24 联合验收；原生平台必须独立取得证据。它不是 M6，当前代码与安装验收未开始。前端来源例外仅按 `../compliance/frontend-reuse-policy.md`，不扩大到其他模块。
+产品化沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`，先 24、再 25、再 26，最后 IP24 联合验收；原生平台必须独立取得证据。它不是 M6；24 已完成宿主底板与 worker admission 基础，24.3、25、26 和原生安装验收仍未完成。当前证据见 `../acceptance/installed-product-implementation-progress.md`。前端来源例外仅按 `../compliance/frontend-reuse-policy.md`，不扩大到其他模块。
 
 PRD 不能新增未进入 requirements 的能力，也不能绕过 architecture 自行决定实现方式。除 canonical §29.8 的逐文件许可 UI 例外，所有实现必须原创，不能复制第三方源码、文档表达、prompt、命令体系或测试 fixture。M0 的任务拆解必须覆盖 `requirements/03` 的完整核心闭环和 `requirements/04` 的验收矩阵，不能把核心子系统降级成“后续再补”。

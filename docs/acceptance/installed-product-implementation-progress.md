@@ -7,7 +7,7 @@
 | 顺序 | 交付 | 当前状态 |
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
-| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 待实施；当前没有把既有终端进程注册为新系统服务。 |
+| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | **基础层已实现并提交 `7eec019`**：版本化 WorkerJob/Permit/Observation/Receipt、AgentExecution admission、owner/action/resource/plan/scope/epoch/nonce/deadline 绑定、独立 worker journal、重启 Unknown 与 fail-closed isolation seam；真实 OS worker/账户/ACL/service host 仍待原生验收。 |
 | 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 待实施；没有可发布的签名包或跨平台支持声明。 |
 | 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 待实施，继续使用已确认方案，不将现有 bearer 当成账号登录。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 待实施；本批没有导入上游前端或改动页面。 |
@@ -26,6 +26,14 @@
 - `forme-hostd` 提供仅 loopback 的内部 HTTP 原型，凭据由本机保护的 token 文件或显式开发环境加载；没有浏览器登录、近期 owner reauth 或 AgentExecution 域。全部路由认证，错误返回 400/401，拒绝模糊 framing/浏览器 Origin/非 loopback bind，连接数和请求大小有界。不能把这一原型部署成公开管理服务。
 - broker 仅激活 Inspect/StartCore/StopCore/RestartCore；其他 maintenance 类型在 plan 前拒绝，不落假操作。proof、active release、refs、deadline 与 command digest 绑定；动作前写持久 Checking intent。成功 operation 重查不再调用 adapter，中断则只能检查原 intent，不盲重试。真正的近期认证、typed lifecycle workers 和双凭据域属于 24.2/24.3。
 
+### 2.1 Worker admission foundation (24.2)
+
+- `WorkerJob`、`WorkerPermit`、`WorkerObservation`、`WorkerReceipt` 和 `WorkerCancelReceipt` 是版本化产品 DTO，不进入 brain EventKind；Job/Permit 同时绑定 owner、action、affected resources、exact plan digest、workspace scope、sandbox profile、authority epoch、deadline、nonce 和 cancel ref。
+- `WorkerExecutorHost` 只接受 `HostCredentialDomain::AgentExecution`；OwnerMaintenance 凭据、错误 principal、陈旧 authority epoch、越界 workspace、替换后的 plan/resource、过期 permit 和无 scope allowlist 均在底层隔离器之前拒绝。
+- `WorkerJournal` 使用独立 OS 锁、单 writer、顺序与 hash chain。admission、start、cancel、receipt、unknown 都先持久化再更新投影；进程重启发现未终态 job 时只把**原 job**置为 `Unknown`，不创建新 job、不自动重做副作用。
+- 默认 `UnavailableWorkerIsolation` 永远拒绝执行；只有后续注入并完成平台级隔离能力的实现才能 dispatch。这使“还没有真实 sandbox”表现为不可用，而不是偷偷以 brain 服务身份执行。
+- 专项正反测试为 5/5：隔离能力缺失阻断、双凭据域边界、plan/scope/epoch/deadline 绑定、重复 admission 不重复副作用、重启 Unknown 不自动重做、terminal cancel 不重复调用隔离器。测试使用仓库自建 fixture，不代表 Windows SCM、Linux systemd 或 macOS LaunchDaemon 已通过。
+
 ## 3. 验证与证据
 
 组件门：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-installed-host.ps1`。每个命名测试必须真实执行一次，测试不存在/被忽略/零执行均失败；末尾明确 IP01–IP24 为 NOT_RUN。
@@ -34,7 +42,7 @@
 
 本批已完成 fmt、workspace check/test、strict clippy、compliance、冻结 18-crate/99-kind 门与原 S1–S99 workspace 回归；宿主专项门输出 `installed-host-foundation: PASS`。macOS/Linux 原生目标和全部 IP 安装场景继续 NOT_RUN，不使用 Windows 组件测试代替。
 
-本批证据边界：组件测试和 loopback HTTP 集成测试通过，不等于 SCM/systemd/LaunchDaemon 已注册，不等于 worker 账户/ACL 隔离已证明，也不等于 Windows/macOS/Linux 安装包可发布。下一批只在此提交之后实现 24.2 的常驻服务 host、双域认证与 worker 隔离。
+本批证据边界：组件测试和 loopback HTTP 集成测试通过，worker admission 的协议与恢复基础已闭合；这仍不等于 SCM/systemd/LaunchDaemon 已注册，不等于 worker 账户/ACL/网络隔离已证明，也不等于 Windows/macOS/Linux 安装包可发布。下一批继续实现实际平台 worker、常驻 service host、会话 helper 与 24.3 安装事务。
 
 ## 4. 依赖、数据与环境
 

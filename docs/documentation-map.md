@@ -11,7 +11,7 @@
 - 全局入口是 `docs/README.md`，本文档是跨目录关系矩阵，各子目录 `README.md` 只解释本目录内部文档。
 - 早期规划 `planning/01-14` 与早期架构基线 `architecture/00-01` 已归档到 `archive/`，不再更新，不作为现行口径。
 - M0-M5 的 requirements、architecture、PRD 与 acceptance 是冻结的回归基线；V1 核心大脑闭合按 `prd/23` A/B/C/D 实施，不新增里程碑编号。
-- 常驻服务/Web 产品化另沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`；当前仅文档，待代码与 IP01–IP24 原生验收，不命名 M6。
+- 常驻服务/Web 产品化另沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`；24.1 宿主底板与 24.2 worker admission 基础已开始实施，仍待 24.3/25/26 代码与 IP01–IP24 原生验收，不命名 M6。
 
 ## 目录级关系
 
@@ -19,9 +19,9 @@
 |---|---|---|---|---|---|
 | `runbooks/` | operator 如何通过正式入口和离线工具执行受治理操作。 | `canonical §28`、`architecture/09`、`prd/23` 及生产接口。 | 数据控制与 C24 真实证据操作手册。 | 当前 `v1-core-brain-data-and-evidence.md`。 | 操作手册不授予权限、不替代审批/验收、不宣称未经验证的完成状态。 |
 | `planning/` | 仍在使用的规划设计。 | 早期规划（已归档）与 requirements 反馈。 | 多 Agent 编排的单脑模型与编排库。 | 当前仅 `15`。 | 规划结论必须再进入 requirements 固定。 |
-| `requirements/` | 要做什么、不做什么、优先级、范围决策和验收方向。 | 早期规划（已归档）与各阶段验收结论。 | 需求范围、能力域、完整核心闭环、非目标、验收方向。 | M0-M5/V1 已落地；`17`–`18` 是待实施的产品化 P/IP 范围。 | 不写实现细节，不扩大已确认范围。 |
-| `architecture/` | 如何实现 requirements。 | `requirements/` 与 canonical 契约。 | Rust 模块、协议、状态机、数据流、存储、安全和扩展设计。 | `03`–`09` 对应实现已合入；`10` 为常驻/Web 设计，待实施。 | 保持 18 crates/single authority；新增范围从 requirements 下推。 |
-| `prd/` | 按什么功能和步骤实现。 | `requirements/` 与 `architecture/`。 | 可执行任务、接口/数据约束、测试和验收。 | `01`–`23` 对应实现已合入；`24`–`26` 为待实施产品化契约。 | 不新增需求；前端例外只按精确来源/许可边界。 |
+| `requirements/` | 要做什么、不做什么、优先级、范围决策和验收方向。 | 早期规划（已归档）与各阶段验收结论。 | 需求范围、能力域、完整核心闭环、非目标、验收方向。 | M0-M5/V1 已落地；`17`–`18` 产品化 P/IP 范围已开始实施，原生 IP 仍待验收。 | 不写实现细节，不扩大已确认范围。 |
+| `architecture/` | 如何实现 requirements。 | `requirements/` 与 canonical 契约。 | Rust 模块、协议、状态机、数据流、存储、安全和扩展设计。 | `03`–`09` 对应实现已合入；`10` 的宿主/worker 基础已开始实施，整体常驻/Web 仍待实施。 | 保持 18 crates/single authority；新增范围从 requirements 下推。 |
+| `prd/` | 按什么功能和步骤实现。 | `requirements/` 与 `architecture/`。 | 可执行任务、接口/数据约束、测试和验收。 | `01`–`23` 对应实现已合入；`24` 已有 24.1/24.2 基础实现，24.3–26 仍为待实施产品化契约。 | 不新增需求；前端例外只按精确来源/许可边界。 |
 | `acceptance/` | 如何证明实现符合 requirements 与 PRD。 | 实现、场景测试、合规门。 | 逐场景证据、最终门结果、残余风险。 | M0-M5 有 final 证据；V1 历史分波报告保留，当前状态统一见 core-brain-closure 报告与封闭清单。 | 不能只用最终回答或 happy path 代替事件序列和反向断言。 |
 | `compliance/` | 依赖来源与许可证是否清楚。 | Cargo/frontend locks、direct dependencies、已授权前端范围。 | 依赖清单与 frontend-reuse-policy。 | 规则已补；当前没有导入上游 UI。 | 实际来源/NOTICE/SBOM 对账，禁止 blanket copy allowlist。 |
 | `archive/` | 设计是如何演进过来的。 | 早期规划与架构基线。 | 无（只读）。 | 已归档。 | 不作为现行口径，冲突时以 canonical 与 requirements 为准。 |

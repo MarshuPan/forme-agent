@@ -4,7 +4,7 @@
 
 本方案实现 [requirements/17 的 P01–P16](../requirements/17-installed-product-scope-decisions.md)，由 [requirements/18 的 IP01–IP24](../requirements/18-installed-product-verification-strategy.md) 验证。口径服从 [canonical](canonical-contract.md) §1–29，特别是 §28 的唯一 ProductionRuntime、99 EventKinds、数据保护和恢复契约。
 
-**这是已确认的产品化设计，代码实施和原生平台验收未开始。** 它不改写 M0–M5/V1 的历史验收，不增加内核、crate 或内部依赖边。实施拆为 [prd/24](../prd/24-installer-and-service-lifecycle.md)、[prd/25](../prd/25-bootstrap-auth-and-web-access.md)、[prd/26](../prd/26-web-workbench.md)。
+**这是已确认的产品化设计；宿主底板与 worker admission 基础已开始实施，但原生平台验收、安装包、账号和 Web 工作台仍未完成。** 它不改写 M0–M5/V1 的历史验收，不增加内核、crate 或内部依赖边。实施拆为 [prd/24](../prd/24-installer-and-service-lifecycle.md)、[prd/25](../prd/25-bootstrap-auth-and-web-access.md)、[prd/26](../prd/26-web-workbench.md)。当前代码证据见 `acceptance/installed-product-implementation-progress.md`。
 
 当前 `forme-gatewayd` 从环境构建完整 ProductionRuntime 后才绑定 loopback listener，并提供已有本地静态 UI；它还不是原生系统服务/账号系统。本方案把可离线初始化的 Web 接入独立出来，保留内部 Gateway 的 loopback 限制。M1 的“无桌面壳、无第二 Node 服务”仍成立，新增边界为 Rust Web 接入进程，不是 Node 或另一套 Agent 服务端。
 
