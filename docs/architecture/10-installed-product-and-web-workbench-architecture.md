@@ -36,6 +36,8 @@ flowchart LR
 
 OS 服务管理器分别监管三个长期服务。broker 可以要求 OS 开始/停止 core，但不另设抢跑的崩溃重启 loop；每个长期进程只有一个 supervisor。短期 worker 由 broker 管理截止、取消与清理，不做自动副作用重试。Web 崩溃不影响核心；核心崩溃不影响登录与诊断。
 
+core 的前台信号与未来原生服务控制共用 Gateway 的可信停止接缝（prd/24 §4.2）：先线性化关闭 HTTP 工作与 scheduler 准入，再有界排空在途操作和运行队列。HTTP 请求已取消不代表其阻塞动作停止；Waiting/Unknown 不因停服被改写为终态。此接缝不新增管理 HTTP 路由，也不独自证明 SCM/launchd/systemd 已完成安装。
+
 ## 2. 安装、账户与路径
 
 | 平台 | 服务/账户 | 程序与配置 | 持久数据、运行态 |

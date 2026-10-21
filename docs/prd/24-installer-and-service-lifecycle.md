@@ -88,6 +88,14 @@ AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/work
 
 默认配置加载**不启用普通进程 adapter**。没有已验证的平台隔离实现时，服务可提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，开发证据不得登记为安全沙箱或 IP10 PASS。
 
+### 4.2 Core 停服接缝（24.2 增量）
+
+`gateway` 增加 `GatewayLifecycleConfig`（版本、`drain_timeout`）与可注入可信停止信号的 `serve_environment_until` 外观；原 `serve_environment` 保持签名并委托同一实现。它仍创建唯一 ProductionRuntime，不是另一套运行时，也不新增 Web/Agent 停服路由。默认停止信号为前台 Ctrl+C；Unix 同时响应 SIGTERM。SCM/其他原生 service host 后续通过同一接缝提供 OS 控制信号，不能另设重启监管者。
+
+收到停止信号或 listener 失败后，按同一单调截止时间：关闭 Gateway 工作准入与 scheduler pass 准入 → 停止 listener → 等待已经获准的阻塞操作和当前 scheduler pass → 等待 Accepted/Running run 与 session 执行队列排空 → 退出。准入与关闭在同一锁内线性化；HTTP timeout/请求取消不能提前释放仍在执行的阻塞操作名额。已经落盘的 Waiting/Unknown 保留，停服不把它们批量取消或改成 Complete。
+
+开发环境通过 `FORME_SERVICE_DRAIN_TIMEOUT_MS` 配置排空时限，默认 30 秒，有效范围 1 毫秒至 10 分钟。超时或无法核对状态时返回明确错误；daemon 以非零状态退出，保留原事件供既有启动恢复扫描处理，不重做动作、不生成虚假停服成功。该接缝只证明核心进程的受控停服，不替代升级前备份/checkpoint、服务注册、独立身份或原生安装验收。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
