@@ -339,7 +339,7 @@ fn parse_status(result: &CommandResult) -> p::NativeServiceState {
 #[cfg(target_os = "macos")]
 fn macos_service_label(id: p::BuiltinServiceId) -> String {
     format!(
-        "org.forme.{}",
+        "com.forme.{}",
         match id {
             p::BuiltinServiceId::Host => "host",
             p::BuiltinServiceId::Web => "web",
@@ -392,9 +392,9 @@ mod tests {
                 assert!(arguments.iter().all(|a| !a.contains(['\n', ';', '|', '&'])));
                 assert!(arguments.iter().any(|a| a.contains(id.service_name())
                     || a.contains(match id {
-                        p::BuiltinServiceId::Host => "org.forme.host",
-                        p::BuiltinServiceId::Web => "org.forme.web",
-                        p::BuiltinServiceId::Brain => "org.forme.brain",
+                        p::BuiltinServiceId::Host => "com.forme.host",
+                        p::BuiltinServiceId::Web => "com.forme.web",
+                        p::BuiltinServiceId::Brain => "com.forme.brain",
                     })));
             }
         }

@@ -1153,8 +1153,10 @@ dependencies = [
 name = "forme-cli"
 version = "0.0.1"
 dependencies = [
+ "ed25519-dalek",
  "forme-gateway",
  "forme-protocol",
+ "getrandom 0.4.3",
  "serde_json",
 ]
 

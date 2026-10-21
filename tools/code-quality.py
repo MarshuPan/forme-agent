@@ -70,6 +70,19 @@ def file_metrics(root: Path, paths: list[str], baseline: dict) -> tuple[list, li
     return violations, sorted(debt, key=lambda entry: (-entry["lines"], entry["path"]))
 
 
+def rust_entrypoints(crate: Path) -> list[Path]:
+    """Return Rust crate roots, including nested bin/main.rs entrypoints."""
+    source = crate / "src"
+    roots = [path for path in (source / "lib.rs", source / "main.rs") if path.exists()]
+    bin_root = source / "bin"
+    if bin_root.exists():
+        roots.extend(
+            path for path in bin_root.rglob("*.rs")
+            if path.parent == bin_root or path.name == "main.rs"
+        )
+    return sorted(roots)
+
+
 def dependency_errors(root: Path) -> list[str]:
     errors = []
     manifests = sorted((root / "crates").glob("*/Cargo.toml"))
@@ -90,8 +103,8 @@ def dependency_errors(root: Path) -> list[str]:
                             errors.append(f"{name}: forbidden internal dependency {package}")
                     elif isinstance(specification, dict) and "path" in specification:
                         errors.append(f"{name}: unrecognized local dependency {alias}")
-        for source in [manifest.parent / "src/lib.rs", manifest.parent / "src/main.rs"]:
-            if source.exists() and "#![forbid(unsafe_code)]" not in source.read_text(encoding="utf-8"):
+        for source in rust_entrypoints(manifest.parent):
+            if "#![forbid(unsafe_code)]" not in source.read_text(encoding="utf-8"):
                 errors.append(f"{source.relative_to(root).as_posix()}: missing unsafe prohibition")
     return errors
 

@@ -1,6 +1,8 @@
 //! Thin CLI client over the same RunRequest/EventStream protocol as the gateway (prd/14).
 #![forbid(unsafe_code)]
 
+pub mod hostctl_install;
+
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 

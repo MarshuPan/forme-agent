@@ -2,7 +2,7 @@ Package: forme
 Version: 0.0.1
 Section: misc
 Priority: optional
-Architecture: amd64
+Architecture: any
 Maintainer: forme contributors
 Description: governed proactive personal Agent kernel
  A single-owner brain with a system service and browser workbench.

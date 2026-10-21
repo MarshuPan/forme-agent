@@ -49,6 +49,21 @@ class CodeQualityTests(unittest.TestCase):
             self.assertIn("gateway: forbidden internal dependency forme-store", errors)
             self.assertIn("crate set differs from the frozen 18-crate graph", errors)
 
+    def test_every_rust_binary_entrypoint_requires_unsafe_prohibition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            crate = root / "crates/gateway"
+            (crate / "src/bin/nested").mkdir(parents=True)
+            (crate / "Cargo.toml").write_text(
+                '[package]\nname="forme-gateway"\nversion="0.0.1"\n', encoding="utf-8",
+            )
+            (crate / "src/lib.rs").write_text("#![forbid(unsafe_code)]\n", encoding="utf-8")
+            (crate / "src/bin/tool.rs").write_text("fn main() {}\n", encoding="utf-8")
+            (crate / "src/bin/nested/main.rs").write_text("fn main() {}\n", encoding="utf-8")
+            errors = dependency_errors(root)
+            self.assertIn("crates/gateway/src/bin/tool.rs: missing unsafe prohibition", errors)
+            self.assertIn("crates/gateway/src/bin/nested/main.rs: missing unsafe prohibition", errors)
+
     def test_frontend_and_build_scripts_are_checked_but_vendor_output_is_not(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

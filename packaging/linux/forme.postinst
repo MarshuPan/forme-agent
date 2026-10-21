@@ -3,13 +3,37 @@ set -eu
 
 case "${1:-}" in
   configure)
+    if [ -r /etc/os-release ]; then
+      . /etc/os-release
+    fi
+    if [ "${ID:-}" != ubuntu ] || [ "${VERSION_ID:-}" != 24.04 ]; then
+      echo "forme: this package supports Ubuntu 24.04 only" >&2
+      exit 1
+    fi
+    package_arch=$(dpkg --print-architecture 2>/dev/null || uname -m)
+    case "$package_arch" in
+      amd64|x86_64) target=ubuntu2404_x86_64 ;;
+      arm64|aarch64) target=ubuntu2404_arm64 ;;
+      *) echo "forme: unsupported package architecture: $package_arch" >&2; exit 1 ;;
+    esac
     getent group forme-brain >/dev/null || groupadd --system forme-brain
     getent passwd forme-brain >/dev/null || useradd --system --gid forme-brain --home-dir /var/lib/forme/brain --shell /usr/sbin/nologin forme-brain
     getent group forme-web >/dev/null || groupadd --system forme-web
     getent passwd forme-web >/dev/null || useradd --system --gid forme-web --home-dir /var/lib/forme/web-auth --shell /usr/sbin/nologin forme-web
     install -d -o forme-brain -g forme-brain -m 0750 /var/lib/forme/brain /var/lib/forme/keys /var/lib/forme/workspaces
     install -d -o forme-web -g forme-web -m 0750 /var/lib/forme/web-auth
-    install -d -o root -g root -m 0750 /etc/forme /var/lib/forme/host-state /var/lib/forme/logs /run/forme
+    install -d -o root -g root -m 0750 /etc/forme /var/lib/forme/host-state /var/log/forme /run/forme
+    /opt/forme/bin/forme-hostctl prepare-installation \
+      --install-root /opt/forme \
+      --state-root /var/lib/forme \
+      --config-root /etc/forme \
+      --log-root /var/log/forme \
+      --ipc-root /run/forme \
+      --target "$target" \
+      --bundle-inventory /opt/forme/bundle-inventory.json
+    chown root:forme-web /etc/forme /etc/forme/web.json /var/lib/forme/web-auth/bootstrap-web.token
+    chmod 0750 /etc/forme
+    chmod 0640 /etc/forme/web.json /var/lib/forme/web-auth/bootstrap-web.token
     systemctl daemon-reload
     systemctl enable forme-host.service forme-web.service
     systemctl start forme-host.service forme-web.service

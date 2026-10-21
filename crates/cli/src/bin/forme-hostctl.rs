@@ -15,6 +15,12 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args
+        .first()
+        .is_some_and(|value| value == "prepare-installation")
+    {
+        return forme_cli::hostctl_install::run(&args[1..]);
+    }
     let usage = || {
         "usage: forme-hostctl bootstrap-proof --address <loopback-ip:port> --credential-file <absolute-path> --operation <stable-ref>".to_owned()
     };

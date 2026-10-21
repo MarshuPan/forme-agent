@@ -15,7 +15,7 @@ async function fixture(t, target = 'windows-x86_64') {
   const output = join(scratch, 'result');
   const assets = join(root, 'crates/gateway/assets/product/dist');
   await mkdir(binaryDir, { recursive: true }); await mkdir(assets, { recursive: true });
-  for (const file of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli']) {
+  for (const file of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl']) {
     await writeFile(join(binaryDir, file + targets[target].extension), `repository-owned fixture for ${file}`, { mode: 0o755 });
   }
   const files = [];
@@ -29,7 +29,20 @@ async function fixture(t, target = 'windows-x86_64') {
   await writeFile(join(root, 'NOTICE'), 'repository test notice');
   const template = join(root, 'packaging', targets[target].template);
   await mkdir(template, { recursive: true });
-  await writeFile(join(template, 'service.template'), 'repository-owned packaging input');
+  const required = {
+    windows: ['forme.iss'],
+    linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.postinst', 'forme.spec'],
+    macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/postinstall'],
+  }[targets[target].template];
+  for (const path of required) {
+    const destination = join(template, path);
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, `repository-owned packaging input: ${path}`, { mode: path.endsWith('postinstall') ? 0o755 : 0o644 });
+  }
+  if (targets[target].template === 'macos') {
+    await mkdir(join(template, 'scripts'), { recursive: true });
+    await writeFile(join(template, 'scripts', 'postinstall'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  }
   return { root, assets, scratch, config: { target, releaseId: '0.0.1-test', binaryDir, output, development: false } };
 }
 
@@ -53,8 +66,13 @@ test('bundle hashes every reviewed file reproducibly and records unverified rele
     assert.equal(inventory.signature, 'not_signed');
     assert.equal(inventory.native_installation, 'not_performed');
     assert.equal(inventory.binary_target_verification, 'not_performed');
-    assert.equal(inventory.files.filter((f) => f.path.startsWith('bin/')).length, 4);
+    assert.equal(inventory.files.filter((f) => f.path.startsWith('bin/')).length, 5);
     assert(inventory.files.some((f) => f.path.endsWith('LICENSES.txt')));
+    if (targets[target].template === 'macos') {
+      assert(inventory.files.some((f) => f.path === 'packaging/macos/scripts/postinstall'));
+      assert(inventory.files.some((f) => f.path === 'packaging/macos/Distribution.xml'));
+      assert(inventory.files.some((f) => f.path === 'packaging/macos/com.forme.brain.plist'));
+    }
     for (const file of inventory.files) {
       const bytes = await readFile(join(config.output, file.path));
       assert.equal(bytes.length, file.bytes); assert.equal(sha(bytes), file.sha256);
@@ -71,7 +89,7 @@ test('bundle never replaces an existing output or writes before preflight succee
   await assert.rejects(buildBundle(config, root), { code: 'EEXIST' });
   assert.deepEqual(await readdir(config.output), ['preserve']);
   assert.equal(await readFile(join(config.output, 'preserve'), 'utf8'), 'keep');
-  await rm(join(config.binaryDir, 'forme-cli.exe'));
+  await rm(join(config.binaryDir, 'forme-hostctl.exe'));
   const fresh = `${config.output}-missing-binary`;
   await assert.rejects(buildBundle({ ...config, output: fresh }, root));
   await assert.rejects(readFile(join(fresh, 'bundle-inventory.json')), { code: 'ENOENT' });
@@ -101,4 +119,11 @@ test('bundle refuses repo roots, input overlap and filesystem indirection', asyn
   const linked = join(scratch, 'linked-input');
   await symlink(config.binaryDir, linked, process.platform === 'win32' ? 'junction' : 'dir');
   await assert.rejects(buildBundle({ ...config, binaryDir: linked }, root), /Linked paths/);
+});
+
+test('bundle refuses an incomplete native packaging template', async (t) => {
+  const { root, config } = await fixture(t, 'macos-arm64');
+  await rm(join(root, 'packaging', 'macos', 'scripts', 'postinstall'));
+  await assert.rejects(buildBundle(config, root), /missing required input/);
+  await assert.rejects(readdir(config.output), { code: 'ENOENT' });
 });

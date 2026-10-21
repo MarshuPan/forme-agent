@@ -143,7 +143,13 @@ fn verify_release_content(manifest: &p::ReleaseManifest, root: &Path) -> p::Resu
     } else {
         ""
     };
-    for binary in ["forme-hostd", "forme-webd", "forme-gatewayd", "forme-cli"] {
+    for binary in [
+        "forme-hostd",
+        "forme-webd",
+        "forme-gatewayd",
+        "forme-cli",
+        "forme-hostctl",
+    ] {
         if !expected.contains(&format!("bin/{binary}{suffix}")) {
             return Err(p::Error(
                 "release is missing a required product entry point".into(),

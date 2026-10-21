@@ -657,6 +657,7 @@ fn release(root: &Path) -> p::ReleaseManifest {
         "bin/forme-webd.exe",
         "bin/forme-gatewayd.exe",
         "bin/forme-cli.exe",
+        "bin/forme-hostctl.exe",
         "web/index.html",
     ] {
         let file = root.join(path);

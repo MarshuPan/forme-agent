@@ -7,7 +7,12 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const binaryNames = ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli'];
+const binaryNames = ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl'];
+const requiredPackagingFiles = Object.freeze({
+  windows: ['forme.iss'],
+  linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.postinst', 'forme.spec'],
+  macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/postinstall'],
+});
 export const targets = Object.freeze({
   'windows-x86_64': { extension: '.exe', template: 'windows' },
   'macos-arm64': { extension: '', template: 'macos' },
@@ -120,7 +125,12 @@ export async function buildBundle(config, root = repository) {
   inputs.push(...await webInputs(root));
   for (const name of ['LICENSE', 'NOTICE']) inputs.push({ source: join(root, name), path: name });
   const templates = join(root, 'packaging', target.template);
-  for (const source of await filesIn(templates)) inputs.push({ source, path: `packaging/${slash(relative(join(root, 'packaging'), source))}` });
+  const templateFiles = await filesIn(templates);
+  const templateRelativePaths = new Set(templateFiles.map((source) => slash(relative(templates, source))));
+  for (const required of requiredPackagingFiles[target.template]) {
+    if (!templateRelativePaths.has(required)) throw new Error(`Packaging template is missing required input: ${required}`);
+  }
+  for (const source of templateFiles) inputs.push({ source, path: `packaging/${slash(relative(join(root, 'packaging'), source))}` });
   // Verify every input before creating any output, including executable bytes.
   for (const input of inputs) {
     const { bytes } = await regularFile(input.source);

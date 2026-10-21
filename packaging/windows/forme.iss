@@ -11,7 +11,7 @@ AppId={{9F0D7A2B-5BF8-4A6F-9AC1-5A2D3F4E6B7C}
 AppName={#ProductName}
 AppVersion={#ProductVersion}
 AppPublisher={#ProductPublisher}
-DefaultDirName={autopf}\forme
+DefaultDirName={autopf}\ForMe
 DefaultGroupName=forme
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -31,24 +31,24 @@ Source: "{#ReleaseRoot}\NOTICE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ReleaseRoot}\bundle-inventory.json"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
-Name: "{commonappdata}\forme\config"
-Name: "{commonappdata}\forme\brain"
-Name: "{commonappdata}\forme\web-auth"
-Name: "{commonappdata}\forme\host-state"
-Name: "{commonappdata}\forme\keys"
-Name: "{commonappdata}\forme\logs"
-Name: "{commonappdata}\forme\backups"
-Name: "{commonappdata}\forme\workspaces"
+Name: "{commonappdata}\ForMe\config"
+Name: "{commonappdata}\ForMe\brain"
+Name: "{commonappdata}\ForMe\web-auth"
+Name: "{commonappdata}\ForMe\host-state"
+Name: "{commonappdata}\ForMe\keys"
+Name: "{commonappdata}\ForMe\logs"
+Name: "{commonappdata}\ForMe\backups"
+Name: "{commonappdata}\ForMe\workspaces"
 
 [Run]
-Filename: "{app}\bin\forme-hostd.exe"; Parameters: "--install-service --config ""{commonappdata}\forme\config\host.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme host service"
-Filename: "{app}\bin\forme-webd.exe"; Parameters: "--install-service --config ""{commonappdata}\forme\config\web.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme web service"
-Filename: "{app}\bin\forme-gatewayd.exe"; Parameters: "--install-service --config ""{commonappdata}\forme\config\core.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme brain service"
+Filename: "{app}\bin\forme-hostctl.exe"; Parameters: "prepare-installation --install-root ""{app}"" --state-root ""{commonappdata}\ForMe"" --config-root ""{commonappdata}\ForMe\config"" --log-root ""{commonappdata}\ForMe\logs"" --ipc-root ""{commonappdata}\ForMe\ipc"" --target windows_x86_64 --bundle-inventory ""{app}\bundle-inventory.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Preparing forme installation"
+Filename: "{app}\bin\forme-hostd.exe"; Parameters: "--install-service --config ""{commonappdata}\ForMe\config\host.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme host service"
+Filename: "{app}\bin\forme-webd.exe"; Parameters: "--install-service --config ""{commonappdata}\ForMe\config\web.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme web service"
 
 [UninstallRun]
-Filename: "{app}\bin\forme-webd.exe"; Parameters: "--uninstall-service --config ""{commonappdata}\forme\config\web.json"""; Flags: runhidden waituntilterminated
-Filename: "{app}\bin\forme-gatewayd.exe"; Parameters: "--uninstall-service --config ""{commonappdata}\forme\config\core.json"""; Flags: runhidden waituntilterminated
-Filename: "{app}\bin\forme-hostd.exe"; Parameters: "--uninstall-service --config ""{commonappdata}\forme\config\host.json"""; Flags: runhidden waituntilterminated
+Filename: "{app}\bin\forme-webd.exe"; Parameters: "--uninstall-service --config ""{commonappdata}\ForMe\config\web.json"""; Flags: runhidden waituntilterminated
+Filename: "{app}\bin\forme-gatewayd.exe"; Parameters: "--uninstall-service --config ""{commonappdata}\ForMe\config\core.json"""; Flags: runhidden waituntilterminated
+Filename: "{app}\bin\forme-hostd.exe"; Parameters: "--uninstall-service --config ""{commonappdata}\ForMe\config\host.json"""; Flags: runhidden waituntilterminated
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;

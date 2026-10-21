@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.forme.host</string>
-  <key>ProgramArguments</key><array><string>/Library/forme/current/bin/forme-hostd</string><string>--config</string><string>/Library/Application Support/forme/config/host.json</string></array>
+  <key>ProgramArguments</key><array><string>/Library/ForMe/bin/forme-hostd</string><string>--config</string><string>/Library/Application Support/ForMe/config/host.json</string></array>
   <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
   <key>HardResourceLimits</key><dict><key>NumberOfFiles</key><integer>4096</integer></dict>
 </dict></plist>

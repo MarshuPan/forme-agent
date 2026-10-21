@@ -1,0 +1,121 @@
+#!/bin/sh
+set -eu
+
+if [ "$(id -u)" -ne 0 ]; then
+  echo "forme: macOS installation must run as root" >&2
+  exit 1
+fi
+
+if ! command -v sw_vers >/dev/null 2>&1; then
+  echo "forme: macOS version probe is unavailable" >&2
+  exit 1
+fi
+
+major="$(sw_vers -productVersion | awk -F. '{print $1}')"
+if [ "${major:-0}" -lt 14 ]; then
+  echo "forme: macOS 14 or newer is required" >&2
+  exit 1
+fi
+
+case "$(uname -m)" in
+  arm64) target=macos_arm64 ;;
+  x86_64) target=macos_x86_64 ;;
+  *) echo "forme: unsupported macOS architecture" >&2; exit 1 ;;
+esac
+
+install_root="/Library/ForMe"
+state_root="/Library/Application Support/ForMe"
+config_root="$state_root/config"
+log_root="$state_root/logs"
+ipc_root="$state_root/ipc"
+inventory="$install_root/bundle-inventory.json"
+hostctl="$install_root/bin/forme-hostctl"
+
+ensure_service_account() {
+  account="$1"
+  uid="$2"
+  if dscl . -read "/Groups/$account" >/dev/null 2>&1; then
+    actual_gid="$(dscl . -read "/Groups/$account" PrimaryGroupID | awk '{print $2}')"
+    if [ "$actual_gid" != "$uid" ]; then
+      echo "forme: existing macOS service group has an unexpected GID: $account" >&2
+      exit 1
+    fi
+  else
+    if dscl . -search /Groups PrimaryGroupID "$uid" 2>/dev/null | grep -q .; then
+      echo "forme: required macOS service GID is already in use: $uid" >&2
+      exit 1
+    fi
+    dscl . -create "/Groups/$account"
+    dscl . -create "/Groups/$account" PrimaryGroupID "$uid"
+    dscl . -create "/Groups/$account" RealName "forme service $account"
+  fi
+  if dscl . -read "/Users/$account" >/dev/null 2>&1; then
+    actual_uid="$(dscl . -read "/Users/$account" UniqueID | awk '{print $2}')"
+    actual_gid="$(dscl . -read "/Users/$account" PrimaryGroupID | awk '{print $2}')"
+    if [ "$actual_uid" != "$uid" ] || [ "$actual_gid" != "$uid" ]; then
+      echo "forme: existing macOS service account has an unexpected UID: $account" >&2
+      exit 1
+    fi
+  else
+    if dscl . -search /Users UniqueID "$uid" 2>/dev/null | grep -q .; then
+      echo "forme: required macOS service UID is already in use: $uid" >&2
+      exit 1
+    fi
+    dscl . -create "/Users/$account"
+    dscl . -create "/Users/$account" UserShell /usr/bin/false
+    dscl . -create "/Users/$account" RealName "forme service $account"
+    dscl . -create "/Users/$account" UniqueID "$uid"
+    dscl . -create "/Users/$account" PrimaryGroupID "$uid"
+    dscl . -create "/Users/$account" NFSHomeDirectory /var/empty
+    dscl . -create "/Users/$account" IsHidden 1
+  fi
+}
+
+for path in "$inventory" "$hostctl"; do
+  if [ ! -f "$path" ]; then
+    echo "forme: required installation file is missing: $path" >&2
+    exit 1
+  fi
+done
+
+command -v dscl >/dev/null 2>&1 || { echo "forme: dscl is unavailable" >&2; exit 1; }
+ensure_service_account _formeweb 450
+ensure_service_account _formebrain 451
+
+install -d -m 0750 "$state_root" "$config_root" "$log_root" "$ipc_root"
+"$hostctl" prepare-installation \
+  --install-root "$install_root" \
+  --state-root "$state_root" \
+  --config-root "$config_root" \
+  --log-root "$log_root" \
+  --ipc-root "$ipc_root" \
+  --target "$target" \
+  --bundle-inventory "$inventory"
+
+chmod 0711 "$state_root"
+chown root:_formeweb "$config_root"
+chmod 0711 "$config_root"
+chown root:_formeweb "$config_root/web.json"
+chmod 0640 "$config_root/web.json"
+chown _formeweb:_formeweb "$state_root/web-auth"
+chmod 0700 "$state_root/web-auth"
+chown _formeweb:_formeweb "$state_root/web-auth/bootstrap-web.token"
+chmod 0600 "$state_root/web-auth/bootstrap-web.token"
+chown _formebrain:_formebrain "$state_root/brain" "$state_root/workspaces"
+chmod 0700 "$state_root/brain" "$state_root/workspaces"
+chown root:_formebrain "$state_root/keys"
+chmod 0750 "$state_root/keys"
+
+bootstrap_service() {
+  label="$1"
+  plist="$2"
+  if ! launchctl print "system/$label" >/dev/null 2>&1; then
+    launchctl bootstrap system "$plist"
+  fi
+  launchctl kickstart -k "system/$label"
+}
+
+# The brain is deliberately registered but not started before owner claim and
+# model configuration. Host and Web are the resident, unclaimed setup surface.
+bootstrap_service com.forme.host /Library/LaunchDaemons/com.forme.host.plist
+bootstrap_service com.forme.web /Library/LaunchDaemons/com.forme.web.plist
