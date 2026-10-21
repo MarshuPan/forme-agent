@@ -2,7 +2,7 @@
 
 ## 1. 范围与源码
 
-源码：`shu/installed-product@49674b7`。承接 prd/25 §11.2；认证基础历史报告仍为 [12b3f5d 组件证据](installed-product-25-identity-foundation.md)，不以本报告改写其测试总数。
+源码：`shu/installed-product@49674b7`。本报告覆盖 loopback Web ingress 基础；`52808df` 新增的初始化认领链路另见 [claim 组件证据](installed-product-25-bootstrap-claim.md)。承接 prd/25 §11.2；认证基础历史报告仍为 [12b3f5d 组件证据](installed-product-25-identity-foundation.md)，不以本报告改写其测试总数。
 
 本次实现 gateway 内的独立 `forme-webd`、受管配置读取、loopback HTTP 认证路由，以及登录挑战与认证库 v1→v2 事务迁移。没有新增内部 crate/依赖边、脑 EventKind 或另一套 ProductionRuntime。
 
@@ -44,7 +44,8 @@ HTTP 专项包含：未认领信息最小化；登录/注销/reauth；错误 Hos
 
 | 项目 | 当前状态 |
 |---|---|
-| broker 本机证明、有限 setup、旧脑验证与双边 claim 恢复 | 待接入；账号创建仍要求已提交的可信 broker 签名 |
+| broker 本机证明、有限 setup、新脑双边 claim 恢复 | 已在 `52808df` 以组件方式接入；证据见 [claim 组件报告](installed-product-25-bootstrap-claim.md) |
+| 旧脑/备份验证与双边迁移恢复 | 待接入 |
 | 本机管理员密码恢复 | 待实施；不存在匿名远程重置 |
 | typed config、secret resolver、应用 ack 与 core bridge | 待接入 |
 | LAN HTTPS、证书信任、原生 peer 身份与账户/ACL | 未由本组件实现或证明；HTTP adapter 拒绝 LAN |
