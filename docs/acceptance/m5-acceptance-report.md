@@ -109,3 +109,11 @@ M5 FINAL ACCEPTANCE: PASS (S1-S99 + 97 EventKinds + 18 crates + governed ecosyst
 M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> untrusted catalog quarantine -> signed content-addressed admission -> plan/approval/CAS lifecycle -> existing registry -> governed capability use -> M4-bound remote distribution -> unknown/no-retry recovery -> authority ground-truth verification -> revoke -> typed artifacts/release audit。S1-S99、97 EventKinds、18 crates、全部列出测试、29 个 Python gates、真实三角色 golden、strict Clippy 与 clean-tree compliance 均满足，且 M0-M4 治理不变量没有削弱。
 
 **M5 工程最终验收 PASS，达到 owner review/合并候选标准。**
+
+## 10. 产品化分支的永久回归重验
+
+本节只追加当前产品增量的回归记录，不改写上文 M5 历史验收，也不宣称 IP01–IP24 已通过。产品实施状态仍以 `installed-product-implementation-progress.md` 为准。
+
+2026-10-21，分支 `shu/installed-product` 的 Web 入口 `49674b7`、审计定位修复 `57e34b8` 与宿主拆分 `26ce4b4` 已通过 688 passed / 0 failed / 5 默认 ignored、strict Clippy、合规、质量和宿主组件门。Python 工具 72 项中 1 项按平台跳过，其余通过；当前 341 个源文件、65 处历史规模债务。
+
+前置审计发现 Gateway 拆分后仍按旧 lib.rs 定位实现；已修正并新增反向测试。完整 `tools/verify-m5.ps1` 与新 clean-tree 回执 generate/verify/compare 待取得当前执行结果，暂不据此宣称永久长链通过。旧回执保留历史，不直接作为新增源码的证据。
