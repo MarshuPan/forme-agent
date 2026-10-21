@@ -181,3 +181,15 @@ API 错误包括 `Unauthenticated / Forbidden / CsrfRejected / ClaimUnavailable 
 认证、密码哈希、TLS、cookie、CSRF 和 IPC 使用成熟公开协议/安全库，不自行设计密码学。新增依赖锁版本、来源、实际许可、transitive notice/漏洞/SBOM，实施时更新清单；本次文档不表示已引入。
 
 不从 DeepSeek/OpenClaw/Hermes 复制后端认证、消息、RPC 或配置系统。前端 UI 的受限复用只按 [frontend-reuse-policy](../compliance/frontend-reuse-policy.md)，不能扩大到本模块 core/安全实现；合规门继续 fail closed。
+
+### 11.1 实施细化：认证持久化与认领接缝
+
+认证实现放在 gateway 的 `web::identity`，仅写独立 `web-auth/identity.sqlite`，使用独立 OS writer 锁、SQLite FULL 事务与 application/schema/installation binding。未知、旧版本、其他用途或损坏的文件拒绝接管，不初始化覆盖。此处复用 rusqlite 的公开事务 API，不新增 gateway→store 边，也不打开 brain SQLite。目录 ACL 由安装器负责，模块内的路径检查不自报已验证 OS 权限。
+
+单 owner 创建分为 Web 准备账号承诺（随机 salt 的 Argon2id 记录）和消费 broker 的已提交认领回执。新增 `WebClaimCommit / SignedWebClaimCommit` 产品 DTO；签名绑定 install、operation、已验证 candidate、真实 owner、账号承诺和期限。验签只使用受管预置公钥，不接受浏览器带来的公钥；未接通 broker 的有限 setup/数据验证/commit 前，不开放匿名注册或把此组件当成 IP05 完成。断线可用原 operation 和原承诺幂等收尾，不生成另一 owner。
+
+密码 KDF 固定使用 Argon2id v19、64 MiB、3 iterations、parallelism 1、16-byte OS salt 和 32-byte 输出，持久记录显式保存 schema/算法/参数；不导入任意参数执行。密码工作最多并行两个，正在运行的计算持有名额到真正结束。密码/原始 cookie 类型不派生 Debug/Serialize 并在释放时清零；会话和 reauth 原文只交 transport，数据库仅保存摘要。
+
+会话默认 idle 30 分钟、absolute 12 小时；CSRF nonce 从随机 HttpOnly session credential 以独立域摘要派生，可在刷新后返回，不存 plaintext cookie。任何 mutation 仍需 transport 的精确 Host/Origin/CSRF 和当前 epoch 重查。5 分钟 reauth 必须绑定具体 operation；改密码的 operation 绑定预生成新哈希承诺，全会话撤销使用不同的操作域，不能互换或替换新口令。账号/epoch/一次性 proof 消耗与会话撤销在同一事务完成。
+
+这些是原有 §3–5 的实现细节，不更改既有 Harness/Store/WebIdentityService 语义，不增脑事件。组件证据与 Web HTTP/浏览器、broker 双边恢复和原生安装 IP 证据分别记录。
