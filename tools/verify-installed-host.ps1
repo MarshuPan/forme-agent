@@ -102,7 +102,18 @@ try {
         "invalid_worker_requests_and_routes_have_no_admission_or_side_effect"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_host_worker_transport") $name }
 
-    Write-Host "installed-host-foundation: PASS"
+    foreach ($name in @(
+        "lifecycle::tests::closing_admission_preserves_existing_work_and_rejects_later_claims",
+        "lifecycle::tests::drain_configuration_rejects_unversioned_or_unbounded_waits",
+        "server::lifecycle_tests::controlled_shutdown_waits_for_the_real_model_run_and_releases_the_listener",
+        "server::lifecycle_tests::shutdown_timeout_preserves_inflight_facts_without_fabricating_a_terminal",
+        "server::lifecycle_tests::cancelled_request_keeps_its_blocking_admission_until_the_operation_finishes",
+        "server::lifecycle_tests::stop_during_startup_never_announces_ready_or_claims_background_work",
+        "server::lifecycle_tests::shutdown_preserves_the_exact_pending_approval_across_restart_without_an_effect",
+        "server::lifecycle_tests::shutdown_stops_background_claims_and_leaves_later_intentions_pending"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") $name }
+
+    Write-Host "installed-host-foundation and core-shutdown-components: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }
 finally { Pop-Location }

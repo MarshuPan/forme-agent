@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 mod client;
+mod lifecycle;
 mod server;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -29,7 +30,8 @@ pub use forme_harness::{EventStream, EvolutionActivationResult, EvolutionEvaluat
 use forme_protocol as p;
 
 pub use client::HttpGatewayClient;
-pub use server::{serve_environment, GatewayServerConfig};
+pub use lifecycle::GatewayLifecycleConfig;
+pub use server::{serve_environment, serve_environment_until, GatewayServerConfig};
 
 pub trait Gateway {
     fn submit(&self, event: CommunicationEvent) -> p::Result<p::RunId>;

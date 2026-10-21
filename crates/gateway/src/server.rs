@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::{self, OpenOptions};
+use std::future::{Future, IntoFuture};
 use std::io::{ErrorKind, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
@@ -14,14 +15,20 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use forme_communication::AuthContext;
 use forme_harness::{
-    CognitiveTickOutcome, CompositionManifest, ProductionRuntime, ProductionRuntimeBuilder,
-    ReactiveHarness, RuntimeServiceState, RuntimeServiceStatus, SchedulerService,
+    AgentHarness, CognitiveTickOutcome, CompositionManifest, GatewayControl, ProductionRuntime,
+    ProductionRuntimeBuilder, ReactiveHarness, RuntimeServiceState, RuntimeServiceStatus,
+    SchedulerService,
 };
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 use tower_http::timeout::TimeoutLayer;
 
-use crate::LocalGateway;
+use crate::lifecycle::WorkAdmission;
+use crate::{GatewayLifecycleConfig, LocalGateway};
+
+#[cfg(test)]
+#[path = "server_lifecycle_tests.rs"]
+mod lifecycle_tests;
 
 const INDEX_HTML: &str = include_str!("../assets/index.html");
 const APP_CSS: &str = include_str!("../assets/app.css");
@@ -164,8 +171,49 @@ pub async fn serve_environment<F>(config: GatewayServerConfig, on_bound: F) -> p
 where
     F: FnOnce(SocketAddr),
 {
+    serve_environment_until(
+        config,
+        GatewayLifecycleConfig::from_environment()?,
+        move |address| {
+            on_bound(address);
+            Ok(())
+        },
+        shutdown_signal(),
+    )
+    .await
+}
+
+/// OS service hosts supply their authenticated control signal here. No HTTP
+/// route can manufacture this signal or construct a second brain runtime.
+pub async fn serve_environment_until<F, S>(
+    config: GatewayServerConfig,
+    lifecycle: GatewayLifecycleConfig,
+    on_bound: F,
+    shutdown: S,
+) -> p::Result<()>
+where
+    F: FnOnce(SocketAddr) -> p::Result<()>,
+    S: Future<Output = p::Result<()>>,
+{
     config.validate()?;
+    lifecycle.validate()?;
     let runtime = Arc::new(ProductionRuntimeBuilder::from_environment()?.build()?);
+    serve_runtime_until(config, runtime, lifecycle, on_bound, shutdown).await
+}
+
+async fn serve_runtime_until<F, S>(
+    config: GatewayServerConfig,
+    runtime: Arc<ProductionRuntime>,
+    lifecycle: GatewayLifecycleConfig,
+    on_bound: F,
+    shutdown: S,
+) -> p::Result<()>
+where
+    F: FnOnce(SocketAddr) -> p::Result<()>,
+    S: Future<Output = p::Result<()>>,
+{
+    config.validate()?;
+    lifecycle.validate()?;
     if runtime.owner().0 != config.owner.0 {
         return Err(p::Error(
             "gateway owner does not match the production runtime owner".into(),
@@ -199,6 +247,8 @@ where
             "local gateway resolved to a non-loopback address".into(),
         ));
     }
+    let admission = Arc::new(WorkAdmission::default());
+    let _close_on_drop = CloseAdmissionOnDrop(admission.clone());
     let state = Arc::new(HttpState {
         gateway,
         runtime: runtime.clone(),
@@ -207,13 +257,24 @@ where
         origin: format!("http://{address}"),
         rate: Mutex::new(RateWindow::new()),
         max_requests_per_minute: config.max_requests_per_minute,
+        admission: admission.clone(),
     });
     let app = router(state, &config);
+    tokio::pin!(shutdown);
+    // A service stopped during startup must not announce readiness or claim a
+    // scheduler window after the controller has already requested shutdown.
+    tokio::select! {
+        biased;
+        result = &mut shutdown => return result,
+        _ = std::future::ready(()) => {}
+    }
+    on_bound(address)?;
     // One background task drives the runtime's shared scheduler pass: due
     // intentions and the owner-brain tick both run through the same harness.
     let cognition = &runtime.config().cognition;
     let scheduler_task = if config.scheduler_enabled || cognition.tick_enabled {
         let scheduler = runtime.clone();
+        let scheduler_admission = admission.clone();
         let tick = Duration::from_millis(if config.scheduler_enabled {
             config.scheduler.tick.0.min(cognition.tick_interval.0)
         } else {
@@ -223,24 +284,111 @@ where
             let mut interval = tokio::time::interval(tick);
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
-                interval.tick().await;
+                tokio::select! {
+                    biased;
+                    _ = scheduler_admission.stopped() => break,
+                    _ = interval.tick() => {}
+                }
+                let Ok(lease) = scheduler_admission.acquire() else {
+                    break;
+                };
                 let scheduler = scheduler.clone();
-                let _ =
-                    tokio::task::spawn_blocking(move || scheduler.scheduler_pass(now_ms())).await;
+                let _ = tokio::task::spawn_blocking(move || {
+                    let _lease = lease;
+                    scheduler.scheduler_pass(now_ms())
+                })
+                .await;
             }
         }))
     } else {
         None
     };
-    on_bound(address);
-    let result = axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
+    let (stop_tx, stop_rx) = tokio::sync::oneshot::channel();
+    let server = axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            let _ = stop_rx.await;
+        })
+        .into_future();
+    tokio::pin!(server);
+    let (server_finished, stop_result) = tokio::select! {
+        result = &mut shutdown => (false, result),
+        result = &mut server => (true, result.map_err(|error| p::Error(format!("local gateway server failed: {error}")))),
+    };
+    // The same lock fences both HTTP blocking work and scheduler claims. A
+    // timed-out HTTP request retains its lease inside the blocking operation.
+    admission.close()?;
+    let _ = stop_tx.send(());
+    let deadline = tokio::time::Instant::now() + lifecycle.drain_timeout;
+    let settle_work = async {
+        admission.idle().await?;
+        if let Some(task) = scheduler_task {
+            task.await
+                .map_err(|_| p::Error("core scheduler did not settle".into()))?;
+        }
+        let drain_runtime = runtime.clone();
+        let limit = deadline.into_std();
+        tokio::task::spawn_blocking(move || drain_runs(drain_runtime, limit))
+            .await
+            .map_err(|_| p::Error("core run drain did not settle".into()))??;
+        Ok::<_, p::Error>(())
+    };
+    let settle_http = async {
+        if !server_finished {
+            server
+                .await
+                .map_err(|error| p::Error(format!("local gateway shutdown failed: {error}")))?;
+        }
+        Ok::<_, p::Error>(())
+    };
+    // Keep polling graceful shutdown while work drains, so the listener closes
+    // immediately rather than waiting behind an in-flight model or tool call.
+    let drain = async {
+        tokio::try_join!(settle_http, settle_work)?;
+        Ok::<_, p::Error>(())
+    };
+    tokio::time::timeout_at(deadline, drain)
         .await
-        .map_err(|error| p::Error(format!("local gateway server failed: {error}")));
-    if let Some(task) = scheduler_task {
-        task.abort();
+        .map_err(|_| {
+            p::Error("core shutdown deadline exceeded; normal startup recovery is required".into())
+        })??;
+    stop_result
+}
+
+fn drain_runs(runtime: Arc<ProductionRuntime>, deadline: Instant) -> p::Result<()> {
+    let harness = runtime.harness();
+    loop {
+        if Instant::now() >= deadline {
+            return Err(p::Error(
+                "core run drain deadline exceeded; recovery is required".into(),
+            ));
+        }
+        let runs = GatewayControl::list_runs(harness.as_ref())?;
+        if runs
+            .iter()
+            .any(|run| matches!(run.status, p::RunStatus::Accepted | p::RunStatus::Running))
+        {
+            std::thread::sleep(Duration::from_millis(10));
+            continue;
+        }
+        // Waiting includes persisted approval/unknown outcomes. Do not turn
+        // either into an aborted or completed run just to make service stop.
+        let sessions = runs
+            .into_iter()
+            .map(|run| run.session)
+            .collect::<std::collections::BTreeSet<_>>();
+        for session in sessions {
+            AgentHarness::drain(harness.as_ref(), session)?;
+        }
+        return Ok(());
     }
-    result
+}
+
+struct CloseAdmissionOnDrop(Arc<WorkAdmission>);
+
+impl Drop for CloseAdmissionOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.close();
+    }
 }
 
 fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
@@ -324,6 +472,7 @@ struct HttpState {
     origin: String,
     rate: Mutex<RateWindow>,
     max_requests_per_minute: u32,
+    admission: Arc<WorkAdmission>,
 }
 
 struct RateWindow {
@@ -442,15 +591,26 @@ impl IntoResponse for ApiError {
     }
 }
 
-async fn blocking<T, F>(operation: F) -> Result<T, ApiError>
-where
-    T: Send + 'static,
-    F: FnOnce() -> p::Result<T> + Send + 'static,
-{
-    tokio::task::spawn_blocking(operation)
+impl HttpState {
+    async fn blocking<T, F>(&self, operation: F) -> Result<T, ApiError>
+    where
+        T: Send + 'static,
+        F: FnOnce() -> p::Result<T> + Send + 'static,
+    {
+        let lease = self.admission.acquire().map_err(|_| {
+            ApiError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "core is draining; new work is unavailable",
+            )
+        })?;
+        tokio::task::spawn_blocking(move || {
+            let _lease = lease;
+            operation()
+        })
         .await
         .map_err(|_| ApiError::internal("gateway worker did not complete"))?
         .map_err(ApiError::from)
+    }
 }
 
 async fn index() -> Response {
@@ -646,7 +806,9 @@ async fn runtime_tick(
 ) -> Result<Json<RuntimeTickView>, ApiError> {
     state.authorize(&headers, true)?;
     let runtime = state.runtime.clone();
-    let outcome = blocking(move || runtime.signal_cognitive_tick()).await?;
+    let outcome = state
+        .blocking(move || runtime.signal_cognitive_tick())
+        .await?;
     Ok(Json(runtime_tick_view(outcome)))
 }
 
@@ -665,19 +827,20 @@ async fn brain_workspace(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    let projection = blocking(move || {
-        gateway.agent_workspace(
-            forme_harness::AgentWorkspaceQuery {
-                schema_version: p::SchemaVersion(1),
-                scope: query.scope.map(p::Scope),
-                capacity: query.capacity.unwrap_or(10),
-                now: query.at.unwrap_or_else(now_ms),
-                config_version: p::Version(1),
-            },
-            auth,
-        )
-    })
-    .await?;
+    let projection = state
+        .blocking(move || {
+            gateway.agent_workspace(
+                forme_harness::AgentWorkspaceQuery {
+                    schema_version: p::SchemaVersion(1),
+                    scope: query.scope.map(p::Scope),
+                    capacity: query.capacity.unwrap_or(10),
+                    now: query.at.unwrap_or_else(now_ms),
+                    config_version: p::Version(1),
+                },
+                auth,
+            )
+        })
+        .await?;
     Ok(Json(
         serde_json::json!({"schema_version":1,"snapshot_ref":projection.snapshot_ref,"capacity":projection.capacity,
         "items":projection.items.iter().map(|item|serde_json::json!({"schema_version":1,"id":item.id,"kind":format!("{:?}",item.kind),
@@ -700,10 +863,11 @@ async fn brain_dashboard(
 ) -> Result<Json<forme_harness::CognitiveDashboardSnapshot>, ApiError> {
     state.authorize(&headers, false)?;
     let runtime = state.runtime.clone();
-    let snapshot = blocking(move || {
-        runtime.dashboard(query.workspace.map(p::WorkspaceRef), query.from, query.to)
-    })
-    .await?;
+    let snapshot = state
+        .blocking(move || {
+            runtime.dashboard(query.workspace.map(p::WorkspaceRef), query.from, query.to)
+        })
+        .await?;
     Ok(Json(snapshot))
 }
 
@@ -769,7 +933,9 @@ async fn data_backup(
     let runtime = state.runtime.clone();
     let owner = state.owner.clone();
     Ok(Json(
-        blocking(move || runtime.create_data_backup(&owner, &r.target)).await?,
+        state
+            .blocking(move || runtime.create_data_backup(&owner, &r.target))
+            .await?,
     ))
 }
 async fn data_verify_backup(
@@ -782,7 +948,9 @@ async fn data_verify_backup(
     let runtime = state.runtime.clone();
     let owner = state.owner.clone();
     Ok(Json(
-        blocking(move || runtime.verify_data_backup(&owner, &r.source)).await?,
+        state
+            .blocking(move || runtime.verify_data_backup(&owner, &r.source))
+            .await?,
     ))
 }
 async fn data_restore_plan(
@@ -795,7 +963,9 @@ async fn data_restore_plan(
     let runtime = state.runtime.clone();
     let owner = state.owner.clone();
     Ok(Json(
-        blocking(move || runtime.prepare_data_restore(&owner, r.source, r.target)).await?,
+        state
+            .blocking(move || runtime.prepare_data_restore(&owner, r.source, r.target))
+            .await?,
     ))
 }
 async fn data_restore(
@@ -817,7 +987,9 @@ async fn data_restore(
     let runtime = state.runtime.clone();
     let owner = state.owner.clone();
     Ok(Json(
-        blocking(move || runtime.apply_data_operation(&owner, r.plan, r.confirmation)).await?,
+        state
+            .blocking(move || runtime.apply_data_operation(&owner, r.plan, r.confirmation))
+            .await?,
     ))
 }
 async fn data_lifecycle(
@@ -828,44 +1000,45 @@ async fn data_lifecycle(
     state.authorize(&headers, true)?;
     let runtime = state.runtime.clone();
     let owner = state.owner.clone();
-    let value = blocking(move || match command {
-        DataLifecycleCommand::Prepare {
-            schema_version,
-            scope,
-            subject_digest,
-            operation,
-            expected_version,
-        } => {
-            if schema_version.0 != 1 {
-                return Err(p::Error("unsupported lifecycle schema".into()));
-            }
-            serde_json::to_value(runtime.prepare_data_lifecycle(
-                &owner,
+    let value = state
+        .blocking(move || match command {
+            DataLifecycleCommand::Prepare {
+                schema_version,
                 scope,
                 subject_digest,
                 operation,
                 expected_version,
-            )?)
-            .map_err(|_| p::Error("lifecycle plan response failed".into()))
-        }
-        DataLifecycleCommand::Apply {
-            schema_version,
-            plan,
-            confirmation,
-        } => {
-            if schema_version.0 != 1
-                || !matches!(
-                    plan.operation,
-                    forme_harness::DataPlannedOperation::Lifecycle { .. }
-                )
-            {
-                return Err(p::Error("lifecycle route requires a lifecycle plan".into()));
+            } => {
+                if schema_version.0 != 1 {
+                    return Err(p::Error("unsupported lifecycle schema".into()));
+                }
+                serde_json::to_value(runtime.prepare_data_lifecycle(
+                    &owner,
+                    scope,
+                    subject_digest,
+                    operation,
+                    expected_version,
+                )?)
+                .map_err(|_| p::Error("lifecycle plan response failed".into()))
             }
-            serde_json::to_value(runtime.apply_data_operation(&owner, *plan, confirmation)?)
-                .map_err(|_| p::Error("lifecycle response failed".into()))
-        }
-    })
-    .await?;
+            DataLifecycleCommand::Apply {
+                schema_version,
+                plan,
+                confirmation,
+            } => {
+                if schema_version.0 != 1
+                    || !matches!(
+                        plan.operation,
+                        forme_harness::DataPlannedOperation::Lifecycle { .. }
+                    )
+                {
+                    return Err(p::Error("lifecycle route requires a lifecycle plan".into()));
+                }
+                serde_json::to_value(runtime.apply_data_operation(&owner, *plan, confirmation)?)
+                    .map_err(|_| p::Error("lifecycle response failed".into()))
+            }
+        })
+        .await?;
     Ok(Json(value))
 }
 
@@ -951,7 +1124,9 @@ async fn project_ledger(
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
     Ok(Json(
-        blocking(move || gateway.orchestration_state(auth)).await?,
+        state
+            .blocking(move || gateway.orchestration_state(auth))
+            .await?,
     ))
 }
 async fn project_command(
@@ -962,8 +1137,8 @@ async fn project_command(
     let auth = state.authorize(&headers, true)?;
     learning_schema(request.schema_version)?;
     let gateway = state.gateway.clone();
-    let value =
-        blocking(move || match request.request {
+    let value = state
+        .blocking(move || match request.request {
             ProjectCommand::Register { command, project } => gateway
                 .register_project(command, project, auth)
                 .map(|event| serde_json::json!({"event":event})),
@@ -1007,7 +1182,9 @@ async fn read_workspace_charter(
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
     Ok(Json(
-        blocking(move || gateway.workspace_charter(p::WorkspaceRef(id), auth)).await?,
+        state
+            .blocking(move || gateway.workspace_charter(p::WorkspaceRef(id), auth))
+            .await?,
     ))
 }
 
@@ -1026,9 +1203,9 @@ async fn write_workspace_charter(
         ));
     }
     let gateway = state.gateway.clone();
-    let event =
-        blocking(move || gateway.apply_workspace_charter(request.command, request.change, auth))
-            .await?;
+    let event = state
+        .blocking(move || gateway.apply_workspace_charter(request.command, request.change, auth))
+        .await?;
     Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
 }
 
@@ -1040,10 +1217,11 @@ async fn register_learning_goal(
     let auth = state.authorize(&headers, true)?;
     learning_schema(request.schema_version)?;
     let gateway = state.gateway.clone();
-    let event = blocking(move || {
-        gateway.register_learning_goal(request.command, request.goal, request.knowledge, auth)
-    })
-    .await?;
+    let event = state
+        .blocking(move || {
+            gateway.register_learning_goal(request.command, request.goal, request.knowledge, auth)
+        })
+        .await?;
     Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
 }
 async fn answer_learning(
@@ -1054,8 +1232,9 @@ async fn answer_learning(
     let auth = state.authorize(&headers, true)?;
     learning_schema(request.schema_version)?;
     let gateway = state.gateway.clone();
-    let candidate =
-        blocking(move || gateway.answer_learning(request.command, request.reply, auth)).await?;
+    let candidate = state
+        .blocking(move || gateway.answer_learning(request.command, request.reply, auth))
+        .await?;
     Ok(Json(
         serde_json::json!({"schema_version":1,"candidate":candidate}),
     ))
@@ -1068,16 +1247,17 @@ async fn resolve_learning(
     let auth = state.authorize(&headers, true)?;
     learning_schema(request.schema_version)?;
     let gateway = state.gateway.clone();
-    let event = blocking(move || {
-        gateway.resolve_learning(
-            request.command,
-            request.proposal,
-            request.outcome,
-            request.defer_until,
-            auth,
-        )
-    })
-    .await?;
+    let event = state
+        .blocking(move || {
+            gateway.resolve_learning(
+                request.command,
+                request.proposal,
+                request.outcome,
+                request.defer_until,
+                auth,
+            )
+        })
+        .await?;
     Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
 }
 
@@ -1087,7 +1267,8 @@ async fn control_profile(
 ) -> Result<Json<p::ControlProfile>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.control_profile(p::SurfaceRef("surface:local-web".into()), auth))
+    state
+        .blocking(move || gateway.control_profile(p::SurfaceRef("surface:local-web".into()), auth))
         .await
         .map(Json)
 }
@@ -1099,7 +1280,9 @@ async fn submit_run(
 ) -> Result<(StatusCode, Json<p::RunId>), ApiError> {
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let run = blocking(move || gateway.start_run(request, auth)).await?;
+    let run = state
+        .blocking(move || gateway.start_run(request, auth))
+        .await?;
     Ok((StatusCode::ACCEPTED, Json(run)))
 }
 
@@ -1109,7 +1292,10 @@ async fn list_runs(
 ) -> Result<Json<Vec<p::RunSummary>>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.list_runs(auth)).await.map(Json)
+    state
+        .blocking(move || gateway.list_runs(auth))
+        .await
+        .map(Json)
 }
 
 async fn run_summary(
@@ -1119,7 +1305,8 @@ async fn run_summary(
 ) -> Result<Json<p::RunSummary>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.run_summary(p::RunId(run), auth))
+    state
+        .blocking(move || gateway.run_summary(p::RunId(run), auth))
         .await
         .map(Json)
 }
@@ -1141,7 +1328,9 @@ async fn run_answer(
     let run = p::RunId(run);
     let answer = {
         let run = run.clone();
-        blocking(move || gateway.answer_for_owner(run, auth)).await?
+        state
+            .blocking(move || gateway.answer_for_owner(run, auth))
+            .await?
     };
     Ok(Json(RunAnswerView {
         schema_version: p::SchemaVersion(1),
@@ -1164,17 +1353,18 @@ async fn run_events(
     let auth = state.authorize(&headers, false)?;
     let after = event_cursor(&run, query.after, &headers)?;
     let gateway = state.gateway.clone();
-    let page = blocking(move || {
-        gateway.event_page(
-            p::EventCursor {
-                schema_version: p::SchemaVersion(1),
-                run: p::RunId(run),
-                after_stream_seq: after,
-            },
-            auth,
-        )
-    })
-    .await?;
+    let page = state
+        .blocking(move || {
+            gateway.event_page(
+                p::EventCursor {
+                    schema_version: p::SchemaVersion(1),
+                    run: p::RunId(run),
+                    after_stream_seq: after,
+                },
+                auth,
+            )
+        })
+        .await?;
     let mut body = String::new();
     for event in &page.events {
         let json = serde_json::to_string(event)
@@ -1205,7 +1395,8 @@ async fn approvals(
 ) -> Result<Json<Vec<p::PendingApproval>>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.pending_approvals(p::SessionId(session), auth))
+    state
+        .blocking(move || gateway.pending_approvals(p::SessionId(session), auth))
         .await
         .map(Json)
 }
@@ -1226,7 +1417,9 @@ async fn control_run(
         }
     }
     let gateway = state.gateway.clone();
-    blocking(move || gateway.control_run(p::RunId(run), control, auth)).await?;
+    state
+        .blocking(move || gateway.control_run(p::RunId(run), control, auth))
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1237,7 +1430,8 @@ async fn trace_view(
 ) -> Result<Json<p::TraceView>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.trace_view(p::RunId(run), auth))
+    state
+        .blocking(move || gateway.trace_view(p::RunId(run), auth))
         .await
         .map(Json)
 }
@@ -1248,7 +1442,10 @@ async fn list_jobs(
 ) -> Result<Json<Vec<p::ScheduledJob>>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.list_jobs(auth)).await.map(Json)
+    state
+        .blocking(move || gateway.list_jobs(auth))
+        .await
+        .map(Json)
 }
 
 async fn schedule_job(
@@ -1258,7 +1455,9 @@ async fn schedule_job(
 ) -> Result<(StatusCode, Json<p::IntentionId>), ApiError> {
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let intention = blocking(move || gateway.schedule_job(command, auth)).await?;
+    let intention = state
+        .blocking(move || gateway.schedule_job(command, auth))
+        .await?;
     Ok((StatusCode::ACCEPTED, Json(intention)))
 }
 
@@ -1269,7 +1468,9 @@ async fn cancel_job(
 ) -> Result<StatusCode, ApiError> {
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.cancel_job(p::IntentionId(intention), auth)).await?;
+    state
+        .blocking(move || gateway.cancel_job(p::IntentionId(intention), auth))
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1287,7 +1488,9 @@ async fn review_candidate(
         ));
     }
     let gateway = state.gateway.clone();
-    blocking(move || gateway.review_candidate(command, auth)).await?;
+    state
+        .blocking(move || gateway.review_candidate(command, auth))
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1312,7 +1515,8 @@ async fn run_eval(
     let auth = state.authorize(&headers, true)?;
     request.validate().map_err(ApiError::from)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.run_eval(request.case, request.profile, auth))
+    state
+        .blocking(move || gateway.run_eval(request.case, request.profile, auth))
         .await
         .map(Json)
 }
@@ -1324,7 +1528,8 @@ async fn export_eval(
 ) -> Result<Json<p::ManualEvalReport>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    blocking(move || gateway.export_eval(p::EvalRef(eval), auth))
+    state
+        .blocking(move || gateway.export_eval(p::EvalRef(eval), auth))
         .await
         .map(Json)
 }
@@ -1471,7 +1676,8 @@ async fn evolution_snapshot(
         ));
     }
     let gateway = state.gateway.clone();
-    blocking(move || gateway.evolution_snapshot(p::Scope(query.scope), auth))
+    state
+        .blocking(move || gateway.evolution_snapshot(p::Scope(query.scope), auth))
         .await
         .map(Json)
 }
@@ -1489,7 +1695,8 @@ async fn ecosystem_snapshot(
         ));
     }
     let gateway = state.gateway.clone();
-    blocking(move || gateway.ecosystem_snapshot(p::Scope(query.scope), auth))
+    state
+        .blocking(move || gateway.ecosystem_snapshot(p::Scope(query.scope), auth))
         .await
         .map(Json)
 }
@@ -1502,16 +1709,17 @@ async fn provision_capability_publisher(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let result = blocking(move || {
-        gateway.provision_capability_publisher(
-            request.run,
-            request.grant,
-            request.previous,
-            request.expected,
-            auth,
-        )
-    })
-    .await?;
+    let result = state
+        .blocking(move || {
+            gateway.provision_capability_publisher(
+                request.run,
+                request.grant,
+                request.previous,
+                request.expected,
+                auth,
+            )
+        })
+        .await?;
     Ok((StatusCode::CREATED, Json(result)))
 }
 
@@ -1523,10 +1731,16 @@ async fn admit_capability_package(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let admission = blocking(move || {
-        gateway.admit_capability_package(request.run, request.catalog_run, request.package, auth)
-    })
-    .await?;
+    let admission = state
+        .blocking(move || {
+            gateway.admit_capability_package(
+                request.run,
+                request.catalog_run,
+                request.package,
+                auth,
+            )
+        })
+        .await?;
     Ok((StatusCode::CREATED, Json(admission)))
 }
 
@@ -1538,11 +1752,17 @@ async fn prepare_capability_change(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    blocking(move || {
-        gateway.prepare_capability_change(request.operation, request.package, request.release, auth)
-    })
-    .await
-    .map(Json)
+    state
+        .blocking(move || {
+            gateway.prepare_capability_change(
+                request.operation,
+                request.package,
+                request.release,
+                auth,
+            )
+        })
+        .await
+        .map(Json)
 }
 
 async fn apply_capability_change(
@@ -1553,17 +1773,18 @@ async fn apply_capability_change(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    blocking(move || {
-        gateway.apply_capability_change(
-            request.run,
-            request.plan,
-            request.approval,
-            request.reason,
-            auth,
-        )
-    })
-    .await
-    .map(Json)
+    state
+        .blocking(move || {
+            gateway.apply_capability_change(
+                request.run,
+                request.plan,
+                request.approval,
+                request.reason,
+                auth,
+            )
+        })
+        .await
+        .map(Json)
 }
 
 async fn prepare_capability_distribution(
@@ -1574,16 +1795,17 @@ async fn prepare_capability_distribution(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    blocking(move || {
-        gateway.prepare_capability_distribution(
-            request.plan,
-            request.target_peer,
-            request.authority_epoch,
-            auth,
-        )
-    })
-    .await
-    .map(Json)
+    state
+        .blocking(move || {
+            gateway.prepare_capability_distribution(
+                request.plan,
+                request.target_peer,
+                request.authority_epoch,
+                auth,
+            )
+        })
+        .await
+        .map(Json)
 }
 
 async fn auto_activation_status(
@@ -1592,7 +1814,9 @@ async fn auto_activation_status(
 ) -> Result<Json<AutoActivationStatus>, ApiError> {
     let auth = state.authorize(&headers, false)?;
     let gateway = state.gateway.clone();
-    let paused = blocking(move || gateway.auto_activation_paused(auth)).await?;
+    let paused = state
+        .blocking(move || gateway.auto_activation_paused(auth))
+        .await?;
     Ok(Json(AutoActivationStatus {
         schema_version: p::SchemaVersion(1),
         paused,
@@ -1608,7 +1832,9 @@ async fn set_auto_activation_status(
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
     let paused = request.paused;
-    blocking(move || gateway.set_auto_activation_paused(paused, auth)).await?;
+    state
+        .blocking(move || gateway.set_auto_activation_paused(paused, auth))
+        .await?;
     Ok(Json(AutoActivationStatus {
         schema_version: p::SchemaVersion(1),
         paused,
@@ -1639,10 +1865,11 @@ async fn initialize_strategy_seed(
     state.authorize(&headers, true)?;
     let owner = state.owner.clone();
     let runtime = state.runtime.clone();
-    let body = blocking(move || {
-        runtime.initialize_strategy_seed(&owner, request.domain, &request.workspace)
-    })
-    .await?;
+    let body = state
+        .blocking(move || {
+            runtime.initialize_strategy_seed(&owner, request.domain, &request.workspace)
+        })
+        .await?;
     Ok(Json(body))
 }
 
@@ -1655,7 +1882,9 @@ async fn register_strategy_spec(
     state.authorize(&headers, true)?;
     let owner = state.owner.clone();
     let runtime = state.runtime.clone();
-    let body = blocking(move || runtime.register_strategy_spec(&owner, request.spec)).await?;
+    let body = state
+        .blocking(move || runtime.register_strategy_spec(&owner, request.spec))
+        .await?;
     Ok(Json(body))
 }
 
@@ -1668,9 +1897,9 @@ async fn record_strategy_candidate(
     let auth = state.authorize(&headers, true)?;
     stamp_owner_candidate(&mut request.candidate);
     let gateway = state.gateway.clone();
-    let event =
-        blocking(move || gateway.record_strategy_candidate(request.run, request.candidate, auth))
-            .await?;
+    let event = state
+        .blocking(move || gateway.record_strategy_candidate(request.run, request.candidate, auth))
+        .await?;
     Ok((StatusCode::CREATED, Json(event)))
 }
 
@@ -1682,10 +1911,11 @@ async fn evaluate_strategy(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let result = blocking(move || {
-        gateway.evaluate_strategy(request.run, &request.candidate, request.comparison, auth)
-    })
-    .await?;
+    let result = state
+        .blocking(move || {
+            gateway.evaluate_strategy(request.run, &request.candidate, request.comparison, auth)
+        })
+        .await?;
     Ok(Json(EvaluateStrategyResponse {
         schema_version: p::SchemaVersion(1),
         evaluation: result.evaluation,
@@ -1701,10 +1931,11 @@ async fn promote_strategy(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let event = blocking(move || {
-        gateway.promote_strategy(request.run, &request.candidate, &request.evaluation, auth)
-    })
-    .await?;
+    let event = state
+        .blocking(move || {
+            gateway.promote_strategy(request.run, &request.candidate, &request.evaluation, auth)
+        })
+        .await?;
     Ok((StatusCode::CREATED, Json(event)))
 }
 
@@ -1716,17 +1947,18 @@ async fn activate_strategy(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let result = blocking(move || {
-        gateway.activate_strategy(
-            request.run,
-            request.aggregate,
-            &request.candidate,
-            &request.evaluation,
-            request.promotion,
-            auth,
-        )
-    })
-    .await?;
+    let result = state
+        .blocking(move || {
+            gateway.activate_strategy(
+                request.run,
+                request.aggregate,
+                &request.candidate,
+                &request.evaluation,
+                request.promotion,
+                auth,
+            )
+        })
+        .await?;
     Ok(Json(EvolutionActivationResponse {
         schema_version: p::SchemaVersion(1),
         append: result.append,
@@ -1742,19 +1974,20 @@ async fn rollback_strategy(
     require_schema(request.schema_version)?;
     let auth = state.authorize(&headers, true)?;
     let gateway = state.gateway.clone();
-    let result = blocking(move || {
-        gateway.rollback_strategy(
-            request.run,
-            request.aggregate,
-            request.domain,
-            request.scope,
-            request.restored,
-            request.triggers,
-            request.in_flight,
-            auth,
-        )
-    })
-    .await?;
+    let result = state
+        .blocking(move || {
+            gateway.rollback_strategy(
+                request.run,
+                request.aggregate,
+                request.domain,
+                request.scope,
+                request.restored,
+                request.triggers,
+                request.in_flight,
+                auth,
+            )
+        })
+        .await?;
     Ok(Json(EvolutionActivationResponse {
         schema_version: p::SchemaVersion(1),
         append: result.append,
@@ -1947,8 +2180,21 @@ fn now_ms() -> p::Timestamp {
         .unwrap_or(0)
 }
 
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
+async fn shutdown_signal() -> p::Result<()> {
+    #[cfg(unix)]
+    {
+        let mut terminate =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .map_err(|_| p::Error("core termination signal is unavailable".into()))?;
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => result.map_err(|_| p::Error("core interrupt signal is unavailable".into())),
+            _ = terminate.recv() => Ok(()),
+        }
+    }
+    #[cfg(not(unix))]
+    tokio::signal::ctrl_c()
+        .await
+        .map_err(|_| p::Error("core interrupt signal is unavailable".into()))
 }
 
 #[cfg(test)]
