@@ -1,4 +1,5 @@
 //! Host process composition and bounded listener lifecycle.
+mod bootstrap;
 pub(super) mod config;
 pub(super) mod http;
 #[cfg(windows)]
@@ -53,6 +54,7 @@ fn run_host(
         )?
     };
     let target = target_from_environment()?;
+    let bootstrap = load_bootstrap_authority(&journal, &install_id, &credentials)?;
     let active_release =
         std::env::var("FORME_ACTIVE_RELEASE").unwrap_or_else(|_| "unconfigured".into());
     let agent_digest = credentials
@@ -119,6 +121,7 @@ fn run_host(
                         continue;
                     }
                     let broker = broker.clone();
+                    let bootstrap = bootstrap.clone();
                     let worker = worker.clone();
                     let connections = endpoint.connections.clone();
                     let domain = endpoint.domain;
@@ -130,7 +133,7 @@ fn run_host(
                             }
                         }
                         let _guard = ConnectionGuard(connections);
-                        let _ = handle_connection(stream, broker, worker, domain);
+                        let _ = handle_connection(stream, broker, worker, bootstrap, domain);
                     });
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}

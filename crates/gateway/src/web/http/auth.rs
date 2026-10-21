@@ -47,12 +47,12 @@ pub(super) struct PasswordBody {
     new_password: SensitivePassword,
 }
 
-fn json<T>(body: Result<Json<T>, JsonRejection>) -> Result<T, WebError> {
+pub(super) fn json<T>(body: Result<Json<T>, JsonRejection>) -> Result<T, WebError> {
     body.map(|Json(value)| value)
         .map_err(|_| WebError::invalid())
 }
 
-fn version(version: p::SchemaVersion) -> Result<(), WebError> {
+pub(super) fn version(version: p::SchemaVersion) -> Result<(), WebError> {
     if version == p::SchemaVersion(1) {
         Ok(())
     } else {
@@ -60,7 +60,7 @@ fn version(version: p::SchemaVersion) -> Result<(), WebError> {
     }
 }
 
-fn key(headers: &HeaderMap) -> Result<&str, WebError> {
+pub(super) fn key(headers: &HeaderMap) -> Result<&str, WebError> {
     let key = security::one(headers, "idempotency-key")?.ok_or_else(WebError::invalid)?;
     p::validate_product_id(key).map_err(|_| WebError::invalid())?;
     Ok(key)
@@ -71,7 +71,7 @@ fn session_cookie(headers: &HeaderMap) -> Result<SensitiveCookie, WebError> {
         .ok_or_else(|| AuthError::Unauthenticated.into())
 }
 
-fn mutation(headers: &HeaderMap) -> Result<WebRequestBinding, WebError> {
+pub(super) fn mutation(headers: &HeaderMap) -> Result<WebRequestBinding, WebError> {
     key(headers)?;
     let csrf = security::one(headers, "x-forme-csrf")?.ok_or(AuthError::CsrfRejected)?;
     Ok(WebRequestBinding {
@@ -259,14 +259,6 @@ pub(super) async fn password(
     let mut response = Json(revision).into_response();
     security::set_cookie(&mut response, security::SESSION_COOKIE, "", 0)?;
     Ok(response)
-}
-
-pub(super) async fn unavailable() -> WebError {
-    WebError::new(
-        StatusCode::SERVICE_UNAVAILABLE,
-        "ProductIntegrationPending",
-        "此产品入口尚未接入，请使用本机维护工具",
-    )
 }
 
 pub(super) async fn missing() -> WebError {

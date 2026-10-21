@@ -2,4 +2,5 @@
 mod config;
 pub mod http;
 pub mod identity;
-pub use config::WebServerConfig;
+pub use config::{WebBootstrapBridgeConfig, WebServerConfig};
+pub mod bootstrap;

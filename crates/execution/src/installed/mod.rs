@@ -1,6 +1,7 @@
 //! Host-management storage and platform adapters, independent of brain state.
 #![forbid(unsafe_code)]
 
+pub mod bootstrap;
 mod host;
 mod journal;
 mod paths;

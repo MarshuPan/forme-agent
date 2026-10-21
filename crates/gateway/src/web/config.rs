@@ -16,6 +16,16 @@ pub struct WebServerConfig {
     pub claim_verifying_key: [u8; 32],
     #[serde(default = "default_bind")]
     pub bind: SocketAddr,
+    #[serde(default)]
+    pub bootstrap_bridge: Option<WebBootstrapBridgeConfig>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebBootstrapBridgeConfig {
+    pub schema_version: p::SchemaVersion,
+    pub address: SocketAddr,
+    pub credential_path: PathBuf,
 }
 
 fn default_bind() -> SocketAddr {
@@ -53,6 +63,16 @@ impl WebServerConfig {
             return Err(p::Error("Web configuration requires an exact loopback HTTP address; LAN TLS is not available in this adapter".into()));
         }
         p::validate_product_id(&self.install_ref)?;
+        if let Some(bridge) = &self.bootstrap_bridge {
+            if bridge.schema_version != p::SchemaVersion(1)
+                || !bridge.address.ip().is_loopback()
+                || bridge.address.port() == 0
+                || bridge.address == self.bind
+            {
+                return Err(invalid());
+            }
+            check_path(&bridge.credential_path)?;
+        }
         check_path(&self.identity_directory)?;
         VerifyingKey::from_bytes(&self.claim_verifying_key).map_err(|_| invalid())?;
         Ok(())
@@ -63,7 +83,7 @@ fn invalid() -> p::Error {
     p::Error("Web service configuration is unavailable or invalid".into())
 }
 
-fn check_path(path: &Path) -> p::Result<()> {
+pub(super) fn check_path(path: &Path) -> p::Result<()> {
     if !path.is_absolute()
         || path
             .components()

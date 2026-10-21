@@ -5,13 +5,13 @@ use super::*;
 
 const LOGIN_TTL: i64 = 5 * 60 * 1000;
 
-fn reference(cookie: &SensitiveCookie) -> AuthResult<p::SchemaDigest> {
+pub(super) fn reference(cookie: &SensitiveCookie) -> AuthResult<p::SchemaDigest> {
     digest(cookie.expose_for_transport())?;
     p::canonical_digest(&("forme-login-attempt-v1", cookie.expose_for_transport()))
         .map_err(|_| AuthError::Unavailable)
 }
 
-fn csrf(cookie: &SensitiveCookie) -> AuthResult<String> {
+pub(super) fn csrf(cookie: &SensitiveCookie) -> AuthResult<String> {
     p::canonical_digest(&("forme-login-csrf-v1", cookie.expose_for_transport()))
         .map(|digest| digest.0.trim_start_matches("sha256:").into())
         .map_err(|_| AuthError::Unavailable)

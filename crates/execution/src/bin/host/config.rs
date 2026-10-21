@@ -73,6 +73,49 @@ pub(crate) fn required(key: &str) -> p::Result<String> {
     std::env::var(key).map_err(|_| p::Error(format!("required configuration {key} is missing")))
 }
 
+pub(super) fn load_bootstrap_authority(
+    host_journal: &Path,
+    install: &str,
+    credentials: &HostCredentials,
+) -> p::Result<Option<Arc<forme_execution::installed::bootstrap::BootstrapAuthority>>> {
+    use forme_execution::installed::bootstrap::{BootstrapAuthority, BootstrapAuthorityConfig};
+    let Some(path) = std::env::var_os("FORME_BOOTSTRAP_CONFIG_PATH") else {
+        return Ok(None);
+    };
+    let config = BootstrapAuthorityConfig::load(&PathBuf::from(path))
+        .map_err(|e| p::Error(e.to_string()))?;
+    if config.install_ref != install {
+        return Err(p::Error(
+            "setup configuration belongs to another installation".into(),
+        ));
+    }
+    let mut protected = vec![host_journal.to_path_buf()];
+    for key in [
+        "FORME_HOST_MAINTENANCE_TOKEN_PATH",
+        "FORME_HOST_AGENT_TOKEN_PATH",
+        "FORME_WORKER_CONFIG_PATH",
+    ] {
+        if let Some(path) = std::env::var_os(key) {
+            protected.push(PathBuf::from(path));
+        }
+    }
+    if let Some(path) = token_path() {
+        protected.push(path);
+    }
+    config
+        .reject_protected_paths(&protected)
+        .map_err(|e| p::Error(e.to_string()))?;
+    let maintenance = p::canonical_digest(&credentials.maintenance())?;
+    let agent = credentials
+        .agent_execution()
+        .map(|value| p::canonical_digest(&value))
+        .transpose()?;
+    BootstrapAuthority::open(config, maintenance, agent.as_ref())
+        .map(Arc::new)
+        .map(Some)
+        .map_err(|e| p::Error(e.to_string()))
+}
+
 pub(crate) fn required_path(key: &str) -> p::Result<PathBuf> {
     let path = PathBuf::from(required(key)?);
     if !path.is_absolute() {

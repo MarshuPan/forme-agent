@@ -3,6 +3,8 @@ mod account;
 mod challenge;
 mod password;
 mod sessions;
+mod setup;
+mod setup_claim;
 mod storage;
 
 #[cfg(test)]
@@ -19,6 +21,7 @@ use rusqlite::Connection;
 use zeroize::Zeroizing;
 
 use password::{equal_bytes, PasswordRecord};
+pub(crate) use setup_claim::SetupClaimInput;
 use storage::{Account, Database};
 
 pub type AuthResult<T> = Result<T, AuthError>;

@@ -4,8 +4,13 @@ version = "0.0.1"
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
+default-run = "forme-cli"
 
 [dependencies]
 forme-protocol = { path = "../protocol" }
 forme-gateway = { path = "../gateway" }
 serde_json = "=1.0.150"
+
+[[bin]]
+name = "forme-hostctl"
+path = "src/bin/forme-hostctl.rs"

@@ -39,8 +39,15 @@ impl WebIdentityStore {
         validate_password(&password.0)?;
         let _job = self.password_slot()?;
         let mut db = self.database()?;
-        if account(&db.connection)?.is_some() {
-            return Err(AuthError::Conflict);
+        if let Some(current) = account(&db.connection)? {
+            return if current.claim_operation == operation
+                && current.login_name == login
+                && current.password.verify(&password.0)?
+            {
+                Ok(current.claim_commitment)
+            } else {
+                Err(AuthError::Conflict)
+            };
         }
         let existing: Option<String> = db
             .connection
@@ -84,6 +91,29 @@ impl WebIdentityStore {
     /// create the account. Retries return the same revision, never another owner.
     pub fn commit_claim(&self, grant: &p::SignedWebClaimCommit) -> AuthResult<p::AuthRevision> {
         self.commit_claim_with_time(grant, None)
+    }
+
+    pub(super) fn pending_account_commitment(
+        &self,
+        operation: &str,
+    ) -> AuthResult<Option<p::SchemaDigest>> {
+        let db = self.database()?;
+        let json: Option<String> = db
+            .connection
+            .query_row("SELECT value FROM prepared WHERE singleton=1", [], |r| {
+                r.get(0)
+            })
+            .optional()
+            .map_err(storage_error)?;
+        let Some(json) = json else {
+            return Ok(None);
+        };
+        let prepared: PreparedAccount =
+            serde_json::from_str(&json).map_err(|_| AuthError::RecoveryRequired)?;
+        if prepared.schema_version != p::SchemaVersion(1) {
+            return Err(AuthError::RecoveryRequired);
+        }
+        Ok((prepared.operation_id == operation).then_some(prepared.commitment))
     }
 
     #[cfg(test)]

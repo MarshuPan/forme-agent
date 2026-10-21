@@ -12,6 +12,7 @@ use crate::web::identity::{AuthError, SensitiveCookie};
 
 pub(super) const SESSION_COOKIE: &str = "forme_local_session";
 pub(super) const LOGIN_COOKIE: &str = "forme_local_login";
+pub(super) const SETUP_COOKIE: &str = "forme_local_setup";
 
 pub(super) struct RateWindow {
     since: Instant,
@@ -93,6 +94,8 @@ pub(super) async fn boundary(
         let bucket = if matches!(
             path,
             "/api/v1/auth/login"
+                | "/api/v1/bootstrap/prove"
+                | "/api/v1/bootstrap/claim"
                 | "/api/v1/auth/login-challenge"
                 | "/api/v1/auth/reauth"
                 | "/api/v1/auth/password"

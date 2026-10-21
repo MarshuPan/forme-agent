@@ -729,7 +729,9 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         .database()
         .unwrap()
         .connection
-        .execute_batch("DROP TABLE login_challenges; PRAGMA user_version=1;")
+        .execute_batch(
+            "DROP TABLE login_challenges; DROP TABLE setup_sessions; PRAGMA user_version=1;",
+        )
         .unwrap();
     drop(store);
     let store = open(&directory);
@@ -743,6 +745,105 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     store.login_challenge_at(NOW + 2).unwrap();
+}
+
+#[test]
+fn identity_setup_scope_is_distinct_and_candidate_binding_survives_restart() {
+    let directory = Directory::new();
+    let store = open(&directory);
+    let setup = store.prepare_setup("claim:setup", None).unwrap();
+    let other_cookie = SensitiveCookie::new("a".repeat(64));
+    assert!(matches!(
+        store.prepare_setup("claim:setup", Some(other_cookie)),
+        Err(AuthError::Conflict)
+    ));
+
+    let now = super::now();
+    store
+        .activate_setup(
+            &setup,
+            &p::BootstrapReservationView {
+                schema_version: p::SchemaVersion(1),
+                operation_id: "claim:setup".into(),
+                expires_at: now + 60_000,
+            },
+        )
+        .unwrap();
+    assert!(matches!(
+        store.setup_access(
+            &setup.cookie,
+            WebRequestBinding {
+                mutation: true,
+                csrf: None,
+            },
+            false,
+        ),
+        Err(AuthError::CsrfRejected)
+    ));
+    let access = store
+        .setup_access(
+            &setup.cookie,
+            WebRequestBinding {
+                mutation: false,
+                csrf: None,
+            },
+            false,
+        )
+        .unwrap();
+    let candidate = p::BootstrapDataCandidateView {
+        schema_version: p::SchemaVersion(1),
+        candidate_ref: "data:new-brain".into(),
+        selected: true,
+        available: true,
+        issue_code: None,
+    };
+    store.record_setup_candidate(&access, &candidate).unwrap();
+    store
+        .prepare_claim(
+            "claim:setup",
+            "fixture",
+            SensitivePassword::new(PASSWORD.into()),
+        )
+        .unwrap();
+    assert!(store
+        .setup_access(
+            &setup.cookie,
+            WebRequestBinding {
+                mutation: false,
+                csrf: None,
+            },
+            false,
+        )
+        .is_ok());
+    let pending = store.pending_bootstrap().unwrap().unwrap();
+    assert_eq!(pending.session.operation_id, "claim:setup");
+    assert_eq!(pending.candidate_ref, "data:new-brain");
+    drop(store);
+
+    let store = open(&directory);
+    let pending = store.pending_bootstrap().unwrap().unwrap();
+    assert_eq!(pending.session.operation_id, "claim:setup");
+    assert_eq!(pending.candidate_ref, "data:new-brain");
+}
+
+#[test]
+fn identity_invalid_setup_proof_can_be_discarded_without_touching_claim_intent() {
+    let directory = Directory::new();
+    let store = open(&directory);
+    let setup = store.prepare_setup("claim:invalid", None).unwrap();
+    store.discard_unactivated_setup(&setup).unwrap();
+    assert!(matches!(
+        store.setup_access(
+            &setup.cookie,
+            WebRequestBinding {
+                mutation: false,
+                csrf: None,
+            },
+            false,
+        ),
+        Err(AuthError::Unauthenticated)
+    ));
+    assert!(store.pending_bootstrap().unwrap().is_none());
 }

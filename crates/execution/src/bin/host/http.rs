@@ -15,6 +15,7 @@ pub(super) fn handle_connection(
     mut stream: TcpStream,
     broker: Arc<ProductHostBroker>,
     worker: Arc<dyn IsolatedExecutorHost>,
+    bootstrap: Option<Arc<forme_execution::installed::bootstrap::BootstrapAuthority>>,
     domain: EndpointDomain,
 ) -> p::Result<()> {
     stream
@@ -39,6 +40,11 @@ pub(super) fn handle_connection(
             p::Error("host request authority is invalid".into()),
         )?;
         return Ok(());
+    }
+    if super::bootstrap::handles(&request.path) {
+        let (status, body) =
+            super::bootstrap::route(&request, broker.as_ref(), bootstrap.as_deref(), domain);
+        return write_response(&mut stream, status, &body);
     }
     let auth = match authenticate_request(broker.as_ref(), &request, domain) {
         Ok(auth) => auth,
@@ -150,14 +156,14 @@ fn worker_id<'a>(path: &'a str, prefix: &str, suffix: &str) -> p::Result<&'a str
     Ok(value)
 }
 pub(crate) struct Request {
-    method: String,
+    pub(super) method: String,
     pub(crate) path: String,
     headers: Vec<(String, String)>,
-    body: Vec<u8>,
+    pub(super) body: Vec<u8>,
 }
 
 impl Request {
-    fn header(&self, name: &str) -> Option<&str> {
+    pub(super) fn header(&self, name: &str) -> Option<&str> {
         self.headers
             .iter()
             .find(|(key, _)| key.eq_ignore_ascii_case(name))

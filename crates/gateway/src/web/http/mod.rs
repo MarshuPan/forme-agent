@@ -1,5 +1,6 @@
 //! Independent Web ingress; no ProductionRuntime, provider or brain-store access.
 mod auth;
+mod bootstrap;
 mod connections;
 mod error;
 mod security;
@@ -26,6 +27,7 @@ use error::WebError;
 
 pub(super) struct WebState {
     identity: Arc<WebIdentityStore>,
+    bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
     authority: String,
     origin: String,
     rate: Mutex<security::RateWindow>,
@@ -68,12 +70,12 @@ impl WebState {
 fn router(state: Arc<WebState>) -> Router {
     Router::new()
         .route("/api/v1/bootstrap/status", get(auth::bootstrap))
-        .route("/api/v1/bootstrap/prove", post(auth::unavailable))
+        .route("/api/v1/bootstrap/prove", post(bootstrap::prove))
         .route(
             "/api/v1/bootstrap/data",
-            get(auth::unavailable).post(auth::unavailable),
+            get(bootstrap::data).post(bootstrap::select),
         )
-        .route("/api/v1/bootstrap/claim", post(auth::unavailable))
+        .route("/api/v1/bootstrap/claim", post(bootstrap::claim))
         .route("/api/v1/auth/login-challenge", get(auth::challenge))
         .route("/api/v1/auth/login", post(auth::login))
         .route("/api/v1/auth/session", get(auth::session))
@@ -111,17 +113,54 @@ where
     .await
     .map_err(|_| p::Error("Web authentication initialization unavailable".into()))?
     .map_err(|_| p::Error("Web authentication storage requires local maintenance".into()))?;
+    let identity = Arc::new(identity);
+    let bootstrap = config
+        .bootstrap_bridge
+        .as_ref()
+        .map(|bridge| {
+            crate::web::bootstrap::LocalBootstrapClient::connect(
+                bridge.address,
+                &bridge.credential_path,
+            )
+            .map(Arc::new)
+        })
+        .transpose()
+        .map_err(|_| {
+            p::Error("Web setup bridge configuration requires local maintenance".into())
+        })?;
+    if let Some(client) = bootstrap.clone() {
+        let recovery = identity.clone();
+        let result = tokio::task::spawn_blocking(move || recovery.recover_bootstrap(&client)).await;
+        if !matches!(result, Ok(Ok(()))) {
+            eprintln!("forme-webd: an unfinished installation claim remains pending; local setup recovery may be required");
+        }
+    }
     let listener = tokio::net::TcpListener::bind(config.bind)
         .await
         .map_err(|_| {
             p::Error("Web address is unavailable; choose a free configured port".into())
         })?;
-    serve_identity_until(listener, Arc::new(identity), on_bound, shutdown).await
+    serve_identity_with_setup_until(listener, identity, bootstrap, on_bound, shutdown).await
 }
 
+#[cfg(test)]
 async fn serve_identity_until<F, S>(
     listener: tokio::net::TcpListener,
     identity: Arc<WebIdentityStore>,
+    on_bound: F,
+    shutdown: S,
+) -> p::Result<()>
+where
+    F: FnOnce(SocketAddr) -> p::Result<()>,
+    S: Future<Output = p::Result<()>>,
+{
+    serve_identity_with_setup_until(listener, identity, None, on_bound, shutdown).await
+}
+
+async fn serve_identity_with_setup_until<F, S>(
+    listener: tokio::net::TcpListener,
+    identity: Arc<WebIdentityStore>,
+    bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
     on_bound: F,
     shutdown: S,
 ) -> p::Result<()>
@@ -141,6 +180,7 @@ where
     let _close_on_drop = CloseWebAdmission(admission.clone());
     let state = Arc::new(WebState {
         identity,
+        bootstrap,
         authority: address.to_string(),
         origin: format!("http://{address}"),
         rate: Mutex::new(security::RateWindow::new()),
