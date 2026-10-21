@@ -26,6 +26,7 @@ rustls 0.23.46 - Apache-2.0 OR ISC OR MIT - https://crates.io/crates/rustls
 rustls-pki-types 1.15.0 - MIT OR Apache-2.0 - https://crates.io/crates/rustls-pki-types
 rcgen 0.14.8 - MIT OR Apache-2.0 - https://crates.io/crates/rcgen
 ed25519-dalek 2.2.0 - BSD-3-Clause - https://crates.io/crates/ed25519-dalek
+windows-service 0.8.1 - MIT OR Apache-2.0 - https://crates.io/crates/windows-service
 
 The locked rusqlite build includes libsqlite3-sys and SQLite. SQLite is in the
 public domain; see https://www.sqlite.org/copyright.html. forme implements the
