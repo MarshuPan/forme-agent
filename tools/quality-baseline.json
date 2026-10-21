@@ -1,0 +1,270 @@
+{
+  "files": {
+    "crates/capabilities/src/ecosystem.rs": {
+      "max_lines": 639,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/capabilities/src/mcp.rs": {
+      "max_lines": 1146,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/capabilities/src/plugin.rs": {
+      "max_lines": 1086,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/cognition/src/brain_tick.rs": {
+      "max_lines": 661,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/cognition/src/lib.rs": {
+      "max_lines": 2726,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/cognition/src/m3_c.rs": {
+      "max_lines": 661,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/cognition/src/temporal.rs": {
+      "max_lines": 1213,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/communication/src/lib.rs": {
+      "max_lines": 1868,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/config/src/lib.rs": {
+      "max_lines": 2057,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/context/src/hydration.rs": {
+      "max_lines": 993,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/context/src/lib.rs": {
+      "max_lines": 1725,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/coordination/src/lib.rs": {
+      "max_lines": 906,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/eval/src/core_brain_d.rs": {
+      "max_lines": 716,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/eval/src/dashboard.rs": {
+      "max_lines": 673,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/eval/src/lib.rs": {
+      "max_lines": 1141,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/eval/src/m3_a.rs": {
+      "max_lines": 1539,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/eval/src/m3_c.rs": {
+      "max_lines": 688,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/eval/src/m4.rs": {
+      "max_lines": 720,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/eval/src/m5.rs": {
+      "max_lines": 1032,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/execution/src/bin/forme-hostd.rs": {
+      "max_lines": 783,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/execution/src/browser.rs": {
+      "max_lines": 646,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/execution/src/installed/worker.rs": {
+      "max_lines": 941,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/execution/src/remote.rs": {
+      "max_lines": 749,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/execution/src/remote_tls.rs": {
+      "max_lines": 857,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/gateway/assets/app.js": {
+      "max_lines": 790,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/gateway/tests/gatewayd_e2e.rs": {
+      "max_lines": 1545,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/gateway/tests/v1_data_controls.rs": {
+      "max_lines": 1290,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/brain_orchestration.rs": {
+      "max_lines": 1447,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/lib.rs": {
+      "max_lines": 7468,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/m3_a.rs": {
+      "max_lines": 652,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/m3_b.rs": {
+      "max_lines": 699,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/m4.rs": {
+      "max_lines": 2415,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/m5.rs": {
+      "max_lines": 1997,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/product_golden_runner.rs": {
+      "max_lines": 1255,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/production.rs": {
+      "max_lines": 3481,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/src/production_config.rs": {
+      "max_lines": 841,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/harness_contract.rs": {
+      "max_lines": 4965,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/m2_a_browser_golden.rs": {
+      "max_lines": 1678,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/m3_b_harness_contract.rs": {
+      "max_lines": 1434,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/m4_federation_contract.rs": {
+      "max_lines": 2423,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/m5_distribution_contract.rs": {
+      "max_lines": 2196,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/m5_ecosystem_contract.rs": {
+      "max_lines": 1488,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/v1_core_brain_a.rs": {
+      "max_lines": 1373,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/harness/tests/v1_core_brain_c_orchestration.rs": {
+      "max_lines": 1786,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/loop/src/lib.rs": {
+      "max_lines": 1158,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/memory/src/lib.rs": {
+      "max_lines": 2663,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/memory/src/m2_c.rs": {
+      "max_lines": 862,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/models/src/lib.rs": {
+      "max_lines": 1146,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/models/src/registry.rs": {
+      "max_lines": 886,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/policy/src/lib.rs": {
+      "max_lines": 952,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/brain_orchestration.rs": {
+      "max_lines": 939,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/control.rs": {
+      "max_lines": 679,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/event.rs": {
+      "max_lines": 845,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/installed_product.rs": {
+      "max_lines": 1104,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/m2_c.rs": {
+      "max_lines": 628,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/m3_a.rs": {
+      "max_lines": 663,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/m4.rs": {
+      "max_lines": 1933,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/m5.rs": {
+      "max_lines": 1043,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/protocol/src/primitives.rs": {
+      "max_lines": 1012,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/store/src/at_rest.rs": {
+      "max_lines": 773,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/store/src/lifecycle.rs": {
+      "max_lines": 740,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/store/src/migration.rs": {
+      "max_lines": 1168,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/store/src/sqlite.rs": {
+      "max_lines": 8975,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "crates/store/tests/schema_replay.rs": {
+      "max_lines": 1255,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "tools/compliance_doctor.py": {
+      "max_lines": 694,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    },
+    "tools/release_audit.py": {
+      "max_lines": 1473,
+      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
+    }
+  },
+  "schema_version": 1,
+  "source_commit": "17268a2"
+}

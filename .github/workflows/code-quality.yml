@@ -1,0 +1,15 @@
+name: Code quality boundaries
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  structure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m unittest tools.tests.test_code_quality
+      - run: python tools/code-quality.py
