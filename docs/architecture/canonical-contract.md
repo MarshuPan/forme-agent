@@ -639,7 +639,7 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 
 ## 29. 安装、常驻服务与 Web 工作台
 
-本节固定 requirements/17–18、architecture/10、prd/24–26 的产品化边界。当前为已确认的设计，不表示安装器、原生系统服务、账号或新 Web UI 已实现；不是 M6。
+本节固定 requirements/17–18、architecture/10、prd/24–26 的产品化边界。当前已开始分阶段实施；具体分支、组件与 IP 状态以 `../acceptance/installed-product-implementation-progress.md` 为准，不表示安装器、原生系统服务、完整账号产品或新 Web UI 已完成；不是 M6。
 
 ### 29.1 一个产品、一个大脑
 

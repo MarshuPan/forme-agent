@@ -25,7 +25,7 @@ M5 由 `requirements/13-14` 定义为“受治理能力生态”。`08-m5-govern
 
 V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-core-brain-runtime-closure-architecture.md` 激活 canonical §28，把默认 composition、持续认知、项目/编排闭环和数据/价值闭合分为 A/B/C/D 四波；只允许在 M5 97-kind 后追加两个 R 组事件，不新增 crate、依赖边或内核。
 
-常驻服务与 Web 产品化由 `requirements/17–18`、canonical §29 与 `10` 定义，实施承接 `prd/24–26`，独立使用 IP01–IP24 验收。当前仅设计文档，未实现原生安装器/账号/新 UI；不另建大脑或改变冻结 crate 图。
+常驻服务与 Web 产品化由 `requirements/17–18`、canonical §29 与 `10` 定义，实施承接 `prd/24–26`，独立使用 IP01–IP24 验收。宿主/worker 与独立认证基础已分阶段实施；原生安装包、完整账号接入和新 UI 未完成，分支与证据见 `../acceptance/installed-product-implementation-progress.md`；不另建大脑或改变冻结 crate 图。
 
 ## 当前文档
 

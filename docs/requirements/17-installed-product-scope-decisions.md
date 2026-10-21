@@ -2,7 +2,7 @@
 
 本文把已确认的安装、常驻服务和浏览器 UI 设计固定为产品化范围。它承接已经实现的 M0–M5 与 V1 核心大脑，不是 M6，也不重新设计 Agent 内核。
 
-- **状态**：方案已确认，本文及下游文档形成实施输入；产品化代码、安装包和原生平台验收尚未开始。
+- **状态**：方案已确认，宿主与认证组件已开始分阶段实施，当前分支证据见 `../acceptance/installed-product-implementation-progress.md`；安装包和原生平台验收尚未完成。
 - **上游**：[愿景](01-vision-and-scope.md)、[V1 闭合范围](15-v1-core-brain-closure-scope-decisions.md)、[canonical](../architecture/canonical-contract.md) §1–29。
 - **下游**：[验收策略](18-installed-product-verification-strategy.md)、[产品架构](../architecture/10-installed-product-and-web-workbench-architecture.md)、[prd/24](../prd/24-installer-and-service-lifecycle.md)、[prd/25](../prd/25-bootstrap-auth-and-web-access.md)、[prd/26](../prd/26-web-workbench.md)。
 

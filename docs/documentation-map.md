@@ -11,7 +11,7 @@
 - 全局入口是 `docs/README.md`，本文档是跨目录关系矩阵，各子目录 `README.md` 只解释本目录内部文档。
 - 早期规划 `planning/01-14` 与早期架构基线 `architecture/00-01` 已归档到 `archive/`，不再更新，不作为现行口径。
 - M0-M5 的 requirements、architecture、PRD 与 acceptance 是冻结的回归基线；V1 核心大脑闭合按 `prd/23` A/B/C/D 实施，不新增里程碑编号。
-- 常驻服务/Web 产品化另沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`；24.1 宿主底板与 24.2 worker admission 基础已开始实施，仍待 24.3/25/26 代码与 IP01–IP24 原生验收，不命名 M6。
+- 常驻服务/Web 产品化另沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`；宿主/worker 与 25 的独立认证基础已分阶段实施，仍待原生隔离、24.3、25 余项、26 与 IP01–IP24 原生验收；分支状态见 `acceptance/installed-product-implementation-progress.md`，不命名 M6。
 
 ## 目录级关系
 
@@ -130,7 +130,7 @@
 | [requirements/18](requirements/18-installed-product-verification-strategy.md) | IP01–IP24 原生验收。 | requirements/17、永久 S/C 门。 | prd/24–26、产品验收；尚未执行。 |
 | [architecture/10](architecture/10-installed-product-and-web-workbench-architecture.md) | 系统服务、认领/身份/网络、分权、数据、升级、Web。 | requirements/17–18、canonical §29、architecture/03/09。 | prd/24–26；待实施，18-crate/99-kind 不变。 |
 | [prd/24](prd/24-installer-and-service-lifecycle.md) | 安装与系统服务生命周期。 | architecture/10、requirements/17–18。 | 原生包/宿主/隔离与 IP 验收；待实施。 |
-| [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 认证/配置/API/SSE 与 IP 验收；待实施。 |
+| [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 独立账号/session 基础已提交实施分支；配置/API/SSE 与完整 IP 验收待接入。 |
 | [prd/26](prd/26-web-workbench.md) | 五面 Web 工作台。 | architecture/10、prd/25 API。 | 静态 UI/IP17–24；待实施。 |
 | [frontend-reuse-policy](compliance/frontend-reuse-policy.md) | owner 指定的前端许可/来源边界。 | canonical §12/§29.8、DeepSeek 公开来源。 | prd/17/26、导入前 gate；当前未导入源码/依赖。 |
 

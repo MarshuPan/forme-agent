@@ -9,10 +9,17 @@
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
 | 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | **基础层 `7eec019`、进程边界 `0021902`、worker 控制面 `f1122ec` 已提交**；hostd 的 worker 配置/dispatch/probe/cancel、双域 listener、并发控制与取消终态重放已有组件证据。Windows SCM dispatcher 已实现但未注册安装验收；默认阻断普通进程，只有显式前台开发开关可运行 fixture。平台账户/ACL、Job Object/cgroup/LaunchDaemon sandbox、网络隔离及会话 helper 仍待实施/原生验收，不能把控制面通过当作强隔离完成。 |
 | 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 待实施；没有可发布的签名包或跨平台支持声明。 |
-| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 待实施，继续使用已确认方案，不将现有 bearer 当成账号登录。 |
+| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | **独立认证基础已在 `shu/installed-product@12b3f5d` 提交，待合入/产品验收**；12 项专项、678 项全量测试、strict Clippy、宿主与质量门通过。broker setup/旧脑验证/签发、口令恢复、HTTP/TLS、配置和 core bridge 仍待接入，不将组件或现有 bearer 当成完整网页登录。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 待实施；本批没有导入上游前端或改动页面。 |
 
-24.1 是 prd/24 的第一笔组件交付，不表示 prd/24、prd/25 或 prd/26 整体完成。后续依照同一顺序推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
+24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
+
+### 本轮工程维护与认证基础
+
+- 维护规范：`docs/engineering/code-quality.md`，结构检查器/CI 为 `tools/code-quality.py` 与 `.github/workflows/code-quality.yml`。当前 66 个历史超限文件是待还债基线，不是“质量全部通过”的认证；新增超限或旧文件增长拒绝。
+- Gateway 拆分：`b373aec` 保持 public API、事件、生产装配与测试名字不变，按控制域和 HTTP 处理职责拆开。`lib.rs` 从 3641 行缩至约 230 行，`server.rs` 从 2256 行缩至 599 行。其余历史大模块继续按风险逐批维护，不全库机械切片。
+- 认证：`12b3f5d` 只写独立认证库，不打开脑库。签名账号认领接缝、Argon2id、session/CSRF/epoch、operation-bound reauth、口令替换与重启持久性详见 [组件报告](installed-product-25-identity-foundation.md)。当前没有安装服务或可登录的新网页地址。
+- 上述实现仍在 `shu/installed-product`，尚未推送/合入 main；本轮未读取真实模型密钥或迁移个人数据。原生安装、五面 UI 和 IP01–IP24 仍未由本组件门验收。
 
 ## 2. 宿主底板的实现边界
 

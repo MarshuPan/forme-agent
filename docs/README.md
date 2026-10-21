@@ -37,7 +37,7 @@ V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> 
 
 ## 常驻服务与 Web 工作台（分阶段实施）
 
-产品化方案已形成 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`：原生整体安装、OS 系统服务、唯一大脑、账号初始化、本地/LAN Web 与五个工作面。它不是 M6；24.1 宿主底板与 24.2 worker admission 基础已实施，安装包、原生隔离、账号与新 UI 尚未完成。证据见 `acceptance/installed-product-implementation-progress.md` 与 `acceptance/installed-product-24-2-worker-foundation.md`。
+产品化方案已形成 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`：原生整体安装、OS 系统服务、唯一大脑、账号初始化、本地/LAN Web 与五个工作面。它不是 M6；宿主/worker 基础与独立认证基础已分阶段实施，安装包、原生隔离、完整账号接入与新 UI 尚未完成。分支与证据见 `acceptance/installed-product-implementation-progress.md`、`acceptance/installed-product-25-identity-foundation.md`。
 
 从 [产品架构](architecture/10-installed-product-and-web-workbench-architecture.md) 看全貌；实施按 [安装与服务](prd/24-installer-and-service-lifecycle.md) → [初始化与 Web 接入](prd/25-bootstrap-auth-and-web-access.md) → [工作台](prd/26-web-workbench.md)，使用独立 IP01–IP24 验收。DeepSeek 仅限 [前端许可复用边界](compliance/frontend-reuse-policy.md)，不引入其核心或插件系统。
 
@@ -48,7 +48,7 @@ V1 核心大脑运行闭合已完成 docs-first 冻结：`requirements/15-16 -> 
 | `planning/` | 仍在直接使用的规划设计。 | 当前仅 `15` 多 Agent 编排。 |
 | `requirements/` | 固定 forme 要做什么、不做什么、面向谁、优先级和验收方向。 | M0-M5/V1 已落实；`17`–`18` 新定产品化 P01–P16/IP01–IP24，待实施。 |
 | `architecture/` | 设计如何实现需求，包括 Rust 模块、协议、数据流、状态机、存储、权限和扩展边界。 | `03`–`09` 对应实现已合入本地 main；`10` 已开始宿主/worker 基础实施，安装/服务/Web 整体仍保持 18-crate/single authority。 |
-| `prd/` | 形成可执行的实施型 PRD：功能描述、实施步骤、关键技术约束、测试和验收标准。 | `01`–`23` 对应 M0-M5 与 A–D 已合入；`24` 已完成 24.1 与 24.2 admission 基础，`24.3`、`25`、`26` 待实施，历史 S/C 门继续回归。 |
+| `prd/` | 形成可执行的实施型 PRD：功能描述、实施步骤、关键技术约束、测试和验收标准。 | `01`–`23` 对应 M0-M5 与 A–D 已合入；`24`/`25` 的宿主、worker 和认证基础分阶段实施中，24.3/25 余项/26 与原生产品验收未完成，历史 S/C 门继续回归。 |
 | `acceptance/` | 保存验收报告、逐场景证据和最终门结果。 | M0-M5、V1 A–D/真实 C24/Final 有通过证据；当前源码、许可证重验和 main 状态统一见 closure 报告，历史失败与 Unavailable 记录保留。 |
 | `compliance/` | 直接依赖的来源、许可证与复制风险清单。 | 随依赖变化维护；frontend-reuse-policy 固定限定前端例外，当前未导入源码。 |
 | `runbooks/` | 正式入口和离线 owner 操作手册。 | `v1-core-brain-data-and-evidence.md` 说明模型配置、备份/恢复、真实删除、旧明文迁移与 C24 证据运行。 |

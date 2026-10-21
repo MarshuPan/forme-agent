@@ -1,6 +1,6 @@
 # 常驻服务与 Web 工作台验证策略
 
-本策略承接 [P01–P16](17-installed-product-scope-decisions.md)，定义产品化的独立 IP01–IP24 验收。**当前仅有设计，没有产品化 PASS 报告。** 历史 S1–S99、C1–C24、18-crate 图、99 EventKinds 和 single authority 继续是不可回退基线。
+本策略承接 [P01–P16](17-installed-product-scope-decisions.md)，定义产品化的独立 IP01–IP24 验收。**已有分阶段组件实现与测试，尚无完整产品化 IP PASS 报告。** 当前进度见 `../acceptance/installed-product-implementation-progress.md`。历史 S1–S99、C1–C24、18-crate 图、99 EventKinds 和 single authority 继续是不可回退基线。
 
 ## 1. 证据标准
 

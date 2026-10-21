@@ -9,7 +9,7 @@
 3. `docs/architecture/canonical-contract.md` §1–29 — 唯一口径;同名对象/判断以它为准，V1 闭合重点为 §28，安装/常驻服务/Web 工作台重点为 §29。
 4. `docs/architecture/09-v1-core-brain-runtime-closure-architecture.md` — 当前 composition、持续认知、编排、多模型与数据闭合架构。
 5. `docs/architecture/03-foundation-architecture.md` — 冻结 crate 图、事件分类(§2.1.1)、trait 签名(§4.7/§5.6)、治理 enforce 点(§6)。
-6. 安装/系统服务/Web 任务另读 `docs/requirements/17-18`、`docs/architecture/10-installed-product-and-web-workbench-architecture.md` 及对应 `docs/prd/24-26`；它们是产品化实施输入，当前尚未实施，不是 M6。
+6. 安装/系统服务/Web 任务另读 `docs/requirements/17-18`、`docs/architecture/10-installed-product-and-web-workbench-architecture.md` 及对应 `docs/prd/24-26`；产品化正在分阶段实施，当前分支/组件/IP 状态见 `docs/acceptance/installed-product-implementation-progress.md`，不是 M6。
 
 ## 硬规则(违反 = 返工)
 
