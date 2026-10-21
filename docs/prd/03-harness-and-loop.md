@@ -178,6 +178,7 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 - **Policy-at-execution**:每个 action 执行前重查(§5.1);模型可见 ≠ 执行许可。
 - **能力门出口**:outward/proactive intent 投递前过 `CompetenceGate::ceiling`,不足降级。
 - **审批**:ask → 等待/恢复;deny → 不执行;超时 → `ApprovalResolved{expired}`。
+- **重启后的审批读取与续接**：两个待审批查询外观共用持久化事件投影，按 session、原 approval id 与 TTL 过滤；已解决或 run 已终态的请求不再列为 pending。查询只读，不重做模型调用、不重新签发审批。正式工具审批在显式 `ResumeInput::Approval` 到来时才重建内存等待态；按 session 串行化重建，复核原计划/action digest、policy/schema 与有效期，仍执行 §5.1 的完整出口检查。终态、已消费、结果不明或配置不能复现的请求拒绝恢复，不以服务重启获得新授权。
 - **防投毒入口(canonical §15)**:入站内容在 `Provenance.trust_tier` 标注;harness **不把内容当指令**;未信任内容不驱动稳定写入(治理在 prd/10,harness 保证 provenance 正确落标)。
 
 ## 7. 配置与可观测
