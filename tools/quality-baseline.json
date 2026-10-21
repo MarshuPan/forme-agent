@@ -76,10 +76,6 @@
       "max_lines": 1032,
       "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
     },
-    "crates/execution/src/bin/forme-hostd.rs": {
-      "max_lines": 783,
-      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
-    },
     "crates/execution/src/browser.rs": {
       "max_lines": 646,
       "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
