@@ -56,6 +56,10 @@ impl Fixture {
                     }
                     Err(error) => panic!("fixture listener: {error}"),
                 };
+                // On Windows, a stream accepted from a non-blocking listener can
+                // retain the non-blocking mode. Restore blocking I/O before the
+                // fixture's request/response exchange.
+                stream.set_nonblocking(false).unwrap();
                 stream
                     .set_read_timeout(Some(Duration::from_secs(3)))
                     .unwrap();
@@ -181,7 +185,9 @@ impl Drop for Fixture {
         self.stop.store(true, Ordering::SeqCst);
         let _ = self.release.send(());
         if let Some(thread) = self.model.take() {
-            thread.join().unwrap();
+            thread
+                .join()
+                .expect("model fixture thread must exit without panicking");
         }
         match &self.old_key {
             Some(value) => std::env::set_var(KEY_ENV, value),
