@@ -179,6 +179,7 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 - **能力门出口**:outward/proactive intent 投递前过 `CompetenceGate::ceiling`,不足降级。
 - **审批**:ask → 等待/恢复;deny → 不执行;超时 → `ApprovalResolved{expired}`。
 - **重启后的审批读取与续接**：两个待审批查询外观共用持久化事件投影，按 session、原 approval id 与 TTL 过滤；已解决或 run 已终态的请求不再列为 pending。查询只读，不重做模型调用、不重新签发审批。正式工具审批在显式 `ResumeInput::Approval` 到来时才重建内存等待态；按 session 串行化重建，复核原计划/action digest、policy/schema 与有效期，仍执行 §5.1 的完整出口检查。终态、已消费、结果不明或配置不能复现的请求拒绝恢复，不以服务重启获得新授权。
+- **恢复上下文不得升级**：默认主脑只能自动恢复 `RunAccepted.source = UserTurn`、workspace/policy/model/toolset/composition 绑定与当前实例一致、且不带专用 evolution/federation snapshot 的正式工具审批。回放、模拟、子代理及其他专用执行上下文不得回落为默认主脑；项目子代理必须先由原项目恢复入口重建其受限 Harness，再按原审批继续。缺失、重复或不能复现的绑定在调用模型、重建工具计划和落新事件前拒绝；不得静默清除 snapshot 或扩大 scope。
 - **防投毒入口(canonical §15)**:入站内容在 `Provenance.trust_tier` 标注;harness **不把内容当指令**;未信任内容不驱动稳定写入(治理在 prd/10,harness 保证 provenance 正确落标)。
 
 ## 7. 配置与可观测
@@ -203,6 +204,7 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 - **S19(总纲 §7.3)**:同 session A、B 串行(B.`TurnStarted` 不早于 A.`RunComplete`);后台 tick 只产 candidate、不产 stable 写;承诺守卫:执行中 run 不被 tick 劫持;重复 command/恢复扫描不重复 driver 副作用。
 - **V1 closure recovery**:模拟 `ActionStarted` 后崩溃，重启必须得到唯一 `ActionOutcomeUnknown` 和挂起态；无裁决时 driver call=0；合法 receipt/owner 裁决后只恢复一次。
 - **V1 closure plan binding**:审批后修改 backend、参数、scope、timeout 或 rollback 任一字段，最终重查必须拒绝并要求新 approval；旧 grant 不得复用。
+- **审批恢复上下文**：持久化待审批重启后，默认用户任务仍可按原 plan 续接一次；默认 Harness 对子代理/回放/模拟/专用快照和配置漂移的恢复必须零模型调用、零 driver、零新增事件。原项目入口重建 child 后的合法审批恢复继续通过。
 - **单元**:状态迁移全覆盖;每个 `StopReason` 可达且干净;resume 往返;咽喉点乱序被拒(policy 必先于 execute);tick 无触发不跑。
 
 ## 10. 验收
