@@ -85,3 +85,13 @@ ignore. Public API compilation, authenticated TLS/process contracts,
 S1-S99, and the current-tree audit must pass after the update. Some advisory
 conditions are feature-specific; upgrading avoids relying on an inferred
 non-exploitability exemption. No dependency implementation or fixture is copied.
+
+V1 core-brain closure D security update (2026-10-21): the current release
+audit reported reachable `RUSTSEC-2026-0382` for `rustls-webpki 0.103.15` and
+`RUSTSEC-2026-0381` for `webpki-roots 1.0.8` on the frozen
+`x86_64-pc-windows-gnu` target. The lockfile moves these transitive TLS
+components to patched `0.103.16` and `1.0.10`; direct `rustls 0.23.46`, `ureq`
+features, transport traits, and crate graph remain unchanged. The root NOTICE
+also records the existing Windows-only `windows-service 0.8.1` direct
+dependency. No advisory is ignored; the full current-tree release audit and
+S1-S99 gate must pass after the update.
