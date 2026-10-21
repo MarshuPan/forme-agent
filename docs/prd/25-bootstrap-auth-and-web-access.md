@@ -54,6 +54,7 @@
 | `GET/POST /bootstrap/data` | 已识别数据候选 / 准备指定备份并验证。 | 只接受有效 setup cookie + CSRF；离线管理路径验证 owner/key/完整性，不允许匿名读取/任意文件路径。 |
 | `POST /bootstrap/claim` | ClaimRequest → claim receipt/owner session。 | 有限 setup session + 已验证数据 ref + CAS；消耗证明/初始化会话。 |
 | `POST /auth/login` | login/password → cookie + safe session view。 | 验证密码；登录也校验 Host/Origin 和 login CSRF。 |
+| `GET /auth/login-challenge` | 有效 5 分钟的 HttpOnly login cookie、login CSRF 和 attempt ref。 | 只为同 origin 的登录表单建立有限挑战；不授予 owner/setup 权限。 |
 | `GET /auth/session` | safe owner/account、expiry、csrf nonce。 | 有效 cookie；不返回内部 assertion。 |
 | `POST /auth/logout` | 撤销当前会话。 | CSRF；不会取消已授权后台任务。 |
 | `DELETE /auth/sessions` | 撤销全部会话并升 auth epoch。 | 近期重新认证；不更换 OwnerId/keys。 |
@@ -193,3 +194,13 @@ API 错误包括 `Unauthenticated / Forbidden / CsrfRejected / ClaimUnavailable 
 会话默认 idle 30 分钟、absolute 12 小时；CSRF nonce 从随机 HttpOnly session credential 以独立域摘要派生，可在刷新后返回，不存 plaintext cookie。任何 mutation 仍需 transport 的精确 Host/Origin/CSRF 和当前 epoch 重查。5 分钟 reauth 必须绑定具体 operation；改密码的 operation 绑定预生成新哈希承诺，全会话撤销使用不同的操作域，不能互换或替换新口令。账号/epoch/一次性 proof 消耗与会话撤销在同一事务完成。
 
 这些是原有 §3–5 的实现细节，不更改既有 Harness/Store/WebIdentityService 语义，不增脑事件。组件证据与 Web HTTP/浏览器、broker 双边恢复和原生安装 IP 证据分别记录。
+
+### 11.2 实施细化：独立 HTTP 入口与登录挑战
+
+`forme-webd` 是 gateway 内的独立 Rust bin，不构建 ProductionRuntime，不依赖模型/owner 的 shell env；从受保护的绝对路径 Web service config 读取 installation、认证目录、broker 认领公钥及监听参数。未认领只返回最小 bootstrap 状态；尚未接通的 setup 或 core 能力明确不可用，不开放临时注册或裸 bearer 页面。
+
+初始 HTTP adapter 只接受精确 loopback 地址和配置 origin；未实现 TLS 的版本拒绝 LAN 配置，不以 HTTP 兜底。所有请求先核对唯一 Host、Origin/Fetch Metadata 和默认拒绝的 forwarded headers；mutation 强制 exact Origin 与 CSRF。static/API 均有 CSP/no-sniff/no-store/拒绝 framing 等响应头，不设置宽泛 CORS。登录、已认证 mutation、读取各用独立有界 bucket；昂贵认证在有界 blocking 工作中运行，超时/取消后仍占用原名额直至真实结束。
+
+登录挑战用 256-bit OS 随机 HttpOnly cookie，服务端只存摘要、期限和消费结果。返回的 attempt ref 作为该表单的 Idempotency-Key，CSRF 以独立域绑定。登录校验挑战、Origin/CSRF、密码和当前 credential revision 后，在同一事务创建 session 并绑定原 attempt；重复请求只能重取原会话（须已持其 cookie），或返回明确 Conflict/Expired，不再创建 session。丢失响应及 cookie 时用户重新发起一个新挑战；不在数据库保存可还原 session 原文来换取透明重试。过期挑战可有界清理，旧证明仍不可重放。
+
+认证 schema 的已知版本升级必须在 writer 锁内事务迁移，未知/损坏版本仍拒绝，不能通过重建认证库解决。该 HTTP 组件不自报原生 ACL、broker 认领、LAN 信任、core assertion 或 IP 完整验收；接入范围与缺项逐批记在实施记录。
