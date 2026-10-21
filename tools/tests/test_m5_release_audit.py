@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -100,6 +101,32 @@ class M5ReleaseAuditProfileTests(unittest.TestCase):
             "ECOSYSTEM_THREAT_FIXTURE_FAILED",
             {finding.code for finding in result.findings},
         )
+
+    def test_relocated_implementation_cannot_be_replaced_by_an_old_file_decoy(self) -> None:
+        def passing_runner(command: list[str], root: Path):
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tracked = list(m5.ECOSYSTEM_THREAT_MARKERS)
+            for relative, markers in m5.ECOSYSTEM_THREAT_MARKERS.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("\n".join(markers), encoding="utf-8")
+            decoy = "crates/gateway/src/lib.rs"
+            (root / decoy).write_text("prepare_capability_distribution", encoding="utf-8")
+            tracked.append(decoy)
+            with mock.patch.object(m5.audit, "_git_files", return_value=(tracked, [])):
+                self.assertFalse(m5.ecosystem_threat_check(root, passing_runner).blocking)
+                implementation = root / "crates/gateway/src/ecosystem.rs"
+                implementation.write_text("// Removed implementation", encoding="utf-8")
+                result = m5.ecosystem_threat_check(root, passing_runner)
+            self.assertTrue(result.blocking)
+            self.assertTrue(any(
+                finding.code == "ECOSYSTEM_THREAT_CASE_MISSING"
+                and finding.path == "crates/gateway/src/ecosystem.rs"
+                for finding in result.findings
+            ))
 
 
 if __name__ == "__main__":

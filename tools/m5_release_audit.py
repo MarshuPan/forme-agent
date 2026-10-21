@@ -60,7 +60,7 @@ ECOSYSTEM_THREAT_MARKERS = {
         "s99_artifact_gate_rejects_tamper_unknown_fields_extra_and_missing_files",
         "s99_artifact_gate_rejects_sensitive_material_and_cross_reference_drift",
     ],
-    "crates/gateway/src/lib.rs": ["prepare_capability_distribution"],
+    "crates/gateway/src/ecosystem.rs": ["prepare_capability_distribution"],
     "crates/gateway/src/server.rs": ["/v1/ecosystem/distributions/prepare"],
     "tools/compliance_doctor.py": ["copy"],
 }

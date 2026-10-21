@@ -48,7 +48,7 @@ FEDERATION_THREAT_MARKERS = {
         "s72_s78_s79_s82_authority_restart_preserves_recovery_and_replay_ledgers",
         "s79_cross_device_owner_control_is_dual_bound_one_shot_and_fences_late_receipts",
     ],
-    "crates/gateway/src/lib.rs": [
+    "crates/gateway/src/tests/mod.rs": [
         "s79_owner_client_requires_peer_channel_and_independent_owner_before_harness_control",
         "s75_s78_s82_peer_ingress_is_channel_bound_before_harness",
     ],

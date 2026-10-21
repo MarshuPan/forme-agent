@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -88,6 +89,31 @@ class M4ReleaseAuditProfileTests(unittest.TestCase):
             "FEDERATION_THREAT_FIXTURE_MISSING",
             {finding.code for finding in result.findings},
         )
+
+    def test_relocated_gateway_cases_remain_required_after_the_module_split(self) -> None:
+        def passing_runner(command: list[str], root: Path):
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tracked = list(m4.FEDERATION_THREAT_MARKERS)
+            for relative, markers in m4.FEDERATION_THREAT_MARKERS.items():
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("\n".join(markers), encoding="utf-8")
+            cases = "crates/gateway/src/tests/mod.rs"
+            decoy = "crates/gateway/src/lib.rs"
+            (root / decoy).write_text((root / cases).read_text(encoding="utf-8"), encoding="utf-8")
+            tracked.append(decoy)
+            with mock.patch.object(m4.audit, "_git_files", return_value=(tracked, [])):
+                self.assertFalse(m4.federation_threat_check(root, passing_runner).blocking)
+                (root / cases).write_text("// Removed test cases", encoding="utf-8")
+                result = m4.federation_threat_check(root, passing_runner)
+            self.assertTrue(result.blocking)
+            self.assertTrue(any(
+                finding.code == "FEDERATION_THREAT_CASE_MISSING" and finding.path == cases
+                for finding in result.findings
+            ))
 
 
 if __name__ == "__main__":
