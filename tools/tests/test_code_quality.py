@@ -12,6 +12,10 @@ dependency_errors, file_metrics = _quality.dependency_errors, _quality.file_metr
 
 
 class CodeQualityTests(unittest.TestCase):
+    def test_standard_rust_test_modules_use_the_reviewed_test_limit(self):
+        self.assertEqual(_quality.limit_for("crates/gateway/src/web/identity/tests.rs"), 1200)
+        self.assertEqual(_quality.limit_for("crates/gateway/src/web/identity/storage.rs"), 600)
+
     def test_existing_debt_can_shrink_but_not_grow(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

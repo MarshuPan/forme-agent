@@ -45,7 +45,8 @@ def source_paths(root: Path) -> list[str]:
 
 
 def limit_for(path: str) -> int:
-    return 1200 if "/tests/" in path or Path(path).stem.endswith("_tests") else 600
+    stem = Path(path).stem
+    return 1200 if "/tests/" in path or stem == "tests" or stem.endswith("_tests") else 600
 
 
 def file_metrics(root: Path, paths: list[str], baseline: dict) -> tuple[list, list]:
