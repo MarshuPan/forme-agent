@@ -1,7 +1,10 @@
 //! Independent Web ingress; no ProductionRuntime, provider or brain-store access.
+mod assets;
 mod auth;
 mod bootstrap;
 mod connections;
+#[path = "core.rs"]
+mod core_routes;
 mod error;
 mod security;
 
@@ -21,13 +24,14 @@ use tokio::sync::Semaphore;
 use tower_http::timeout::TimeoutLayer;
 
 use crate::lifecycle::WorkAdmission;
-use crate::web::identity::{AuthError, AuthResult, WebIdentityStore};
+use crate::web::identity::{AuthError, AuthResult, AuthenticatedWebOwner, WebIdentityStore};
 use crate::web::WebServerConfig;
 use error::WebError;
 
 pub(super) struct WebState {
     identity: Arc<WebIdentityStore>,
     bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
+    core: Option<Arc<crate::web::core::CoreBridgeClient>>,
     authority: String,
     origin: String,
     rate: Mutex<security::RateWindow>,
@@ -65,10 +69,47 @@ impl WebState {
         .map_err(|_| AuthError::Unavailable)?
         .map_err(Into::into)
     }
+
+    async fn fence_session(
+        &self,
+        owner: &AuthenticatedWebOwner,
+        session_digest: Option<p::SchemaDigest>,
+        minimum_auth_epoch: u64,
+    ) -> Result<(), WebError> {
+        let Some(client) = self.core.clone() else {
+            // During first-run/maintenance there is no core that could accept
+            // an assertion. The Web identity store remains independently
+            // usable; once a bridge is configured, failures are fail-closed.
+            return Ok(());
+        };
+        let binding = owner.core_binding();
+        tokio::task::spawn_blocking(move || {
+            client.fence_session(&binding, session_digest, minimum_auth_epoch)
+        })
+        .await
+        .map_err(|_| {
+            WebError::new(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "CoreUnavailable",
+                "主脑服务不可用",
+            )
+        })?
+        .map_err(|_| {
+            WebError::new(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "CoreUnavailable",
+                "主脑会话撤销无法提交",
+            )
+        })
+    }
 }
 
 fn router(state: Arc<WebState>) -> Router {
     Router::new()
+        .route("/", get(assets::index))
+        .route("/favicon.svg", get(assets::file))
+        .route("/LICENSES.txt", get(assets::file))
+        .route("/assets/{file}", get(assets::file))
         .route("/api/v1/bootstrap/status", get(auth::bootstrap))
         .route("/api/v1/bootstrap/prove", post(bootstrap::prove))
         .route(
@@ -83,6 +124,13 @@ fn router(state: Arc<WebState>) -> Router {
         .route("/api/v1/auth/reauth", post(auth::reauthenticate))
         .route("/api/v1/auth/sessions", delete(auth::revoke))
         .route("/api/v1/auth/password", put(auth::password))
+        .route(
+            "/api/v1/brain/{*path}",
+            get(core_routes::read)
+                .post(core_routes::mutate)
+                .put(core_routes::replace)
+                .delete(core_routes::mutate),
+        )
         .fallback(auth::missing)
         .layer(DefaultBodyLimit::max(8192))
         .layer(TimeoutLayer::with_status_code(
@@ -128,6 +176,13 @@ where
         .map_err(|_| {
             p::Error("Web setup bridge configuration requires local maintenance".into())
         })?;
+    let core = config
+        .core_bridge
+        .as_ref()
+        .map(|bridge| {
+            crate::web::core::CoreBridgeClient::connect(bridge, &config.install_ref).map(Arc::new)
+        })
+        .transpose()?;
     if let Some(client) = bootstrap.clone() {
         let recovery = identity.clone();
         let result = tokio::task::spawn_blocking(move || recovery.recover_bootstrap(&client)).await;
@@ -140,7 +195,7 @@ where
         .map_err(|_| {
             p::Error("Web address is unavailable; choose a free configured port".into())
         })?;
-    serve_identity_with_setup_until(listener, identity, bootstrap, on_bound, shutdown).await
+    serve_identity_with_setup_until(listener, identity, bootstrap, core, on_bound, shutdown).await
 }
 
 #[cfg(test)]
@@ -154,13 +209,14 @@ where
     F: FnOnce(SocketAddr) -> p::Result<()>,
     S: Future<Output = p::Result<()>>,
 {
-    serve_identity_with_setup_until(listener, identity, None, on_bound, shutdown).await
+    serve_identity_with_setup_until(listener, identity, None, None, on_bound, shutdown).await
 }
 
 async fn serve_identity_with_setup_until<F, S>(
     listener: tokio::net::TcpListener,
     identity: Arc<WebIdentityStore>,
     bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
+    core: Option<Arc<crate::web::core::CoreBridgeClient>>,
     on_bound: F,
     shutdown: S,
 ) -> p::Result<()>
@@ -181,6 +237,7 @@ where
     let state = Arc::new(WebState {
         identity,
         bootstrap,
+        core,
         authority: address.to_string(),
         origin: format!("http://{address}"),
         rate: Mutex::new(security::RateWindow::new()),

@@ -13,50 +13,70 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use config::*;
-use forme_execution::installed::{HostCredentials, ProductHostBroker};
+use forme_execution::installed::ProductHostBroker;
 use forme_protocol as p;
 use http::handle_connection;
 
 pub(super) fn run() -> p::Result<()> {
+    let launch = launch_from_args(std::env::args_os().skip(1))?;
     #[cfg(windows)]
     {
-        match service::dispatch() {
-            Ok(()) => return Ok(()),
-            Err(windows_service::Error::Winapi(error)) if error.raw_os_error() == Some(1063) => {}
-            Err(error) => {
-                return Err(p::Error(format!(
+        match launch {
+            Launch::InstallService(path) => service::install(&path),
+            Launch::UninstallService(path) => service::uninstall(&path),
+            Launch::Development { .. } | Launch::Managed(_) => match service::dispatch() {
+                Ok(()) => Ok(()),
+                Err(windows_service::Error::Winapi(error))
+                    if error.raw_os_error() == Some(1063) =>
+                {
+                    run_foreground(launch)
+                }
+                Err(error) => Err(p::Error(format!(
                     "Windows service dispatcher failed: {error}"
-                )))
-            }
+                ))),
+            },
         }
     }
-    run_host(None, true, false, || Ok(()))
+    #[cfg(not(windows))]
+    match launch {
+        Launch::Development { .. } | Launch::Managed(_) => run_foreground(launch),
+        Launch::InstallService(_) | Launch::UninstallService(_) => Err(p::Error(
+            "host service installation is managed by the native package manager on this platform"
+                .into(),
+        )),
+    }
+}
+
+fn run_foreground(launch: Launch) -> p::Result<()> {
+    let runtime = match launch {
+        Launch::Development { process_workers } => from_environment(process_workers)?,
+        Launch::Managed(path) => from_managed_config(&path)?,
+        _ => {
+            return Err(p::Error(
+                "host administrative command cannot start a runtime".into(),
+            ))
+        }
+    };
+    run_host(None, true, runtime, || Ok(()), || Ok(()))
 }
 
 fn run_host(
     shutdown: Option<Receiver<()>>,
     announce: bool,
-    managed_credentials: bool,
+    runtime: HostRuntimeConfig,
     on_ready: impl FnOnce() -> p::Result<()>,
+    on_stopping: impl FnOnce() -> p::Result<()>,
 ) -> p::Result<()> {
-    let development_workers =
-        development_process_workers(std::env::args().skip(1), managed_credentials)?;
-    let journal = required_path("FORME_HOST_JOURNAL_PATH")?;
-    let install_id = required("FORME_INSTALL_ID")?;
-    let credentials = if managed_credentials {
-        load_managed_credentials()?
-    } else {
-        let maintenance_token = load_or_create_token()?
-            .ok_or_else(|| p::Error("host management token is unavailable".into()))?;
-        HostCredentials::new(
-            maintenance_token,
-            std::env::var("FORME_AGENT_EXECUTION_TOKEN").ok(),
-        )?
-    };
-    let target = target_from_environment()?;
-    let bootstrap = load_bootstrap_authority(&journal, &install_id, &credentials)?;
-    let active_release =
-        std::env::var("FORME_ACTIVE_RELEASE").unwrap_or_else(|_| "unconfigured".into());
+    let journal = runtime.journal_path.clone();
+    let install_id = runtime.install_id.clone();
+    let credentials = runtime.credentials.clone();
+    let bootstrap = load_bootstrap_authority(
+        &journal,
+        &install_id,
+        &credentials,
+        runtime.bootstrap_config_path.as_deref(),
+        &runtime.protected_paths,
+    )?;
     let agent_digest = credentials
         .agent_execution()
         .map(|value| p::canonical_digest(&value))
@@ -65,21 +85,25 @@ fn run_host(
         &journal,
         &install_id,
         credentials,
-        target,
-        active_release,
+        runtime.target,
+        runtime.active_release,
         forme_execution::installed::SystemServiceManager,
     )?);
-    let has_agent = agent_digest.is_some();
-    let worker = load_worker_host(&journal, agent_digest, development_workers)?;
+    let has_agent = runtime.has_agent_endpoint && agent_digest.is_some();
+    let worker = load_worker_host(
+        &journal,
+        agent_digest,
+        runtime.worker_config_path.as_deref(),
+        runtime.development_workers,
+        &runtime.worker_protected_paths,
+    )?;
     let mut endpoints = vec![HostEndpoint::bind(
-        "FORME_HOST_BIND",
-        "127.0.0.1:8766",
+        runtime.host_bind,
         EndpointDomain::Maintenance,
     )?];
     if has_agent {
         endpoints.push(HostEndpoint::bind(
-            "FORME_AGENT_EXECUTION_BIND",
-            "127.0.0.1:8767",
+            runtime.agent_execution_bind,
             EndpointDomain::AgentExecution,
         )?);
     }
@@ -97,7 +121,7 @@ fn run_host(
                     .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
             );
         }
-        if let Some(path) = token_path() {
+        if let Some(path) = token_path().filter(|_| !runtime.managed) {
             println!("FORME_HOST_TOKEN_PATH={}", path.display());
         }
         let _ = std::io::stdout().flush();
@@ -146,6 +170,20 @@ fn run_host(
             std::thread::sleep(Duration::from_millis(10));
         }
     }
+    // Stop admitting connections before draining operations that already own
+    // journal/worker locks. A callback returning is not proof they finished.
+    let connections: Vec<_> = endpoints.iter().map(|e| e.connections.clone()).collect();
+    drop(endpoints);
+    on_stopping()?;
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    while connections.iter().any(|n| n.load(Ordering::Acquire) != 0) {
+        if std::time::Instant::now() >= deadline {
+            return Err(p::Error(
+                "host shutdown could not verify all accepted operations".into(),
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
     Ok(())
 }
 
@@ -162,11 +200,7 @@ struct HostEndpoint {
 }
 
 impl HostEndpoint {
-    fn bind(key: &str, default: &str, domain: EndpointDomain) -> p::Result<Self> {
-        let address: SocketAddr = std::env::var(key)
-            .unwrap_or_else(|_| default.into())
-            .parse()
-            .map_err(|_| p::Error("host broker requires a numeric loopback address".into()))?;
+    fn bind(address: SocketAddr, domain: EndpointDomain) -> p::Result<Self> {
         if !address.ip().is_loopback() {
             return Err(p::Error("host broker must remain loopback-only".into()));
         }

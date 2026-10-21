@@ -1,0 +1,117 @@
+import { isRecord, versioned } from '../types.ts';
+import type { ControlProfile, DataCandidate, PendingApproval, RunCommand, RunSummary, RuntimeView, SessionResponse } from '../types.ts';
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly retryAfterMs: number;
+  constructor(status: number, code: string, message: string, retryAfterMs = 0) {
+    super(message); this.status = status; this.code = code; this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export const newKey = (prefix = 'web') => `${prefix}:${crypto.randomUUID()}`;
+const id = (value: string) => encodeURIComponent(value);
+
+/** Only same-origin, allowlisted endpoints. No provider URL or internal token. */
+export class WorkbenchClient {
+  private csrf: string | null = null;
+  private readonly transport: typeof fetch;
+  private readonly expired: () => void;
+  constructor(transport = fetch, expired = () => {}) {
+    // Browser fetch checks its receiver. Keep it detached from this client.
+    this.transport = (...args) => transport(...args); this.expired = expired;
+  }
+  clear() { this.csrf = null; }
+
+  private async request(path: string, method = 'GET', body?: unknown, key?: string): Promise<Response> {
+    const headers = new Headers({ Accept: 'application/json' });
+    if (method !== 'GET') {
+      if (!key) throw new Error('操作缺少稳定标识。');
+      headers.set('Idempotency-Key', key);
+      if (this.csrf) headers.set('X-Forme-Csrf', this.csrf);
+      if (body !== undefined) headers.set('Content-Type', 'application/json');
+    }
+    let response: Response;
+    try {
+      response = await this.transport(`/api/v1/${path}`, {
+        method, headers, credentials: 'same-origin', cache: 'no-store',
+        body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(28_000),
+      });
+    } catch {
+      // Mutation outcomes are unknown. Never create a new key or retry here.
+      throw new ApiError(0, 'ConnectionLost', '连接中断；操作结果尚未确认，请使用原操作继续核实。');
+    }
+    if (!response.ok) {
+      const retry = response.headers.get('Retry-After');
+      const seconds = retry !== null ? Number(retry) : NaN;
+      const retryAfterMs = Number.isFinite(seconds) ? Math.max(0, seconds * 1000) : 0;
+      let code = 'RequestFailed', message = `请求未完成 (${response.status})`;
+      try {
+        const problem: unknown = await response.json();
+        if (isRecord(problem) && problem.schema_version === 1) {
+          if (typeof problem.code === 'string') code = problem.code;
+          if (typeof problem.safe_message === 'string') message = problem.safe_message;
+        }
+      } catch { /* Never display raw upstream error bodies. */ }
+      if (response.status === 401) { this.clear(); this.expired(); }
+      throw new ApiError(response.status, code, message, retryAfterMs);
+    }
+    return response;
+  }
+  private async json<T>(path: string, method = 'GET', body?: unknown, key?: string): Promise<T> {
+    const response = await this.request(path, method, body, key);
+    if (response.status === 204) return undefined as T;
+    const value: unknown = await response.json();
+    if (isRecord(value)) versioned(value);
+    if (Array.isArray(value)) for (const item of value) if (isRecord(item)) versioned(item);
+    return value as T;
+  }
+  bootstrap() { return this.json<{ schema_version: 1; claimed: boolean; setup_needed: boolean }>('bootstrap/status'); }
+  async session(): Promise<SessionResponse> {
+    const view = await this.json<SessionResponse>('auth/session'); this.csrf = view.csrf; return view;
+  }
+  async login(login_name: string, password: string) {
+    const challenge = await this.json<{ schema_version: 1; csrf: string; attempt_ref: string }>('auth/login-challenge');
+    this.csrf = challenge.csrf;
+    const result = await this.json<SessionResponse>('auth/login', 'POST', { schema_version: 1, login_name, password }, challenge.attempt_ref);
+    this.csrf = result.csrf; return result;
+  }
+  async prove(proof: string, operation: string) {
+    const result = await this.json<{ schema_version: 1; csrf: string }>('bootstrap/prove', 'POST', { schema_version: 1, proof }, operation);
+    this.csrf = result.csrf; return result;
+  }
+  data() { return this.json<DataCandidate>('bootstrap/data'); }
+  select(candidate_ref: string, operation: string) { return this.json<DataCandidate>('bootstrap/data', 'POST', { schema_version: 1, candidate_ref }, operation); }
+  async claim(candidate_ref: string, login_name: string, password: string, operation: string) {
+    const view = await this.json<SessionResponse>('bootstrap/claim', 'POST', { schema_version: 1, candidate_ref, login_name, password, operation_id: operation }, operation);
+    this.csrf = view.csrf; return view;
+  }
+  async logout() { await this.request('auth/logout', 'POST', undefined, newKey('logout')); this.clear(); }
+  async password(old_password: string, new_password: string, operation: string) {
+    await this.request('auth/password', 'PUT', { schema_version: 1, old_password, new_password }, operation); this.clear();
+  }
+  profile() { return this.json<ControlProfile>('brain/profile'); }
+  runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }
+  runs() { return this.json<RunSummary[]>('brain/runs'); }
+  run(run: string) { return this.json<RunSummary>(`brain/runs/${id(run)}`); }
+  submit(command: RunCommand) { return this.json<string>('brain/runs', 'POST', command, command.idempotency_key); }
+  async events(run: string, after: number) { return (await this.request(`brain/runs/${id(run)}/events?after=${after}`)).text(); }
+  answer(run: string) { return this.json<{ schema_version: 1; run: string; answer: string | null }>(`brain/runs/${id(run)}/answer`); }
+  approvals(session: string) { return this.json<PendingApproval[]>(`brain/sessions/${id(session)}/approvals`); }
+  async cancel(run: string, operation: string) {
+    await this.request(`brain/runs/${id(run)}/control`, 'POST', { Cancel: { schema_version: 1, reason: 'reason:owner-web-cancel' } }, operation);
+  }
+  async approve(approval: PendingApproval, granted: boolean, operation: string) {
+    const body = { ResolveApproval: {
+      schema_version: 1, approval_id: approval.approval_id, outcome: granted ? 'Granted' : 'Denied',
+      bound_plan_digest: approval.plan_digest, normalized_action_digest: approval.normalized_action_digest,
+      affected_resources: approval.affected_resources, policy_version: approval.policy_version,
+      tool_schema_version: approval.tool_schema_version, nonce: operation, use_by: approval.expires_at,
+    } };
+    await this.request(`brain/runs/${id(approval.run)}/control`, 'POST', body, operation);
+  }
+  workspace() { return this.json<Record<string, unknown>>('brain/workspace'); }
+  dashboard() { return this.json<Record<string, unknown>>('brain/dashboard'); }
+  projects() { return this.json<Record<string, unknown>>('brain/projects'); }
+}

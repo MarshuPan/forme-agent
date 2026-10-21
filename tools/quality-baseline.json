@@ -136,10 +136,6 @@
       "max_lines": 3481,
       "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
     },
-    "crates/harness/src/production_config.rs": {
-      "max_lines": 841,
-      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
-    },
     "crates/harness/tests/harness_contract.rs": {
       "max_lines": 4965,
       "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."

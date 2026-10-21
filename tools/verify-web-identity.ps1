@@ -18,7 +18,9 @@ try {
         "identity_change_password_rejects_a_proof_for_another_prepared_hash",
         "identity_concurrent_authentication_keeps_one_live_session_without_false_clock_rollback",
         "identity_login_challenge_is_csrf_bound_expiring_and_consumed_once_across_restart",
-        "identity_known_schema_upgrade_preserves_existing_account_and_session"
+        "identity_known_schema_upgrade_preserves_existing_account_and_session",
+        "identity_setup_scope_is_distinct_and_candidate_binding_survives_restart",
+        "identity_invalid_setup_proof_can_be_discarded_without_touching_claim_intent"
     )
     $ErrorActionPreference = "Continue"
     $output = @(& cargo test -p forme-gateway --lib web::identity::tests:: -- --test-threads=2 2>&1 | ForEach-Object { "$_" })
@@ -36,6 +38,7 @@ try {
     }
     $summary = '^test result: ok\. ' + $expected.Count + ' passed; 0 failed; 0 ignored;'
     if (@($output | Where-Object { $_ -match $summary }).Count -ne 1) {
+        $output | ForEach-Object { Write-Host $_ }
         throw "Web identity component result count mismatch"
     }
     Write-Host "Web identity component gate: PASS ($($expected.Count) named tests)"

@@ -12,6 +12,9 @@ const TOKEN: &str = "lifecycle-test-token-0123456789abcdef0123456789abcdef";
 const KEY_ENV: &str = "FORME_GATEWAY_LIFECYCLE_FIXTURE_KEY";
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+#[path = "server_lifecycle_tests/web_workbench.rs"]
+mod web_workbench;
+
 struct Fixture {
     _lock: std::sync::MutexGuard<'static, ()>,
     old_key: Option<std::ffi::OsString>,
@@ -164,6 +167,10 @@ impl Fixture {
             max_requests_per_minute: 100,
             scheduler_enabled: self.config.scheduler_enabled,
             scheduler: self.config.scheduler.clone(),
+            install_ref: None,
+            web_bridge_token: None,
+            web_assertion_verifying_key: None,
+            web_session_fence_path: None,
             token: LocalBearerSecret::new(TOKEN.into()).unwrap(),
             token_path: None,
         }
@@ -367,7 +374,16 @@ async fn cancelled_request_keeps_its_blocking_admission_until_the_operation_fini
         origin: "http://127.0.0.1".into(),
         rate: Mutex::new(RateWindow::new()),
         max_requests_per_minute: 100,
+        max_body_bytes: 8192,
         admission: Arc::new(WorkAdmission::default()),
+        web_bridge: super::web_bridge::WebBridgeState::open(
+            None,
+            None,
+            None,
+            None,
+            &p::VerifiedPrincipal("owner:test".into()),
+        )
+        .unwrap(),
     });
     let (release, wait) = mpsc::channel();
     let (entered, entry) = tokio::sync::oneshot::channel();

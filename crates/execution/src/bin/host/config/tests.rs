@@ -1,0 +1,209 @@
+use super::*;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static NEXT: AtomicU64 = AtomicU64::new(0);
+struct Fixture(PathBuf);
+impl Fixture {
+    fn new() -> Self {
+        let root = std::env::temp_dir().join(format!(
+            "forme-managed-host-config-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&root).unwrap();
+        Self(root)
+    }
+    fn document(&self) -> serde_json::Value {
+        serde_json::json!({
+            "schema_version": 1, "install_ref": "managed-host-test", "active_release": "0.0.1",
+            "product_target": native_target(), "journal_path": self.0.join("host.jsonl"),
+            "maintenance_credential_path": self.0.join("maintenance.key"),
+            "agent_execution_credential_path": self.0.join("agent.key"),
+            "host_bind": "127.0.0.1:28766", "agent_execution_bind": "127.0.0.1:28767",
+        })
+    }
+    fn save(&self, doc: &serde_json::Value) -> PathBuf {
+        let path = self.0.join("host.json");
+        std::fs::write(&path, serde_json::to_vec(doc).unwrap()).unwrap();
+        path
+    }
+    fn key(&self, name: &str, bytes: &[u8]) {
+        let path = self.0.join(name);
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        options.open(path).unwrap().write_all(bytes).unwrap();
+    }
+}
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        std::fs::remove_dir_all(&self.0).unwrap();
+    }
+}
+
+fn native_target() -> p::ProductTarget {
+    use p::ProductTarget::*;
+    if cfg!(windows) {
+        WindowsX86_64
+    } else if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            MacosArm64
+        } else {
+            MacosX86_64
+        }
+    } else if cfg!(target_arch = "aarch64") {
+        Ubuntu2404Arm64
+    } else {
+        Ubuntu2404X86_64
+    }
+}
+
+#[test]
+fn managed_host_load_is_closed_bounded_and_side_effect_free() {
+    let fixture = Fixture::new();
+    let original = fixture.document();
+    let path = fixture.save(&original);
+    HostServiceConfig::load(&path).unwrap();
+    assert!(!fixture.0.join("host.jsonl").exists());
+    for (key, value) in [
+        ("schema_version", serde_json::json!(2)),
+        ("unrecognized", serde_json::json!(true)),
+        ("host_bind", serde_json::json!("0.0.0.0:28766")),
+        ("host_bind", serde_json::json!("127.0.0.1:0")),
+        ("agent_execution_bind", serde_json::json!("127.0.0.1:28766")),
+        ("journal_path", serde_json::json!("relative.jsonl")),
+        (
+            "maintenance_credential_path",
+            original["journal_path"].clone(),
+        ),
+        (
+            "product_target",
+            serde_json::json!(if cfg!(windows) {
+                "macos_arm64"
+            } else {
+                "windows_x86_64"
+            }),
+        ),
+    ] {
+        let mut changed = original.clone();
+        changed[key] = value;
+        fixture.save(&changed);
+        assert!(HostServiceConfig::load(&path).is_err(), "accepted {key}");
+    }
+    std::fs::write(&path, vec![b' '; 64 * 1024 + 1]).unwrap();
+    assert!(HostServiceConfig::load(&path).is_err());
+    assert!(!fixture.0.join("host.jsonl").exists());
+}
+
+#[test]
+fn managed_host_needs_private_distinct_file_credentials_and_cannot_enable_process_workers() {
+    let fixture = Fixture::new();
+    let doc = fixture.document();
+    let path = fixture.save(&doc);
+    assert!(from_managed_config(&path).is_err());
+    fixture.key(
+        "maintenance.key",
+        b"test-maintenance-only-token-0000000001\n",
+    );
+    fixture.key("agent.key", b"test-agent-execution-token-0000000002\n");
+    let runtime = from_managed_config(&path).unwrap();
+    assert!(runtime.managed && runtime.has_agent_endpoint);
+    assert!(!runtime.development_workers);
+    assert_eq!(
+        runtime.credentials.maintenance(),
+        "test-maintenance-only-token-0000000001"
+    );
+    for bytes in [
+        b"short".as_slice(),
+        b"test-maintenance-only-token-0000000001",
+        &vec![b'a'; 260],
+    ] {
+        std::fs::write(fixture.0.join("agent.key"), bytes).unwrap();
+        assert!(from_managed_config(&path).is_err());
+    }
+    assert!(!fixture.0.join("host.jsonl").exists());
+}
+
+#[test]
+fn host_configuration_cannot_alias_itself_or_the_fallback_worker_journal() {
+    let fixture = Fixture::new();
+    let mut doc = fixture.document();
+    doc["journal_path"] = serde_json::json!(fixture.0.join("host.json"));
+    let path = fixture.save(&doc);
+    assert!(HostServiceConfig::load(&path).is_err());
+    doc = fixture.document();
+    doc["agent_execution_credential_path"] = serde_json::json!(fixture.0.join("host.worker.jsonl"));
+    fixture.save(&doc);
+    assert!(HostServiceConfig::load(&path).is_err());
+}
+
+#[test]
+fn managed_bootstrap_reference_is_preflighted_without_opening_its_authority() {
+    let fixture = Fixture::new();
+    fixture.key("maintenance.key", b"test-maintenance-only-token-0000000001");
+    fixture.key("agent.key", b"test-agent-execution-token-0000000002");
+    let mut doc = fixture.document();
+    let setup_path = fixture.0.join("bootstrap.json");
+    doc["bootstrap_config_path"] = serde_json::json!(setup_path);
+    let path = fixture.save(&doc);
+    let mut setup = serde_json::json!({
+        "schema_version": 1, "install_ref": "managed-host-test",
+        "journal_path": fixture.0.join("bootstrap.jsonl"),
+        "signing_key_path": fixture.0.join("bootstrap.key"),
+        "web_credential_path": fixture.0.join("web.key"),
+        "new_brain_directory": fixture.0.join("brain"),
+        "candidate_ref": "new-managed-brain",
+    });
+    fixture.key("bootstrap.json", &serde_json::to_vec(&setup).unwrap());
+    let runtime = from_managed_config(&path).unwrap();
+    for name in ["bootstrap.jsonl", "bootstrap.key", "web.key", "brain"] {
+        assert!(runtime
+            .worker_protected_paths
+            .contains(&fixture.0.join(name)));
+        assert!(!runtime.protected_paths.contains(&fixture.0.join(name)));
+        assert!(!fixture.0.join(name).exists());
+    }
+    setup["install_ref"] = serde_json::json!("different-install");
+    std::fs::write(&setup_path, serde_json::to_vec(&setup).unwrap()).unwrap();
+    assert!(HostServiceConfig::load(&path).is_err());
+    setup["install_ref"] = serde_json::json!("managed-host-test");
+    setup["journal_path"] = doc["journal_path"].clone();
+    std::fs::write(setup_path, serde_json::to_vec(&setup).unwrap()).unwrap();
+    assert!(HostServiceConfig::load(&path).is_err());
+    assert!(!fixture.0.join("host.jsonl").exists());
+}
+
+#[test]
+fn administrative_arguments_need_an_explicit_config_and_never_start_development() {
+    let fixture = Fixture::new();
+    for command in ["--install-service", "--uninstall-service"] {
+        assert!(launch_from_args(vec![command.into()]).is_err());
+        let args = vec![
+            command.into(),
+            "--config".into(),
+            fixture.0.join("host.json").into_os_string(),
+        ];
+        assert!(matches!(
+            launch_from_args(args).unwrap(),
+            Launch::InstallService(_) | Launch::UninstallService(_)
+        ));
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn broad_credential_permissions_are_refused() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    fixture.key("maintenance.key", b"test-maintenance-only-token-0000000001");
+    std::fs::set_permissions(
+        fixture.0.join("maintenance.key"),
+        std::fs::Permissions::from_mode(0o644),
+    )
+    .unwrap();
+    assert!(read_managed_credential(&fixture.0.join("maintenance.key"), "maintenance").is_err());
+}

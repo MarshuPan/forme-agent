@@ -59,6 +59,9 @@ use super::brain_tick::{brain_tick_run, is_tick_input, HarnessCognitiveTick};
 use super::production_config::*;
 use super::{now_ms, GovernanceConfig, HarnessConfig, ReactiveHarness};
 
+mod builder;
+pub use builder::ProductionRuntimeBuilder;
+
 /// A tick claim's lease. A crashed attempt's window is retried once the
 /// lease lapses; a live attempt is never shared.
 const COGNITIVE_TICK_LEASE: p::DurationMs = p::DurationMs(600_000);
@@ -2604,51 +2607,6 @@ impl ProductionRuntime {
     }
 }
 
-pub struct ProductionRuntimeBuilder {
-    config: ProductionRuntimeConfig,
-}
-
-impl ProductionRuntimeBuilder {
-    pub fn from_environment() -> p::Result<Self> {
-        Self::from_config(ProductionRuntimeConfig::from_environment()?)
-    }
-
-    pub fn from_config(config: ProductionRuntimeConfig) -> p::Result<Self> {
-        config.validate()?;
-        Ok(Self { config })
-    }
-
-    pub fn build(self) -> p::Result<ProductionRuntime> {
-        let path = self.config.store_path.clone();
-        ensure_store_parent(&path)?;
-        let store = SqliteEventStore::open(
-            path,
-            StoreOptions {
-                fts_enabled: true,
-                ..StoreOptions::default()
-            },
-        )?;
-        self.build_with_store(store)
-    }
-
-    /// Compatibility path for existing tests that already opened a store.
-    /// It uses the exact same composition routine as `build`.
-    pub fn build_with_store(self, store: SqliteEventStore) -> p::Result<ProductionRuntime> {
-        self.config.validate()?;
-        if store.content_protection()?.is_none() {
-            let keys = forme_store::FileContentKeyResolver::new(
-                self.config.store_path.with_extension("content-keys"),
-            )?;
-            store.enable_content_protection(forme_store::StoreContentProtection::new(
-                &p::VerifiedPrincipal(self.config.owner.0.clone()),
-                p::Scope(self.config.workspace.0.clone()),
-                Arc::new(keys),
-            )?)?;
-        }
-        compose(self.config, store)
-    }
-}
-
 struct ProductionContextSliceSource {
     store: Arc<SqliteEventStore>,
     cognition: Arc<CognitiveRuntime<SqliteEventStore>>,
@@ -2822,6 +2780,7 @@ impl ContextSliceSource for ProductionContextSliceSource {
 fn compose(
     config: ProductionRuntimeConfig,
     store: SqliteEventStore,
+    credential_files: Option<BTreeMap<String, PathBuf>>,
 ) -> p::Result<ProductionRuntime> {
     if !store.is_file_backed()? {
         return Err(p::Error(
@@ -2842,10 +2801,7 @@ fn compose(
     let store = Arc::new(store);
 
     let (model_registry, unavailable_models) =
-        ModelRegistry::from_config_degrading(ModelRegistryConfig {
-            schema_version: p::SchemaVersion(1),
-            profiles: config.models.clone(),
-        })?;
+        builder::bind_models(&config.models, credential_files)?;
     let model_registry = Arc::new(model_registry);
     let default_ref = model_registry.default_ref().clone();
     let registered = model_registry

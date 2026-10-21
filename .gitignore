@@ -11,3 +11,8 @@ __pycache__/
 
 # Local runtime state (event store written by forme-cli runs).
 .forme/
+
+# Web development dependencies; release assets are generated and checked separately.
+/frontend/node_modules/
+/frontend/dist/
+/product-bundles/

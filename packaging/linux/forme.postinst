@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+  configure)
+    getent group forme-brain >/dev/null || groupadd --system forme-brain
+    getent passwd forme-brain >/dev/null || useradd --system --gid forme-brain --home-dir /var/lib/forme/brain --shell /usr/sbin/nologin forme-brain
+    getent group forme-web >/dev/null || groupadd --system forme-web
+    getent passwd forme-web >/dev/null || useradd --system --gid forme-web --home-dir /var/lib/forme/web-auth --shell /usr/sbin/nologin forme-web
+    install -d -o forme-brain -g forme-brain -m 0750 /var/lib/forme/brain /var/lib/forme/keys /var/lib/forme/workspaces
+    install -d -o forme-web -g forme-web -m 0750 /var/lib/forme/web-auth
+    install -d -o root -g root -m 0750 /etc/forme /var/lib/forme/host-state /var/lib/forme/logs /run/forme
+    systemctl daemon-reload
+    systemctl enable forme-host.service forme-web.service
+    systemctl start forme-host.service forme-web.service
+    ;;
+esac

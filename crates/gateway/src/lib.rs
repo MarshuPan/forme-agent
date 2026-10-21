@@ -40,7 +40,10 @@ use forme_protocol as p;
 
 pub use client::HttpGatewayClient;
 pub use lifecycle::GatewayLifecycleConfig;
-pub use server::{serve_environment, serve_environment_until, GatewayServerConfig};
+pub use server::{
+    serve_environment, serve_environment_until, serve_managed_until, CoreServiceConfig,
+    GatewayServerConfig,
+};
 
 pub trait Gateway {
     fn submit(&self, event: CommunicationEvent) -> p::Result<p::RunId>;

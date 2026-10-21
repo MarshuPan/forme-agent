@@ -18,6 +18,8 @@ pub struct WebServerConfig {
     pub bind: SocketAddr,
     #[serde(default)]
     pub bootstrap_bridge: Option<WebBootstrapBridgeConfig>,
+    #[serde(default)]
+    pub core_bridge: Option<WebCoreBridgeConfig>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -26,6 +28,15 @@ pub struct WebBootstrapBridgeConfig {
     pub schema_version: p::SchemaVersion,
     pub address: SocketAddr,
     pub credential_path: PathBuf,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebCoreBridgeConfig {
+    pub schema_version: p::SchemaVersion,
+    pub address: SocketAddr,
+    pub credential_path: PathBuf,
+    pub signing_key_path: PathBuf,
 }
 
 fn default_bind() -> SocketAddr {
@@ -73,6 +84,20 @@ impl WebServerConfig {
             }
             check_path(&bridge.credential_path)?;
         }
+        if let Some(bridge) = &self.core_bridge {
+            if bridge.schema_version != p::SchemaVersion(1)
+                || !bridge.address.ip().is_loopback()
+                || bridge.address.port() == 0
+                || bridge.address == self.bind
+            {
+                return Err(invalid());
+            }
+            check_path(&bridge.credential_path)?;
+            check_path(&bridge.signing_key_path)?;
+            if bridge.credential_path == bridge.signing_key_path {
+                return Err(invalid());
+            }
+        }
         check_path(&self.identity_directory)?;
         VerifyingKey::from_bytes(&self.claim_verifying_key).map_err(|_| invalid())?;
         Ok(())
@@ -83,7 +108,7 @@ fn invalid() -> p::Error {
     p::Error("Web service configuration is unavailable or invalid".into())
 }
 
-pub(super) fn check_path(path: &Path) -> p::Result<()> {
+pub(crate) fn check_path(path: &Path) -> p::Result<()> {
     if !path.is_absolute()
         || path
             .components()

@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use super::super::identity::AuthError;
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub(super) struct ApiProblem {
     schema_version: SchemaVersion,
     code: &'static str,
@@ -14,6 +14,7 @@ pub(super) struct ApiProblem {
     retryable: bool,
 }
 
+#[derive(Debug)]
 pub(super) struct WebError {
     status: StatusCode,
     problem: ApiProblem,

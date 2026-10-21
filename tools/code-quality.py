@@ -10,7 +10,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTENSIONS = {".rs", ".ts", ".tsx", ".js", ".css", ".py", ".ps1", ".sh"}
+EXTENSIONS = {".rs", ".ts", ".tsx", ".js", ".mjs", ".css", ".py", ".ps1", ".sh"}
 ROOTS = ("crates/", "frontend/", "tools/")
 ALLOWED = {
     "protocol": set(), "store": {"protocol"}, "config": {"protocol"},

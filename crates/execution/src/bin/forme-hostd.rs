@@ -11,16 +11,32 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::host::{config::development_process_workers, http::read_request};
+    use super::host::{
+        config::{launch_from_args, Launch},
+        http::read_request,
+    };
 
     #[test]
     fn service_mode_never_accepts_the_development_process_switch() {
-        let flag = vec!["--development-process-workers".into()];
-        assert!(development_process_workers(flag.clone(), true).is_err());
-        assert!(development_process_workers(flag, false).unwrap());
-        assert!(!development_process_workers(Vec::new(), true).unwrap());
-        assert!(!development_process_workers(Vec::new(), false).unwrap());
-        assert!(development_process_workers(vec!["--unknown".into()], false).is_err());
+        assert!(matches!(
+            launch_from_args(vec!["--development-process-workers".into()]).unwrap(),
+            Launch::Development {
+                process_workers: true
+            }
+        ));
+        assert!(matches!(
+            launch_from_args(Vec::new()).unwrap(),
+            Launch::Development {
+                process_workers: false
+            }
+        ));
+        assert!(launch_from_args(vec!["--config".into(), "relative.json".into()]).is_err());
+        assert!(launch_from_args(vec![
+            "--config".into(),
+            "--development-process-workers".into()
+        ])
+        .is_err());
+        assert!(launch_from_args(vec!["--unknown".into()]).is_err());
     }
 
     #[test]

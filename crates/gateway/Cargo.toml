@@ -20,6 +20,9 @@ ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["std
 rusqlite = { version = "=0.40.1", default-features = false, features = ["bundled"] }
 zeroize = "=1.9.0"
 
+[target.'cfg(windows)'.dependencies]
+windows-service = "=0.8.1"
+
 [[bin]]
 name = "forme-gatewayd"
 path = "src/main.rs"

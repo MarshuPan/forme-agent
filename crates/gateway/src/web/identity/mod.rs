@@ -103,15 +103,30 @@ pub struct WebRequestBinding {
 }
 
 /// Constructor and session digest are private to the authentication service.
+#[derive(Clone)]
 pub struct AuthenticatedWebOwner {
     session_digest: String,
     csrf_digest: String,
     pub(super) view: p::WebSessionView,
 }
 
+pub(crate) struct CoreSessionBinding {
+    pub(crate) session_digest: String,
+    pub(crate) owner: p::OwnerPrincipalRef,
+    pub(crate) auth_epoch: u64,
+}
+
 impl AuthenticatedWebOwner {
     pub fn view(&self) -> &p::WebSessionView {
         &self.view
+    }
+
+    pub(crate) fn core_binding(&self) -> CoreSessionBinding {
+        CoreSessionBinding {
+            session_digest: self.session_digest.clone(),
+            owner: self.view.owner.clone(),
+            auth_epoch: self.view.auth_epoch,
+        }
     }
 }
 

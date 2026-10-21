@@ -3,6 +3,7 @@
 import tempfile
 import unittest
 import importlib.util
+import subprocess
 from pathlib import Path
 
 _spec = importlib.util.spec_from_file_location("forme_code_quality", Path(__file__).parents[1] / "code-quality.py")
@@ -47,6 +48,23 @@ class CodeQualityTests(unittest.TestCase):
             errors = dependency_errors(root)
             self.assertIn("gateway: forbidden internal dependency forme-store", errors)
             self.assertIn("crate set differs from the frozen 18-crate graph", errors)
+
+    def test_frontend_and_build_scripts_are_checked_but_vendor_output_is_not(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            for relative in ["frontend/src/App.tsx", "frontend/src/tests/client.test.ts",
+                             "tools/build-web.mjs", "frontend/dist/assets/app.js",
+                             "frontend/node_modules/foreign/index.js"]:
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("line\n" * 601, encoding="utf-8")
+            paths = _quality.source_paths(root)
+            self.assertEqual(paths, ["frontend/src/App.tsx", "frontend/src/tests/client.test.ts", "tools/build-web.mjs"])
+            errors, _ = file_metrics(root, paths, {})
+            self.assertEqual(len(errors), 2)
+            self.assertTrue(any("App.tsx" in error for error in errors))
+            self.assertTrue(any("build-web.mjs" in error for error in errors))
 
 
 if __name__ == "__main__":

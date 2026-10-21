@@ -10,6 +10,8 @@ use crate::{
     RateLimit, SecretString, ToolCompatibility, Url,
 };
 
+mod credentials;
+
 const MAX_PROFILE_CONFIG_BYTES: usize = 65_536;
 const MAX_MODEL_PROFILES: usize = 32;
 const MAX_CONFIG_STRING_BYTES: usize = 2_048;
@@ -166,34 +168,9 @@ impl ModelRegistry {
     pub fn from_config_degrading(
         config: ModelRegistryConfig,
     ) -> p::Result<(Self, Vec<UnavailableModelProfile>)> {
-        config.validate()?;
-        let defaults = config
-            .profiles
-            .iter()
-            .filter(|profile| profile.default)
-            .map(|profile| p::ModelProfileRef(profile.id.clone()))
-            .collect::<Vec<_>>();
-        if defaults.len() != 1 {
-            return Err(p::Error(
-                "model configuration must declare exactly one default profile".into(),
-            ));
-        }
-        let mut registry = Self::new(defaults[0].clone())?;
-        let mut unavailable = Vec::new();
-        for profile in config.profiles {
-            let reference = p::ModelProfileRef(profile.id.clone());
-            let is_default = profile.default;
-            match profile.bind_provider() {
-                Ok(model) => registry.register(model)?,
-                Err(error) if is_default => return Err(error),
-                Err(_) => unavailable.push(UnavailableModelProfile {
-                    profile: reference,
-                    reason: "model provider binding is unavailable (credential or endpoint)".into(),
-                }),
-            }
-        }
-        registry.validate_ready()?;
-        Ok((registry, unavailable))
+        Self::from_config_degrading_with_credentials(config, |profile| {
+            environment_credential(profile)
+        })
     }
 
     pub fn register(&mut self, model: RegisteredModel) -> p::Result<()> {
@@ -489,12 +466,16 @@ impl ModelRuntimeConfig {
 
     fn bind_provider(self) -> p::Result<RegisteredModel> {
         self.validate()?;
-        let credential = std::env::var(&self.credential_env).map_err(|_| {
-            p::Error(format!(
-                "credential for model profile {} is unavailable",
-                self.id
-            ))
-        })?;
+        let (credential, reference) = environment_credential(&self)?;
+        self.bind_resolved(credential, reference)
+    }
+
+    fn bind_resolved(
+        self,
+        credential: SecretString,
+        credential_ref: p::CredentialRef,
+    ) -> p::Result<RegisteredModel> {
+        self.validate()?;
         let reference = p::ModelProfileRef(self.id.clone());
         let profile = ModelProfile {
             schema_version: p::SchemaVersion(1),
@@ -517,11 +498,11 @@ impl ModelRuntimeConfig {
                 requests_per_minute: self.requests_per_minute,
                 tokens_per_minute: self.tokens_per_minute,
             },
-            credential_ref: p::CredentialRef(format!("env:{}", self.credential_env)),
+            credential_ref,
         };
         let provider = Arc::new(ChatCompletionsProvider::new(
             profile.clone(),
-            SecretString::new(credential)?,
+            credential,
             p::DurationMs(self.timeout_ms),
         )?);
         let compatibility = self
@@ -543,6 +524,21 @@ impl ModelRuntimeConfig {
             compatibility,
         )
     }
+}
+
+fn environment_credential(
+    profile: &ModelRuntimeConfig,
+) -> p::Result<(SecretString, p::CredentialRef)> {
+    let credential = std::env::var(&profile.credential_env).map_err(|_| {
+        p::Error(format!(
+            "credential for model profile {} is unavailable",
+            profile.id
+        ))
+    })?;
+    Ok((
+        SecretString::new(credential)?,
+        p::CredentialRef(format!("env:{}", profile.credential_env)),
+    ))
 }
 
 fn parse_profile_config(value: &str) -> p::Result<Vec<ModelRuntimeConfig>> {

@@ -1,0 +1,55 @@
+@import url('./styles/layout.css');
+
+:root { font-family: 'Segoe UI Variable', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 15px; color: #292e2b; background: #fafaf7; font-synthesis: none; --accent: #324f42; --muted: #747c75; --line: #e5e7df; --paper: #fff; --soft: #f0f2eb; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input, textarea { font: inherit; }
+button, a, input, textarea, summary { -webkit-tap-highlight-color: transparent; }
+button, a, summary { touch-action: manipulation; }
+button { cursor: pointer; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+a { color: inherit; }
+button { transition: background-color 150ms, border-color 150ms, transform 150ms; }
+button:not(:disabled):active { transform: translateY(1px); }
+:focus-visible { outline: 3px solid #769883; outline-offset: 4px; }
+h1, h2, h3, p { margin-top: 0; }
+h1 { font-size: 2rem; font-weight: 600; letter-spacing: -.06em; line-height: 1.24; }
+h2 { font-size: 1.15rem; font-weight: 600; line-height: 1.45; }
+h3 { font-size: 1rem; font-weight: 600; }
+p { line-height: 1.8; text-wrap: pretty; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; font: .78rem/1.7 Consolas, monospace; color: #56665d; max-height: 22rem; overflow: auto; padding: .8rem; background: #f6f7f2; border-radius: .4rem; }
+summary { cursor: pointer; line-height: 1.8; font-size: .88rem; }
+dl { margin: 1.2rem 0; font-size: .85rem; line-height: 1.7; }
+dl > div { margin-bottom: 1rem; }
+dt { color: var(--muted); }
+dd { margin: .2rem 0 0; overflow-wrap: anywhere; }
+form { display: grid; gap: 1.25rem; }
+label { display: grid; gap: .55rem; font-size: .9rem; }
+input, textarea { width: 100%; padding: .85rem 1rem; border: 1px solid #d8ded4; background: #fdfefb; color: inherit; border-radius: .55rem; }
+input:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height: 1.7; }
+.primary-button, .secondary-button, .text-button { border-radius: .5rem; padding: .7rem 1.1rem; border: 1px solid transparent; font-weight: 500; }
+.primary-button { color: #fff; background: var(--accent); }
+.primary-button:hover:not(:disabled) { background: #223e31; }
+.secondary-button { color: #45574a; background: #f3f5ed; border-color: #dde3d8; }
+.secondary-button:hover:not(:disabled) { background: #e9eee3; }
+.text-button { color: #63776a; background: transparent; }
+.text-button:hover:not(:disabled) { background: var(--soft); }
+.eyebrow { margin-bottom: .8rem; font-size: .75rem; letter-spacing: .12em; color: #728072; font-weight: 500; }
+.muted { color: var(--muted); }
+.small { font-size: .78rem; }
+.notice { padding: 1rem 1.2rem; font-size: .88rem; border-left: 3px solid #97ab8e; background: #f0f3e9; color: #55654a; }
+.form-error { padding: .9rem 1.1rem; border-left: 3px solid #c89b88; background: #faf0eb; color: #865842; font-size: .88rem; }
+.loading { color: var(--muted); padding: 2rem 0; }
+.skip-link { position: fixed; z-index: 5; top: .5rem; left: .5rem; padding: 1rem; background: white; transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.status-pill { display: inline-block; color: #637260; font-size: .78rem; background: #edf1e7; padding: .4rem .7rem; border-radius: .35rem; }
+.empty-state { padding: 5.5rem 1rem; text-align: center; color: var(--muted); }
+.empty-state h2 { color: #576451; font-size: 1.45rem; font-weight: 500; letter-spacing: -.04em; }
+.empty-state p { font-size: .88rem; }
+.surface { padding: 1.8rem; background: #fff; border-radius: .65rem; border: 1px solid var(--line); }
+.surface h2 { margin-bottom: 1.1rem; }
+.button-row { display: flex; gap: .7rem; flex-wrap: wrap; }
+.privacy-hidden .app-shell { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }

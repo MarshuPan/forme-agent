@@ -69,6 +69,28 @@ try {
     Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "tests::service_mode_never_accepts_the_development_process_switch"
 
     foreach ($name in @(
+        "managed_host_load_is_closed_bounded_and_side_effect_free",
+        "managed_host_needs_private_distinct_file_credentials_and_cannot_enable_process_workers",
+        "host_configuration_cannot_alias_itself_or_the_fallback_worker_journal",
+        "managed_bootstrap_reference_is_preflighted_without_opening_its_authority",
+        "administrative_arguments_need_an_explicit_config_and_never_start_development"
+    )) { Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::config::tests::$name" }
+    foreach ($name in @(
+        "managed_host_uses_file_config_and_keeps_both_credential_domains_separate",
+        "invalid_managed_host_config_fails_without_legacy_fallback_or_journal",
+        "managed_host_subconfig_errors_have_zero_management_or_worker_facts"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_host_managed_transport") $name }
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        foreach ($name in @(
+            "native_registration_rejects_foreign_command_account_or_startup",
+            "native_registration_has_fixed_identity_and_finite_recovery"
+        )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::tests::$name" }
+    }
+    else {
+        Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::config::tests::broad_credential_permissions_are_refused"
+    }
+
+    foreach ($name in @(
         "worker_requires_agent_domain_and_real_isolation",
         "worker_binds_plan_scope_epoch_deadline_and_nonce_before_side_effect",
         "worker_admission_is_idempotent_and_restart_marks_exact_job_unknown",

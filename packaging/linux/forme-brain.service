@@ -1,0 +1,27 @@
+[Unit]
+Description=forme owner brain
+Wants=network-online.target
+After=network-online.target forme-host.service
+Requires=forme-host.service
+ConditionPathExists=/etc/forme/core.json
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=forme-brain
+Group=forme-brain
+ExecStart=/opt/forme/current/bin/forme-gatewayd --config /etc/forme/core.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=90s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/forme/brain /var/lib/forme/keys /var/lib/forme/logs /var/lib/forme/workspaces
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target

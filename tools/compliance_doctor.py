@@ -163,7 +163,7 @@ def _main_files(root: Path) -> list[Path]:
     cargo = root / "Cargo.toml"
     if cargo.is_file():
         paths.append(cargo)
-    for directory in (root / "crates", root / "tools", root / ".github"):
+    for directory in (root / "crates", root / "frontend", root / "tools", root / ".github"):
         paths.extend(_iter_files(directory) or [])
     excluded = {
         (root / "tools" / "compliance_doctor.py").resolve(),

@@ -32,6 +32,24 @@ impl WebIdentityService for WebIdentityStore {
 }
 
 impl WebIdentityStore {
+    /// Verify the exact one-shot proof before coordinating a remote auth fence.
+    /// This transaction intentionally rolls back; the final revoke consumes it.
+    pub(crate) fn validate_revocation(
+        &self,
+        owner: &AuthenticatedWebOwner,
+        command: &RevokeSessions,
+    ) -> AuthResult<()> {
+        if command.operation_digest != Self::revoke_operation(owner)? {
+            return Err(AuthError::Conflict);
+        }
+        let mut db = self.database()?;
+        let tx = db.connection.transaction().map_err(storage_error)?;
+        let now = now();
+        storage::check_owner(&tx, owner, now)?;
+        storage::claim_proof(&tx, owner, &command.proof, &command.operation_digest, now)?;
+        tx.rollback().map_err(storage_error)
+    }
+
     pub fn revoke_operation(owner: &AuthenticatedWebOwner) -> AuthResult<p::SchemaDigest> {
         p::canonical_digest(&(
             p::SchemaVersion(1),
@@ -172,7 +190,8 @@ impl WebIdentityStore {
         let csrf_digest = digest(&csrf_token(cookie)?.0)?;
         if request.mutation {
             let csrf = request.csrf.ok_or(AuthError::CsrfRejected)?;
-            if !equal_bytes(digest(&csrf.0)?.as_bytes(), csrf_digest.as_bytes()) {
+            let supplied = digest(&csrf.0).map_err(|_| AuthError::CsrfRejected)?;
+            if !equal_bytes(supplied.as_bytes(), csrf_digest.as_bytes()) {
                 return Err(AuthError::CsrfRejected);
             }
         }

@@ -1,0 +1,25 @@
+[Unit]
+Description=forme web workbench
+After=forme-host.service
+Requires=forme-host.service
+StartLimitIntervalSec=600
+StartLimitBurst=3
+
+[Service]
+Type=exec
+User=forme-web
+Group=forme-web
+ExecStart=/opt/forme/current/bin/forme-webd --config /etc/forme/web.json
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/forme/web-auth /var/lib/forme/logs
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target

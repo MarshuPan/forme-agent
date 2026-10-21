@@ -30,6 +30,15 @@ windows-service 0.8.1 - MIT OR Apache-2.0 - https://crates.io/crates/windows-ser
 argon2 0.6.0 - MIT OR Apache-2.0 - https://crates.io/crates/argon2
 zeroize 1.9.0 - Apache-2.0 OR MIT - https://crates.io/crates/zeroize
 
+The browser workbench includes React 19.3.1, React DOM 19.3.1 and scheduler
+0.28.0 under the MIT License. The generated LICENSES.txt accompanying the
+embedded assets contains their complete notices. Build dependencies are
+recorded with exact versions and license metadata in frontend/package-lock.json
+and crates/gateway/assets/product/dist/dependencies.json. Vite, TypeScript,
+the React Vite plugin and type definitions are development tools, not installed
+Node services. lightningcss and its platform bindings are MPL-2.0 build tools;
+their implementation is not copied into authored source or the browser bundle.
+
 The locked rusqlite build includes libsqlite3-sys and SQLite. SQLite is in the
 public domain; see https://www.sqlite.org/copyright.html. forme implements the
 Model Context Protocol and Chat Completions interoperability surfaces from

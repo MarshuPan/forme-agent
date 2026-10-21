@@ -454,6 +454,7 @@ fn web_configuration_rejects_plaintext_lan_and_malformed_secret_bodies_are_not_e
     let fixture = Fixture::new(false);
     let mut config = WebServerConfig {
         bootstrap_bridge: None,
+        core_bridge: None,
         schema_version: p::SchemaVersion(1),
         install_ref: "installation:fixture".into(),
         identity_directory: fixture.root.clone(),
@@ -508,6 +509,7 @@ async fn web_cancelled_request_keeps_password_capacity_until_real_work_finishes(
     );
     let admission = Arc::new(WorkAdmission::default());
     let state = Arc::new(WebState {
+        core: None,
         bootstrap: None,
         identity,
         authority: "127.0.0.1:8765".into(),

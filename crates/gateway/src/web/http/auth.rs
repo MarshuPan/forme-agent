@@ -175,11 +175,20 @@ pub(super) async fn logout(
 ) -> Result<Response, WebError> {
     let cookie = session_cookie(&headers)?;
     let binding = mutation(&headers)?;
-    state
+    let owner = state
         .blocking(false, move |identity| {
-            let owner = identity.authenticate(&cookie, binding)?;
-            identity.logout(&owner)
+            identity.authenticate(&cookie, binding)
         })
+        .await?;
+    state
+        .fence_session(
+            &owner,
+            Some(p::SchemaDigest(owner.core_binding().session_digest.clone())),
+            owner.view().auth_epoch.saturating_add(1),
+        )
+        .await?;
+    state
+        .blocking(false, move |identity| identity.logout(&owner))
         .await?;
     let mut response = StatusCode::NO_CONTENT.into_response();
     security::set_cookie(&mut response, security::SESSION_COOKIE, "", 0)?;
@@ -214,17 +223,34 @@ pub(super) async fn revoke(
     version(body.schema_version)?;
     let cookie = session_cookie(&headers)?;
     let binding = mutation(&headers)?;
-    let revision = state
+    let RevokeBody {
+        operation_digest,
+        proof,
+        ..
+    } = body;
+    let owner = state
         .blocking(false, move |identity| {
-            let owner = identity.authenticate(&cookie, binding)?;
-            identity.revoke(
-                &owner,
-                RevokeSessions {
-                    operation_digest: body.operation_digest,
-                    proof: body.proof,
-                },
-            )
+            identity.authenticate(&cookie, binding)
         })
+        .await?;
+    let command = RevokeSessions {
+        operation_digest,
+        proof,
+    };
+    let command = state
+        .blocking(false, {
+            let owner = owner.clone();
+            move |identity| {
+                identity.validate_revocation(&owner, &command)?;
+                Ok(command)
+            }
+        })
+        .await?;
+    state
+        .fence_session(&owner, None, owner.view().auth_epoch.saturating_add(1))
+        .await?;
+    let revision = state
+        .blocking(false, move |identity| identity.revoke(&owner, command))
         .await?;
     let mut response = Json(revision).into_response();
     security::set_cookie(&mut response, security::SESSION_COOKIE, "", 0)?;
@@ -240,12 +266,35 @@ pub(super) async fn password(
     version(body.schema_version)?;
     let cookie = session_cookie(&headers)?;
     let binding = mutation(&headers)?;
+    let PasswordBody {
+        old_password,
+        new_password,
+        ..
+    } = body;
+    let owner = state
+        .blocking(false, move |identity| {
+            identity.authenticate(&cookie, binding)
+        })
+        .await?;
+    let prepared = state
+        .blocking(true, {
+            let owner = owner.clone();
+            move |identity| identity.prepare_password_change(&owner, new_password)
+        })
+        .await?;
+    let operation_digest = prepared.operation_digest().clone();
+    let proof = state
+        .blocking(true, {
+            let owner = owner.clone();
+            let operation_digest = operation_digest.clone();
+            move |identity| identity.reauthenticate(&owner, old_password, &operation_digest)
+        })
+        .await?;
+    state
+        .fence_session(&owner, None, owner.view().auth_epoch.saturating_add(1))
+        .await?;
     let revision = state
-        .blocking(true, move |identity| {
-            let owner = identity.authenticate(&cookie, binding)?;
-            let prepared = identity.prepare_password_change(&owner, body.new_password)?;
-            let operation_digest = prepared.operation_digest().clone();
-            let proof = identity.reauthenticate(&owner, body.old_password, &operation_digest)?;
+        .blocking(false, move |identity| {
             identity.change_password(
                 &owner,
                 RevokeSessions {

@@ -1,7 +1,9 @@
+mod managed_config;
 mod runtime;
+pub use managed_config::CoreServiceConfig;
 #[cfg(test)]
 use runtime::serve_runtime_until;
-pub use runtime::{serve_environment, serve_environment_until};
+pub use runtime::{serve_environment, serve_environment_until, serve_managed_until};
 mod observability;
 use observability::*;
 mod data;
@@ -17,7 +19,7 @@ use evolution::*;
 mod secrets;
 pub(crate) use secrets::default_token_path;
 use secrets::*;
-
+mod web_bridge;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::{self, OpenOptions};
@@ -27,12 +29,19 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use web_bridge::LocalBearerSecret;
+use web_bridge::{
+    authenticate_web_bridge, load_configuration as load_web_bridge_configuration,
+    validate_configuration as validate_web_bridge_configuration, WebBridgeState,
+};
 
 use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::middleware;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use ed25519_dalek::VerifyingKey;
 use forme_communication::AuthContext;
 use forme_harness::{
     AgentHarness, CognitiveTickOutcome, CompositionManifest, GatewayControl, ProductionRuntime,
@@ -49,47 +58,15 @@ use crate::{GatewayLifecycleConfig, LocalGateway};
 #[cfg(test)]
 #[path = "server_lifecycle_tests.rs"]
 mod lifecycle_tests;
+#[cfg(test)]
+#[path = "server/tests.rs"]
+mod tests;
 
 const INDEX_HTML: &str = include_str!("../assets/index.html");
 const APP_CSS: &str = include_str!("../assets/app.css");
 const APP_JS: &str = include_str!("../assets/app.js");
 const GOLDEN_TASKS: &str = include_str!("../../../evals/m1/golden-tasks.json");
 const CSRF_HEADER: &str = "x-forme-csrf";
-
-#[derive(Clone)]
-struct LocalBearerSecret(Arc<str>);
-
-impl LocalBearerSecret {
-    fn new(value: String) -> p::Result<Self> {
-        if value.len() < 32 || value.chars().any(char::is_whitespace) {
-            return Err(p::Error(
-                "gateway bearer secret must contain at least 32 non-whitespace characters".into(),
-            ));
-        }
-        Ok(Self(Arc::from(value)))
-    }
-
-    fn matches(&self, candidate: &str) -> bool {
-        let expected = self.0.as_bytes();
-        let actual = candidate.as_bytes();
-        if expected.len() != actual.len() {
-            return false;
-        }
-        expected
-            .iter()
-            .zip(actual)
-            .fold(0_u8, |difference, (left, right)| {
-                difference | (left ^ right)
-            })
-            == 0
-    }
-}
-
-impl fmt::Debug for LocalBearerSecret {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("LocalBearerSecret(<redacted>)")
-    }
-}
 
 #[derive(Clone)]
 pub struct GatewayServerConfig {
@@ -103,6 +80,10 @@ pub struct GatewayServerConfig {
     pub max_requests_per_minute: u32,
     pub scheduler_enabled: bool,
     pub scheduler: p::SchedulerConfig,
+    pub install_ref: Option<String>,
+    web_bridge_token: Option<LocalBearerSecret>,
+    web_assertion_verifying_key: Option<VerifyingKey>,
+    web_session_fence_path: Option<PathBuf>,
     token: LocalBearerSecret,
     token_path: Option<PathBuf>,
 }
@@ -121,6 +102,16 @@ impl fmt::Debug for GatewayServerConfig {
             .field("max_requests_per_minute", &self.max_requests_per_minute)
             .field("scheduler_enabled", &self.scheduler_enabled)
             .field("scheduler", &self.scheduler)
+            .field("install_ref", &self.install_ref)
+            .field("web_bridge_token", &self.web_bridge_token)
+            .field(
+                "web_assertion_verifying_key_configured",
+                &self.web_assertion_verifying_key.is_some(),
+            )
+            .field(
+                "web_session_fence_configured",
+                &self.web_session_fence_path.is_some(),
+            )
             .field("token", &self.token)
             .field("token_path", &self.token_path)
             .finish()
@@ -145,6 +136,7 @@ impl GatewayServerConfig {
             max_claims_per_tick: env_parse("FORME_SCHEDULER_MAX_CLAIMS", 1_u32)?,
         };
         let (token, token_path) = load_or_create_token()?;
+        let bridge = load_web_bridge_configuration()?;
         let config = Self {
             schema_version: p::SchemaVersion(1),
             bind,
@@ -158,6 +150,10 @@ impl GatewayServerConfig {
             max_requests_per_minute,
             scheduler_enabled,
             scheduler,
+            install_ref: bridge.install_ref,
+            web_bridge_token: bridge.web_bridge_token,
+            web_assertion_verifying_key: bridge.web_assertion_verifying_key,
+            web_session_fence_path: bridge.fence_path,
             token,
             token_path,
         };
@@ -183,6 +179,13 @@ impl GatewayServerConfig {
                 "gateway configuration must be versioned, loopback-only, and bounded".into(),
             ));
         }
+        validate_web_bridge_configuration(
+            self.install_ref.as_deref(),
+            self.web_bridge_token.as_ref(),
+            self.web_assertion_verifying_key.as_ref(),
+            self.web_session_fence_path.as_deref(),
+            &self.token,
+        )?;
         Ok(())
     }
 }
@@ -194,6 +197,10 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/app.js", get(script))
         .route("/healthz", get(health))
         .route("/v1/runtime/manifest", get(runtime_manifest))
+        .route(
+            "/v1/web/session-fence",
+            post(web_bridge::apply_session_fence),
+        )
         .route("/v1/runtime/doctor", get(runtime_doctor))
         .route("/v1/runtime/tick", post(runtime_tick))
         .route("/v1/brain/workspace", get(brain_workspace))
@@ -257,6 +264,10 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
             StatusCode::REQUEST_TIMEOUT,
             config.request_timeout,
         ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            authenticate_web_bridge,
+        ))
         .with_state(state)
 }
 
@@ -268,7 +279,9 @@ struct HttpState {
     origin: String,
     rate: Mutex<RateWindow>,
     max_requests_per_minute: u32,
+    max_body_bytes: usize,
     admission: Arc<WorkAdmission>,
+    web_bridge: WebBridgeState,
 }
 
 struct RateWindow {
@@ -538,62 +551,4 @@ fn now_ms() -> p::Timestamp {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis().min(i64::MAX as u128) as i64)
         .unwrap_or(0)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn config(bind: IpAddr) -> GatewayServerConfig {
-        GatewayServerConfig {
-            schema_version: p::SchemaVersion(1),
-            bind,
-            port: 0,
-            owner: p::VerifiedPrincipal("owner:test".into()),
-            agent_profile: p::AgentProfileRef("agent:test".into()),
-            max_body_bytes: 1024,
-            request_timeout: Duration::from_secs(1),
-            max_requests_per_minute: 10,
-            scheduler_enabled: true,
-            scheduler: p::SchedulerConfig {
-                schema_version: p::SchemaVersion(1),
-                tick: p::DurationMs(1_000),
-                lease: p::DurationMs(30_000),
-                max_claims_per_tick: 1,
-            },
-            token: LocalBearerSecret::new(
-                "unit-test-token-0123456789abcdef0123456789abcdef".into(),
-            )
-            .unwrap(),
-            token_path: None,
-        }
-    }
-
-    #[test]
-    fn gateway_config_is_loopback_only_and_debug_redacts_the_secret() {
-        let local = config(IpAddr::V4(Ipv4Addr::LOCALHOST));
-        local.validate().unwrap();
-        let debug = format!("{local:?}");
-        assert!(debug.contains("<redacted>"));
-        assert!(!debug.contains("unit-test-token"));
-
-        let public = config(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
-        assert!(public.validate().is_err());
-    }
-
-    #[test]
-    fn last_event_id_is_run_bound_and_cannot_disagree_with_the_query() {
-        let mut headers = HeaderMap::new();
-        headers.insert("last-event-id", HeaderValue::from_static("run:test|7"));
-        assert_eq!(event_cursor("run:test", None, &headers).unwrap(), 7);
-        assert!(event_cursor("run:other", None, &headers).is_err());
-        assert!(event_cursor("run:test", Some(6), &headers).is_err());
-    }
-
-    #[test]
-    fn generated_bearer_has_full_os_entropy_width() {
-        let token = generate_token().unwrap();
-        assert_eq!(token.len(), 64);
-        assert!(token.bytes().all(|byte| byte.is_ascii_hexdigit()));
-    }
 }

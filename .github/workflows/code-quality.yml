@@ -2,6 +2,9 @@ name: Code quality boundaries
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+concurrency:
+  group: code-quality-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   structure:
     runs-on: ubuntu-24.04
@@ -13,3 +16,39 @@ jobs:
           python-version: '3.12'
       - run: python -m unittest tools.tests.test_code_quality
       - run: python tools/code-quality.py
+  rust-and-web:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Configure native build tools
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:\mingw64\bin\gcc.exe')) { throw 'MinGW-w64 is unavailable' }
+          'C:\mingw64\bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal --component rustfmt --component clippy
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: quality-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - name: Run the same complete source gate as local development
+        shell: pwsh
+        # Only the unpublished local copy corpus is absent on hosted CI.
+        run: ./tools/verify-code-quality.ps1 -AllowMissingCorpus
+      - name: Independent Web process smoke
+        shell: pwsh
+        run: ./tools/verify-web-process.ps1
+      - name: Managed Web-to-brain contracts
+        shell: pwsh
+        run: ./tools/verify-web-workbench.ps1

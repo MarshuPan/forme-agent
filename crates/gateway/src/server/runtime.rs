@@ -52,6 +52,26 @@ where
     serve_runtime_until(config, runtime, lifecycle, on_bound, shutdown).await
 }
 
+/// Same production runtime and drain semantics, with explicit installed inputs.
+/// No environment configuration or credential fallback is read on this path.
+pub async fn serve_managed_until<F, S>(
+    config: CoreServiceConfig,
+    on_bound: F,
+    shutdown: S,
+) -> p::Result<()>
+where
+    F: FnOnce(SocketAddr) -> p::Result<()>,
+    S: Future<Output = p::Result<()>>,
+{
+    let transport = config.transport()?;
+    let lifecycle = GatewayLifecycleConfig {
+        schema_version: p::SchemaVersion(1),
+        drain_timeout: Duration::from_millis(config.drain_timeout_ms),
+    };
+    let runtime = Arc::new(ProductionRuntimeBuilder::from_managed_config(config.brain)?.build()?);
+    serve_runtime_until(transport, runtime, lifecycle, on_bound, shutdown).await
+}
+
 pub(super) async fn serve_runtime_until<F, S>(
     config: GatewayServerConfig,
     runtime: Arc<ProductionRuntime>,
@@ -108,7 +128,15 @@ where
         origin: format!("http://{address}"),
         rate: Mutex::new(RateWindow::new()),
         max_requests_per_minute: config.max_requests_per_minute,
+        max_body_bytes: config.max_body_bytes,
         admission: admission.clone(),
+        web_bridge: super::web_bridge::WebBridgeState::open(
+            config.install_ref.clone(),
+            config.web_bridge_token.clone(),
+            config.web_assertion_verifying_key,
+            config.web_session_fence_path.as_deref(),
+            &config.owner,
+        )?,
     });
     let app = router(state, &config);
     tokio::pin!(shutdown);
