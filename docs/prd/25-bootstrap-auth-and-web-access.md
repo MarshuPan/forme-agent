@@ -4,7 +4,7 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P03–P08、P10、P15，主验 IP04–IP09、IP13、IP21–IP22，参与 IP12/IP18/IP24。架构以 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §3–6、§8 为准，canonical §10/15/24/28/29 不可回退。
 
-**状态：正在实施；`shu/installed-product@12b3f5d` 已提交独立账号/session 基础，尚未合入 main 或取得 IP 整体验收。** broker 认领、HTTP/TLS、配置与 core bridge 仍待接入，组件证据见 `../acceptance/installed-product-25-identity-foundation.md`。当前 loopback Gateway 的固定 bearer 不能被宣称为已完成网页登录。本模块新增 Web 认证与适配面，保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
+**状态：正在实施；`shu/installed-product@12b3f5d` 已提交独立账号/session 基础，`49674b7` 增加独立 loopback HTTP 认证入口，尚未合入 main 或取得 IP 整体验收。** broker 认领、LAN TLS、配置与 core bridge 仍待接入，组件证据见 `../acceptance/installed-product-25-identity-foundation.md`、`../acceptance/installed-product-25-web-ingress.md`。当前没有可认领并操作主脑的新业务页面；内部 Gateway 的固定 bearer 也不能被宣称为已完成网页登录。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
 
 ## 1. 职责与边界
 

@@ -411,7 +411,7 @@ W8 失败学习 + 验证(FailureEvidence/verifier/trace)—— 从 W1 起跨切�
 
 ### 9.5 常驻服务与 Web 产品化接入
 
-该增量承接 requirements/17–18、canonical §29、architecture/10，不是 M6。与 M0 模块索引共用原 crate/trait 边界，当前状态为**文档已制定、待实施**。
+该增量承接 requirements/17–18、canonical §29、architecture/10，不是 M6。与 M0 模块索引共用原 crate/trait 边界，当前已分阶段实施宿主/worker、独立认证与 loopback Web HTTP 基础；安装包、原生隔离、初始化/配置和完整工作台尚未完成，状态统一见 `../acceptance/installed-product-implementation-progress.md`。
 
 | PRD | 职责 | 归属与集成 | 验收 |
 |---|---|---|---|
