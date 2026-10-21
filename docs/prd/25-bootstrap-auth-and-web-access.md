@@ -204,3 +204,17 @@ API 错误包括 `Unauthenticated / Forbidden / CsrfRejected / ClaimUnavailable 
 登录挑战用 256-bit OS 随机 HttpOnly cookie，服务端只存摘要、期限和消费结果。返回的 attempt ref 作为该表单的 Idempotency-Key，CSRF 以独立域绑定。登录校验挑战、Origin/CSRF、密码和当前 credential revision 后，在同一事务创建 session 并绑定原 attempt；重复请求只能重取原会话（须已持其 cookie），或返回明确 Conflict/Expired，不再创建 session。丢失响应及 cookie 时用户重新发起一个新挑战；不在数据库保存可还原 session 原文来换取透明重试。过期挑战可有界清理，旧证明仍不可重放。
 
 认证 schema 的已知版本升级必须在 writer 锁内事务迁移，未知/损坏版本仍拒绝，不能通过重建认证库解决。该 HTTP 组件不自报原生 ACL、broker 认领、LAN 信任、core assertion 或 IP 完整验收；接入范围与缺项逐批记在实施记录。
+
+### 11.3 实施细化：本机证明与 broker 认领权威
+
+broker 的认领权威使用独立、OS 排他锁保护的 append journal；记录绑定 installation 和受管签名公钥，只有摘要、期限、操作与已验证数据引用，不含原始 proof/setup cookie/密码/私钥。记录有单调局部序号、前序摘要和 schema，先 sync 再推进投影；损坏、截断、不匹配或写入结果不明均阻断，不截断重建。它是产品管理事实，不是新大脑或脑 EventKind。
+
+本机管理员可轮换 30 分钟的一次性证明；原文仅在该受认证管理请求的响应中交给本机调用者。Web 使用另一个限定 bootstrap 的服务凭据，仅能交换证明、查询/选择注册的数据候选和提交原认领；不能用它调普通维护或 AgentExecution。初始适配器仍为私有 loopback HTTP，原生 peer/ACL 验证与平台安装验收分开记录，不把 bearer 本身视为 OS 管理权证明。
+
+交换证明必须把同一 installation 原子预留给一个 claim operation 和 Web 预生成的 setup 摘要，固定 15 分钟期限；相同请求只返回原 reservation，不延长 TTL。第二个 operation、另一 setup 摘要或证明重放均不能占用。过期 reservation 不自动交给另一个浏览器，需本机管理身份轮换；认领已提交后不能再轮换或换 owner。
+
+数据候选只来自受保护的注册目录/离线验证器，不接受浏览器路径或 OwnerId。新脑候选必须确认精确目标为空、没有链接/间接跳转，选择时分配一次 owner，提交前重查。目标出现旧数据、无法读取、缺 key 或没有旧脑验证适配器时显式阻断，不把它伪装为新脑。旧脑接管、备份验证与实际 core 数据初始化另行接通；候选选择本身不创建 brain store。
+
+提交严格绑定原 operation/setup/candidate/owner/账号承诺；先持久化 committed 事实，后签发现有 SignedWebClaimCommit。响应丢失或进程重启，只允许原绑定重取回执；已提交绑定不能被新账号/新承诺替换。即使 setup 已过期，也只可重取同一 committed 结果并收尾，不恢复一般 setup 权限；尚未提交的过期操作仍拒绝。签名私钥和 Web 服务凭据从受管文件读取，缺失不自动重生；公开 Web 仅持 pinned 公钥。
+
+对应组件测试至少包括并发抢占、跨域凭据、过期、轮换、响应丢失、重启幂等、异义承诺、数据目录变化、journal 截断/篡改/异安装与排他 writer；这些仍不是 IP05/IP13 原生全链路 PASS。
