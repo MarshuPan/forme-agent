@@ -104,10 +104,6 @@
       "max_lines": 1290,
       "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
     },
-    "crates/harness/src/brain_orchestration.rs": {
-      "max_lines": 1447,
-      "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."
-    },
     "crates/harness/src/lib.rs": {
       "max_lines": 7468,
       "reason": "Pre-existing at 17268a2; split by responsibility without changing contracts."

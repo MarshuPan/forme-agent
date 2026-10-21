@@ -31,4 +31,4 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 
 本批拆出 harness ingress、production builder、capability 文档解析和 models 文件凭据 resolver；`production_config.rs` 从历史 841 行降至 493 行，解析子模块 356 行，并移除已偿还的规模豁免。harness lib 约 7390 行、store sqlite 约 8975 行，仍按历史棘轮管理，不宣称全仓大模块债务已清。
 
-结构门当前检查 399 个源文件，剩余 **64 处历史规模债务**，没有扩大基线。统一源码门新增 TypeScript、前端行为、可重复资源和 bundle 保留/完整性验证；GitHub CI 使用同一脚本。组件与最终源码结果详见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。本节数值更新不覆盖上节 `26ce4b4` 的历史测试回执。
+结构门当前检查 414 个源文件，剩余 **63 处历史规模债务**，没有扩大基线。`harness/src/brain_orchestration.rs` 已完成首批职责拆分：节点构造、输出归并、签名转换和独立验证移到 `brain_orchestration/support.rs`；公开 API、事件顺序、事务边界和恢复语义保持不变，C16 编排全套 23 项回归通过，并移除该文件的旧规模豁免。统一源码门新增 TypeScript、前端行为、可重复资源和 bundle 保留/完整性验证；GitHub CI 使用同一脚本。组件与最终源码结果详见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。本节数值更新不覆盖上节 `26ce4b4` 的历史测试回执。
