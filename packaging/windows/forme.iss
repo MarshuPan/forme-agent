@@ -44,6 +44,7 @@ Name: "{commonappdata}\ForMe\workspaces"
 Filename: "{app}\bin\forme-hostctl.exe"; Parameters: "prepare-installation --install-root ""{app}"" --state-root ""{commonappdata}\ForMe"" --config-root ""{commonappdata}\ForMe\config"" --log-root ""{commonappdata}\ForMe\logs"" --ipc-root ""{commonappdata}\ForMe\ipc"" --target windows_x86_64 --bundle-inventory ""{app}\bundle-inventory.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Preparing forme installation"
 Filename: "{app}\bin\forme-hostd.exe"; Parameters: "--install-service --config ""{commonappdata}\ForMe\config\host.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme host service"
 Filename: "{app}\bin\forme-webd.exe"; Parameters: "--install-service --config ""{commonappdata}\ForMe\config\web.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme web service"
+Filename: "{app}\bin\forme-gatewayd.exe"; Parameters: "--install-service --config ""{commonappdata}\ForMe\config\core.json"""; Flags: runhidden waituntilterminated; StatusMsg: "Registering forme brain service"
 
 [UninstallRun]
 Filename: "{app}\bin\forme-webd.exe"; Parameters: "--uninstall-service --config ""{commonappdata}\ForMe\config\web.json"""; Flags: runhidden waituntilterminated

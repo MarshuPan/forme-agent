@@ -4,9 +4,11 @@ import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { buildBundle, parseArguments, targets } from '../build-product-bundle.mjs';
 
 const sha = (value) => createHash('sha256').update(value).digest('hex');
+const repositoryRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 async function fixture(t, target = 'windows-x86_64') {
   const scratch = await mkdtemp(join(tmpdir(), 'forme-bundle-test-'));
@@ -126,4 +128,16 @@ test('bundle refuses an incomplete native packaging template', async (t) => {
   await rm(join(root, 'packaging', 'macos', 'scripts', 'postinstall'));
   await assert.rejects(buildBundle(config, root), /missing required input/);
   await assert.rejects(readdir(config.output), { code: 'ENOENT' });
+});
+
+test('Windows installer registers and removes all three resident services', async () => {
+  const template = await readFile(join(repositoryRoot, 'packaging/windows/forme.iss'), 'utf8');
+  for (const [binary, config] of [
+    ['forme-hostd', 'host.json'],
+    ['forme-webd', 'web.json'],
+    ['forme-gatewayd', 'core.json'],
+  ]) {
+    assert.match(template, new RegExp(`${binary}\\.exe"; Parameters: "--install-service --config .*${config}`));
+    assert.match(template, new RegExp(`${binary}\\.exe"; Parameters: "--uninstall-service --config .*${config}`));
+  }
 });
