@@ -1669,6 +1669,170 @@ fn approval_harness(
 }
 
 #[test]
+fn default_approval_restart_rejects_foreign_or_unreproducible_contexts_without_effects() {
+    // Start with a real suspended run and its original approval, then build
+    // independent durable histories for the unsupported execution contexts.
+    // No existing event history is changed by the recovery code.
+    let executions = Arc::new(AtomicUsize::new(0));
+    let original = approval_harness(
+        vec![tool_response(action_intent())],
+        executions.clone(),
+        false,
+    );
+    let run = original
+        .submit_run(request(
+            "session:restart-context",
+            "risky action",
+            "restart-context",
+        ))
+        .unwrap();
+    let pending = original
+        .pending_approvals(p::SessionId("session:restart-context".into()))
+        .unwrap();
+    assert_eq!(pending.len(), 1);
+    let grant = approval_grant(&pending[0], p::ApprovalOutcome::Granted);
+    let baseline = original.stream_events(run.clone()).events();
+    drop(original);
+
+    for case in [
+        "subagent",
+        "replay",
+        "simulation",
+        "communication",
+        "scheduled",
+        "workspace",
+        "policy",
+        "model",
+        "toolset",
+        "composition",
+        "evolution",
+        "federation",
+        "exact-replay",
+        "counterfactual",
+        "missing-binding",
+        "duplicate-binding",
+    ] {
+        let mut history = baseline.clone();
+        for event in &mut history {
+            match &mut event.payload {
+                p::EventPayload::RunAccepted(accepted) => match case {
+                    "subagent" => accepted.source = p::Source::Subagent,
+                    "replay" => accepted.source = p::Source::Replay,
+                    "simulation" => accepted.source = p::Source::Simulation,
+                    "communication" => accepted.source = p::Source::Communication,
+                    "scheduled" => accepted.source = p::Source::Schedule,
+                    _ => {}
+                },
+                p::EventPayload::SessionBound(bound) => match case {
+                    "workspace" => bound.workspace = p::WorkspaceRef("workspace:other".into()),
+                    "policy" => bound.policy_profile = p::PolicyProfileRef("policy:other".into()),
+                    "model" => bound.model_profile = p::ModelProfileRef("model:other".into()),
+                    "toolset" => bound.toolset_ref = p::ToolsetRef("toolset:other".into()),
+                    "composition" => {
+                        bound.composition_manifest =
+                            Some(p::SchemaDigest("composition:other".into()))
+                    }
+                    "evolution" => {
+                        bound.effect_mode = Some(p::EffectMode::LiveGoverned);
+                        bound.evolution_snapshot =
+                            Some(p::EvolutionSnapshotRef("snapshot:pinned".into()));
+                    }
+                    "federation" => {
+                        bound.federation_snapshot =
+                            Some(p::FederationSnapshotRef("snapshot:peers".into()))
+                    }
+                    "exact-replay" => bound.effect_mode = Some(p::EffectMode::ExactReplay),
+                    "counterfactual" => bound.effect_mode = Some(p::EffectMode::CounterfactualDeny),
+                    _ => {}
+                },
+                _ => {}
+            }
+        }
+        if case == "missing-binding" {
+            history.retain(|e| e.kind != p::EventKind::SessionBound);
+        } else if case == "duplicate-binding" {
+            let kind = p::EventKind::SessionBound;
+            let mut duplicate = history.iter().find(|e| e.kind == kind).unwrap().clone();
+            duplicate.event_id = p::EventId(format!("event:duplicate:{case}"));
+            history.push(duplicate);
+        }
+        let root = std::env::temp_dir().join(format!(
+            "forme-approval-context-{}-{}-{case}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let path = root.join("events.db");
+        {
+            let store = SqliteEventStore::open(&path, StoreOptions::default()).unwrap();
+            for mut event in history {
+                event.stream_seq = 0;
+                store.append(event).unwrap();
+            }
+        }
+        let store = SqliteEventStore::open(&path, StoreOptions::default()).unwrap();
+        let before = store
+            .read_run(run.clone())
+            .collect::<p::Result<Vec<_>>>()
+            .unwrap();
+        let (started, _) = mpsc::channel();
+        let (release, receive) = mpsc::channel();
+        release.send(()).unwrap();
+        let model = Arc::new(BlockingProvider {
+            profile: profile(),
+            started,
+            release: Mutex::new(receive),
+            calls: AtomicUsize::new(0),
+        });
+        let registry = Arc::new(ExecutionBackendRegistry::default());
+        registry
+            .register(Arc::new(RecordingBackend {
+                executions: executions.clone(),
+                fail: false,
+            }))
+            .unwrap();
+        let contexts = Arc::new(AtomicUsize::new(0));
+        let context_calls = contexts.clone();
+        let harness = ReactiveHarness::new(
+            store.clone(),
+            model.clone(),
+            registry,
+            governance(&action_intent()),
+            HarnessConfig::for_model(&profile()),
+        )
+        .unwrap()
+        .with_context_factory(move |_, _, _| {
+            context_calls.fetch_add(1, Ordering::SeqCst);
+            Err(p::Error("unexpected default context reconstruction".into()))
+        });
+        let error = harness
+            .resume(run.clone(), ResumeInput::Approval(grant.clone()))
+            .unwrap_err();
+        assert!(
+            error.0.contains("default approval recovery"),
+            "{case}: {error:?}"
+        );
+        assert_eq!(model.calls.load(Ordering::SeqCst), 0, "{case}");
+        assert_eq!(contexts.load(Ordering::SeqCst), 0, "{case}");
+        assert_eq!(executions.load(Ordering::SeqCst), 0, "{case}");
+        assert_eq!(
+            store
+                .read_run(run.clone())
+                .collect::<p::Result<Vec<_>>>()
+                .unwrap(),
+            before,
+            "{case}"
+        );
+        drop(harness);
+        drop(store);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+}
+
+#[test]
 fn s2_denied_approval_suspends_then_aborts_without_execution() {
     let executions = Arc::new(AtomicUsize::new(0));
     let harness = approval_harness(

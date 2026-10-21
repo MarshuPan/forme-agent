@@ -184,6 +184,45 @@ impl ReactiveHarness {
             .map(|(_, h)| h.clone())
             .collect())
     }
+    /// The default entry must not rehydrate a child or a pinned execution
+    /// context using the owner brain's wider context factory and governance.
+    pub(super) fn restore_default_formal_approval(&self, run: &p::RunId) -> p::Result<()> {
+        let events = self
+            .store
+            .read_run(run.clone())
+            .collect::<p::Result<Vec<_>>>()?;
+        let mut accepted = events.iter().filter_map(|event| match &event.payload {
+            p::EventPayload::RunAccepted(payload) => Some(payload),
+            _ => None,
+        });
+        let mut bindings = events.iter().filter_map(|event| match &event.payload {
+            p::EventPayload::SessionBound(payload) => Some(payload),
+            _ => None,
+        });
+        let (Some(accepted_run), Some(bound)) = (accepted.next(), bindings.next()) else {
+            return Err(p::Error(
+                "default approval recovery requires one original owner context binding".into(),
+            ));
+        };
+        if accepted.next().is_some()
+            || bindings.next().is_some()
+            || accepted_run.source != p::Source::UserTurn
+            || bound.workspace != self.config.workspace
+            || bound.policy_profile != self.config.policy_profile
+            || bound.model_profile != self.config.model_profile
+            || bound.toolset_ref != self.config.toolset_ref
+            || bound.composition_manifest != self.composition_manifest
+            || !matches!(bound.effect_mode, None | Some(p::EffectMode::LiveGoverned))
+            || bound.evolution_snapshot.is_some()
+            || bound.federation_snapshot.is_some()
+        {
+            return Err(p::Error(
+                "default approval recovery cannot reproduce this execution context; use its original recovery entry".into(),
+            ));
+        }
+        self.restore_formal_approval(run, u64::from(self.config.loop_budget.max_turns))
+    }
+
     /// Restore an unconsumed formal approval from its immutable proposal and
     /// binding. Replanning must reproduce the exact old digests; no model or
     /// driver is called, and changed configuration fails closed.

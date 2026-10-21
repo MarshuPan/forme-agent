@@ -113,6 +113,8 @@ try {
         "server::lifecycle_tests::shutdown_stops_background_claims_and_leaves_later_intentions_pending"
     )) { Invoke-NamedTest "forme-gateway" @("--lib") $name }
 
+    Invoke-NamedTest "forme-harness" @("--test", "harness_contract") "default_approval_restart_rejects_foreign_or_unreproducible_contexts_without_effects"
+
     Write-Host "installed-host-foundation and core-shutdown-components: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }

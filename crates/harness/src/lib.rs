@@ -5479,7 +5479,7 @@ impl AgentHarness for ReactiveHarness {
             return child.resume(run, input);
         }
         if matches!(&input, ResumeInput::Approval(_)) && self.run_handle(&run).is_err() {
-            self.restore_formal_approval(&run, u64::from(self.config.loop_budget.max_turns))?;
+            self.restore_default_formal_approval(&run)?;
         }
         let handle = self.run_handle(&run)?;
         let session = {
