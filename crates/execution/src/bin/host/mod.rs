@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use config::*;
-use forme_execution::installed::ProductHostBroker;
+use forme_execution::installed::{ProductConfigStore, ProductHostBroker};
 use forme_protocol as p;
 use http::handle_connection;
 
@@ -81,12 +81,20 @@ fn run_host(
         .agent_execution()
         .map(|value| p::canonical_digest(&value))
         .transpose()?;
-    let broker = Arc::new(ProductHostBroker::open_with_service_manager(
+    let product_config = runtime
+        .product_config_template_path
+        .as_deref()
+        .map(ProductConfigStore::open)
+        .transpose()?
+        .map(Arc::new);
+    let has_configuration = credentials.web_configuration().is_some() && product_config.is_some();
+    let broker = Arc::new(ProductHostBroker::open_with_service_manager_and_config(
         &journal,
         &install_id,
         credentials,
         runtime.target,
         runtime.active_release,
+        product_config,
         forme_execution::installed::SystemServiceManager,
     )?);
     if runtime.managed {
@@ -119,11 +127,18 @@ fn run_host(
             EndpointDomain::AgentExecution,
         )?);
     }
+    if has_configuration {
+        endpoints.push(HostEndpoint::bind(
+            runtime.configuration_bind,
+            EndpointDomain::Configuration,
+        )?);
+    }
     if announce {
         for endpoint in &endpoints {
             let name = match endpoint.domain {
                 EndpointDomain::Maintenance => "FORME_HOST_URL",
                 EndpointDomain::AgentExecution => "FORME_AGENT_EXECUTION_URL",
+                EndpointDomain::Configuration => "FORME_CONFIGURATION_URL",
             };
             println!(
                 "{name}=http://{}",
@@ -203,6 +218,7 @@ fn run_host(
 enum EndpointDomain {
     Maintenance,
     AgentExecution,
+    Configuration,
 }
 
 struct HostEndpoint {

@@ -64,12 +64,30 @@ where
     S: Future<Output = p::Result<()>>,
 {
     let transport = config.transport()?;
+    let configuration_ack = config.configuration_ack();
+    let configuration_ack_path = config.transport.configuration_ack_path.clone();
     let lifecycle = GatewayLifecycleConfig {
         schema_version: p::SchemaVersion(1),
         drain_timeout: Duration::from_millis(config.drain_timeout_ms),
     };
     let runtime = Arc::new(ProductionRuntimeBuilder::from_managed_config(config.brain)?.build()?);
-    serve_runtime_until(transport, runtime, lifecycle, on_bound, shutdown).await
+    serve_runtime_until(
+        transport,
+        runtime,
+        lifecycle,
+        move |address| {
+            if let (Some(path), Some(acknowledgement)) = (
+                configuration_ack_path.as_deref(),
+                configuration_ack.as_ref(),
+            ) {
+                super::managed_config::write_configuration_ack(path, acknowledgement)?;
+            }
+            on_bound(address)?;
+            Ok(())
+        },
+        shutdown,
+    )
+    .await
 }
 
 pub(super) async fn serve_runtime_until<F, S>(

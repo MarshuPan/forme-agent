@@ -19,12 +19,22 @@ pub struct WebServerConfig {
     #[serde(default)]
     pub bootstrap_bridge: Option<WebBootstrapBridgeConfig>,
     #[serde(default)]
+    pub configuration_bridge: Option<WebConfigurationBridgeConfig>,
+    #[serde(default)]
     pub core_bridge: Option<WebCoreBridgeConfig>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebBootstrapBridgeConfig {
+    pub schema_version: p::SchemaVersion,
+    pub address: SocketAddr,
+    pub credential_path: PathBuf,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebConfigurationBridgeConfig {
     pub schema_version: p::SchemaVersion,
     pub address: SocketAddr,
     pub credential_path: PathBuf,
@@ -97,6 +107,16 @@ impl WebServerConfig {
             if bridge.credential_path == bridge.signing_key_path {
                 return Err(invalid());
             }
+        }
+        if let Some(bridge) = &self.configuration_bridge {
+            if bridge.schema_version != p::SchemaVersion(1)
+                || !bridge.address.ip().is_loopback()
+                || bridge.address.port() == 0
+                || bridge.address == self.bind
+            {
+                return Err(invalid());
+            }
+            check_path(&bridge.credential_path)?;
         }
         check_path(&self.identity_directory)?;
         VerifyingKey::from_bytes(&self.claim_verifying_key).map_err(|_| invalid())?;

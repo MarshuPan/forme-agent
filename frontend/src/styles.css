@@ -54,6 +54,14 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .project-create { margin-bottom: 1.5rem; }
 .project-create[open] > summary { margin-bottom: 1.4rem; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.model-config-form { gap: 1rem; }
+.model-profile { min-width: 0; margin: 0; padding: 1rem; border: 1px solid var(--line); border-radius: .5rem; }
+.model-profile legend { padding: 0 .35rem; color: #637260; font-size: .8rem; }
+.model-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: .5rem; }
+.wide-field { grid-column: 1 / -1; }
+.model-actions { align-items: center; margin-top: 1rem; }
+.checkbox-label { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: .5rem; font-size: .8rem; }
+.checkbox-label input { width: auto; padding: 0; }
 .project-card { display: flex; flex-direction: column; gap: .3rem; }
 .project-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .project-heading h2 { overflow-wrap: anywhere; }
@@ -64,3 +72,4 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .button-row { display: flex; gap: .7rem; flex-wrap: wrap; }
 .privacy-hidden .app-shell { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+@media (max-width: 640px) { .model-form-grid { grid-template-columns: minmax(0, 1fr); } .wide-field { grid-column: auto; } }

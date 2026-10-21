@@ -53,7 +53,7 @@ pub(super) fn handle_connection(
             return Ok(());
         }
     };
-    match route(&request, broker.as_ref(), worker.as_ref(), &auth) {
+    match route(&request, broker.as_ref(), worker.as_ref(), &auth, domain) {
         Ok((status, body)) => write_response(&mut stream, status, &body),
         Err(error) => {
             write_error(&mut stream, 400, error)?;
@@ -67,12 +67,31 @@ fn route(
     broker: &ProductHostBroker,
     worker: &dyn IsolatedExecutorHost,
     auth: &forme_execution::installed::HostAuth,
+    domain: EndpointDomain,
 ) -> p::Result<(u16, Vec<u8>)> {
     let body = match (request.method.as_str(), request.path.as_str()) {
         ("GET", "/healthz") => serde_json::to_vec(&serde_json::json!({"status":"ok"}))
             .map_err(|_| p::Error("host health response failed".into()))?,
         ("GET", "/v1/host/status") => serde_json::to_vec(&broker.status(auth)?)
             .map_err(|_| p::Error("host status response failed".into()))?,
+        ("GET", "/v1/host/configuration") if matches!(domain, EndpointDomain::Configuration) => {
+            serde_json::to_vec(&broker.configuration(auth)?)
+                .map_err(|_| p::Error("host configuration response failed".into()))?
+        }
+        ("POST", "/v1/host/configuration") if matches!(domain, EndpointDomain::Configuration) => {
+            let patch: p::ProductConfigPatch = serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("host configuration body is invalid".into()))?;
+            serde_json::to_vec(&broker.apply_configuration(auth, patch)?)
+                .map_err(|_| p::Error("host configuration response failed".into()))?
+        }
+        ("POST", "/v1/host/configuration/owner")
+            if matches!(domain, EndpointDomain::Configuration) =>
+        {
+            let binding: p::ProductConfigOwnerBinding = serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("host owner binding body is invalid".into()))?;
+            serde_json::to_vec(&broker.bind_configuration_owner(auth, binding)?)
+                .map_err(|_| p::Error("host configuration response failed".into()))?
+        }
         ("POST", "/v1/host/plan") => {
             let request: p::HostManagementRequest = serde_json::from_slice(&request.body)
                 .map_err(|_| p::Error("host command body is invalid".into()))?;
@@ -126,7 +145,14 @@ fn authenticate_request(
     request: &Request,
     domain: EndpointDomain,
 ) -> p::Result<forme_execution::installed::HostAuth> {
-    if is_agent_path(&request.path) != matches!(domain, EndpointDomain::AgentExecution) {
+    let valid_route = match domain {
+        EndpointDomain::Maintenance => {
+            !is_agent_path(&request.path) && !is_configuration_path(&request.path)
+        }
+        EndpointDomain::AgentExecution => is_agent_path(&request.path),
+        EndpointDomain::Configuration => is_configuration_path(&request.path),
+    };
+    if !valid_route {
         return Err(p::Error(
             "host request is outside this endpoint's authorization domain".into(),
         ));
@@ -135,15 +161,22 @@ fn authenticate_request(
         .header("authorization")
         .and_then(|value| value.strip_prefix("Bearer "))
         .ok_or_else(|| p::Error("host broker authorization is required".into()))?;
-    if is_agent_path(&request.path) {
-        broker.authenticate_agent(bearer)
-    } else {
-        broker.authenticate(bearer)
+    match domain {
+        EndpointDomain::Maintenance => broker.authenticate(bearer),
+        EndpointDomain::AgentExecution => broker.authenticate_agent(bearer),
+        EndpointDomain::Configuration => broker.authenticate_web_configuration(bearer),
     }
 }
 
 fn is_agent_path(path: &str) -> bool {
     path == "/v1/agent/workers/dispatch" || path.starts_with("/v1/agent/workers/")
+}
+
+fn is_configuration_path(path: &str) -> bool {
+    matches!(
+        path,
+        "/v1/host/configuration" | "/v1/host/configuration/owner"
+    )
 }
 
 fn worker_id<'a>(path: &'a str, prefix: &str, suffix: &str) -> p::Result<&'a str> {

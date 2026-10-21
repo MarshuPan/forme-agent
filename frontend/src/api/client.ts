@@ -1,5 +1,5 @@
 import { isRecord, versioned } from '../types.ts';
-import type { CandidateReviewCommand, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { CandidateReviewCommand, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -90,6 +90,12 @@ export class WorkbenchClient {
   async logout() { await this.request('auth/logout', 'POST', undefined, newKey('logout')); this.clear(); }
   async password(old_password: string, new_password: string, operation: string) {
     await this.request('auth/password', 'PUT', { schema_version: 1, old_password, new_password }, operation); this.clear();
+  }
+  productConfig() { return this.json<ProductConfigView>('product/config'); }
+  saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config')) {
+    return this.json<{ schema_version: 1; view: ProductConfigView; applied: boolean; operation_id: string | null }>(
+      'product/config', 'POST', { schema_version: 1, operation_id: operation, expected_revision, models }, operation,
+    );
   }
   profile() { return this.json<ControlProfile>('brain/profile'); }
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }

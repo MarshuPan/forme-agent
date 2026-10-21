@@ -169,6 +169,7 @@ pub(super) async fn claim(
     body: Result<Json<ClaimBody>, JsonRejection>,
 ) -> Result<Response, WebError> {
     let client = client(&state)?;
+    let configuration = state.configuration.clone();
     let body = auth::json(body)?;
     auth::version(body.schema_version)?;
     if body.operation_id != auth::key(&headers)? {
@@ -187,7 +188,7 @@ pub(super) async fn claim(
     };
     let session = state
         .blocking(true, move |identity| {
-            identity.finish_bootstrap(&client, input)
+            identity.finish_bootstrap(&client, configuration.as_deref(), input)
         })
         .await?;
     let mut response = Json(

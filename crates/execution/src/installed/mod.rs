@@ -6,6 +6,7 @@ mod host;
 mod journal;
 mod paths;
 mod process;
+mod product_config;
 #[cfg(windows)]
 mod registration;
 mod release;
@@ -17,6 +18,7 @@ pub use host::*;
 pub use journal::*;
 pub use paths::*;
 pub use process::*;
+pub use product_config::*;
 #[cfg(windows)]
 pub use registration::{register_windows_service, unregister_windows_service};
 pub use release::*;

@@ -220,6 +220,7 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
         claim_verifying_key: key.verifying_key().to_bytes(),
         bind: web_address,
         bootstrap_bridge: None,
+        configuration_bridge: None,
         core_bridge: Some(WebCoreBridgeConfig {
             schema_version: p::SchemaVersion(1),
             address: core_address,

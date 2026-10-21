@@ -2,6 +2,7 @@
 mod assets;
 mod auth;
 mod bootstrap;
+mod configuration;
 mod connections;
 #[path = "core.rs"]
 mod core_routes;
@@ -31,6 +32,7 @@ use error::WebError;
 pub(super) struct WebState {
     identity: Arc<WebIdentityStore>,
     bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
+    configuration: Option<Arc<crate::web::configuration::LocalConfigurationClient>>,
     core: Option<Arc<crate::web::core::CoreBridgeClient>>,
     authority: String,
     origin: String,
@@ -102,6 +104,53 @@ impl WebState {
             )
         })
     }
+
+    async fn configuration_call<T: Send + 'static>(
+        &self,
+        work: impl FnOnce(&crate::web::configuration::LocalConfigurationClient) -> p::Result<T>
+            + Send
+            + 'static,
+    ) -> Result<T, WebError> {
+        let client = self.configuration.clone().ok_or_else(|| {
+            WebError::new(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "ConfigurationUnavailable",
+                "产品配置服务不可用",
+            )
+        })?;
+        let lease = self
+            .admission
+            .acquire()
+            .map_err(|_| AuthError::Unavailable)?;
+        let permit = self
+            .reads
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| AuthError::Busy)?;
+        tokio::task::spawn_blocking(move || {
+            let (_lease, _permit) = (lease, permit);
+            work(client.as_ref())
+        })
+        .await
+        .map_err(|_| {
+            WebError::new(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "ConfigurationUnavailable",
+                "产品配置服务不可用",
+            )
+        })?
+        .map_err(|error| {
+            WebError::new(
+                if error.0.contains("stale") || error.0.contains("reused") {
+                    axum::http::StatusCode::CONFLICT
+                } else {
+                    axum::http::StatusCode::BAD_GATEWAY
+                },
+                "ConfigurationRejected",
+                "产品配置没有被后台接受",
+            )
+        })
+    }
 }
 
 fn router(state: Arc<WebState>) -> Router {
@@ -124,6 +173,10 @@ fn router(state: Arc<WebState>) -> Router {
         .route("/api/v1/auth/reauth", post(auth::reauthenticate))
         .route("/api/v1/auth/sessions", delete(auth::revoke))
         .route("/api/v1/auth/password", put(auth::password))
+        .route(
+            "/api/v1/product/config",
+            get(configuration::read).post(configuration::write),
+        )
         .route(
             "/api/v1/brain/{*path}",
             get(core_routes::read)
@@ -183,9 +236,24 @@ where
             crate::web::core::CoreBridgeClient::connect(bridge, &config.install_ref).map(Arc::new)
         })
         .transpose()?;
+    let configuration = config
+        .configuration_bridge
+        .as_ref()
+        .map(|bridge| {
+            crate::web::configuration::LocalConfigurationClient::connect(
+                bridge.address,
+                &bridge.credential_path,
+            )
+            .map(Arc::new)
+        })
+        .transpose()?;
     if let Some(client) = bootstrap.clone() {
         let recovery = identity.clone();
-        let result = tokio::task::spawn_blocking(move || recovery.recover_bootstrap(&client)).await;
+        let configuration = configuration.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            recovery.recover_bootstrap(&client, configuration.as_deref())
+        })
+        .await;
         if !matches!(result, Ok(Ok(()))) {
             eprintln!("forme-webd: an unfinished installation claim remains pending; local setup recovery may be required");
         }
@@ -195,7 +263,16 @@ where
         .map_err(|_| {
             p::Error("Web address is unavailable; choose a free configured port".into())
         })?;
-    serve_identity_with_setup_until(listener, identity, bootstrap, core, on_bound, shutdown).await
+    serve_identity_with_setup_until(
+        listener,
+        identity,
+        bootstrap,
+        configuration,
+        core,
+        on_bound,
+        shutdown,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -209,13 +286,14 @@ where
     F: FnOnce(SocketAddr) -> p::Result<()>,
     S: Future<Output = p::Result<()>>,
 {
-    serve_identity_with_setup_until(listener, identity, None, None, on_bound, shutdown).await
+    serve_identity_with_setup_until(listener, identity, None, None, None, on_bound, shutdown).await
 }
 
 async fn serve_identity_with_setup_until<F, S>(
     listener: tokio::net::TcpListener,
     identity: Arc<WebIdentityStore>,
     bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
+    configuration: Option<Arc<crate::web::configuration::LocalConfigurationClient>>,
     core: Option<Arc<crate::web::core::CoreBridgeClient>>,
     on_bound: F,
     shutdown: S,
@@ -237,6 +315,7 @@ where
     let state = Arc::new(WebState {
         identity,
         bootstrap,
+        configuration,
         core,
         authority: address.to_string(),
         origin: format!("http://{address}"),

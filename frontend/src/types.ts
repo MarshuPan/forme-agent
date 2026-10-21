@@ -14,6 +14,26 @@ export interface RuntimeView {
   service_states: { schema_version: 1; name: string; status: string; reason: string | null }[];
   digest: string;
 }
+export interface ProductModelProfile {
+  schema_version: 1; id: string; provider: string; model: string; base_url: string;
+  context_window: number; tool_use: boolean; strength: 'basic' | 'standard' | 'strong';
+  input_microunits_per_million: number; output_microunits_per_million: number;
+  requests_per_minute: number; tokens_per_minute: number; timeout_ms: number;
+  fallback_group: string | null; default: boolean; tool_schema_versions: number[];
+  credential_configured: boolean;
+}
+export interface ProductConfigView {
+  schema_version: 1; install_ref: string; owner: string | null;
+  active_revision: number; acknowledged_revision: number | null; pending_restart: boolean;
+  configured: boolean; models: ProductModelProfile[]; issue_refs: string[];
+}
+export interface ProductModelProfilePatch {
+  schema_version: 1; id: string; provider: string; model: string; base_url: string;
+  credential?: string; context_window: number; tool_use: boolean; strength: 'basic' | 'standard' | 'strong';
+  input_microunits_per_million: number; output_microunits_per_million: number;
+  requests_per_minute: number; tokens_per_minute: number; timeout_ms: number;
+  fallback_group: string | null; default: boolean; tool_schema_versions: number[];
+}
 export interface RunSummary {
   schema_version: 1; run: string; session: string; workspace: string | null;
   source: string; status: 'Accepted' | 'Running' | 'Waiting' | 'Complete' | 'Aborted' | 'Failed' | 'Limited';

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "32aa7a9cb704707bd898a1e7acca86d294e72ca61ee85c4a1831c359e5581f15",
+  "source_digest": "e4fb01b6b3b1e2bec77aafe23d2021faf29abfe2b16e4a89cb25f685d9670b1b",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "1bdf1d6f673b412321d6391cf8526db31b06fb796d5bea53ccc45ed69a8eb500"
+      "sha256": "794759a83ae946f0f9024e44911e0df9151cbabbc55b33eca3adaded2680f2c6"
     },
     {
       "path": "frontend/src/components/Approval.tsx",
@@ -40,7 +40,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "6128d3f42794361a384a4d986d1ae51cc1fd71275b5c30dd76b52c10fc98e173"
+      "sha256": "ad979dc90fa035480d13495d66521792ea469a36140ca8961dfb615245c77117"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -56,7 +56,7 @@
     },
     {
       "path": "frontend/src/styles.css",
-      "sha256": "6ea4e56c95e6ebd77a131401bf3c48f5c983c49e3365886fb649e596e22681a5"
+      "sha256": "2c96e6b999273cd05f0e34c809fc5f7d10fc494d9bbd8323a5c43535bc73e277"
     },
     {
       "path": "frontend/src/styles/layout.css",
@@ -72,7 +72,7 @@
     },
     {
       "path": "frontend/src/types.ts",
-      "sha256": "f7c2cf7b3d7433610ab317351bb34e31b30e4830499c60f3379fc9dc3fa24c56"
+      "sha256": "d37a2ba2b7ab89f164b6e3ca48a5c9d4dea3c25d380d8c41ad717804bd008fa7"
     },
     {
       "path": "frontend/tsconfig.json",
@@ -89,14 +89,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-BwxJQ8_6.js",
-      "sha256": "95b0f24f5e69fb386394aa4da8a2dda07b05ec599dea65ddc051833ea521d560",
-      "bytes": 259964
+      "path": "assets/index-Cx7xvxLM.js",
+      "sha256": "08af605c92cb4cc42d92d0d41dd6a17c9bac26083156319f0ae5793dbdd38d14",
+      "bytes": 265857
     },
     {
-      "path": "assets/index-D4kMAB4q.css",
-      "sha256": "4c4962f24b2c4f9c6f883f47bc8391af9103b343059c1fc54626ad52b5235673",
-      "bytes": 11786
+      "path": "assets/index-DxjMEfgk.css",
+      "sha256": "00a5530503e1fdd223ab50030e654b1e8c8223af1e7ffdb8f72eacc25fe11fc8",
+      "bytes": 12393
     },
     {
       "path": "dependencies.json",
@@ -110,7 +110,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "d31031513de73997fe06bcba14d1ba16746c52250746e541c248b4602d43bf6f",
+      "sha256": "c1eefa102daa16d92689c26e3fe8a0b2b698bfa5e4b602248216452f34fc5ac4",
       "bytes": 595
     },
     {

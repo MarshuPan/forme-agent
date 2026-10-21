@@ -3,6 +3,7 @@ use rusqlite::params;
 
 use super::*;
 use crate::web::bootstrap::{BootstrapClientError, LocalBootstrapClient};
+use crate::web::configuration::LocalConfigurationClient;
 
 pub(crate) struct SetupClaimInput {
     pub cookie: SensitiveCookie,
@@ -31,6 +32,7 @@ impl WebIdentityStore {
     pub(crate) fn finish_bootstrap(
         &self,
         client: &LocalBootstrapClient,
+        configuration: Option<&LocalConfigurationClient>,
         input: SetupClaimInput,
     ) -> AuthResult<SessionCookie> {
         let setup = self.setup_access(&input.cookie, input.request_binding, true)?;
@@ -50,6 +52,10 @@ impl WebIdentityStore {
             candidate_ref: input.candidate_ref,
             account_commitment: commitment,
         })?;
+        let configuration = configuration.ok_or(AuthError::Unavailable)?;
+        configuration
+            .bind_owner(&input.operation, 0, receipt.receipt.owner.clone())
+            .map_err(|_| AuthError::Unavailable)?;
         self.commit_claim(&receipt)?;
         let attempt = challenge::reference(&input.cookie)?;
         let csrf = SensitiveCookie::new(challenge::csrf(&input.cookie)?);
@@ -82,11 +88,23 @@ impl WebIdentityStore {
 
     /// Startup recovery uses only a previously persisted explicit claim intent.
     /// A missing/unavailable broker leaves it pending, never creates a new owner.
-    pub(crate) fn recover_bootstrap(&self, client: &LocalBootstrapClient) -> AuthResult<()> {
+    pub(crate) fn recover_bootstrap(
+        &self,
+        client: &LocalBootstrapClient,
+        configuration: Option<&LocalConfigurationClient>,
+    ) -> AuthResult<()> {
         let Some(request) = self.pending_bootstrap()? else {
             return Ok(());
         };
         let grant = client.commit(&request)?;
+        let configuration = configuration.ok_or(AuthError::Unavailable)?;
+        configuration
+            .bind_owner(
+                &request.session.operation_id,
+                0,
+                grant.receipt.owner.clone(),
+            )
+            .map_err(|_| AuthError::Unavailable)?;
         self.commit_claim(&grant)?;
         Ok(())
     }

@@ -1,16 +1,21 @@
 #![forbid(unsafe_code)]
 
-use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
-use std::path::{Component, Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+#[path = "hostctl_install_filesystem.rs"]
+mod hostctl_install_filesystem;
+
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use ed25519_dalek::SigningKey;
 use forme_gateway::web::{WebBootstrapBridgeConfig, WebServerConfig};
 use forme_protocol as p;
 
+use hostctl_install_filesystem::*;
+
 const HOST_BIND: &str = "127.0.0.1:8766";
 const AGENT_BIND: &str = "127.0.0.1:8767";
+const CONFIG_BIND: &str = "127.0.0.1:8768";
+const CORE_BIND: &str = "127.0.0.1:8769";
 const WEB_BIND: &str = "127.0.0.1:8765";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrepareRequest {
@@ -77,12 +82,24 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     let install_ref = random_ref("installation")?;
     let bootstrap_key = random_key()?;
     let bootstrap_signing = SigningKey::from_bytes(&bootstrap_key);
+    let web_assertion_key = random_key()?;
+    let web_assertion_signing = SigningKey::from_bytes(&web_assertion_key);
     let bootstrap_web_credential = random_token()?;
     let maintenance_credential = random_token()?;
     let agent_credential = random_token()?;
+    let web_configuration_credential = random_token()?;
+    let core_owner_credential = random_token()?;
+    let core_web_credential = random_token()?;
     let bootstrap_config_path = request.config_root.join("bootstrap.json");
     let host_config_path = request.config_root.join("host.json");
     let web_config_path = request.config_root.join("web.json");
+    let core_config_path = request.config_root.join("core.json");
+    let template_path = request.config_root.join("product-template.json");
+    let web_assertion_key_path = paths.web_auth.join("web-assertion.key");
+    let web_configuration_credential_path = paths.web_auth.join("configuration.token");
+    let core_owner_credential_path = paths.keys.join("core-owner.token");
+    let core_web_credential_path = paths.keys.join("core-web.token");
+    let core_session_fence_path = paths.host_state.join("core-auth.sqlite");
 
     let manifest = installation_manifest(&request, &paths, &install_ref)?;
     let bootstrap = serde_json::json!({
@@ -103,11 +120,40 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         "journal_path": paths.host_state.join("host.journal"),
         "maintenance_credential_path": paths.keys.join("host-maintenance.token"),
         "agent_execution_credential_path": paths.keys.join("agent-execution.token"),
+        "web_configuration_credential_path": web_configuration_credential_path,
+        "product_config_template_path": template_path,
         "worker_config_path": serde_json::Value::Null,
         "bootstrap_config_path": bootstrap_config_path,
         "host_bind": HOST_BIND,
-        "agent_execution_bind": AGENT_BIND
+        "agent_execution_bind": AGENT_BIND,
+        "configuration_bind": CONFIG_BIND
     });
+    let template = p::ProductConfigTemplate {
+        schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
+        install_ref: install_ref.clone(),
+        core_config_path: core_config_path.clone(),
+        configuration_ack_path: request.config_root.join("core-config-ack.json"),
+        model_credentials_directory: paths.keys.join("model-credentials"),
+        brain_store_path: paths.brain.join("forme.db"),
+        artifact_root: paths.brain.join("artifacts"),
+        core_owner_credential_path: core_owner_credential_path.clone(),
+        core_web_credential_path: core_web_credential_path.clone(),
+        core_web_assertion_verifying_key: web_assertion_signing.verifying_key().to_bytes(),
+        core_session_fence_path,
+        core_bind: CORE_BIND
+            .parse()
+            .map_err(|_| "core bind is invalid".to_owned())?,
+        workspace: p::WorkspaceRef("workspace:default".into()),
+        agent_profile: p::AgentProfileRef("agent:forme-local".into()),
+        scheduler_tick: p::DurationMs(1_000),
+        scheduler_lease: p::DurationMs(30_000),
+        scheduler_max_claims: 1,
+        cognition_tick: p::DurationMs(60_000),
+        stable_evidence_max_age: p::DurationMs(30 * 24 * 60 * 60 * 1_000),
+        authority_lease: p::DurationMs(30_000),
+        drain_timeout: p::DurationMs(30_000),
+    };
+    template.validate().map_err(|error| error.0)?;
     let web = WebServerConfig {
         schema_version: p::SchemaVersion(1),
         install_ref: install_ref.clone(),
@@ -123,7 +169,21 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
                 .map_err(|_| "host bind is invalid".to_owned())?,
             credential_path: paths.web_auth.join("bootstrap-web.token"),
         }),
-        core_bridge: None,
+        configuration_bridge: Some(forme_gateway::web::WebConfigurationBridgeConfig {
+            schema_version: p::SchemaVersion(1),
+            address: CONFIG_BIND
+                .parse()
+                .map_err(|_| "configuration bind is invalid".to_owned())?,
+            credential_path: web_configuration_credential_path.clone(),
+        }),
+        core_bridge: Some(forme_gateway::web::WebCoreBridgeConfig {
+            schema_version: p::SchemaVersion(1),
+            address: CORE_BIND
+                .parse()
+                .map_err(|_| "core bind is invalid".to_owned())?,
+            credential_path: core_web_credential_path.clone(),
+            signing_key_path: web_assertion_key_path.clone(),
+        }),
     };
     web.validate().map_err(|error| error.0)?;
 
@@ -149,6 +209,22 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
             0o600,
         ),
         (
+            web_configuration_credential_path,
+            web_configuration_credential.into_bytes(),
+            0o600,
+        ),
+        (
+            core_owner_credential_path,
+            core_owner_credential.into_bytes(),
+            0o600,
+        ),
+        (
+            core_web_credential_path,
+            core_web_credential.into_bytes(),
+            0o600,
+        ),
+        (web_assertion_key_path, web_assertion_key.to_vec(), 0o600),
+        (
             bootstrap_config_path.clone(),
             json_bytes(&bootstrap)?,
             0o600,
@@ -158,6 +234,12 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
             web_config_path.clone(),
             serde_json::to_vec_pretty(&web)
                 .map_err(|_| "Web configuration encoding failed".to_owned())?,
+            0o600,
+        ),
+        (
+            template_path.clone(),
+            serde_json::to_vec_pretty(&template)
+                .map_err(|_| "product configuration template encoding failed".to_owned())?,
             0o600,
         ),
     ];
@@ -171,6 +253,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         host_config_path,
         web_config_path,
         bootstrap_config_path,
+        // Installation writes the template only. The core configuration is
+        // created after an authenticated owner claim completes.
         core_config_path: None,
         created: true,
     })
@@ -360,6 +444,14 @@ fn reopen_existing(
                 .into(),
         );
     }
+    let core_config_path = request.config_root.join("core.json");
+    reject_linked_ancestors(&core_config_path)?;
+    let core_config_path = match fs::symlink_metadata(&core_config_path) {
+        Ok(metadata) if metadata.file_type().is_file() => Some(core_config_path),
+        Ok(_) => return Err("existing core configuration is not a regular file".into()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(format!("cannot inspect core configuration: {error}")),
+    };
     Ok(PreparationReport {
         install_ref: manifest.install_id,
         target: manifest.target,
@@ -368,7 +460,7 @@ fn reopen_existing(
         host_config_path: request.config_root.join("host.json"),
         web_config_path: request.config_root.join("web.json"),
         bootstrap_config_path: request.config_root.join("bootstrap.json"),
-        core_config_path: None,
+        core_config_path,
         created: false,
     })
 }
@@ -427,167 +519,4 @@ fn ensure_directory(path: &Path) -> Result<(), String> {
             .map_err(|error| format!("cannot protect {}: {error}", path.display()))?;
     }
     Ok(())
-}
-
-fn write_transaction(
-    files: &[(PathBuf, Vec<u8>, u32)],
-    manifest_path: &Path,
-    manifest: &p::InstallationManifest,
-) -> Result<(), String> {
-    let mut created = Vec::new();
-    let result = (|| {
-        for (path, bytes, mode) in files {
-            write_new(path, bytes, *mode)?;
-            created.push(path.clone());
-        }
-        let manifest_bytes = serde_json::to_vec_pretty(manifest)
-            .map_err(|_| "installation manifest encoding failed".to_owned())?;
-        write_new(manifest_path, &manifest_bytes, 0o600)?;
-        created.push(manifest_path.to_owned());
-        Ok(())
-    })();
-    if result.is_err() {
-        for path in created.into_iter().rev() {
-            let _ = fs::remove_file(path);
-        }
-    }
-    result
-}
-
-fn write_new(path: &Path, bytes: &[u8], mode: u32) -> Result<(), String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| format!("{} has no parent", path.display()))?;
-    reject_linked_ancestors(parent)?;
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(mode);
-    }
-    #[cfg(not(unix))]
-    let _ = mode;
-    let mut file = options
-        .open(path)
-        .map_err(|error| format!("cannot create {}: {error}", path.display()))?;
-    file.write_all(bytes)
-        .and_then(|_| file.sync_all())
-        .map_err(|error| format!("cannot commit {}: {error}", path.display()))
-}
-
-fn json_bytes(value: &serde_json::Value) -> Result<Vec<u8>, String> {
-    serde_json::to_vec_pretty(value).map_err(|_| "configuration encoding failed".into())
-}
-
-fn random_key() -> Result<[u8; 32], String> {
-    let mut bytes = [0_u8; 32];
-    getrandom::fill(&mut bytes).map_err(|_| "secure random source is unavailable".to_owned())?;
-    Ok(bytes)
-}
-
-fn random_token() -> Result<String, String> {
-    let bytes = random_key()?;
-    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
-}
-
-fn random_ref(prefix: &str) -> Result<String, String> {
-    Ok(format!("{prefix}:{}", random_token()?))
-}
-
-fn now_ms() -> Result<p::Timestamp, String> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| i64::try_from(duration.as_millis()).unwrap_or(i64::MAX))
-        .map_err(|_| "system clock is before the Unix epoch".into())
-}
-
-fn absolute(value: String, name: &str) -> Result<PathBuf, String> {
-    let path = PathBuf::from(value);
-    absolute_path(&path, name)?;
-    Ok(path)
-}
-
-fn absolute_path(path: &Path, name: &str) -> Result<(), String> {
-    if !path.is_absolute()
-        || path
-            .components()
-            .any(|part| matches!(part, Component::CurDir | Component::ParentDir))
-    {
-        return Err(format!("{name} must be an absolute normalized path"));
-    }
-    reject_linked_ancestors(path)
-}
-
-fn reject_linked_ancestors(path: &Path) -> Result<(), String> {
-    if !path.is_absolute() {
-        return Err("product path must be absolute".into());
-    }
-    let mut current = PathBuf::new();
-    for component in path.components() {
-        current.push(component);
-        match fs::symlink_metadata(&current) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(format!(
-                    "product path contains a link: {}",
-                    current.display()
-                ))
-            }
-            Ok(metadata) if is_reparse_point(&metadata) => {
-                return Err(format!(
-                    "product path contains a reparse point: {}",
-                    current.display()
-                ))
-            }
-            Ok(_) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("cannot inspect {}: {error}", current.display())),
-        }
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn is_reparse_point(metadata: &fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    metadata.file_attributes() & 0x400 != 0
-}
-
-#[cfg(not(windows))]
-fn is_reparse_point(_: &fs::Metadata) -> bool {
-    false
-}
-
-fn is_empty_directory(path: &Path) -> Result<bool, String> {
-    reject_linked_ancestors(path)?;
-    if !path.exists() {
-        return Ok(true);
-    }
-    if !path.is_dir() {
-        return Err(format!("{} is not a directory", path.display()));
-    }
-    Ok(fs::read_dir(path)
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?
-        .next()
-        .is_none())
-}
-
-fn read_bounded(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
-    reject_linked_ancestors(path)?;
-    let file =
-        File::open(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    let metadata = file
-        .metadata()
-        .map_err(|error| format!("cannot inspect {}: {error}", path.display()))?;
-    if !metadata.is_file() || metadata.len() > limit {
-        return Err(format!("{} is not a bounded regular file", path.display()));
-    }
-    let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    file.take(limit + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    if bytes.len() as u64 > limit {
-        return Err(format!("{} exceeds its size limit", path.display()));
-    }
-    Ok(bytes)
 }

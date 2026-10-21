@@ -1,8 +1,12 @@
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use forme_protocol as p;
 
-use super::{NativeServiceManager, ProductJournal, SystemServiceManager};
+#[path = "host_configuration.rs"]
+mod host_configuration;
+
+use super::{NativeServiceManager, ProductConfigStore, ProductJournal, SystemServiceManager};
 
 /// Credentials for the two product control planes. The maintenance and
 /// execution values are intentionally separate so one leaked domain cannot be
@@ -11,6 +15,7 @@ use super::{NativeServiceManager, ProductJournal, SystemServiceManager};
 pub struct HostCredentials {
     maintenance: String,
     agent_execution: Option<String>,
+    web_configuration: Option<String>,
 }
 
 impl HostCredentials {
@@ -18,6 +23,7 @@ impl HostCredentials {
         let credentials = Self {
             maintenance,
             agent_execution,
+            web_configuration: None,
         };
         credentials.validate()?;
         Ok(credentials)
@@ -27,6 +33,7 @@ impl HostCredentials {
         Self {
             maintenance,
             agent_execution: None,
+            web_configuration: None,
         }
     }
 
@@ -38,6 +45,21 @@ impl HostCredentials {
         self.agent_execution.as_deref()
     }
 
+    pub fn with_web_configuration(mut self, credential: Option<String>) -> p::Result<Self> {
+        if let Some(value) = credential.as_deref() {
+            validate_bearer(value, "Web configuration")?;
+            if value == self.maintenance || self.agent_execution.as_deref() == Some(value) {
+                return Err(p::Error("host credentials must be distinct".into()));
+            }
+        }
+        self.web_configuration = credential;
+        Ok(self)
+    }
+
+    pub fn web_configuration(&self) -> Option<&str> {
+        self.web_configuration.as_deref()
+    }
+
     fn validate(&self) -> p::Result<()> {
         validate_bearer(&self.maintenance, "maintenance")?;
         if let Some(agent) = self.agent_execution.as_deref() {
@@ -46,6 +68,14 @@ impl HostCredentials {
                 return Err(p::Error(
                     "maintenance and agent credentials must be distinct".into(),
                 ));
+            }
+        }
+        if let Some(configuration) = self.web_configuration.as_deref() {
+            validate_bearer(configuration, "Web configuration")?;
+            if configuration == self.maintenance
+                || self.agent_execution.as_deref() == Some(configuration)
+            {
+                return Err(p::Error("host credentials must be distinct".into()));
             }
         }
         Ok(())
@@ -112,6 +142,9 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     maintenance_digest: p::SchemaDigest,
     agent_bearer: Option<String>,
     agent_digest: Option<p::SchemaDigest>,
+    web_configuration_bearer: Option<String>,
+    web_configuration_digest: Option<p::SchemaDigest>,
+    product_config: Option<Arc<Mutex<ProductConfigStore>>>,
     target: p::ProductTarget,
     install_id: String,
     active_release: String,
@@ -146,6 +179,26 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         active_release: String,
         services: M,
     ) -> p::Result<Self> {
+        Self::open_with_service_manager_and_config(
+            journal_path,
+            install_id,
+            credentials,
+            target,
+            active_release,
+            None,
+            services,
+        )
+    }
+
+    pub fn open_with_service_manager_and_config(
+        journal_path: &Path,
+        install_id: &str,
+        credentials: HostCredentials,
+        target: p::ProductTarget,
+        active_release: String,
+        product_config: Option<Arc<Mutex<ProductConfigStore>>>,
+        services: M,
+    ) -> p::Result<Self> {
         credentials.validate()?;
         p::validate_product_id(install_id)?;
         p::validate_release_id(&active_release)?;
@@ -154,12 +207,19 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .agent_execution()
             .map(|value| p::canonical_digest(&value))
             .transpose()?;
+        let web_configuration_digest = credentials
+            .web_configuration()
+            .map(|value| p::canonical_digest(&value))
+            .transpose()?;
         Ok(Self {
             journal: ProductJournal::open(journal_path, install_id)?,
             maintenance_bearer: credentials.maintenance().to_owned(),
             maintenance_digest,
             agent_bearer: credentials.agent_execution().map(str::to_owned),
             agent_digest,
+            web_configuration_bearer: credentials.web_configuration().map(str::to_owned),
+            web_configuration_digest,
+            product_config,
             target,
             install_id: install_id.into(),
             active_release,
@@ -270,6 +330,16 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             operation.stage != p::MaintenanceStage::Committed || operation.pending_stage.is_some()
         });
         let native = self.services.inspect(p::BuiltinServiceId::Brain)?;
+        let configuration = self
+            .product_config
+            .as_ref()
+            .map(|store| {
+                let mut store = store
+                    .lock()
+                    .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
+                store.snapshot()
+            })
+            .transpose()?;
         let core_health = match native.state {
             // A running OS process has not yet proved owner/store/composition/config readiness.
             p::NativeServiceState::Running => p::CoreHealth::Starting,
@@ -299,8 +369,12 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             product_state,
             core_health,
             active_release: self.active_release.clone(),
-            active_config_revision: 0,
-            acknowledged_config_revision: None,
+            active_config_revision: configuration
+                .as_ref()
+                .map_or(0, |view| view.active_revision),
+            acknowledged_config_revision: configuration
+                .as_ref()
+                .and_then(|view| view.acknowledged_revision),
             issue_refs: Vec::new(),
             allowed_operations: vec![
                 "inspect".into(),
