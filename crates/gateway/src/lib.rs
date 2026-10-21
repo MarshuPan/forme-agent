@@ -12,6 +12,7 @@ mod lifecycle;
 mod runtime;
 mod scheduled;
 mod server;
+pub mod web;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
