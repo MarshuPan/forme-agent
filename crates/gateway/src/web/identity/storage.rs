@@ -94,7 +94,7 @@ impl Database {
             let version: i64 = reader
                 .pragma_query_value(None, "user_version", |r| r.get(0))
                 .map_err(|_| AuthError::RecoveryRequired)?;
-            if application != APPLICATION_ID || version != 1 {
+            if application != APPLICATION_ID || !matches!(version, 1 | 2) {
                 return Err(AuthError::RecoveryRequired);
             }
         } else {
@@ -153,6 +153,20 @@ impl Database {
             .map_err(|_| AuthError::RecoveryRequired)?;
         if integrity != "ok" {
             return Err(AuthError::RecoveryRequired);
+        }
+        // The known v1 -> v2 upgrade is atomic and does not replace any account,
+        // session or credential. Binding/integrity checks precede all migration.
+        let version: i64 = connection
+            .pragma_query_value(None, "user_version", |row| row.get(0))
+            .map_err(storage_error)?;
+        if version == 1 {
+            let tx = connection.transaction().map_err(storage_error)?;
+            tx.execute_batch(
+                "CREATE TABLE login_challenges (digest TEXT PRIMARY KEY, expires INTEGER NOT NULL,
+                    session TEXT); PRAGMA user_version=2;",
+            )
+            .map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
         }
         connection
             .execute_batch(

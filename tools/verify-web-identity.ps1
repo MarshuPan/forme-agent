@@ -16,7 +16,9 @@ try {
         "identity_password_bounds_do_not_trim_and_corrupt_kdf_parameters_fail_closed",
         "identity_expired_or_other_session_reauth_cannot_revoke",
         "identity_change_password_rejects_a_proof_for_another_prepared_hash",
-        "identity_concurrent_authentication_keeps_one_live_session_without_false_clock_rollback"
+        "identity_concurrent_authentication_keeps_one_live_session_without_false_clock_rollback",
+        "identity_login_challenge_is_csrf_bound_expiring_and_consumed_once_across_restart",
+        "identity_known_schema_upgrade_preserves_existing_account_and_session"
     )
     $ErrorActionPreference = "Continue"
     $output = @(& cargo test -p forme-gateway --lib web::identity::tests:: -- --test-threads=2 2>&1 | ForEach-Object { "$_" })

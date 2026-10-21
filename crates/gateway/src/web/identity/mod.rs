@@ -1,5 +1,6 @@
 //! Independent durable owner authentication. No brain-store or model access.
 mod account;
+mod challenge;
 mod password;
 mod sessions;
 mod storage;
@@ -80,6 +81,18 @@ pub struct SessionCookie {
     pub view: p::WebSessionView,
 }
 
+pub struct LoginChallenge {
+    pub cookie: SensitiveCookie,
+    pub view: p::WebLoginChallengeView,
+}
+
+pub struct LoginChallengeBinding<'a> {
+    pub cookie: &'a SensitiveCookie,
+    pub csrf: &'a SensitiveCookie,
+    pub attempt: &'a p::SchemaDigest,
+    pub existing_session: Option<&'a SensitiveCookie>,
+}
+
 /// Transport must check exact Host/Origin before constructing this binding.
 pub struct WebRequestBinding {
     pub mutation: bool,
@@ -100,6 +113,37 @@ impl AuthenticatedWebOwner {
 }
 
 pub struct ReauthenticationProof(SensitiveCookie);
+
+impl ReauthenticationProof {
+    pub fn from_transport(value: String) -> AuthResult<Self> {
+        let cookie = SensitiveCookie::new(value);
+        digest(cookie.expose_for_transport())?;
+        Ok(Self(cookie))
+    }
+
+    pub fn expose_for_transport(&self) -> &str {
+        self.0.expose_for_transport()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ReauthenticationProof {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = <String as serde::Deserialize>::deserialize(deserializer)?;
+        Self::from_transport(value).map_err(serde::de::Error::custom)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for SensitivePassword {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        <String as serde::Deserialize>::deserialize(deserializer).map(Self::new)
+    }
+}
 
 /// In-flight password replacement with an immutable salted-hash commitment.
 /// This object is never a wire DTO and cannot be constructed from client JSON.

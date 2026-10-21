@@ -661,3 +661,88 @@ fn identity_concurrent_authentication_keeps_one_live_session_without_false_clock
         Err(AuthError::Unauthenticated)
     ));
 }
+
+#[test]
+fn identity_login_challenge_is_csrf_bound_expiring_and_consumed_once_across_restart() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let challenge = store.login_challenge_at(NOW).unwrap();
+    let valid_csrf = SensitiveCookie::new(challenge.view.csrf.clone());
+    let wrong_csrf = SensitiveCookie::new("0".repeat(64));
+    let request = || SensitiveLoginRequest {
+        login_name: "fixture".into(),
+        password: SensitivePassword::new(PASSWORD.into()),
+    };
+    let binding = |csrf, existing_session| LoginChallengeBinding {
+        cookie: &challenge.cookie,
+        csrf,
+        attempt: &challenge.view.attempt_ref,
+        existing_session,
+    };
+    assert!(matches!(
+        store.login_with_time(request(), Some(NOW + 1), Some(binding(&wrong_csrf, None))),
+        Err(AuthError::CsrfRejected)
+    ));
+    let session = store
+        .login_with_time(request(), Some(NOW + 1), Some(binding(&valid_csrf, None)))
+        .unwrap();
+    drop(store);
+    let store = open(&directory);
+    assert!(matches!(
+        store.login_with_time(request(), Some(NOW + 2), Some(binding(&valid_csrf, None))),
+        Err(AuthError::Conflict)
+    ));
+    let recovered = store
+        .login_with_time(
+            request(),
+            Some(NOW + 3),
+            Some(binding(&valid_csrf, Some(&session.cookie))),
+        )
+        .unwrap();
+    assert_eq!(
+        recovered.cookie.expose_for_transport(),
+        session.cookie.expose_for_transport()
+    );
+    assert!(matches!(
+        store.login_with_time(
+            request(),
+            Some(NOW + 300_000),
+            Some(binding(&valid_csrf, None))
+        ),
+        Err(AuthError::Expired)
+    ));
+    let count: i64 = store
+        .database()
+        .unwrap()
+        .connection
+        .query_row("SELECT count(*) FROM sessions", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let session = login(&store, NOW);
+    store
+        .database()
+        .unwrap()
+        .connection
+        .execute_batch("DROP TABLE login_challenges; PRAGMA user_version=1;")
+        .unwrap();
+    drop(store);
+    let store = open(&directory);
+    assert_eq!(
+        owner(&store, &session, NOW + 1).view().owner.0,
+        "owner:fixture"
+    );
+    let version: i64 = store
+        .database()
+        .unwrap()
+        .connection
+        .pragma_query_value(None, "user_version", |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 2);
+    store.login_challenge_at(NOW + 2).unwrap();
+}

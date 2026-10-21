@@ -57,3 +57,12 @@ pub struct AuthRevision {
     pub credential_revision: u64,
     pub auth_epoch: u64,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WebLoginChallengeView {
+    pub schema_version: SchemaVersion,
+    pub attempt_ref: SchemaDigest,
+    pub csrf: String,
+    pub expires_at: Timestamp,
+}

@@ -23,3 +23,7 @@ zeroize = "=1.9.0"
 [[bin]]
 name = "forme-gatewayd"
 path = "src/main.rs"
+
+[[bin]]
+name = "forme-webd"
+path = "src/bin/forme-webd.rs"

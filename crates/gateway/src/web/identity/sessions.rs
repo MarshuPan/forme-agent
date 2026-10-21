@@ -11,7 +11,7 @@ use forme_protocol as p;
 
 impl WebIdentityService for WebIdentityStore {
     fn login(&self, request: SensitiveLoginRequest) -> AuthResult<SessionCookie> {
-        self.login_with_time(request, None)
+        self.login_with_time(request, None, None)
     }
 
     fn authenticate(
@@ -49,15 +49,28 @@ impl WebIdentityStore {
         request: SensitiveLoginRequest,
         now: i64,
     ) -> AuthResult<SessionCookie> {
-        self.login_with_time(request, Some(now))
+        self.login_with_time(request, Some(now), None)
     }
 
-    fn login_with_time(
+    pub fn login_challenged(
+        &self,
+        request: SensitiveLoginRequest,
+        binding: super::LoginChallengeBinding<'_>,
+    ) -> AuthResult<SessionCookie> {
+        self.login_with_time(request, None, Some(binding))
+    }
+
+    pub(super) fn login_with_time(
         &self,
         request: SensitiveLoginRequest,
         supplied_time: Option<i64>,
+        binding: Option<super::LoginChallengeBinding<'_>>,
     ) -> AuthResult<SessionCookie> {
         let _job = self.password_slot()?;
+        if let Some(binding) = binding.as_ref() {
+            let db = self.database()?;
+            super::challenge::check(&db.connection, binding, supplied_time.unwrap_or_else(now))?;
+        }
         let snapshot = account(&self.database()?.connection)?;
         let password = snapshot
             .as_ref()
@@ -91,6 +104,11 @@ impl WebIdentityStore {
         {
             return Err(AuthError::Conflict);
         }
+        if let Some(binding) = binding.as_ref() {
+            if let Some(session) = super::challenge::check(&tx, binding, now)? {
+                return super::challenge::existing_session(&tx, &current, binding, &session, now);
+            }
+        }
         tx.execute(
             "DELETE FROM sessions WHERE idle<=?1 OR absolute<=?1 OR epoch<>?2",
             params![now, storage::sql_epoch(current.auth_epoch)?],
@@ -119,6 +137,13 @@ impl WebIdentityStore {
             ],
         )
         .map_err(storage_error)?;
+        if let Some(binding) = binding.as_ref() {
+            tx.execute(
+                "UPDATE login_challenges SET session=?1 WHERE digest=?2 AND session IS NULL",
+                params![session_digest, binding.attempt.0],
+            )
+            .map_err(storage_error)?;
+        }
         tx.commit().map_err(storage_error)?;
         Ok(SessionCookie {
             cookie,
