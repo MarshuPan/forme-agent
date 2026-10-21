@@ -4,17 +4,31 @@
 
 ## 1. 依据和适用方式
 
-研究日期：2026-10-21。采用以下公开规范的原则，不复制其实现或测试：
+研究日期：2026-10-22。采用以下公开规范的原则，不复制其实现或测试：
 
 | 依据 | 在 forme 中的落点 |
 |---|---|
 | [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/checklist.html) | 一致命名、强类型、可预测接口、错误语义、最小公开面、rustdoc 的错误和副作用说明。秘密类型不因通用建议而派生 Debug/Serialize。 |
 | [Rust Style Guide](https://doc.rust-lang.org/style-guide/) | 默认 rustfmt，避免个人格式争论；模块按职责组织。 |
-| [Clippy 配置](https://doc.rust-lang.org/clippy/lint_configuration.html) | strict Clippy 是阻断门；复杂度/参数过多提示用于审查，不全局启用 pedantic 后批量 allow。 |
+| [Clippy 使用与 lint 分组](https://doc.rust-lang.org/stable/clippy/usage.html) / [配置](https://doc.rust-lang.org/clippy/lint_configuration.html) | strict Clippy 是阻断门；复杂度/参数过多提示用于审查，不全局启用 pedantic/restriction 后批量 allow。 |
+| [Cargo Manifest 与 Rust 版本](https://doc.rust-lang.org/cargo/reference/manifest.html) | 锁定 edition/MSRV/依赖来源和发布元数据；不把尚不稳定的 Cargo lint 配置误当作当前强制门。 |
 | [Tokio graceful shutdown](https://tokio.rs/tokio/topics/shutdown) 和 [select cancellation safety](https://docs.rs/tokio/latest/tokio/macro.select.html) | 明确停止信号、停止准入、等待已启动工作；请求取消不代表 blocking 工作停止。 |
 | [OWASP ASVS](https://owasp.org/www-project-application-security-verification-standard/) | Web 身份、会话、输入、访问控制、密钥、浏览器安全和错误处理的审查分类；不自称已取得 ASVS 认证。 |
 
 文件 600 行、函数 80 行之类不是 Rust 官方标准。本仓库的规模阈值是维护约定，不是正确性证明或行业认证。
+
+## 1.1 四级判定标准
+
+代码评审和自动门按四级判定，不能用低级结果掩盖高级问题：
+
+| 级别 | 判定问题 | 形式 |
+|---|---|---|
+| P0 正确性与合规 | 能否编译、回归、通过依赖/原创/unsafe/协议门？ | 自动阻断。 |
+| P1 架构与治理 | 是否仍沿冻结 crate 图、唯一事实源、执行前重查、审批/能力门和 Unknown 语义？ | 变更审查 + 场景测试；违反即阻断。 |
+| P2 可维护性 | 一个模块是否只有一个主要变化原因，跨层接口是否窄，规模是否按棘轮下降？ | 自动规模/依赖门 + 代码审查。 |
+| P3 产品行为 | 真实 HTTP、进程、浏览器、系统服务和恢复是否达到对应 IP/S/C？ | 独立验收证据；不能用单元测试代替。 |
+
+“测试通过”只证明覆盖到的行为没有失败；“代码质量通过”只证明 P0/P2 的自动部分通过。任何提交都必须明确哪些 P3 证据仍未取得。
 
 ## 2. 模块与规模
 
@@ -24,7 +38,18 @@
 - 已有超限文件记录在 `tools/quality-baseline.json`，按文件实施不增长棘轮。新增超限文件或旧文件增长阻断；删除/缩小旧文件无需更新基线。基线只能在明确审查理由后手工调整，不提供自动“刷新变绿”命令。
 - 目标是单一变化原因和可独立测试的边界。不得为行数引入 `include!` 拼文件、一个函数任意切段、无意义 trait 或只转发的空壳模块。
 - 函数超过约 80 行、分支过深、参数超过 7 个、生产函数同时处理认证/IO/状态迁移，是拆分审查信号；先看原子事务和审计完整性，必要时保留有解释的长函数。
+- 新增或修改跨层代码时，审查必须标出：入口适配、校验/授权、领域状态迁移、持久化、外部副作用、响应映射分别由谁负责；同一函数同时拥有其中三类以上职责时，默认要求拆分或写出保留理由。
 - 模块私有优先；跨模块使用最窄 `pub(super)`/`pub(crate)`。不得以拆分为由把全部内部状态公开。
+
+### 2.1 大模块拆分的完成定义
+
+拆分一个大文件只有同时满足以下条件才算完成：
+
+1. public API、serde 字段/顺序、EventKind、事务边界和错误语义不变，或先完成对应文档变更。
+2. 每个新模块有单一职责和明确 owner；只读查询、状态 fold、外部 IO、平台适配和测试 fixture 不混在同一模块。
+3. 原有正反场景继续运行，并至少新增一个证明边界没有旁路的测试；不以“新测试通过”替代旧测试。
+4. 生成文件、依赖图、许可证和 release manifest 没有未经说明的变化。
+5. 规模债务减少或保持不增长，提交消息只描述本次拆分，不与安装、协议重设计或行为改动混在一起。
 
 ## 3. Rust 接口、错误与状态
 
@@ -70,3 +95,5 @@
 统一入口 `pwsh -File tools/verify-code-quality.ps1` 同时执行上述 Rust 门、结构检查器回归、`npm ci --prefix frontend --ignore-scripts`、`npm audit --prefix frontend --audit-level=moderate`、前端 strict TypeScript/行为测试、`tools/build-web.mjs --check` 和 bundle 完整性/保留边界回归。前端构建只在开发/CI 运行 Node；安装后由 `forme-webd` 提供编译嵌入的固定资源，不需要用户安装 Node。修改前端源码后先执行 `node tools/build-web.mjs`，提交生成的精确资源表、manifest、依赖清单与许可证；陈旧/额外资源必须阻断。托管 CI 仅可显式允许缺少本地研究语料，不放宽其他检查。
 
 已有大模块按风险分批拆分：先 gateway transport/控制面，再 harness orchestration/production，再 store 按事务领域拆。每批保持行为不变并独立提交，避免在安装/认证实现中夹带整库重写。规模基线仅表示已知债务，不表示这些文件已通过可维护性验收。
+
+当前公开维护债务约 64 个文件。下一批优先级固定为：`harness/src/lib.rs` 的入口/控制域、`harness/src/production.rs` 的 composition/服务域、`harness/src/brain_orchestration.rs` 的 route/执行域、`store/src/sqlite.rs` 的事务/投影域；每次只处理一个事务边界。`memory`、`protocol` 等承重协议文件除非有明确收益，不做机械按行切割。

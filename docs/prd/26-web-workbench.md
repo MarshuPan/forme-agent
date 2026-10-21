@@ -4,7 +4,7 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P12–P16，主验 IP17–IP23，参与 IP04/IP06/IP08/IP18/IP24。依据 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §5–6/§10，以及 canonical §13–18/§28–29。
 
-**状态：实施文档已制定，页面和组件接入待实现。** DeepSeek 的官方展示截图只是结构参考，不是本地运行证据。技术选型为 React + TypeScript + Vite 静态构建，由 forme-webd 提供；无桌面壳、无独立 Node 后端。
+**状态：基础工作台和工作空间命令层已实现，完整产品面仍在实施。** 当前已接入 React + TypeScript + Vite 静态构建、初始化/登录、对话、事件续接、审批/取消、项目登记/路线规划/执行/取消和 Charter 读写；由 forme-webd 提供。附件/产物、完整收件箱处置、记忆/认知操作面、完整设置/维护页、已认证浏览器全链路和 IP17–IP24 原生联合验收仍未完成。DeepSeek 的官方展示截图只是结构参考；无桌面壳、无独立 Node 后端。
 
 ## 1. 职责与边界
 
