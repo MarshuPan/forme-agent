@@ -617,7 +617,7 @@ fn external_governance(intent: &p::ActionIntent) -> GovernanceConfig {
         budget: p::Budget("units:4".into()),
         timebox: p::Timebox {
             schema_version: p::SchemaVersion(1),
-            starts_at: now.saturating_sub(1_000),
+            starts_at: intent.requested_at.saturating_sub(1_000),
             expires_at: now.saturating_add(60_000),
             max_turns: 4,
         },
@@ -1561,7 +1561,7 @@ fn governance(intent: &p::ActionIntent) -> GovernanceConfig {
         budget: p::Budget("test-budget".into()),
         timebox: p::Timebox {
             schema_version: p::SchemaVersion(1),
-            starts_at: now.saturating_sub(1_000),
+            starts_at: intent.requested_at.saturating_sub(1_000),
             expires_at: now.saturating_add(600_000),
             max_turns: 4,
         },
