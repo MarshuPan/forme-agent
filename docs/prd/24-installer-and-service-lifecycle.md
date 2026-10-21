@@ -96,6 +96,14 @@ AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/work
 
 开发环境通过 `FORME_SERVICE_DRAIN_TIMEOUT_MS` 配置排空时限，默认 30 秒，有效范围 1 毫秒至 10 分钟。超时或无法核对状态时返回明确错误；daemon 以非零状态退出，保留原事件供既有启动恢复扫描处理，不重做动作、不生成虚假停服成功。该接缝只证明核心进程的受控停服，不替代升级前备份/checkpoint、服务注册、独立身份或原生安装验收。
 
+### 4.3 服务注册与受管 Host 启动（24.2/24.3 增量）
+
+三个 Windows daemon 的管理命令仅接受 `--install-service --config <absolute-path>` 或 `--uninstall-service --config <absolute-path>`。注册/移除共用 execution 的内置服务适配；gateway 仅经既有 harness 依赖重导出调用，不增加 crate 边或建立脑实例。程序取当前 executable，账户取 BuiltinServiceId 的固定账户矩阵；调用者不能指定账户、服务名或替代程序。重复注册必须核对程序/完整参数、配置路径、账户、依赖、启动类型与有限故障恢复策略；同名但不同配置拒绝，不静默接管。移除前同样核对归属，再等待观察到 Stopped 才删除注册；查询失败或排空超时保留注册与数据。
+
+host/Web 自动启动；core 在认领与配置通过前按需启动，注册时允许其配置尚未创建，实际启动仍须完整校验。SCM 故障恢复为 5/30/120 秒延迟后停止自动重启，24 小时重置计数；不运行任意恢复命令。原生包负责服务账户/ACL 与配置预置，这些命令不独自证明安装可用或隔离合格。Linux 单元使用真实支持的 Type=exec，不伪报未实现的 notify 就绪；进程状态与业务 readiness 分开探测。
+
+`forme-hostd --config <absolute-path>` 加载有界、closed schema 的 HostServiceConfig：安装/release/本机 target、独立 loopback 双域地址、管理 journal、两个私有 credential 文件及可选 worker/bootstrap 配置。路径无链接/别名/交叠，凭据按私有文件读取；服务模式不能读取 shell 环境作为回退，不能开启开发进程 worker。前台无参数环境模式仅保留开发兼容。此配置不是脑事件；坏配置不能创建 journal 或替代脑。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动

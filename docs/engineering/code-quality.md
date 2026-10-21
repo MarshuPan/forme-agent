@@ -67,4 +67,6 @@
 
 `cargo audit`/release audit 继续处理可达漏洞，合规门处理许可证和来源。`cargo deny`/nextest 可以在单独兼容验证后采用，目前不宣称已经接入，也不为引入工具更改冻结测试过滤语义。
 
+统一入口 `pwsh -File tools/verify-code-quality.ps1` 同时执行上述 Rust 门、结构检查器回归、`npm ci --prefix frontend --ignore-scripts`、`npm audit --prefix frontend --audit-level=moderate`、前端 strict TypeScript/行为测试、`tools/build-web.mjs --check` 和 bundle 完整性/保留边界回归。前端构建只在开发/CI 运行 Node；安装后由 `forme-webd` 提供编译嵌入的固定资源，不需要用户安装 Node。修改前端源码后先执行 `node tools/build-web.mjs`，提交生成的精确资源表、manifest、依赖清单与许可证；陈旧/额外资源必须阻断。托管 CI 仅可显式允许缺少本地研究语料，不放宽其他检查。
+
 已有大模块按风险分批拆分：先 gateway transport/控制面，再 harness orchestration/production，再 store 按事务领域拆。每批保持行为不变并独立提交，避免在安装/认证实现中夹带整库重写。规模基线仅表示已知债务，不表示这些文件已通过可维护性验收。

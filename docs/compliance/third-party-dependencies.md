@@ -1,5 +1,31 @@
 # Third-party dependencies
 
+## Web workbench dependency review (2026-10-21)
+
+The workbench uses project-authored React/TypeScript components; no DeepSeek source,
+server, plugin, prompt or fixture is imported. The limited frontend reuse permission
+does not expand to other material. Exact full build inventory and licenses are
+generated at `crates/gateway/assets/product/dist/dependencies.json` from the npm
+lockfile. Runtime license texts accompany the embedded assets in `LICENSES.txt`.
+
+| Package | Exact version | License | Scope |
+|---|---:|---|---|
+| react / react-dom | 19.3.1 | MIT | Browser runtime; complete license texts shipped |
+| scheduler | 0.28.0 | MIT | Transitive browser runtime; complete license text shipped |
+| typescript | 7.0.2 | Apache-2.0 | Build only |
+| vite | 8.3.5 | MIT | Build only |
+| @vitejs/plugin-react | 6.1.2 | MIT | Build only |
+| @types/react / @types/react-dom | 19.3.0 | MIT | Build only |
+| @types/node | 24.10.1 | MIT | Build only |
+| lightningcss and platform packages | As locked in full inventory | MPL-2.0 | Unmodified build dependencies only, not authored or embedded implementation |
+
+Installation uses `npm ci --ignore-scripts`; no dependency source is a copying
+reference. Build tooling refuses licenses outside its reviewed allowlist and
+records platform optional packages as well. npm advisory review remains a separate
+current-tree check; a successful bundle does not establish native product acceptance.
+
+## Rust dependency review
+
 forme 的项目许可证为 MIT，以根 `LICENSE` 和 `Cargo.toml` 为准。下表记录第三方组件自身的实际许可证；它们不会随项目许可证变更，NOTICE 与相应归属义务继续保留。历史发布回执保留原输入，当前发布必须重新审计。
 
 | Package | Version | Source | Repository | License | Copy risk | Implementation rule | Copied material | Release action |

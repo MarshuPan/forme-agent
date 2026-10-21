@@ -96,6 +96,13 @@ trait CoreWebBridge {
 
 `AuthenticatedWebOwner` 只能由认证 middleware 创建。bridge 为每次 mutation 生成 audience/request/session-bound 短时 assertion，内部 Gateway 重新验证服务身份与当前 session/epoch；必要的 introspection 走私有认证 IPC。注销后不能只等旧 token 到期才停止接受新 mutation，core 无法核实有效会话时拒绝。读长连接也周期确认会话，失效后结束连接，但已授权 run 不随之取消。
 
+### 4.3 Loopback bridge 实施约束
+
+- Web 与 CLI 使用不同内部凭据；安装身份、验证公钥和独立认证 fence 路径必须一并配置，缺项阻断启动。assertion 绑定实际 method、path/query、完整 body 摘要、owner、session 摘要、epoch 和 nonce，有效期最长 30 秒；内部凭据/签名材料不进入浏览器。
+- core 在签名、请求摘要和安装/owner 校验后，原子检查 epoch 并消费 nonce，再进入原 Gateway。nonce 去重与会话/全局撤销下界保存在独立的、OS 单写者锁定的认证 SQLite 中，使用 FULL 同步事务；不写脑库/脑事件。重启不得清除仍有效的 nonce 或撤销下界；格式/身份/完整性不明拒绝恢复，不自动重建。
+- 注销/撤销先验证当前身份与对应操作 proof，再协调 core fence 和认证库提交；无效 reauth 不得提前改变 core epoch。仅当双方确认后回复撤销成功；中断返回明确未完成，不把请求成功当事务完成。后续离线撤销 outbox/内部 introspection 的完整恢复仍需联合验收，不能由本桥接组件提前宣称完成。
+- 每次代理工作保留 admission/capacity guard 至真实 IO 结束；HTTP 超时或客户端断连不释放仍在工作的配额。只开放逐项允许的 brain 路由，不接受 URL proxy、浏览器指定 principal 或任意维护操作。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 认领与口令恢复
@@ -218,3 +225,11 @@ broker 的认领权威使用独立、OS 排他锁保护的 append journal；记�
 提交严格绑定原 operation/setup/candidate/owner/账号承诺；先持久化 committed 事实，后签发现有 SignedWebClaimCommit。响应丢失或进程重启，只允许原绑定重取回执；已提交绑定不能被新账号/新承诺替换。即使 setup 已过期，也只可重取同一 committed 结果并收尾，不恢复一般 setup 权限；尚未提交的过期操作仍拒绝。签名私钥和 Web 服务凭据从受管文件读取，缺失不自动重生；公开 Web 仅持 pinned 公钥。
 
 对应组件测试至少包括并发抢占、跨域凭据、过期、轮换、响应丢失、重启幂等、异义承诺、数据目录变化、journal 截断/篡改/异安装与排他 writer；这些仍不是 IP05/IP13 原生全链路 PASS。
+
+### 11.4 实施细化：受管核心启动
+
+`forme-gatewayd --config <absolute-path>` 从版本化 `CoreServiceConfig` 加载安装身份、配置 revision、loopback transport、受管 brain 配置及 drain 时限。`ManagedBrainConfig` 明确 owner/store/workspace/profile、模型声明与各 profile 的凭据文件、scheduler、cognition 和 artifact 路径；模型声明中的历史 `credential_env` 字段仅为兼容旧模型 schema 的槽位名，此模式不读取该环境变量。模型值在 provider 绑定时从私有受限文件解析，不写 process env，也不复制进配置、manifest、事件或诊断。
+
+服务模式必须显式传 `--config`；前台开发保留无参数 environment 模式。Windows SCM 同样使用进程命令行中的受管路径，不从交互 shell 推断配置。路径必须绝对、无链接/reparse-point，读取有界、closed schema/version；检查失败不退回环境或创建替代脑。Web/core 仍使用同一 ProductionRuntimeBuilder 和受控停止接缝。文件结构检查不代表原生 ACL 已验证。
+
+本增量先闭合持久启动来源与模型 file resolver。尚未接到隔离 worker 的可执行能力在受管模式中保持不可用；不得借环境启用原地 shell/MCP/browser。完整 config staging/CAS、secret 写入、core ack 与 capability worker 接入仍须单独实施，不能把本启动配置称为 IP08 或完整设置页验收。

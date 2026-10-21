@@ -7,16 +7,18 @@
 | 顺序 | 交付 | 当前状态 |
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
-| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | **基础层 `7eec019`、进程边界 `0021902`、worker 控制面 `f1122ec` 已提交**；hostd 的 worker 配置/dispatch/probe/cancel、双域 listener、并发控制与取消终态重放已有组件证据。Windows SCM dispatcher 已实现但未注册安装验收；默认阻断普通进程，只有显式前台开发开关可运行 fixture。平台账户/ACL、Job Object/cgroup/LaunchDaemon sandbox、网络隔离及会话 helper 仍待实施/原生验收，不能把控制面通过当作强隔离完成。 |
-| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 待实施；没有可发布的签名包或跨平台支持声明。 |
-| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | **认证基础 `12b3f5d`、loopback HTTP `49674b7`、本机证明/有限 setup/新脑 claim `52808df` 已提交**；setup broker 真实 hostd transport、Web setup scope/恢复单测和 strict Clippy 通过。旧脑/备份验证、口令恢复、LAN TLS、配置、core bridge、联合 Web 进程验收仍待接入；不将组件门当成完整网页登录。 |
-| 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 待实施；本批没有导入上游前端或改动页面。 |
+| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 继基础 `7eec019`、进程边界 `0021902`、worker 控制面 `f1122ec`，新增显式受管 Host 配置、三个 daemon 的 SCM host 与共用注册/移除；重复注册检查完整绑定，故障恢复有限。真实 Host 进程证明不回退 shell 环境、两域隔离。实际服务账户/ACL、job 强隔离/网络与会话 helper 尚未完成，普通 worker 在生产继续 blocked。 |
+| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle 构建器、清单/资源完整性检查与 Windows/Linux/macOS 包输入模板；仅属未签名开发输入。尚无首次安装配置/权限预置、可发布原生包、安装升级卸载事务或跨平台验收。 |
+| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 继 `12b3f5d`、`49674b7`、`52808df` 的认证/认领，新增受管 core 文件配置、私有模型凭据 resolver、Web→core 签名会话桥、持久 nonce/fence。已用 ProductionRuntime 与计数模型 fixture 验证同 key 单次运行和注销 fence。配置 staging/CAS/ack、旧脑接管、OS 恢复、LAN TLS 和整机首次初始化仍待实施。 |
+| 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、对话/事件续接/审批/取消、项目和认知只读投影、运行收件箱、密码/健康设置；由独立 webd 提供编译资源。桌面/窄屏 Chrome 初始化页已检查，登录及运行链路有真实 HTTP 组件证据。附件/产物、项目编辑、候选处置、完整设置/维护与已登录浏览器全链路尚未完成，不称 IP17–23 PASS。 |
 
 24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
 
-### 本轮工程维护与认证基础
+最新增量和证据边界见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
 
-- 维护规范：`docs/engineering/code-quality.md`，结构检查器/CI 为 `tools/code-quality.py` 与 `.github/workflows/code-quality.yml`。当前 66 个历史超限文件是待还债基线，不是“质量全部通过”的认证；新增超限或旧文件增长拒绝。
+### 前批工程维护与认证基础（截至 `1140101`，历史记录）
+
+- 维护规范：`docs/engineering/code-quality.md`，结构检查器/CI 为 `tools/code-quality.py` 与 `.github/workflows/code-quality.yml`。初始 66 个历史超限文件是待还债基线，不是“质量全部通过”的认证；新增超限或旧文件增长拒绝。当前数值以最新组件记录为准。
 - Gateway 拆分：`b373aec` 保持 public API、事件、生产装配与测试名字不变，按控制域和 HTTP 处理职责拆开。`lib.rs` 从 3641 行缩至约 230 行，`server.rs` 从 2256 行缩至 599 行。其余历史大模块继续按风险逐批维护，不全库机械切片。
 - 宿主拆分：`26ce4b4` 将 783 行的 `forme-hostd.rs` 按配置/凭据、HTTP、进程生命周期与 SCM 分开，入口剩 40 行并移除旧规模豁免。最终 workspace 688 passed / 0 failed / 5 默认 ignored，宿主专项 60 个命名场景通过；当前扫描 341 个文件、65 处历史规模债务，详见 [可维护性记录](installed-product-maintainability-progress.md)。`57e34b8` 同步修复 M4/M5 审计的旧文件定位，保留缺失实现/案例时的阻断。
 - 认证：`12b3f5d` 只写独立认证库，不打开脑库。签名账号认领接缝、Argon2id、session/CSRF/epoch、operation-bound reauth、口令替换与重启持久性详见 [组件报告](installed-product-25-identity-foundation.md)。`52808df` 增加了本机证明、有限 setup scope、候选绑定、签名 claim、journal hash chain 和丢响应恢复，详见 [claim 组件报告](installed-product-25-bootstrap-claim.md)。当前没有安装服务或可登录的新网页地址。
