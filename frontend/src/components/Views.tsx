@@ -7,19 +7,22 @@ import type { RunSummary, RuntimeView } from '../types.ts';
 import { statusLabel } from './Conversation.tsx';
 
 type Resource = { value: Record<string, unknown> | null; error: string; loading: boolean };
-function useResource(load: () => Promise<Record<string, unknown>>, refresh: number): Resource {
+function useResource(load: () => Promise<unknown>, refresh: number): Resource {
   const [state, setState] = useState<Resource>({ value: null, error: '', loading: true });
   useEffect(() => {
     let active = true;
     setState({ value: null, error: '', loading: true });
-    void load().then((value) => { if (active) setState({ value, error: '', loading: false }); })
+    void load().then((value) => {
+      if (!isRecord(value)) throw new Error('服务返回的工作台快照格式无效。');
+      if (active) setState({ value, error: '', loading: false });
+    })
       .catch((error: unknown) => { if (active) setState({ value: null, error: error instanceof Error ? error.message : '状态读取失败。', loading: false }); });
     return () => { active = false; };
   }, [load, refresh]);
   return state;
 }
 
-export function SnapshotView({ title, load, kind }: { title: string; load: () => Promise<Record<string, unknown>>; kind: 'workspace' | 'cognition' }) {
+export function SnapshotView({ title, load, kind }: { title: string; load: () => Promise<unknown>; kind: 'workspace' | 'cognition' }) {
   const [revision, setRevision] = useState(0);
   const { value, error, loading } = useResource(load, revision);
   const projects = value && isRecord(value.projects) ? Object.values(value.projects) : [];

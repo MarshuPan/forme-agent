@@ -199,6 +199,19 @@ where
             .apply_workspace_charter(&self.owner, command, change)
     }
 
+    pub fn prepare_workspace_charter(
+        &self,
+        record: p::WorkspaceCharterRecord,
+        expected_version: u64,
+        auth: AuthContext,
+    ) -> p::Result<p::WorkspaceCharterChangedPayload> {
+        self.validate_owner_control(auth)?;
+        self.production_runtime
+            .as_ref()
+            .ok_or_else(|| p::Error("charter requires the production brain".into()))?
+            .prepare_workspace_charter(&self.owner, record, expected_version)
+    }
+
     pub fn agent_workspace(
         &self,
         query: forme_harness::AgentWorkspaceQuery,

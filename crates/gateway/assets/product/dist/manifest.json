@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "2930d6980e9942a32876c3593e31920a633f49d60b374a17c3dffac14c3b4af0",
+  "source_digest": "32aa7a9cb704707bd898a1e7acca86d294e72ca61ee85c4a1831c359e5581f15",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,11 +20,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "c45c00e08882a00344f3d94196dc7ed8a0eb167122f6bc7c099238da39d90e8c"
+      "sha256": "0e010cc8c20d543ff9f928905e47a34cea739e7a390b1b6b4d3557ef6fb51fd5"
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "4296820fe96a1ce98ed96975e8fc48ebca5595b945121ac8033fdf5296df16ac"
+      "sha256": "1bdf1d6f673b412321d6391cf8526db31b06fb796d5bea53ccc45ed69a8eb500"
     },
     {
       "path": "frontend/src/components/Approval.tsx",
@@ -40,7 +40,11 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "e7c6cd9cfbdf7b67b24307812571ca2953fc85b04e69b93bfdcc58c51ef51735"
+      "sha256": "6128d3f42794361a384a4d986d1ae51cc1fd71275b5c30dd76b52c10fc98e173"
+    },
+    {
+      "path": "frontend/src/components/Workspace.tsx",
+      "sha256": "602cc18bc650fa2c07204671168e4158b56bf5001afc197bf8e47cca71105a58"
     },
     {
       "path": "frontend/src/events.ts",
@@ -52,15 +56,15 @@
     },
     {
       "path": "frontend/src/styles.css",
-      "sha256": "415698f199fac46b66b094eb0feb7eb8ad84e8bfcfcb6614f742109b2881e303"
+      "sha256": "6ea4e56c95e6ebd77a131401bf3c48f5c983c49e3365886fb649e596e22681a5"
     },
     {
       "path": "frontend/src/styles/layout.css",
-      "sha256": "c090c1c1df9c5a7de503a2a979a956955741641b104e39b43091f313d61e57f4"
+      "sha256": "678aa0552739fbcba35bbbb8e6fb77ca588166dd91850b632674a6caea61a2c6"
     },
     {
       "path": "frontend/src/tests/client.test.ts",
-      "sha256": "e97e8620302acf857dfd4606b14f571bf0a70ef9d6f44fc220b8fff9529c3dc1"
+      "sha256": "9ab88474ffc9ee226e415f19bf771b9ff89e1fb489f1b3ee5bd339b038bbe00e"
     },
     {
       "path": "frontend/src/tests/events.test.ts",
@@ -68,7 +72,7 @@
     },
     {
       "path": "frontend/src/types.ts",
-      "sha256": "ea7543cbf57fc055e2635cfb9ac5a5b7a848464fc24437b5f846f543976bc0f3"
+      "sha256": "f7c2cf7b3d7433610ab317351bb34e31b30e4830499c60f3379fc9dc3fa24c56"
     },
     {
       "path": "frontend/tsconfig.json",
@@ -85,14 +89,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-D__u5Gf1.js",
-      "sha256": "bcec47ad7b6e9dadd88d4946bbd5d0af91d97943bdad0d3da1865628f8dc7141",
-      "bytes": 247045
+      "path": "assets/index-BwxJQ8_6.js",
+      "sha256": "95b0f24f5e69fb386394aa4da8a2dda07b05ec599dea65ddc051833ea521d560",
+      "bytes": 259964
     },
     {
-      "path": "assets/index-Do-cluiQ.css",
-      "sha256": "8f631b72dc75cf873c2e2f4b06090d47a8777f154f07a8669bba19913271212b",
-      "bytes": 10856
+      "path": "assets/index-D4kMAB4q.css",
+      "sha256": "4c4962f24b2c4f9c6f883f47bc8391af9103b343059c1fc54626ad52b5235673",
+      "bytes": 11786
     },
     {
       "path": "dependencies.json",
@@ -106,7 +110,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "7cdbfba6262db9adf92b2b6ea35c479d436f62e28b6754b9d15527398e9e3a68",
+      "sha256": "d31031513de73997fe06bcba14d1ba16746c52250746e541c248b4602d43bf6f",
       "bytes": 595
     },
     {

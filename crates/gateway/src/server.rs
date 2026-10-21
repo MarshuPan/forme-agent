@@ -216,7 +216,9 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         )
         .route(
             "/v1/workspaces/{id}/charter",
-            get(read_workspace_charter).put(write_workspace_charter),
+            get(read_workspace_charter)
+                .post(prepare_workspace_charter)
+                .put(write_workspace_charter),
         )
         .route("/v1/brain/learning/goals", post(register_learning_goal))
         .route("/v1/brain/learning/answer", post(answer_learning))

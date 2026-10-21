@@ -27,6 +27,7 @@ form { display: grid; gap: 1.25rem; }
 label { display: grid; gap: .55rem; font-size: .9rem; }
 input, textarea { width: 100%; padding: .85rem 1rem; border: 1px solid #d8ded4; background: #fdfefb; color: inherit; border-radius: .55rem; }
 input:focus, textarea:focus { border-color: var(--accent); }
+select { width: 100%; padding: .85rem 1rem; border: 1px solid #d8ded4; background: #fdfefb; color: inherit; border-radius: .55rem; }
 textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height: 1.7; }
 .primary-button, .secondary-button, .text-button { border-radius: .5rem; padding: .7rem 1.1rem; border: 1px solid transparent; font-weight: 500; }
 .primary-button { color: #fff; background: var(--accent); }
@@ -50,6 +51,16 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .empty-state p { font-size: .88rem; }
 .surface { padding: 1.8rem; background: #fff; border-radius: .65rem; border: 1px solid var(--line); }
 .surface h2 { margin-bottom: 1.1rem; }
+.project-create { margin-bottom: 1.5rem; }
+.project-create[open] > summary { margin-bottom: 1.4rem; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.project-card { display: flex; flex-direction: column; gap: .3rem; }
+.project-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.project-heading h2 { overflow-wrap: anywhere; }
+.project-heading .eyebrow { margin-bottom: .35rem; }
+.route-row { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: .9rem 0 0; border-top: 1px solid var(--line); }
+.route-row strong, .route-row span { display: block; overflow-wrap: anywhere; }
+.ledger-details { margin-top: 1.5rem; }
 .button-row { display: flex; gap: .7rem; flex-wrap: wrap; }
 .privacy-hidden .app-shell { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }

@@ -4,6 +4,7 @@ import type { RunSummary, RuntimeView, SessionResponse, SessionView } from './ty
 import { Entry } from './components/Entry.tsx';
 import { Conversation, statusLabel } from './components/Conversation.tsx';
 import { Inbox, Settings, SnapshotView } from './components/Views.tsx';
+import { WorkspaceView } from './components/Workspace.tsx';
 
 const tabs = [ ['conversation', '对话'], ['workspace', '工作空间'], ['inbox', '收件箱'], ['cognition', '记忆与认知'], ['settings', '设置'] ] as const;
 type Tab = typeof tabs[number][0];
@@ -24,7 +25,6 @@ export function App() {
     try { const next = await api.runtime(); setRuntime(next); setIssue(''); await refreshRuns(); }
     catch (problem) { setRuntime(null); setIssue(problem instanceof Error ? problem.message : '主脑服务暂不可用。'); }
   }, [api, refreshRuns]);
-  const projects = useCallback(() => api.projects(), [api]);
   const cognition = useCallback(() => api.dashboard(), [api]);
   function authenticated(view: SessionResponse) { setSession(view.session); setEntry('ready'); }
 
@@ -73,7 +73,7 @@ export function App() {
       <p className="sidebar-footnote">一个主脑，持续协同。</p>
     </aside><main id="main-content" className="main-content" key={session.account_ref}>
       {tab === 'conversation' && <Conversation api={api} runtime={runtime} runs={runs} selected={selected} select={setSelected} refresh={refreshRuns} />}
-      {tab === 'workspace' && <SnapshotView title="工作空间" kind="workspace" load={projects} />}
+      {tab === 'workspace' && <WorkspaceView api={api} runtime={runtime} />}
       {tab === 'inbox' && <Inbox runs={runs} open={open} />}
       {tab === 'cognition' && <SnapshotView title="记忆与认知" kind="cognition" load={cognition} />}
       {tab === 'settings' && <Settings api={api} runtime={runtime} issue={issue} refresh={() => void refreshCore()} signedOut={clear} />}

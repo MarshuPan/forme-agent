@@ -51,3 +51,31 @@ test('server Retry-After is preserved and throttled mutations are not repeated',
   await assert.rejects(api.submit(command), (e: unknown) => e instanceof ApiError && e.retryAfterMs === 60_000);
   assert.equal(calls, 1);
 });
+test('project and charter mutations keep one server command key and use allowlisted paths', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const transport: typeof fetch = async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    return Response.json({ schema_version: 1, event: 'event:fixture' });
+  };
+  const api = new WorkbenchClient(transport);
+  const key = 'command:project-register';
+  await api.project({ operation: 'execute', route: { route: 'route:fixture' } }, key);
+  const charterKey = 'command:charter';
+  await api.prepareCharter('workspace:demo', {
+    schema_version: 1, workspace: 'workspace:demo', version: 1, goals: [], constraints: [], prohibitions: [], done_contract: null, review_cadence: null, actor: 'Owner', digest: 'sha256:fixture',
+  }, 1, charterKey);
+  await api.updateCharter('workspace:demo', {
+    charter: { schema_version: 1, workspace: 'workspace:demo', version: 2, goals: [], constraints: [], prohibitions: [], done_contract: null, review_cadence: null, actor: 'Owner', digest: 'sha256:fixture' },
+    expected_version: 1,
+    committed_version: 2,
+  }, charterKey);
+  assert.equal(calls[0].path, '/api/v1/brain/projects');
+  assert.equal(calls[1].path, '/api/v1/workspaces/workspace%3Ademo/charter');
+  assert.equal(calls[2].path, '/api/v1/workspaces/workspace%3Ademo/charter');
+  const expectedKeys: Array<[number, string]> = [[0, key], [1, charterKey], [2, charterKey]];
+  for (const [index, expected] of expectedKeys) {
+    assert.equal(new Headers(calls[index].request.headers).get('Idempotency-Key'), expected);
+    assert.equal(calls[index].request.credentials, 'same-origin');
+  }
+  assert.deepEqual(JSON.parse(String(calls[0].request.body)), { schema_version: 1, request: { operation: 'execute', route: { route: 'route:fixture' } } });
+});

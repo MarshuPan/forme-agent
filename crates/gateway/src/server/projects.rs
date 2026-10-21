@@ -44,6 +44,15 @@ pub(super) struct CharterRequest {
     change: p::WorkspaceCharterChangedPayload,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PrepareCharterRequest {
+    schema_version: p::SchemaVersion,
+    command: p::IdempotencyKey,
+    record: p::WorkspaceCharterRecord,
+    expected_version: u64,
+}
+
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ProjectRequest {
@@ -166,6 +175,29 @@ pub(super) async fn write_workspace_charter(
         .blocking(move || gateway.apply_workspace_charter(request.command, request.change, auth))
         .await?;
     Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
+}
+
+pub(super) async fn prepare_workspace_charter(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<PrepareCharterRequest>,
+) -> Result<Json<p::WorkspaceCharterChangedPayload>, ApiError> {
+    let auth = state.authorize(&headers, true)?;
+    learning_schema(request.schema_version)?;
+    if request.command.0.trim().is_empty() || request.record.workspace.0 != id {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "charter path and preparation do not match",
+        ));
+    }
+    let gateway = state.gateway.clone();
+    let change = state
+        .blocking(move || {
+            gateway.prepare_workspace_charter(request.record, request.expected_version, auth)
+        })
+        .await?;
+    Ok(Json(change))
 }
 
 pub(super) async fn register_learning_goal(

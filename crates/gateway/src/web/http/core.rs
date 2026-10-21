@@ -151,7 +151,7 @@ enum RouteMethods {
     Get,
     Post,
     GetPost,
-    GetPut,
+    GetPostPut,
 }
 
 impl RouteMethods {
@@ -160,7 +160,7 @@ impl RouteMethods {
             Self::Get => method == "GET",
             Self::Post => method == "POST",
             Self::GetPost => matches!(method, "GET" | "POST"),
-            Self::GetPut => matches!(method, "GET" | "PUT"),
+            Self::GetPostPut => matches!(method, "GET" | "POST" | "PUT"),
         }
     }
 }
@@ -196,7 +196,7 @@ fn allowlisted_core_path(
         ["learning", "resolve"] => ("/v1/brain/learning/resolve".to_owned(), RouteMethods::Post),
         ["workspaces", workspace, "charter"] => (
             format!("/v1/workspaces/{workspace}/charter"),
-            RouteMethods::GetPut,
+            RouteMethods::GetPostPut,
         ),
         ["evals", "cases"] => ("/v1/evals/cases".to_owned(), RouteMethods::Get),
         ["evals", "run"] => ("/v1/evals/run".to_owned(), RouteMethods::Post),
@@ -302,6 +302,10 @@ mod tests {
         );
         assert_eq!(
             allowlisted_core_path("PUT", "workspaces/workspace:demo/charter", None).unwrap(),
+            "/v1/workspaces/workspace:demo/charter"
+        );
+        assert_eq!(
+            allowlisted_core_path("POST", "workspaces/workspace:demo/charter", None).unwrap(),
             "/v1/workspaces/workspace:demo/charter"
         );
         assert!(allowlisted_core_path("GET", "runtime/doctor", None).is_err());
