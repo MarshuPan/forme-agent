@@ -2,13 +2,15 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+最新施工分支：`shu/installed-product`。本轮代码与组件门基于提交 `785027b` 验证；本分支尚未替代 `main`，也没有读取真实 owner/model secret 或注册本机系统服务。
+
 ## 1. 实施顺序与当前范围
 
 | 顺序 | 交付 | 当前状态 |
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
 | 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 继基础 `7eec019`、进程边界 `0021902`、worker 控制面 `f1122ec`，新增显式受管 Host 配置、三个 daemon 的 SCM host 与共用注册/移除；重复注册检查完整绑定，故障恢复有限。真实 Host 进程证明不回退 shell 环境、两域隔离。实际服务账户/ACL、job 强隔离/网络与会话 helper 尚未完成，普通 worker 在生产继续 blocked。 |
-| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle 构建器、清单/资源完整性检查与 Windows/Linux/macOS 包输入模板；仅属未签名开发输入。尚无首次安装配置/权限预置、可发布原生包、安装升级卸载事务或跨平台验收。 |
+| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle 构建器、清单/资源完整性检查与 Windows/Linux/macOS 包输入模板；`785027b` 修复 Windows 模板遗漏的 `forme-gatewayd` 安装注册，并用 bundle 回归锁定三个 daemon 的安装/卸载对称性。仍仅属未签名开发输入；尚无首次安装配置/权限预置、可发布原生包、安装升级卸载事务或跨平台验收。 |
 | 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 继 `12b3f5d`、`49674b7`、`52808df` 的认证/认领，新增受管 core 文件配置、私有模型凭据 resolver、Web→core 签名会话桥、持久 nonce/fence。已用 ProductionRuntime 与计数模型 fixture 验证同 key 单次运行和注销 fence。配置 staging/CAS/ack、旧脑接管、OS 恢复、LAN TLS 和整机首次初始化仍待实施。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、对话/事件续接/审批/取消、项目登记/路线规划/执行/取消、Charter 读写、认知只读投影、运行收件箱、密码/健康设置；由独立 webd 提供编译资源。工作空间命令层使用正式 API、ProductionRuntime、稳定幂等键和服务端确认。附件/产物、完整收件箱处置、候选处置、完整设置/维护、已认证浏览器全链路和 IP17–23/IP24 原生联合验收尚未完成。 |
 
@@ -62,6 +64,8 @@
 组件覆盖：closed schema、三服务路径/账户清单、保留数据卸载边界、跨平台路径拒绝、并发 CAS、跨重启幂等、真实子进程持锁与被杀、阶段待核实、torn/tampered journal、签名/平台/二进制/UI/extra-file 拒绝与回滚兼容性；另外覆盖 bearer/proof/release 拒绝、过期零调用、并发只一次、真实 broker effect 后进程被杀不重放及真实 HTTP 认证/幂等。fixture 在独立临时目录产生一次计数；真实 HTTP 仅执行只读 Inspect，不操作已安装系统服务。
 
 此前底板已完成 fmt、workspace check/test、strict clippy、compliance、冻结 18-crate/99-kind 门与原 S1–S99 workspace 回归。worker 控制面 `f1122ec` 当时的宿主专项 51 项、657 passed / 0 failed / 5 默认 ignored 是历史组件证据，保留于 [worker 控制面报告](installed-product-24-2-worker-control-plane.md)。最新源码 `26ce4b4` 的全量/宿主/质量证据见上文；当前 `tools/verify-m5.ps1` 与发布回执重验统一见 [M5 报告 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。macOS/Linux 原生目标和全部 IP 安装场景继续 NOT_RUN，不使用 Windows 组件测试代替。
+
+本轮 `785027b` 后复跑结果：统一代码质量门 PASS（结构回归 6/6、421 个源文件、63 个历史规模债务未增长；Rust fmt/check/test/strict Clippy、前端依赖审计/TypeScript/行为测试、Web 资源、bundle、原创性与许可证均 PASS）；产品组件门 PASS（Host/worker 专项、Web identity 16/16、Web ingress 8/8、Web workbench 8/8，以及 webd 空环境启动、kill/restart 和独立认证存储 smoke）。这些证据仍不提升为 IP01–IP24。
 
 本批证据边界：组件测试、loopback HTTP 集成测试和受注册入口的真实子进程测试通过，worker admission、进程启动和 receipt 恢复基础已闭合；这仍不等于 SCM/systemd/LaunchDaemon 已注册，不等于 worker 账户/ACL/Job Object/cgroup/网络隔离已证明，也不等于 Windows/macOS/Linux 安装包可发布。下一批继续实现平台级隔离、常驻 service host、会话 helper 与 24.3 安装事务。
 
