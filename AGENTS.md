@@ -32,4 +32,6 @@ M0-M5 及 `prd/23` 的 **A 默认装配(C1-C6)** → **B 持续认知(C7-C12)** 
 
 ## 提交约定
 
+代码维护遵守 `docs/engineering/code-quality.md`；每次实现提交增加 `py -3 tools/code-quality.py`。新增生产文件原则上 ≤600 行，测试 ≤1200 行；现有超限文件按 `tools/quality-baseline.json` 不增长棘轮，不得自动刷新基线或用 include 拼接规避。拆分先保持 public API/事件/事务/恢复行为，产品化不得继续堆进巨型 lib.rs。
+
 conventional commits、按 crate scoped；文档与代码分开提交。每个实现提交前：`cargo fmt --all -- --check && cargo check --workspace --all-targets && cargo test --workspace --all-targets && bash tools/compliance-doctor.sh`；波次门另跑 strict clippy、`tools/verify-m5.ps1` 和对应 closure gate。
