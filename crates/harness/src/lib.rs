@@ -1351,29 +1351,101 @@ impl ReactiveHarness {
     }
 
     pub fn pending_approvals(&self, session: p::SessionId) -> p::Result<Vec<ApprovalRequest>> {
-        let handles = self
-            .runs
-            .lock()
-            .map_err(|_| p::Error("run registry is unavailable".into()))?
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-        let mut pending = Vec::new();
-        for handle in handles {
-            let record = handle
-                .record
-                .lock()
-                .map_err(|_| p::Error("run state is unavailable".into()))?;
-            pending.extend(
-                record
-                    .approval
-                    .pending(ApprovalScope::Session(session.clone())),
-            );
+        Ok(self
+            .pending_approval_records(&session)?
+            .into_iter()
+            .map(|(_, request)| request)
+            .collect())
+    }
+
+    // Reading an outstanding approval must not require an in-memory RunHandle,
+    // replan an action, or append a new fact. Both public read surfaces share
+    // this projection so a service restart cannot hide an owner's decision.
+    fn pending_approval_records(
+        &self,
+        session: &p::SessionId,
+    ) -> p::Result<Vec<(p::RunId, ApprovalRequest)>> {
+        let mut pending = BTreeMap::new();
+        let now = now_ms();
+        for run in self.store.run_ids()? {
+            let events = self
+                .store
+                .read_run(run.clone())
+                .collect::<p::Result<Vec<_>>>()?;
+            let belongs = events.iter().any(|event| {
+                matches!(
+                    &event.payload, p::EventPayload::RunAccepted(p) if &p.session_ref == session
+                )
+            });
+            if !belongs
+                || events.iter().any(|event| {
+                    matches!(
+                        event.kind,
+                        p::EventKind::RunComplete
+                            | p::EventKind::RunAborted
+                            | p::EventKind::RunFailed
+                            | p::EventKind::RunLimited
+                    )
+                })
+            {
+                continue;
+            }
+            let mut requests = BTreeMap::new();
+            for event in &events {
+                match &event.payload {
+                    p::EventPayload::ApprovalRequested(request) => {
+                        requests.insert(request.approval_id.clone(), request);
+                    }
+                    p::EventPayload::ApprovalResolved(resolution) => {
+                        requests.remove(&resolution.approval_id);
+                    }
+                    _ => {}
+                }
+            }
+            for (id, request) in requests {
+                if request.expires_at <= now {
+                    continue;
+                }
+                let request = ApprovalRequest {
+                    schema_version: p::SchemaVersion(1),
+                    approval_id: id.clone(),
+                    session: session.clone(),
+                    action_summary: request.action_summary.0.clone(),
+                    risk_level: request.risk,
+                    scope: request.scope.clone(),
+                    requested_permissions: request.requested_permissions.clone(),
+                    normalized_action_digest: request.normalized_action_digest.clone().ok_or_else(
+                        || p::Error("persisted approval has no action binding".into()),
+                    )?,
+                    affected_resources: request.affected_resources.clone(),
+                    rollback_boundary: request.rollback_boundary.clone(),
+                    expires_at: request.expires_at,
+                    choices: request.choices.clone(),
+                    plan_digest: request
+                        .plan_digest
+                        .clone()
+                        .ok_or_else(|| p::Error("persisted approval has no plan binding".into()))?,
+                    policy_version: request.policy_version.ok_or_else(|| {
+                        p::Error("persisted approval has no policy binding".into())
+                    })?,
+                    tool_schema_version: request.tool_schema_version.ok_or_else(|| {
+                        p::Error("persisted approval has no schema binding".into())
+                    })?,
+                };
+                pending.insert((run.clone(), id), request);
+            }
         }
         for child in self.child_executors()? {
-            pending.extend(child.pending_approvals(session.clone())?);
+            for (run, request) in child.pending_approval_records(session)? {
+                pending
+                    .entry((run, request.approval_id.clone()))
+                    .or_insert(request);
+            }
         }
-        Ok(pending)
+        Ok(pending
+            .into_iter()
+            .map(|((run, _), request)| (run, request))
+            .collect())
     }
 
     pub fn state(&self, run: p::RunId) -> p::Result<LoopState> {
@@ -5406,6 +5478,9 @@ impl AgentHarness for ReactiveHarness {
         if let Some(child) = self.child_executor(&run)? {
             return child.resume(run, input);
         }
+        if matches!(&input, ResumeInput::Approval(_)) && self.run_handle(&run).is_err() {
+            self.restore_formal_approval(&run, u64::from(self.config.loop_budget.max_turns))?;
+        }
         let handle = self.run_handle(&run)?;
         let session = {
             let record = handle
@@ -5592,36 +5667,11 @@ impl GatewayControl for ReactiveHarness {
     }
 
     fn pending_approvals(&self, session: p::SessionId) -> p::Result<Vec<p::PendingApproval>> {
-        let handles = self
-            .runs
-            .lock()
-            .map_err(|_| p::Error("run registry is unavailable".into()))?
-            .iter()
-            .map(|(run, handle)| (run.clone(), handle.clone()))
+        let pending = self
+            .pending_approval_records(&session)?
+            .into_iter()
+            .map(|(run, request)| pending_approval(run, request))
             .collect::<Vec<_>>();
-        let mut pending = Vec::new();
-        for (run, handle) in handles {
-            let record = handle
-                .record
-                .lock()
-                .map_err(|_| p::Error("run state is unavailable".into()))?;
-            pending.extend(
-                record
-                    .approval
-                    .pending(ApprovalScope::Session(session.clone()))
-                    .into_iter()
-                    .map(|request| pending_approval(run.clone(), request)),
-            );
-        }
-        for child in self.child_executors()? {
-            pending.extend(GatewayControl::pending_approvals(
-                child.as_ref(),
-                session.clone(),
-            )?);
-        }
-        pending.sort_by(|left, right| {
-            (&left.run, &left.approval_id).cmp(&(&right.run, &right.approval_id))
-        });
         for approval in &pending {
             approval.validate()?;
         }

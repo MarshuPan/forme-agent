@@ -203,6 +203,24 @@ impl ReactiveHarness {
                 _ => None,
             })
             .ok_or_else(|| p::Error("approval recovery has no accepted run".into()))?;
+        let session_lock = self.session_lock(&accepted.session_ref)?;
+        let _session_guard = session_lock
+            .lock()
+            .map_err(|_| p::Error("approval recovery session is unavailable".into()))?;
+        if self.run_handle(run).is_ok() {
+            return Ok(());
+        }
+        if events.iter().any(|e| {
+            matches!(
+                e.kind,
+                p::EventKind::RunComplete
+                    | p::EventKind::RunAborted
+                    | p::EventKind::RunFailed
+                    | p::EventKind::RunLimited
+            )
+        }) {
+            return Err(p::Error("terminal approval run cannot be restored".into()));
+        }
         let (approval_event, old) = events
             .iter()
             .rev()
@@ -220,6 +238,9 @@ impl ReactiveHarness {
             return Err(p::Error(
                 "consumed or uncertain approval cannot be restored".into(),
             ));
+        }
+        if old.expires_at <= crate::now_ms() {
+            return Err(p::Error("expired approval cannot be restored".into()));
         }
         let proposal = events
             .iter()
