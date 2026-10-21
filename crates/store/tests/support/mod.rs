@@ -69,16 +69,31 @@ pub fn collect(cursor: EventCursor) -> p::Result<Vec<p::Event>> {
 }
 
 pub struct TestDatabase {
+    root: PathBuf,
     path: PathBuf,
 }
 
 impl TestDatabase {
     pub fn new() -> Self {
-        let id = NEXT_DATABASE_ID.fetch_add(1, Ordering::Relaxed);
-        let path =
-            std::env::temp_dir().join(format!("forme-store-{}-{id}.sqlite3", std::process::id()));
-        remove_sqlite_files(&path);
-        Self { path }
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        loop {
+            let id = NEXT_DATABASE_ID.fetch_add(1, Ordering::Relaxed);
+            let root = std::env::temp_dir().join(format!(
+                "forme-store-{}-{timestamp}-{id}",
+                std::process::id()
+            ));
+            match std::fs::create_dir(&root) {
+                Ok(()) => {
+                    let path = root.join("brain.sqlite3");
+                    return Self { root, path };
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => panic!("could not create an exclusive test directory: {error}"),
+            }
+        }
     }
 
     pub fn path(&self) -> &Path {
@@ -88,7 +103,9 @@ impl TestDatabase {
 
 impl Drop for TestDatabase {
     fn drop(&mut self) {
-        remove_sqlite_files(&self.path);
+        // Only this fixture owns this directory. Include its backups and keys;
+        // never remove or reuse paths left by an earlier process with this PID.
+        let _ = std::fs::remove_dir_all(&self.root);
     }
 }
 
@@ -98,12 +115,5 @@ fn provenance() -> p::Provenance {
         actor: p::Actor::Owner,
         trust_tier: p::TrustTier::OwnerInput,
         caused_by: None,
-    }
-}
-
-fn remove_sqlite_files(path: &Path) {
-    for suffix in ["", "-wal", "-shm"] {
-        let candidate = PathBuf::from(format!("{}{suffix}", path.display()));
-        let _ = std::fs::remove_file(candidate);
     }
 }
