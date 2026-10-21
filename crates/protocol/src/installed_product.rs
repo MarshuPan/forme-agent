@@ -267,6 +267,13 @@ impl InstallationManifest {
         }
         Ok(())
     }
+
+    /// Digest the validated installation identity that a managed host binds
+    /// into its product journal at startup.
+    pub fn digest(&self) -> Result<SchemaDigest> {
+        self.validate()?;
+        canonical_digest(self)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

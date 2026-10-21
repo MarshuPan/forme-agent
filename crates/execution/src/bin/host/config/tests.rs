@@ -16,19 +16,34 @@ impl Fixture {
     fn document(&self) -> serde_json::Value {
         serde_json::json!({
             "schema_version": 1, "install_ref": "managed-host-test", "active_release": "0.0.1",
-            "product_target": native_target(), "journal_path": self.0.join("host.jsonl"),
-            "maintenance_credential_path": self.0.join("maintenance.key"),
-            "agent_execution_credential_path": self.0.join("agent.key"),
+            "product_target": native_target(),
+            "installation_manifest_path": self.0.join("config/installation.json"),
+            "journal_path": self.journal(),
+            "maintenance_credential_path": self.maintenance_key(),
+            "agent_execution_credential_path": self.agent_key(),
             "host_bind": "127.0.0.1:28766", "agent_execution_bind": "127.0.0.1:28767",
         })
     }
     fn save(&self, doc: &serde_json::Value) -> PathBuf {
         let path = self.0.join("host.json");
+        std::fs::create_dir_all(self.0.join("config")).unwrap();
+        std::fs::write(
+            self.0.join("config/installation.json"),
+            serde_json::to_vec(&self.manifest()).unwrap(),
+        )
+        .unwrap();
         std::fs::write(&path, serde_json::to_vec(doc).unwrap()).unwrap();
         path
     }
     fn key(&self, name: &str, bytes: &[u8]) {
-        let path = self.0.join(name);
+        let path = match name {
+            "maintenance.key" => self.maintenance_key(),
+            "agent.key" => self.agent_key(),
+            _ => self.0.join(name),
+        };
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
         let mut options = std::fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
@@ -37,6 +52,44 @@ impl Fixture {
             options.mode(0o600);
         }
         options.open(path).unwrap().write_all(bytes).unwrap();
+    }
+    fn journal(&self) -> PathBuf {
+        self.0.join("host-state/host.journal")
+    }
+    fn maintenance_key(&self) -> PathBuf {
+        self.0.join("keys/host-maintenance.token")
+    }
+    fn agent_key(&self) -> PathBuf {
+        self.0.join("keys/agent-execution.token")
+    }
+    fn manifest(&self) -> serde_json::Value {
+        let root = &self.0;
+        serde_json::json!({
+            "schema_version": 1,
+            "install_id": "managed-host-test",
+            "target": native_target(),
+            "release_id": "0.0.1",
+            "release_digest": format!("sha256:{}", "a".repeat(64)),
+            "paths": {
+                "schema_version": 1,
+                "releases": root.join("releases"),
+                "config": root.join("config"),
+                "brain": root.join("brain"),
+                "web_auth": root.join("web-auth"),
+                "host_state": root.join("host-state"),
+                "keys": root.join("keys"),
+                "logs": root.join("logs"),
+                "backups": root.join("backups"),
+                "workspaces": root.join("workspaces"),
+                "ipc": root.join("ipc")
+            },
+            "services": [
+                {"schema_version": 1, "service": "host", "account": native_account("host")},
+                {"schema_version": 1, "service": "web", "account": native_account("web")},
+                {"schema_version": 1, "service": "brain", "account": native_account("brain")}
+            ],
+            "created_at": 1
+        })
     }
 }
 impl Drop for Fixture {
@@ -62,13 +115,24 @@ fn native_target() -> p::ProductTarget {
     }
 }
 
+fn native_account(service: &str) -> &'static str {
+    use p::BuiltinServiceId::*;
+    let service = match service {
+        "host" => Host,
+        "web" => Web,
+        "brain" => Brain,
+        _ => unreachable!(),
+    };
+    service.required_account(native_target())
+}
+
 #[test]
 fn managed_host_load_is_closed_bounded_and_side_effect_free() {
     let fixture = Fixture::new();
     let original = fixture.document();
     let path = fixture.save(&original);
     HostServiceConfig::load(&path).unwrap();
-    assert!(!fixture.0.join("host.jsonl").exists());
+    assert!(!fixture.journal().exists());
     for (key, value) in [
         ("schema_version", serde_json::json!(2)),
         ("unrecognized", serde_json::json!(true)),
@@ -96,7 +160,7 @@ fn managed_host_load_is_closed_bounded_and_side_effect_free() {
     }
     std::fs::write(&path, vec![b' '; 64 * 1024 + 1]).unwrap();
     assert!(HostServiceConfig::load(&path).is_err());
-    assert!(!fixture.0.join("host.jsonl").exists());
+    assert!(!fixture.journal().exists());
 }
 
 #[test]
@@ -122,10 +186,10 @@ fn managed_host_needs_private_distinct_file_credentials_and_cannot_enable_proces
         b"test-maintenance-only-token-0000000001",
         &vec![b'a'; 260],
     ] {
-        std::fs::write(fixture.0.join("agent.key"), bytes).unwrap();
+        std::fs::write(fixture.agent_key(), bytes).unwrap();
         assert!(from_managed_config(&path).is_err());
     }
-    assert!(!fixture.0.join("host.jsonl").exists());
+    assert!(!fixture.journal().exists());
 }
 
 #[test]
@@ -136,7 +200,8 @@ fn host_configuration_cannot_alias_itself_or_the_fallback_worker_journal() {
     let path = fixture.save(&doc);
     assert!(HostServiceConfig::load(&path).is_err());
     doc = fixture.document();
-    doc["agent_execution_credential_path"] = serde_json::json!(fixture.0.join("host.worker.jsonl"));
+    doc["agent_execution_credential_path"] =
+        serde_json::json!(fixture.0.join("host-state/host.worker.jsonl"));
     fixture.save(&doc);
     assert!(HostServiceConfig::load(&path).is_err());
 }
@@ -174,7 +239,7 @@ fn managed_bootstrap_reference_is_preflighted_without_opening_its_authority() {
     setup["journal_path"] = doc["journal_path"].clone();
     std::fs::write(setup_path, serde_json::to_vec(&setup).unwrap()).unwrap();
     assert!(HostServiceConfig::load(&path).is_err());
-    assert!(!fixture.0.join("host.jsonl").exists());
+    assert!(!fixture.journal().exists());
 }
 
 #[test]

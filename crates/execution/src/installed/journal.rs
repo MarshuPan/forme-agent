@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 
 use super::reject_linked_ancestors;
 
+mod verification;
+
 const MAX_JOURNAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = 64 * 1024;
 
@@ -17,6 +19,10 @@ const MAX_RECORD_BYTES: usize = 64 * 1024;
 enum JournalFact {
     InstallationBound {
         install_id: String,
+    },
+    InstallationVerified {
+        manifest_digest: p::SchemaDigest,
+        release_digest: p::SchemaDigest,
     },
     Planned {
         command: Box<p::MaintenanceCommand>,
@@ -72,6 +78,7 @@ struct OperationState {
 #[derive(Clone, Default)]
 struct Projection {
     install_id: Option<String>,
+    installation_verification: Option<(p::SchemaDigest, p::SchemaDigest)>,
     sequence: u64,
     head: Option<p::SchemaDigest>,
     operations: BTreeMap<String, OperationState>,
@@ -104,6 +111,21 @@ impl Projection {
                     return Err(invalid_journal());
                 }
                 self.install_id = Some(install_id.clone());
+            }
+            JournalFact::InstallationVerified {
+                manifest_digest,
+                release_digest,
+            } => {
+                p::validate_product_digest(manifest_digest)?;
+                p::validate_product_digest(release_digest)?;
+                if self.install_id.is_none()
+                    || self.sequence != 1
+                    || self.installation_verification.is_some()
+                {
+                    return Err(invalid_journal());
+                }
+                self.installation_verification =
+                    Some((manifest_digest.clone(), release_digest.clone()));
             }
             JournalFact::Planned {
                 command,
@@ -323,6 +345,7 @@ impl ProductJournal {
         }
         Ok(writer.projection.sequence)
     }
+
     pub fn operation(&self, id: &str) -> p::Result<p::MaintenanceOperation> {
         let writer = self.writer.lock().map_err(|_| storage_error())?;
         if writer.poisoned {

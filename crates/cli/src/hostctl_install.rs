@@ -99,6 +99,7 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         "install_ref": install_ref,
         "active_release": request.release_id,
         "product_target": request.target,
+        "installation_manifest_path": manifest_path,
         "journal_path": paths.host_state.join("host.journal"),
         "maintenance_credential_path": paths.keys.join("host-maintenance.token"),
         "agent_execution_credential_path": paths.keys.join("agent-execution.token"),

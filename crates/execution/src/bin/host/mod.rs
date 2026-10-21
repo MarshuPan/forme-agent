@@ -89,6 +89,18 @@ fn run_host(
         runtime.active_release,
         forme_execution::installed::SystemServiceManager,
     )?);
+    if runtime.managed {
+        broker.record_installation_verification(
+            runtime
+                .installation_manifest_digest
+                .clone()
+                .ok_or_else(|| p::Error("managed host manifest digest is unavailable".into()))?,
+            runtime
+                .release_digest
+                .clone()
+                .ok_or_else(|| p::Error("managed host release digest is unavailable".into()))?,
+        )?;
+    }
     let has_agent = runtime.has_agent_endpoint && agent_digest.is_some();
     let worker = load_worker_host(
         &journal,

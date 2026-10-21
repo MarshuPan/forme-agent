@@ -1,4 +1,6 @@
 //! Explicit configuration, credential and worker composition boundaries.
+mod manifest;
+
 use std::collections::BTreeSet;
 use std::io::{Read, Write};
 use std::net::SocketAddr;
@@ -16,6 +18,7 @@ pub(crate) struct HostServiceConfig {
     pub install_ref: String,
     pub active_release: String,
     pub product_target: p::ProductTarget,
+    pub installation_manifest_path: PathBuf,
     pub journal_path: PathBuf,
     pub maintenance_credential_path: PathBuf,
     pub agent_execution_credential_path: PathBuf,
@@ -87,6 +90,7 @@ impl HostServiceConfig {
         p::validate_product_id(&self.install_ref)?;
         p::validate_release_id(&self.active_release)?;
         validate_native_target(self.product_target)?;
+        reject_path(&self.installation_manifest_path)?;
         let paths = self.paths();
         let fallback = self.journal_path.with_extension("worker.jsonl");
         for (index, path) in paths.iter().enumerate() {
@@ -107,6 +111,7 @@ impl HostServiceConfig {
 
     fn paths(&self) -> Vec<&Path> {
         let mut paths = vec![
+            self.installation_manifest_path.as_path(),
             self.journal_path.as_path(),
             self.maintenance_credential_path.as_path(),
             self.agent_execution_credential_path.as_path(),
@@ -162,6 +167,8 @@ pub(crate) struct HostRuntimeConfig {
     pub credentials: HostCredentials,
     pub target: p::ProductTarget,
     pub active_release: String,
+    pub installation_manifest_digest: Option<p::SchemaDigest>,
+    pub release_digest: Option<p::SchemaDigest>,
     pub bootstrap_config_path: Option<PathBuf>,
     pub worker_config_path: Option<PathBuf>,
     pub host_bind: SocketAddr,
@@ -258,6 +265,8 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         target: target_from_environment()?,
         active_release: std::env::var("FORME_ACTIVE_RELEASE")
             .unwrap_or_else(|_| "unconfigured".into()),
+        installation_manifest_digest: None,
+        release_digest: None,
         bootstrap_config_path: std::env::var_os("FORME_BOOTSTRAP_CONFIG_PATH").map(PathBuf::from),
         worker_config_path: std::env::var_os("FORME_WORKER_CONFIG_PATH").map(PathBuf::from),
         host_bind,
@@ -272,6 +281,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
 
 pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
     let config = HostServiceConfig::load(path)?;
+    let (manifest, manifest_digest) = manifest::load_installation_manifest(&config)?;
     let worker_protected_paths = config.preflight_references(path)?;
     let credentials = HostCredentials::new(
         read_managed_credential(&config.maintenance_credential_path, "maintenance")?,
@@ -292,6 +302,8 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         credentials,
         target: config.product_target,
         active_release: config.active_release,
+        installation_manifest_digest: Some(manifest_digest),
+        release_digest: Some(manifest.release_digest),
         bootstrap_config_path: config.bootstrap_config_path,
         worker_config_path: config.worker_config_path,
         host_bind: config.host_bind,

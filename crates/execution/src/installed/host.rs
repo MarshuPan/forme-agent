@@ -171,6 +171,15 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         self.target
     }
 
+    pub fn record_installation_verification(
+        &self,
+        manifest_digest: p::SchemaDigest,
+        release_digest: p::SchemaDigest,
+    ) -> p::Result<u64> {
+        self.journal
+            .record_installation_verification(manifest_digest, release_digest)
+    }
+
     fn verify_maintenance_auth(&self, auth: &HostAuth) -> p::Result<()> {
         if auth.domain != HostCredentialDomain::OwnerMaintenance
             || auth.actor != p::MaintenanceActorClass::LocalAdministrator
