@@ -96,4 +96,6 @@
 
 已有大模块按风险分批拆分：先 gateway transport/控制面，再 harness orchestration/production，再 store 按事务领域拆。每批保持行为不变并独立提交，避免在安装/认证实现中夹带整库重写。规模基线仅表示已知债务，不表示这些文件已通过可维护性验收。
 
+安装代码也纳入结构门：`packaging/` 的 PowerShell module、安装入口与 Inno 脚本按同一规模规则检查。Windows 统一门额外构建当前 hostctl 并运行真实临时 NTFS 权限/继承/替换与拒绝场景；它不注册服务、不使用真实 owner 数据，不能替代管理员安装和服务 token 验收。
+
 当前公开维护债务约 63 个文件。已完成的第一批是 `harness/src/brain_orchestration.rs`：路线状态机仍留在原模块，节点构造/输出归并/验证/签名转换已移到 `brain_orchestration/support.rs`，保留原有 API、事件和恢复语义，并移除已偿还的规模豁免。下一批优先级固定为：`harness/src/lib.rs` 的入口/控制域、`harness/src/production.rs` 的 composition/服务域、`store/src/sqlite.rs` 的事务/投影域；每次只处理一个事务边界。`memory`、`protocol` 等承重协议文件除非有明确收益，不做机械按行切割。

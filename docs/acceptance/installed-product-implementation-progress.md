@@ -2,21 +2,27 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`。最新配置闭合实现为 `01b77f9`（设计说明 `3577c8b`），验证日期 2026-10-22；本分支尚未替代 `main`，也没有读取真实 owner/model secret 或注册本机系统服务。
+最新施工分支：`shu/installed-product`。最新权限分区实现为 `29984a4`（设计说明 `76803c8`），前批配置闭合为 `01b77f9`；验证日期 2026-10-22。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
 
 ## 1. 实施顺序与当前范围
 
 | 顺序 | 交付 | 当前状态 |
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
-| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 继基础 `7eec019`、进程边界 `0021902`、worker 控制面 `f1122ec`，新增显式受管 Host 配置、三个 daemon 的 SCM host 与共用注册/移除；重复注册检查完整绑定，故障恢复有限。真实 Host 进程证明不回退 shell 环境、两域隔离。实际服务账户/ACL、job 强隔离/网络与会话 helper 尚未完成，普通 worker 在生产继续 blocked。 |
-| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle 构建器、清单/资源完整性检查与 Windows/Linux/macOS 包输入模板；`785027b` 修复 Windows 三个 daemon 安装/卸载对称性。已有 `prepare-installation` 生成独立产品配置和密钥，当前以临时目录/实际进程取证。仍仅属未签名开发输入；账户/ACL、安装升级恢复卸载事务、可发布原生包与跨平台验收尚未完成。 |
+| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 已有受管 Host、三个 daemon 的 SCM host 与 typed 注册/移除；`29984a4` 增加新安装路径分权、固定 Windows ACL helper 和实际临时 NTFS 组件验证。真实服务账户 token/有效拒绝、job 强隔离/网络与会话 helper 仍未验收或完成，普通 worker 在生产继续 blocked。 |
+| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle、资源检查与三平台包模板；新增先保护目录再写秘密、逐步检查退出状态的首次安装/卸载控制流，旧布局保留并拒绝自动迁移。尚未编译 Inno Setup 或执行管理员原生安装；完整生命周期事务、签名可发布原生包与跨平台验收未完成。 |
 | 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、受管 core 文件配置、私有模型凭据 resolver、签名会话桥与持久 nonce/fence 之后，`01b77f9` 完成模型配置 journal/staging/CAS、不可变凭据、重启恢复、静态校验、口令绑定启停与 core acknowledgement。实际 host/web/core 进程验证认领、配置持久化、幂等和正式 Run；已认证浏览器验证设置页。旧脑/备份接管、OS 恢复、LAN TLS、完整能力/渠道配置和整机初始化仍待实施。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、对话/事件续接/审批/取消、项目登记/路线规划/执行/取消、Charter 读写、认知只读投影、运行收件箱与密码/健康设置。新增模型设置、静态检查、重新认证启动/重启、原 operation 核实和主脑生效确认；关闭 core 仍可访问设置。附件/产物、完整收件箱/候选处置、其余设置/维护和完整浏览器联合流程尚未完成；不宣称 IP17–23/IP24 原生通过。 |
 
 24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
 
-最新增量和证据边界见 [模型配置与主脑启停验收](installed-product-configuration-acceptance.md)；2026-10-21 的组件历史见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
+最新增量和证据边界见 [安装权限分区组件验收](installed-product-service-access-acceptance.md)；前批配置见 [模型配置与主脑启停验收](installed-product-configuration-acceptance.md)，2026-10-21 历史见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
+
+### 最新权限分区（2026-10-22，`29984a4`）
+
+新安装使用独立 core 发布目录与 brain runtime，保持认领前新脑为空；重复准备读取原 template，旧配置/密钥/ack/fence 原地保留。Windows 首次安装 helper 只处理固定默认根与服务 SID，先保护后写入，设置并回读 ACL 后才允许启动 Host/Web；失败阻止后续步骤，卸载失败也阻止移除程序。Linux/macOS 服务启动路径同步，权限与原生目标验收并未因此完成。
+
+最终源码门 PASS：146 个 Rust suite 汇总 752 passed / 0 failed / 5 默认 ignored；前端 14/14、bundle 9/9、Windows PowerShell 5.1/7 的 NTFS 组件各 7/7、strict Clippy、完整合规和冻结图门通过。结构门扩大到安装脚本，438 个文件、63 处历史规模债务未增长。宿主/identity/ingress/workbench/配置进程门最终串行复验通过；中间传输失败和证据限制保留于上述报告。没有管理员 SCM、Inno 编译/签名、真实 provider 或 IP01–IP24 新验收。
 
 ### 最新配置闭合（2026-10-22，`01b77f9`）
 

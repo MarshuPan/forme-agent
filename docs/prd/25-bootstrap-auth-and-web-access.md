@@ -4,7 +4,7 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P03–P08、P10、P15，主验 IP04–IP09、IP13、IP21–IP22，参与 IP12/IP18/IP24。架构以 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §3–6、§8 为准，canonical §10/15/24/28/29 不可回退。
 
-**状态：正在实施；`12b3f5d` 已提交独立账号/session，`49674b7` 已提交 loopback Web 入口，`52808df` 已提交本机证明、有限 setup、候选选择、双边 claim journal、签名回执与同 operation 恢复。** 这些是组件级实现，尚未取得 IP 整体验收。旧脑/备份验证、口令恢复、typed config/secret resolver、core bridge、LAN TLS 和完整 Web 工作台仍待接入；组件证据见 `../acceptance/installed-product-25-identity-foundation.md`、`../acceptance/installed-product-25-web-ingress.md`、`../acceptance/installed-product-25-bootstrap-claim.md`。当前没有可认领并操作主脑的新业务页面；内部 Gateway 的固定 bearer 也不能被宣称为已完成网页登录。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
+**状态：正在实施；独立账号/session、loopback Web、本机证明/有限新脑 claim、正式 core bridge 与工作台已有组件实现；`01b77f9` 增加持久模型配置/凭据、CAS/journal、静态校验、口令绑定启停和 core ack，`29984a4` 增加新安装权限分区。** 当前页面可在自建临时安装中完成认领、登录、设置和正式 Run，但尚未取得 IP 整体验收。旧脑/备份接管、OS 口令恢复、LAN TLS、完整能力/渠道配置、附件/候选处置、原生安装和完整工作台仍待实施或验收。具体分支及证据以 `../acceptance/installed-product-implementation-progress.md` 为准，不能由固定 bearer 或组件通过推导完整产品就绪。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
 
 ## 1. 职责与边界
 

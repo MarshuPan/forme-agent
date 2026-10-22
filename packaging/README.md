@@ -2,7 +2,7 @@
 
 These files are release inputs, not proof that a native package has been built or installed. The bundle inventory must be generated first and signed by a release pipeline that records the target OS/CPU, exact binary/UI digests, package-tool version and signing receipt.
 
-- Windows: compile `windows/forme.iss` with a pinned Inno Setup toolchain, then sign the installer. The referenced `--install-service` commands are accepted only after the typed service lifecycle implementation is present.
+- Windows: compile `windows/forme.iss` with a pinned Inno Setup toolchain, then sign the installer. The two mandatory original access helpers use the OS-provided Windows PowerShell/.NET ACL APIs, protect empty default roots before writing data, and grant/verify fixed service roles before starting Host/Web. Existing installations require the separate lifecycle/recovery path. Installation checks every typed registration result; uninstall stops before program removal if a typed unregister fails. These inputs have not yet been compiled into an accepted native installer.
 - Linux: install the three units, control files and post-install policy through a pinned `.deb` or `.rpm` builder. The post-install hook must run only as the package manager's root transaction and must be tested on each declared distribution.
 - macOS: use `Distribution.xml`, `scripts/postinstall` and the three LaunchDaemon plists with pinned `pkgbuild`/`productbuild` inputs, then Developer ID sign and notarize each architecture package. The post-install script prepares the unclaimed setup state and starts only Host/Web; the brain remains stopped until claim and model configuration.
 

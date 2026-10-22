@@ -38,3 +38,9 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 `01b77f9` 将配置事务按状态协调、journal、文件发布、模型校验和测试分责；前端将草稿转换与受控启停从设置页拆出。配置入口 389 行，journal/materialize/storage 分别为 304/348/103 行，启停组件 73 行；没有使用 include 拼接、扩大旧基线或新增内部依赖边。
 
 最终结构门扫描 433 个源文件，仍为 **63 处历史规模债务**；新增文件均符合 600/1200 行约定。全量 Rust 749 passed / 0 failed / 5 默认 ignored，strict Clippy、14 项前端测试、7 项 bundle 回归与完整合规门通过。已认证浏览器检查了本次设置交互，其他页面与原生平台证据不由它替代。详细范围和可重复命令见 [配置闭合验收](installed-product-configuration-acceptance.md)。
+
+## 6. 安装权限分区增量（2026-10-22）
+
+`29984a4` 将旧布局验证从 prepare 入口独立为一个小模块，Windows 安装入口、ACL/路径/布局规则和测试分别落文件；不在 host/lib 中新增通用 shell 或另一套策略 owner。三个源文件和测试都低于新增文件阈值。结构检查新增 `packaging/`、`.psm1` 与 `.iss`，不再让安装权限代码游离于规模检查之外；对应检查器反向测试已同步。
+
+最终 438 个源文件、**63 处历史规模债务**，没有刷新基线。统一门将原生 NTFS descriptor/继承/原子替换/拒绝及真实 hostctl 布局联合测试纳入 Windows 源码回归，原生安装/真实服务 token 与产品 IP 验收仍独立。Rust 752 passed / 0 failed / 5 默认 ignored、前端 14/14、bundle 9/9 和完整合规通过；详细执行与中间传输失败说明见 [权限分区验收](installed-product-service-access-acceptance.md)。

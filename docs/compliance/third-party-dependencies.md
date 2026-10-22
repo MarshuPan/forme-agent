@@ -1,5 +1,14 @@
 # Third-party dependencies
 
+## Windows installation access helpers (2026-10-22)
+
+`packaging/windows/install-access.ps1` and `service-access.psm1` are project-authored
+scripts using the OS-provided Windows PowerShell 5.1/.NET `System.Security.AccessControl`
+public APIs; PowerShell 7 is an additional component-test host. They redistribute no
+Microsoft implementation, new runtime package, upstream script or fixture, and add
+no Cargo/npm dependency. Inno Setup compiler pinning, installer licensing/signing and
+native service-account acceptance remain release work, not established by these tests.
+
 ## Web workbench dependency review (2026-10-21)
 
 The workbench uses project-authored React/TypeScript components; no DeepSeek source,
