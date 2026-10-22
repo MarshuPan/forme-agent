@@ -232,4 +232,12 @@ broker 的认领权威使用独立、OS 排他锁保护的 append journal；记�
 
 服务模式必须显式传 `--config`；前台开发保留无参数 environment 模式。Windows SCM 同样使用进程命令行中的受管路径，不从交互 shell 推断配置。路径必须绝对、无链接/reparse-point，读取有界、closed schema/version；检查失败不退回环境或创建替代脑。Web/core 仍使用同一 ProductionRuntimeBuilder 和受控停止接缝。文件结构检查不代表原生 ACL 已验证。
 
-本增量先闭合持久启动来源与模型 file resolver。尚未接到隔离 worker 的可执行能力在受管模式中保持不可用；不得借环境启用原地 shell/MCP/browser。完整 config staging/CAS、secret 写入、core ack 与 capability worker 接入仍须单独实施，不能把本启动配置称为 IP08 或完整设置页验收。
+本节定义持久启动来源与模型 file resolver；配置 staging/CAS、secret 写入和 core ack 进一步按 §11.5 实施并独立取证。尚未接到隔离 worker 的可执行能力在受管模式中保持不可用，不得借环境启用原地 shell/MCP/browser。capability worker 接入和原生安装仍须单独实施，不能把受管启动配置称为 IP08 或完整设置页验收。
+
+### 11.5 实施细化：配置事务与受控启动
+
+配置写者使用独立 OS 文件锁与有界、校验链式产品 journal。每次变更先完整校验模型、版本、owner 和凭据，再写不可变 revision 文件及独立版本的凭据；不得覆盖运行中 revision 引用的密钥。journal 只保存操作/摘要/安全 revision ref，配置值与凭据路径只在受保护 revision 文件。持久 intent 后原子替换受管 core 配置，再提交 receipt；重启按原 intent 核对文件并完成发布，不创建新 revision。损坏/截断/文件不匹配阻断，不重建空配置。所有已提交 operation 的语义摘要跨重启保留，异义 key 与陈旧 revision 零推进。
+
+`POST /product/config/validate` 只检查指定已保存 revision 的静态配置、文件与凭据存在性，明确 `model_test_status=NotRun`。`POST /product/config/activate` 是有限的 Start/RestartCore 维护适配：绑定登录 owner、operation、配置 revision 和 action，要求该操作的近期口令重新认证；只能控制内置 Brain 服务，无任意服务名、程序、路径或 AgentExecution。服务动作沿既有产品维护 journal；中断后只查询原 operation，pending/unknown 不重新启停。配置与服务操作使用同一配置锁，防止检查之后换 revision。
+
+网页区分“保存”“静态检查”“请求启动/重启”“核心确认”，启动 OS receipt 不等于模型调用成功；已确认 revision 也不单独证明当前进程健康。模型真实测试仍只经正式 core 的 Run 路径。旧版已知配置只在 owner/模板/完整文件一致时迁移，无法核对则要求本机恢复，不能丢弃原配置。模型输入在凭据 staging/该命令 intent 之前被拒绝时，返回明确的 422/ConfigurationInvalid，允许编辑；任何发布或服务副作用不明不能映射成该错误，也不能换新 operation 自动重试。
