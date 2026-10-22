@@ -60,7 +60,8 @@ fn check(state: &WebState, headers: &HeaderMap, method: &Method) -> Result<(), W
             "请求来源不受信任",
         )
     };
-    if one(headers, "host")? != Some(state.authority.as_str()) {
+    let host = one(headers, "host")?.ok_or_else(invalid)?;
+    if !state.authorities.iter().any(|allowed| allowed == host) {
         return Err(invalid());
     }
     if headers.keys().any(|name| {
@@ -76,7 +77,9 @@ fn check(state: &WebState, headers: &HeaderMap, method: &Method) -> Result<(), W
         }
     }
     let origin = one(headers, "origin")?;
-    if origin.is_some_and(|origin| origin != state.origin)
+    let scheme = if state.secure { "https" } else { "http" };
+    let expected_origin = format!("{scheme}://{host}");
+    if origin.is_some_and(|origin| origin != expected_origin)
         || (*method != Method::GET && *method != Method::HEAD && origin.is_none())
     {
         return Err(invalid());
@@ -117,6 +120,31 @@ pub(super) async fn boundary(
         Ok(()) => next.run(request).await,
         Err(error) => error.into_response(),
     };
+    if state.secure {
+        let cookies = response
+            .headers()
+            .get_all(header::SET_COOKIE)
+            .iter()
+            .map(|value| {
+                value
+                    .to_str()
+                    .ok()
+                    .and_then(|value| HeaderValue::from_str(&format!("{value}; Secure")).ok())
+            })
+            .collect::<Option<Vec<_>>>();
+        if let Some(cookies) = cookies {
+            response.headers_mut().remove(header::SET_COOKIE);
+            for cookie in cookies {
+                response.headers_mut().append(header::SET_COOKIE, cookie);
+            }
+        } else {
+            return WebError::from(AuthError::Unavailable).into_response();
+        }
+        response.headers_mut().insert(
+            "strict-transport-security",
+            HeaderValue::from_static("max-age=86400"),
+        );
+    }
     for (name, value) in [
         ("cache-control", "no-store"),
         ("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"),

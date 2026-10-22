@@ -8,10 +8,15 @@ use axum::serve::Listener;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::task::JoinSet;
+use tokio_rustls::TlsAcceptor;
 
 pub(super) struct BoundedListener {
     inner: TcpListener,
     capacity: Arc<Semaphore>,
+    tls: Option<TlsAcceptor>,
+    pub(super) authorities: Vec<String>,
+    handshakes: JoinSet<Option<(BoundedStream, std::net::SocketAddr)>>,
 }
 
 impl BoundedListener {
@@ -19,7 +24,26 @@ impl BoundedListener {
         Self {
             inner,
             capacity: Arc::new(Semaphore::new(64)),
+            tls: None,
+            authorities: Vec::new(),
+            handshakes: JoinSet::new(),
         }
+    }
+
+    pub(super) fn encrypted(
+        inner: TcpListener,
+        tls: TlsAcceptor,
+        authorities: Vec<String>,
+    ) -> Self {
+        Self {
+            tls: Some(tls),
+            authorities,
+            ..Self::new(inner)
+        }
+    }
+
+    pub(super) fn secure(&self) -> bool {
+        self.tls.is_some()
     }
 }
 
@@ -29,19 +53,41 @@ impl Listener for BoundedListener {
 
     async fn accept(&mut self) -> (Self::Io, Self::Addr) {
         loop {
-            match self.inner.accept().await {
+            let accepted = tokio::select! {
+                completed = self.handshakes.join_next(), if !self.handshakes.is_empty() => {
+                    if let Some(Ok(Some(stream))) = completed {
+                        return stream;
+                    }
+                    continue;
+                }
+                accepted = self.inner.accept() => accepted,
+            };
+            match accepted {
                 Ok((inner, address)) => {
                     if let Ok(permit) = self.capacity.clone().try_acquire_owned() {
-                        return (
-                            BoundedStream {
-                                inner,
-                                _permit: permit,
-                                deadline: Box::pin(tokio::time::sleep(
-                                    std::time::Duration::from_secs(120),
-                                )),
-                            },
-                            address,
-                        );
+                        if let Some(tls) = self.tls.clone() {
+                            if self.handshakes.len() < 16 {
+                                self.handshakes.spawn(async move {
+                                    let stream = tokio::time::timeout(
+                                        std::time::Duration::from_secs(5),
+                                        tls.accept(inner),
+                                    )
+                                    .await
+                                    .ok()?
+                                    .ok()?;
+                                    Some((
+                                        BoundedStream::new(
+                                            WebStream::Tls(Box::new(stream)),
+                                            permit,
+                                        ),
+                                        address,
+                                    ))
+                                });
+                            }
+                        } else {
+                            return (BoundedStream::new(WebStream::Plain(inner), permit), address);
+                        }
+                        continue;
                     }
                     // Drop overflow sockets. No handler or authentication job
                     // is created, and no unbounded waiting task is spawned.
@@ -59,12 +105,19 @@ impl Listener for BoundedListener {
 }
 
 pub(super) struct BoundedStream {
-    inner: TcpStream,
+    inner: WebStream,
     _permit: OwnedSemaphorePermit,
     deadline: Pin<Box<tokio::time::Sleep>>,
 }
 
 impl BoundedStream {
+    fn new(inner: WebStream, permit: OwnedSemaphorePermit) -> Self {
+        Self {
+            inner,
+            _permit: permit,
+            deadline: Box::pin(tokio::time::sleep(std::time::Duration::from_secs(120))),
+        }
+    }
     fn check_deadline(&mut self, context: &mut Context<'_>) -> std::io::Result<()> {
         if self.deadline.as_mut().poll(context).is_ready() {
             return Err(std::io::Error::from(std::io::ErrorKind::TimedOut));
@@ -82,7 +135,10 @@ impl AsyncRead for BoundedStream {
         if let Err(error) = self.check_deadline(context) {
             return Poll::Ready(Err(error));
         }
-        Pin::new(&mut self.inner).poll_read(context, buffer)
+        match &mut self.inner {
+            WebStream::Plain(inner) => Pin::new(inner).poll_read(context, buffer),
+            WebStream::Tls(inner) => Pin::new(inner).poll_read(context, buffer),
+        }
     }
 }
 
@@ -95,7 +151,10 @@ impl AsyncWrite for BoundedStream {
         if let Err(error) = self.check_deadline(context) {
             return Poll::Ready(Err(error));
         }
-        Pin::new(&mut self.inner).poll_write(context, bytes)
+        match &mut self.inner {
+            WebStream::Plain(inner) => Pin::new(inner).poll_write(context, bytes),
+            WebStream::Tls(inner) => Pin::new(inner).poll_write(context, bytes),
+        }
     }
     fn poll_flush(
         mut self: Pin<&mut Self>,
@@ -104,12 +163,23 @@ impl AsyncWrite for BoundedStream {
         if let Err(error) = self.check_deadline(context) {
             return Poll::Ready(Err(error));
         }
-        Pin::new(&mut self.inner).poll_flush(context)
+        match &mut self.inner {
+            WebStream::Plain(inner) => Pin::new(inner).poll_flush(context),
+            WebStream::Tls(inner) => Pin::new(inner).poll_flush(context),
+        }
     }
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
         context: &mut Context<'_>,
     ) -> Poll<std::io::Result<()>> {
-        Pin::new(&mut self.inner).poll_shutdown(context)
+        match &mut self.inner {
+            WebStream::Plain(inner) => Pin::new(inner).poll_shutdown(context),
+            WebStream::Tls(inner) => Pin::new(inner).poll_shutdown(context),
+        }
     }
+}
+
+enum WebStream {
+    Plain(TcpStream),
+    Tls(Box<tokio_rustls::server::TlsStream<TcpStream>>),
 }

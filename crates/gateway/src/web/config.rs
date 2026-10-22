@@ -17,6 +17,8 @@ pub struct WebServerConfig {
     #[serde(default = "default_bind")]
     pub bind: SocketAddr,
     #[serde(default)]
+    pub tls: Option<super::WebTlsConfig>,
+    #[serde(default)]
     pub bootstrap_bridge: Option<WebBootstrapBridgeConfig>,
     #[serde(default)]
     pub configuration_bridge: Option<WebConfigurationBridgeConfig>,
@@ -75,13 +77,15 @@ impl WebServerConfig {
     }
 
     pub fn validate(&self) -> p::Result<()> {
-        if self.schema_version != p::SchemaVersion(1)
-            || !self.bind.ip().is_loopback()
-            || self.bind.port() == 0
-        {
-            // This adapter has no TLS terminator yet. Fail closed for all LAN
-            // addresses; no proxy header or JSON flag enables plaintext LAN.
-            return Err(p::Error("Web configuration requires an exact loopback HTTP address; LAN TLS is not available in this adapter".into()));
+        if self.schema_version != p::SchemaVersion(1) || self.bind.port() == 0 {
+            return Err(invalid());
+        }
+        if let Some(tls) = &self.tls {
+            tls.validate(self.bind)?;
+        } else if !self.bind.ip().is_loopback() {
+            return Err(p::Error(
+                "plaintext Web ingress must remain loopback-only".into(),
+            ));
         }
         p::validate_product_id(&self.install_ref)?;
         if let Some(bridge) = &self.bootstrap_bridge {

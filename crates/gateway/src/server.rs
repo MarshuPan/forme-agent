@@ -216,6 +216,10 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
             "/v1/brain/workbench/review",
             post(workbench::review_workbench),
         )
+        .route(
+            "/v1/brain/workbench/proposal",
+            post(workbench::resolve_workbench_proposal),
+        )
         .route("/v1/data/backup", post(data_backup))
         .route("/v1/data/verify-backup", post(data_verify_backup))
         .route("/v1/data/restore-plan", post(data_restore_plan))

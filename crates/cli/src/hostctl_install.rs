@@ -159,6 +159,7 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     };
     template.validate().map_err(|error| error.0)?;
     let web = WebServerConfig {
+        tls: None,
         schema_version: p::SchemaVersion(1),
         install_ref: install_ref.clone(),
         identity_directory: paths.web_auth.clone(),

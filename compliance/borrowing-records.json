@@ -92,11 +92,20 @@
       "allowed_sha256": []
     },
     {
-      "source": "rustls 0.23.45 public crate API",
+      "source": "rustls 0.23.46 public crate API",
       "license": "Apache-2.0 OR ISC OR MIT",
       "copy_risk": "low",
       "implementation_rule": "Use only the public TLS client and server APIs behind project-owned transport traits; do not copy source, examples, fixtures, errors, protocol names, or naming.",
       "notice_action": "Review the enabled provider, LICENSE, NOTICE, and reachable advisories before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
+      "source": "tokio-rustls 0.26.6 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only public asynchronous TLS handshake and stream APIs at the installed Web ingress; do not copy source, examples, fixtures, errors or naming.",
+      "notice_action": "Preserve notices and audit the exact locked TLS provider and reachable advisories before release.",
       "allowed_paths": [],
       "allowed_sha256": []
     },

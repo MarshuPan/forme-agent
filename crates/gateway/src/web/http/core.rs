@@ -193,6 +193,10 @@ fn allowlisted_core_path(
         ["dashboard"] => ("/v1/brain/dashboard".to_owned(), RouteMethods::Get),
         ["workbench", "query"] => ("/v1/brain/workbench/query".to_owned(), RouteMethods::Post),
         ["workbench", "review"] => ("/v1/brain/workbench/review".to_owned(), RouteMethods::Post),
+        ["workbench", "proposal"] => (
+            "/v1/brain/workbench/proposal".to_owned(),
+            RouteMethods::Post,
+        ),
         ["projects"] => ("/v1/brain/projects".to_owned(), RouteMethods::GetPost),
         ["learning", "goals"] => ("/v1/brain/learning/goals".to_owned(), RouteMethods::Post),
         ["learning", "answer"] => ("/v1/brain/learning/answer".to_owned(), RouteMethods::Post),
@@ -253,6 +257,7 @@ fn allowlisted_core_path(
                 | "review"
                 | "workbench"
                 | "query"
+                | "proposal"
                 | "artifacts"
                 | "upload"
         )

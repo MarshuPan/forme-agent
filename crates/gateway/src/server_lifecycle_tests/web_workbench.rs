@@ -13,6 +13,8 @@ const BRIDGE_TOKEN: &str = "workbench-bridge-0123456789abcdef0123456789abcdef";
 mod brain_views;
 #[path = "web_workbench/data_views.rs"]
 mod data_views;
+#[path = "web_workbench/proposal_views.rs"]
+mod proposal_views;
 
 struct Reply {
     status: u16,
@@ -219,6 +221,7 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
     let web_address = probe.local_addr().unwrap();
     drop(probe);
     let web_config = WebServerConfig {
+        tls: None,
         schema_version: p::SchemaVersion(1),
         install_ref: INSTALL.into(),
         identity_directory: identity_path,
@@ -275,6 +278,7 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
     );
     let (cookie, csrf) = login(web_address).await;
     brain_views::verify(web_address, &runtime, &cookie, &csrf).await;
+    proposal_views::verify(web_address, &runtime, &cookie, &csrf).await;
     data_views::verify(web_address, &cookie, &csrf).await;
     let proof = proof_headers(&key, &cookie, "proof:before-logout");
     assert_eq!(

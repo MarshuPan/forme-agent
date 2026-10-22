@@ -17,6 +17,10 @@ export interface WorkbenchSnapshot {
 export interface WorkbenchReview {
   schema_version: 1; command: string; run: string; candidate: string; expected_state: ReviewState; decision: ReviewDecision;
 }
+export interface WorkbenchProposal {
+  schema_version: 1; command: string; run: string; proposal: string;
+  outcome: 'Adopt' | 'Reject' | 'Defer'; defer_until: number | null;
+}
 export interface WorkbenchReceipt {
   schema_version: 1; command: string; binding: string; status: 'Confirmed' | 'Rejected' | 'Unknown'; event: string;
 }

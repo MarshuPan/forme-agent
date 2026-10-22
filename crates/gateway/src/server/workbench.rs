@@ -31,12 +31,30 @@ pub(super) async fn review_workbench(
         .map_err(classify)
 }
 
+pub(super) async fn resolve_workbench_proposal(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(command): Json<p::WorkbenchProposalCommand>,
+) -> Result<Json<p::WorkbenchCommandReceipt>, ApiError> {
+    state.authorize(&headers, true)?;
+    let runtime = state.runtime.clone();
+    let owner = state.owner.clone();
+    state
+        .blocking(move || runtime.resolve_workbench_proposal(&owner, command))
+        .await
+        .map(Json)
+        .map_err(classify)
+}
+
 fn classify(mut error: ApiError) -> ApiError {
     if matches!(
         error.message.as_str(),
         "workbench snapshot changed; restart pagination"
             | "candidate review expected state is stale"
             | "candidate has an unresolved review; inspect the original receipt"
+            | "proposal control has an unresolved receipt; inspect the original operation"
+            | "ordinary proactive proposal was not found in the requested run"
+            | "proposal already has a recorded owner outcome"
             | "workbench command identity conflict"
     ) {
         error.status = StatusCode::CONFLICT;

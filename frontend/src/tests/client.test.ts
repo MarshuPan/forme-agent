@@ -137,3 +137,19 @@ test('data maintenance keeps the exact command and a lost response is probed wit
   assert.equal(String(calls[1].request.body).includes('password'), false);
   assert.equal(String(calls[1].request.body).includes('Backup'), false);
 });
+
+test('proposal controls retain exact command binding when an outcome is unknown', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    return Response.json({ schema_version: 1, status: 'Unknown' });
+  });
+  const control = { schema_version: 1 as const, command: 'proposal:control', run: 'run:one', proposal: 'proposal:one', outcome: 'Defer' as const, defer_until: 100_000 };
+  for (let i = 0; i < 2; i++) assert.equal((await api.resolveWorkbenchProposal(control)).status, 'Unknown');
+  assert.equal(calls.length, 2);
+  for (const call of calls) {
+    assert.equal(call.path, '/api/v1/brain/workbench/proposal');
+    assert.equal(new Headers(call.request.headers).get('Idempotency-Key'), control.command);
+    assert.deepEqual(JSON.parse(String(call.request.body)), control);
+  }
+});

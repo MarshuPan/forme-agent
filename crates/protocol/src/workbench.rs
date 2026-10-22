@@ -103,6 +103,45 @@ pub struct WorkbenchReviewCommand {
     pub decision: CandidateReviewDecision,
 }
 
+/// Owner control for a non-learning proactive proposal.  The proposal is
+/// acknowledged by the brain first; adopting an action proposal does not
+/// grant a tool permission or bypass a new plan/approval path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkbenchProposalCommand {
+    pub schema_version: SchemaVersion,
+    pub command: IdempotencyKey,
+    pub run: RunId,
+    pub proposal: ProposalRef,
+    pub outcome: ProposalOutcome,
+    pub defer_until: Option<Timestamp>,
+}
+
+impl WorkbenchProposalCommand {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != SchemaVersion(1)
+            || !valid_workbench_id(&self.command.0)
+            || !valid_workbench_id(&self.run.0)
+            || !valid_workbench_id(&self.proposal.0)
+        {
+            return Err(Error("workbench proposal identity is invalid".into()));
+        }
+        match self.outcome {
+            ProposalOutcome::Defer if self.defer_until.is_none() => {
+                Err(Error("deferred proposal requires a trigger".into()))
+            }
+            ProposalOutcome::Adopt | ProposalOutcome::Reject if self.defer_until.is_some() => {
+                Err(Error("only deferred proposal has a trigger".into()))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+fn valid_workbench_id(value: &str) -> bool {
+    !value.trim().is_empty() && value.len() <= 256 && !value.chars().any(char::is_control)
+}
+
 impl WorkbenchReviewCommand {
     pub fn validate(&self) -> Result<()> {
         if self.schema_version != SchemaVersion(1) {

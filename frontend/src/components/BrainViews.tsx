@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
 import type { RunSummary } from '../types.ts';
-import type { ReviewDecision, ReviewState, WorkbenchItem, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
+import type { ReviewDecision, ReviewState, WorkbenchItem, WorkbenchProposal, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import { reviewLabels, stateLabels } from '../workbench.ts';
 import { statusLabel } from './Conversation.tsx';
 
@@ -117,6 +117,32 @@ function LearningResponse({ api, item, changed }: { api: WorkbenchClient; item: 
   </fieldset>{error && <p className="form-error" role="alert">{error}</p>}<button className="secondary-button" disabled={busy}>{pending.current ? '核实原反馈' : '提交反馈'}</button><p className="muted small">回答只会产生受治理候选。</p></form>;
 }
 
+function ProposalControl({ api, item, changed }: { api: WorkbenchClient; item: WorkbenchItem; changed: () => void }) {
+  const [outcome, setOutcome] = useState<WorkbenchProposal['outcome']>('Adopt');
+  const [at, setAt] = useState('');
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState('');
+  const pending = useRef<WorkbenchProposal | null>(null);
+  async function submit(event: FormEvent) {
+    event.preventDefault(); if (busy) return;
+    setBusy(true); setMessage('');
+    try {
+      if (!pending.current) {
+        const until = at ? new Date(at).getTime() : null;
+        if (outcome === 'Defer' && (!until || until <= Date.now())) throw new Error('请选择未来的提醒时间。');
+        pending.current = { schema_version: 1, command: newKey('proposal'), run: item.run, proposal: item.id, outcome, defer_until: outcome === 'Defer' ? until : null };
+      }
+      const receipt = await api.resolveWorkbenchProposal(pending.current);
+      setMessage(receipt.status === 'Confirmed' ? '主脑已记录提议处置。' : receipt.status === 'Rejected' ? '主脑拒绝了本次处置。' : '原处置未确认，已阻止重复执行。请刷新并核实原回执。');
+      if (receipt.status !== 'Unknown') { pending.current = null; changed(); }
+    } catch (problem) { setMessage(problem instanceof Error ? problem.message : '处置尚未确认。'); }
+    finally { setBusy(false); }
+  }
+  return <form onSubmit={submit} aria-busy={busy}><fieldset disabled={busy || pending.current !== null}><legend>处理主动提议</legend>
+    <label>处理方式<select value={outcome} onChange={(event) => setOutcome(event.target.value as WorkbenchProposal['outcome'])}><option value="Adopt">采纳</option><option value="Reject">拒绝</option><option value="Defer">延后</option></select></label>
+    {outcome === 'Defer' && <label>稍后提醒<input type="datetime-local" required value={at} onChange={(event) => setAt(event.target.value)} /></label>}
+  </fieldset>{message && <p role="status">{message}</p>}<button className="secondary-button" disabled={busy}>{pending.current ? '核实原处置' : '提交处置'}</button><p className="muted small">采纳不会绕过权限、审批或执行计划。</p></form>;
+}
+
 export function BrainInbox({ api, runs, open }: { api: WorkbenchClient; runs: RunSummary[]; open: (run: string) => void }) {
   const view = useBrainView(api, 'Inbox');
   const pending = runs.filter((run) => ['Waiting', 'Failed', 'Limited'].includes(run.status));
@@ -128,6 +154,7 @@ export function BrainInbox({ api, runs, open }: { api: WorkbenchClient; runs: Ru
       {item.learning && <p>为目标 {item.learning.goal} 确认：{JSON.stringify(item.learning.target)}</p>}
       <Evidence item={item} open={open} />
       {item.kind === 'AskToLearn' && item.state === 'Pending' && <LearningResponse api={api} item={item} changed={view.refresh} />}
+      {item.kind === 'Suggestion' && item.state === 'Pending' && <ProposalControl api={api} item={item} changed={view.refresh} />}
     </article>)}</div>
     {view.snapshot?.total === 0 && !pending.length && <div className="empty-state"><h2>目前没有待处理的事情</h2></div>}
     {view.snapshot?.next_offset !== null && view.snapshot && <button className="secondary-button" disabled={view.busy} onClick={() => void view.more()}>读取下一页</button>}

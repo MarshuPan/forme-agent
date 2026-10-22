@@ -1,7 +1,7 @@
 import { isRecord, versioned } from '../types.ts';
 import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
-import type { WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
+import type { WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
 
 export class ApiError extends Error {
@@ -165,6 +165,9 @@ export class WorkbenchClient {
   }
   reviewWorkbench(command: WorkbenchReview) {
     return this.json<WorkbenchReceipt>('brain/workbench/review', 'POST', command, command.command);
+  }
+  resolveWorkbenchProposal(command: WorkbenchProposal) {
+    return this.json<WorkbenchReceipt>('brain/workbench/proposal', 'POST', command, command.command);
   }
   projects() { return this.json<OrchestrationLedger>('brain/projects'); }
   project(command: ProjectCommand, key = newKey('project')) {

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "664e3b54aa8863576ea6c005807d15a2b4c26167047d64ac4b8373d0efea4f64",
+  "source_digest": "33c39d30bd4288b83ef8f5c3ab25da277a2787951a545bace54f26c5ee5244ec",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "15a50495e5dfbbd674c0f72410196b74153b16f7ac4318123b8512654b522d7b"
+      "sha256": "c4bd9d89de8844ecf55b6638cec24807d8b3372b9d753a033d34107c2376d05d"
     },
     {
       "path": "frontend/src/components/Approval.tsx",
@@ -32,7 +32,7 @@
     },
     {
       "path": "frontend/src/components/BrainViews.tsx",
-      "sha256": "dd3405a08701078ad947ef4555d879653bc9f894d51f5d6d25e6d3c06d9ced7a"
+      "sha256": "e35bd05b1e7fce1f5b1604ba7f726f9f97e451e15680948bd068a0a5f7df3fd8"
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
@@ -100,7 +100,7 @@
     },
     {
       "path": "frontend/src/workbench.ts",
-      "sha256": "f35169dcfb14118348b79455a449a569e147e7ec5e5c4d4b28d9625a4e7ba585"
+      "sha256": "9d92208827dc71b757a57d262e4e1ed157b909716dfb02936f026b57909e5ea1"
     },
     {
       "path": "frontend/tsconfig.json",
@@ -122,9 +122,9 @@
       "bytes": 12868
     },
     {
-      "path": "assets/index-DtIrN6ky.js",
-      "sha256": "21f33c8c821418b71ae6434aadf867232e8664c3c802f70db7b500cdbc4e365e",
-      "bytes": 291303
+      "path": "assets/index-COyRCbVl.js",
+      "sha256": "28ce44e9917bc982fb17287faccf53d16ffa6f7bc702b8b4f2fc39486500f27e",
+      "bytes": 293213
     },
     {
       "path": "dependencies.json",
@@ -138,7 +138,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "07ce03e02234db4c7810746e0f1172b9e5e8c350be248006641446125542774f",
+      "sha256": "f020fc20df9350205b32aa3461e61b2c16f5558d147306c07bfc0bba388d41c0",
       "bytes": 595
     },
     {

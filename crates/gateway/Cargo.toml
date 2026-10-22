@@ -19,7 +19,13 @@ argon2 = { version = "=0.6.0", default-features = false, features = ["alloc", "z
 ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["std"] }
 rusqlite = { version = "=0.40.1", default-features = false, features = ["bundled"] }
 zeroize = "=1.9.0"
+rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pki-types = "=1.15.0"
+tokio-rustls = { version = "=0.26.6", default-features = false, features = ["ring", "tls12"] }
 tempfile = "=3.27.0"
+
+[dev-dependencies]
+rcgen = "=0.14.8"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "=0.8.1"

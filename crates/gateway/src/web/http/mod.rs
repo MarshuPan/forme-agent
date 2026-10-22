@@ -13,6 +13,8 @@ mod sessions;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tls_tests;
 
 use std::future::{Future, IntoFuture};
 use std::net::SocketAddr;
@@ -21,6 +23,7 @@ use std::time::Duration;
 
 use axum::extract::DefaultBodyLimit;
 use axum::routing::{delete, get, post, put};
+use axum::serve::Listener;
 use axum::Router;
 use forme_protocol as p;
 use tokio::sync::Semaphore;
@@ -36,8 +39,8 @@ pub(super) struct WebState {
     bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
     configuration: Option<Arc<crate::web::configuration::LocalConfigurationClient>>,
     core: Option<Arc<crate::web::core::CoreBridgeClient>>,
-    authority: String,
-    origin: String,
+    authorities: Vec<String>,
+    secure: bool,
     rate: Mutex<security::RateWindow>,
     reads: Arc<Semaphore>,
     passwords: Arc<Semaphore>,
@@ -255,6 +258,15 @@ where
     S: Future<Output = p::Result<()>>,
 {
     config.validate()?;
+    // Fail before opening the authentication writer if TLS material is invalid.
+    let tls = config
+        .tls
+        .as_ref()
+        .map(|tls| {
+            tls.load()
+                .map(|acceptor| (acceptor, tls.allowed_hosts.clone()))
+        })
+        .transpose()?;
     let open = config.clone();
     let identity = tokio::task::spawn_blocking(move || {
         let key = ed25519_dalek::VerifyingKey::from_bytes(&open.claim_verifying_key)
@@ -313,6 +325,11 @@ where
         .map_err(|_| {
             p::Error("Web address is unavailable; choose a free configured port".into())
         })?;
+    let listener = if let Some((acceptor, hosts)) = tls {
+        connections::BoundedListener::encrypted(listener, acceptor, hosts)
+    } else {
+        connections::BoundedListener::new(listener)
+    };
     serve_identity_with_setup_until(
         listener,
         identity,
@@ -336,11 +353,20 @@ where
     F: FnOnce(SocketAddr) -> p::Result<()>,
     S: Future<Output = p::Result<()>>,
 {
-    serve_identity_with_setup_until(listener, identity, None, None, None, on_bound, shutdown).await
+    serve_identity_with_setup_until(
+        connections::BoundedListener::new(listener),
+        identity,
+        None,
+        None,
+        None,
+        on_bound,
+        shutdown,
+    )
+    .await
 }
 
 async fn serve_identity_with_setup_until<F, S>(
-    listener: tokio::net::TcpListener,
+    listener: connections::BoundedListener,
     identity: Arc<WebIdentityStore>,
     bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
     configuration: Option<Arc<crate::web::configuration::LocalConfigurationClient>>,
@@ -355,7 +381,8 @@ where
     let address = listener
         .local_addr()
         .map_err(|_| p::Error("Web listener unavailable".into()))?;
-    if !address.ip().is_loopback() {
+    let secure = listener.secure();
+    if !secure && !address.ip().is_loopback() {
         return Err(p::Error(
             "plaintext Web ingress must remain loopback-only".into(),
         ));
@@ -367,8 +394,12 @@ where
         bootstrap,
         configuration,
         core,
-        authority: address.to_string(),
-        origin: format!("http://{address}"),
+        authorities: if secure {
+            listener.authorities.clone()
+        } else {
+            vec![address.to_string()]
+        },
+        secure,
         rate: Mutex::new(security::RateWindow::new()),
         reads: Arc::new(Semaphore::new(16)),
         passwords: Arc::new(Semaphore::new(2)),
@@ -376,7 +407,7 @@ where
         fence_gate: Arc::new(tokio::sync::Mutex::new(())),
     });
     let signal = admission.clone();
-    let server = axum::serve(connections::BoundedListener::new(listener), router(state))
+    let server = axum::serve(listener, router(state))
         .with_graceful_shutdown(async move {
             signal.stopped().await;
         })

@@ -455,6 +455,7 @@ fn web_read_quota_is_separate_and_rate_rejections_have_retry_after() {
 fn web_configuration_rejects_plaintext_lan_and_malformed_secret_bodies_are_not_echoed() {
     let fixture = Fixture::new(false);
     let mut config = WebServerConfig {
+        tls: None,
         bootstrap_bridge: None,
         configuration_bridge: None,
         core_bridge: None,
@@ -516,8 +517,8 @@ async fn web_cancelled_request_keeps_password_capacity_until_real_work_finishes(
         bootstrap: None,
         configuration: None,
         identity,
-        authority: "127.0.0.1:8765".into(),
-        origin: "http://127.0.0.1:8765".into(),
+        authorities: vec!["127.0.0.1:8765".into()],
+        secure: false,
         rate: Mutex::new(security::RateWindow::new()),
         reads: Arc::new(Semaphore::new(16)),
         passwords: Arc::new(Semaphore::new(1)),
