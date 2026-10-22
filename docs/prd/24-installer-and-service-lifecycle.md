@@ -176,6 +176,18 @@ Windows 额外保持原库只读、拒绝写/删除共享的文件 handle；POSI
 
 在线工作台创建恢复候选也使用同一隔离规则：一次性批准的 DataOperationPlan 摘要传入 BackupService，源备份与新目标分别持 OS 独占 fence，核对实际 owner/store 与当前脑一致后复制，在新目标封存历史执行水位，最后重新计算 manifest。恢复结果返回可选 store/fence 摘要；仅没有绑定脑身份的底层事件存储兼容路径可以为空，正式主脑不得为空。源库与旧事件不改写，候选形成不切换活动脑；后续 CommitRestore 仍必须独立完成全部生命周期阶段。旧 restore_to 签名作为本机底层兼容入口保留，正式审批路径使用 additive restore_approved_to 并传入已落盘计划摘要，不能自行拼一个“看起来像审批”的摘要。
 
+### 4.9 Host 恢复事务的离线 worker 与就绪回执
+
+Host 不增加对 store/harness/gateway 的依赖。使用已安装、只读程序目录中的固定 `bin/forme-hostctl` 作为有限本机维护子进程；程序路径取安装清单，不从请求、PATH 或当前目录寻找。参数只选择 `maintenance-restore` 与受保护安装清单；版本化、closed、有界 stdin/stdout 协议只接受 operation、当前 config revision、owner、opaque candidate ref 和确切 candidate manifest digest。子进程清理环境，不读取模型凭据、不构造 ProductionRuntime，不提供 shell/任意 SQL。缺失合法 worker 时继续拒绝 CommitRestore。
+
+Validated 核对请求、安装/config/revision 和候选引用；Quiescing intent 先落盘，再停止 core 并核对 Stopped。随后 worker 持当前库与候选库的 exclusive OS fence，实际验证同一 owner/store、候选最终 manifest、密钥与恢复边界。BackedUp intent 先于创建独立新备份，备份路径固定为 installation.backups 下的 operation 摘要，不覆盖既有目标。候选验证成功不能替代当前活动数据备份。
+
+Switching 内，worker 撤销所有旧 Web session/reauth、持久提升全局 auth epoch，并将相同 epoch 写入离线 core session fence；不修改口令、OwnerId 或内容密钥。每次操作留绑定 operation/command 的幂等回执。Host 在同一配置锁内以 expected revision/CAS 发布实际验证的 ProductDataBinding，递增配置版本并保留模型/凭据配置；绑定路径只能来自该 worker。两库 fence 持有到发布完成；只有释放确认且 worker 正常退出后才允许重启 core。
+
+Checking intent 先于重启。`ProductConfigAcknowledgement` 增加可选版本化 data identity（实际 owner/store、恢复边界、composition digest）；只有正式 ProductionRuntime 完成启动、恢复扫描和绑定检查后才能生成。无恢复绑定时兼容旧 ack；存在 active_data 时，缺少 identity、错 owner/store/fence 或旧 revision 一律不能标为生效。Host 等待确切新 revision 的有效回执并复查原生服务 Running，随后 Committed；只看到进程 Running 或配置文件存在不算通过。
+
+每个阶段的 intent 在副作用前，receipt 在完成核对后；子进程断连/超时/异常退出、备份失败、配置提交不明或就绪身份不符均进入 RecoveryRequired，保留原库、备份和原 operation。普通 StartCore/RestartCore 不能绕过未决生命周期事务，重复 CommitRestore 只查询原绑定；不以新 operation 号重试同一未决候选。Web 只提交重新认证绑定的 opaque ref/digest，不能提交数据路径、vault 或校验结果。上述运行语义的组件/进程证据与原生 SCM/IP 验收分别记录。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
