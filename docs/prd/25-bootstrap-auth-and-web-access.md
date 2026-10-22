@@ -100,8 +100,16 @@ trait CoreWebBridge {
 
 - Web 与 CLI 使用不同内部凭据；安装身份、验证公钥和独立认证 fence 路径必须一并配置，缺项阻断启动。assertion 绑定实际 method、path/query、完整 body 摘要、owner、session 摘要、epoch 和 nonce，有效期最长 30 秒；内部凭据/签名材料不进入浏览器。
 - core 在签名、请求摘要和安装/owner 校验后，原子检查 epoch 并消费 nonce，再进入原 Gateway。nonce 去重与会话/全局撤销下界保存在独立的、OS 单写者锁定的认证 SQLite 中，使用 FULL 同步事务；不写脑库/脑事件。重启不得清除仍有效的 nonce 或撤销下界；格式/身份/完整性不明拒绝恢复，不自动重建。
-- 注销/撤销先验证当前身份与对应操作 proof，再协调 core fence 和认证库提交；无效 reauth 不得提前改变 core epoch。仅当双方确认后回复撤销成功；中断返回明确未完成，不把请求成功当事务完成。后续离线撤销 outbox/内部 introspection 的完整恢复仍需联合验收，不能由本桥接组件提前宣称完成。
+- 注销/全会话撤销/改密码先验证当前身份与 exact operation proof，再在**同一认证 SQLite 事务**中提交本地撤销与 core fence outbox；无效 reauth 不改变本地 epoch、口令或 core fence。core 离线不阻止本地撤销。仅当 outbox 的全部相关 fence 得到 core 持久确认后报告双方已同步；尚未确认时返回 202，明确本地已生效、core 同步待完成，并清除浏览器 cookie。
 - 每次代理工作保留 admission/capacity guard 至真实 IO 结束；HTTP 超时或客户端断连不释放仍在工作的配额。只开放逐项允许的 brain 路由，不接受 URL proxy、浏览器指定 principal 或任意维护操作。
+
+#### 4.3.1 离线撤销与恢复
+
+- outbox 属于独立认证库，使用已验证旧格式的原子 `user_version=3 -> 4` 迁移。记录仅含版本、安装/owner 绑定、源会话摘要/epoch、目标会话范围和单调下界；无 cookie、口令、hash、provider key 或可执行脑命令。认证库损坏、未知版本或绑定不符仍拒绝，不重建。
+- 本地撤销与签发/提交内部请求共用有界 transport 配额下的串行控制门。已提前完成准入的请求可以完成；撤销提交之后，任何持有旧 `AuthenticatedWebOwner` 的排队请求都要重查真实会话，并在签名/IO 前失败。门不能仅保护 HTTP handler 的短暂生命周期。
+- Web 启动、周期维护和每次正式脑请求之前，先按原记录重送**仅减权**的 fence。ack 丢失时原记录保留；重启重发使用新 nonce，core 仅在 fence 专用路由允许被撤销的源会话提交相同或更严格的下界，不能用该恢复证明执行脑命令。收到 core 持久确认才原子移除原记录。
+- 全局与单会话 fence 均只增不减，乱序或重复递交不复活旧授权。待同步记录未清空时不向 core 发送新的脑请求；登录、状态和受认证的独立宿主维护继续可用。不存在 core 配置时保留记录，不伪造远端确认；后续接通仍先同步。
+- 原子性验收覆盖：core 离线注销/改密码、提交后重启、ack 丢失、同记录重复/乱序同步、无效 proof 零变化、旧内存身份/已签旧 assertion 拒绝、新 session 先同步后提交，以及 logout 不取消已授权任务。此组件不替代原生安装或 IP06/IP24 联合验收。
 
 ## 5. 行为、状态与并发
 
