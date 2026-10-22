@@ -2,6 +2,8 @@
 
 #[path = "hostctl_install_filesystem.rs"]
 mod hostctl_install_filesystem;
+#[path = "hostctl_install_layout.rs"]
+mod hostctl_install_layout;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -78,6 +80,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     for path in product_directories(&paths) {
         ensure_directory(path)?;
     }
+    ensure_directory(&paths.config.join("core"))?;
+    ensure_directory(&paths.keys.join("model-credentials"))?;
 
     let install_ref = random_ref("installation")?;
     let bootstrap_key = random_key()?;
@@ -93,13 +97,13 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     let bootstrap_config_path = request.config_root.join("bootstrap.json");
     let host_config_path = request.config_root.join("host.json");
     let web_config_path = request.config_root.join("web.json");
-    let core_config_path = request.config_root.join("core.json");
+    let core_config_path = request.config_root.join("core").join("core.json");
     let template_path = request.config_root.join("product-template.json");
     let web_assertion_key_path = paths.web_auth.join("web-assertion.key");
     let web_configuration_credential_path = paths.web_auth.join("configuration.token");
     let core_owner_credential_path = paths.keys.join("core-owner.token");
     let core_web_credential_path = paths.keys.join("core-web.token");
-    let core_session_fence_path = paths.host_state.join("core-auth.sqlite");
+    let core_session_fence_path = paths.brain.join("runtime").join("core-auth.sqlite");
 
     let manifest = installation_manifest(&request, &paths, &install_ref)?;
     let bootstrap = serde_json::json!({
@@ -132,7 +136,7 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
         install_ref: install_ref.clone(),
         core_config_path: core_config_path.clone(),
-        configuration_ack_path: request.config_root.join("core-config-ack.json"),
+        configuration_ack_path: paths.brain.join("runtime").join("core-config-ack.json"),
         model_credentials_directory: paths.keys.join("model-credentials"),
         brain_store_path: paths.brain.join("forme.db"),
         artifact_root: paths.brain.join("artifacts"),
@@ -444,8 +448,7 @@ fn reopen_existing(
                 .into(),
         );
     }
-    let core_config_path = request.config_root.join("core.json");
-    reject_linked_ancestors(&core_config_path)?;
+    let core_config_path = hostctl_install_layout::existing_core_path(&manifest)?;
     let core_config_path = match fs::symlink_metadata(&core_config_path) {
         Ok(metadata) if metadata.file_type().is_file() => Some(core_config_path),
         Ok(_) => return Err("existing core configuration is not a regular file".into()),

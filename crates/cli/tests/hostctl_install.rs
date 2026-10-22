@@ -40,6 +40,36 @@ fn first_run_creates_unclaimed_web_setup_without_core_config() {
     assert!(report.host_config_path.is_file());
     assert!(report.bootstrap_config_path.is_file());
     assert!(report.core_config_path.is_none());
+    let template: p::ProductConfigTemplate =
+        serde_json::from_slice(&fs::read(root.join("config/product-template.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        template.core_config_path,
+        root.join("config/core/core.json")
+    );
+    assert_eq!(
+        template.core_session_fence_path,
+        root.join("state/brain/runtime/core-auth.sqlite")
+    );
+    assert_eq!(
+        template.configuration_ack_path,
+        root.join("state/brain/runtime/core-config-ack.json")
+    );
+    #[cfg(windows)]
+    for path in [
+        &template.core_config_path,
+        &template.configuration_ack_path,
+        &template.core_session_fence_path,
+    ] {
+        // The native installer compares serialized paths, not Path components.
+        assert!(!path.to_string_lossy().contains('/'));
+    }
+    assert!(root.join("state/keys/model-credentials").is_dir());
+    // Preserve the empty-new-brain admission contract before owner claim.
+    assert!(fs::read_dir(root.join("state/brain"))
+        .unwrap()
+        .next()
+        .is_none());
     assert!(WebServerConfig::load(&report.web_config_path).is_ok());
     let manifest: p::InstallationManifest =
         serde_json::from_slice(&fs::read(&report.manifest_path).unwrap()).unwrap();
@@ -97,4 +127,103 @@ fn non_empty_brain_directory_requires_explicit_claim_or_recovery() {
         b"owner-data"
     );
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn repeat_reports_published_config_from_its_template_without_rewriting_it() {
+    let root = temporary_root("published");
+    let initial = request(&root);
+    prepare(initial.clone()).unwrap();
+    let core = root.join("config/core/core.json");
+    fs::write(&core, b"published-config-fixture").unwrap();
+    let template = fs::read(root.join("config/product-template.json")).unwrap();
+    let second = prepare(initial).unwrap();
+    assert!(!second.created);
+    assert_eq!(second.core_config_path, Some(core.clone()));
+    assert_eq!(fs::read(core).unwrap(), b"published-config-fixture");
+    assert_eq!(
+        fs::read(root.join("config/product-template.json")).unwrap(),
+        template
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn legacy_installation_keeps_original_config_fence_ack_and_keys() {
+    let root = temporary_root("legacy");
+    let initial = request(&root);
+    prepare(initial.clone()).unwrap();
+    let template_path = root.join("config/product-template.json");
+    let mut template: p::ProductConfigTemplate =
+        serde_json::from_slice(&fs::read(&template_path).unwrap()).unwrap();
+    template.core_config_path = root.join("config/core.json");
+    template.core_session_fence_path = root.join("state/host-state/core-auth.sqlite");
+    template.configuration_ack_path = root.join("config/core-config-ack.json");
+    let original = serde_json::to_vec(&template).unwrap();
+    fs::write(&template_path, &original).unwrap();
+    for path in [
+        &template.core_config_path,
+        &template.core_session_fence_path,
+        &template.configuration_ack_path,
+    ] {
+        fs::write(path, b"legacy-data").unwrap();
+    }
+    let key = fs::read(root.join("state/keys/bootstrap.key")).unwrap();
+    let second = prepare(initial).unwrap();
+    assert_eq!(
+        second.core_config_path,
+        Some(template.core_config_path.clone())
+    );
+    assert_eq!(fs::read(&template_path).unwrap(), original);
+    assert_eq!(
+        fs::read(root.join("state/keys/bootstrap.key")).unwrap(),
+        key
+    );
+    for path in [
+        template.core_config_path,
+        template.core_session_fence_path,
+        template.configuration_ack_path,
+    ] {
+        assert_eq!(fs::read(path).unwrap(), b"legacy-data");
+    }
+    assert!(!root.join("state/brain/runtime").exists());
+    assert!(!root.join("config/core/core.json").exists());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn repeat_refuses_missing_foreign_or_escaping_template_without_new_writes() {
+    for change in ["missing", "foreign", "escape", "mixed", "unknown-version"] {
+        let root = temporary_root(change);
+        let initial = request(&root);
+        let first = prepare(initial.clone()).unwrap();
+        let manifest = fs::read(&first.manifest_path).unwrap();
+        let key = fs::read(root.join("state/keys/bootstrap.key")).unwrap();
+        let path = root.join("config/product-template.json");
+        if change == "missing" {
+            fs::remove_file(&path).unwrap();
+        } else {
+            let mut template: p::ProductConfigTemplate =
+                serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+            match change {
+                "foreign" => template.install_ref = "installation:another".into(),
+                "escape" => template.core_config_path = root.join("outside.json"),
+                "mixed" => {
+                    template.core_session_fence_path =
+                        root.join("state/host-state/core-auth.sqlite")
+                }
+                "unknown-version" => template.schema_version = p::SchemaVersion(99),
+                _ => unreachable!(),
+            }
+            fs::write(&path, serde_json::to_vec(&template).unwrap()).unwrap();
+        }
+        assert!(prepare(initial).is_err());
+        assert_eq!(fs::read(first.manifest_path).unwrap(), manifest);
+        assert_eq!(
+            fs::read(root.join("state/keys/bootstrap.key")).unwrap(),
+            key
+        );
+        assert!(!root.join("config/core/core.json").exists());
+        fs::remove_dir_all(root).unwrap();
+    }
 }

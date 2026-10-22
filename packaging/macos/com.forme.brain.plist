@@ -3,6 +3,6 @@
 <plist version="1.0"><dict>
   <key>Label</key><string>com.forme.brain</string>
   <key>UserName</key><string>_formebrain</string><key>GroupName</key><string>_formebrain</string>
-  <key>ProgramArguments</key><array><string>/Library/ForMe/bin/forme-gatewayd</string><string>--config</string><string>/Library/Application Support/ForMe/config/core.json</string></array>
+  <key>ProgramArguments</key><array><string>/Library/ForMe/bin/forme-gatewayd</string><string>--config</string><string>/Library/Application Support/ForMe/config/core/core.json</string></array>
   <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
 </dict></plist>

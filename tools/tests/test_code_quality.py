@@ -69,15 +69,18 @@ class CodeQualityTests(unittest.TestCase):
             root = Path(directory)
             subprocess.run(["git", "init", "--quiet", str(root)], check=True)
             for relative in ["frontend/src/App.tsx", "frontend/src/tests/client.test.ts",
-                             "tools/build-web.mjs", "frontend/dist/assets/app.js",
+                             "tools/build-web.mjs", "packaging/windows/service-access.psm1",
+                             "packaging/windows/forme.iss", "frontend/dist/assets/app.js",
                              "frontend/node_modules/foreign/index.js"]:
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text("line\n" * 601, encoding="utf-8")
             paths = _quality.source_paths(root)
-            self.assertEqual(paths, ["frontend/src/App.tsx", "frontend/src/tests/client.test.ts", "tools/build-web.mjs"])
+            self.assertEqual(paths, ["frontend/src/App.tsx", "frontend/src/tests/client.test.ts",
+                                     "packaging/windows/forme.iss", "packaging/windows/service-access.psm1",
+                                     "tools/build-web.mjs"])
             errors, _ = file_metrics(root, paths, {})
-            self.assertEqual(len(errors), 2)
+            self.assertEqual(len(errors), 4)
             self.assertTrue(any("App.tsx" in error for error in errors))
             self.assertTrue(any("build-web.mjs" in error for error in errors))
 

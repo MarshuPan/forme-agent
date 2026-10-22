@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const binaryNames = ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl'];
 const requiredPackagingFiles = Object.freeze({
-  windows: ['forme.iss'],
+  windows: ['forme.iss', 'install-access.ps1', 'service-access.psm1'],
   linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.postinst', 'forme.spec'],
   macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/postinstall'],
 });

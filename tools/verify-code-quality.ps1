@@ -31,6 +31,10 @@ try {
     Invoke-QualityStep 'frontend dependency vulnerability audit' 'npm' @('audit', '--prefix', 'frontend', '--audit-level=moderate')
     Invoke-QualityStep 'frontend types, regressions and reproducible embedded assets' 'npm' @('--prefix', 'frontend', 'run', 'verify')
     Invoke-QualityStep 'bundle integrity and preservation regressions' 'node' @('--test', 'tools/tests/product_bundle.test.mjs')
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        Invoke-QualityStep 'current installation preparation binary' 'cargo' @('build', '--locked', '-p', 'forme-cli', '--bin', 'forme-hostctl')
+        Invoke-QualityStep 'native NTFS access descriptors and safe installation refusal' 'powershell.exe' @('-NoProfile', '-NonInteractive', '-File', 'tools/tests/windows_service_access.tests.ps1')
+    }
     $complianceArguments = @('tools/compliance-doctor.sh')
     if ($AllowMissingCorpus) { $complianceArguments += '--allow-missing-corpus' }
     Invoke-QualityStep 'originality and license' 'bash' $complianceArguments

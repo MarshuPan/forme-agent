@@ -3,7 +3,7 @@ Description=forme owner brain
 Wants=network-online.target
 After=network-online.target forme-host.service
 Requires=forme-host.service
-ConditionPathExists=/etc/forme/core.json
+ConditionPathExists=/etc/forme/core/core.json
 StartLimitIntervalSec=600
 StartLimitBurst=3
 
@@ -11,7 +11,7 @@ StartLimitBurst=3
 Type=exec
 User=forme-brain
 Group=forme-brain
-ExecStart=/opt/forme/bin/forme-gatewayd --config /etc/forme/core.json
+ExecStart=/opt/forme/bin/forme-gatewayd --config /etc/forme/core/core.json
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=90s

@@ -32,7 +32,7 @@ async function fixture(t, target = 'windows-x86_64') {
   const template = join(root, 'packaging', targets[target].template);
   await mkdir(template, { recursive: true });
   const required = {
-    windows: ['forme.iss'],
+    windows: ['forme.iss', 'install-access.ps1', 'service-access.psm1'],
     linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.postinst', 'forme.spec'],
     macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/postinstall'],
   }[targets[target].template];
@@ -130,14 +130,48 @@ test('bundle refuses an incomplete native packaging template', async (t) => {
   await assert.rejects(readdir(config.output), { code: 'ENOENT' });
 });
 
+test('Windows bundle refuses to omit either access-control helper before writing', async (t) => {
+  for (const name of ['install-access.ps1', 'service-access.psm1']) {
+    const { root, config } = await fixture(t);
+    await rm(join(root, 'packaging/windows', name));
+    await assert.rejects(buildBundle(config, root), /missing required input/);
+    await assert.rejects(readdir(config.output), { code: 'ENOENT' });
+  }
+});
+
 test('Windows installer registers and removes all three resident services', async () => {
   const template = await readFile(join(repositoryRoot, 'packaging/windows/forme.iss'), 'utf8');
   for (const [binary, config] of [
     ['forme-hostd', 'host.json'],
     ['forme-webd', 'web.json'],
-    ['forme-gatewayd', 'core.json'],
+    ['forme-gatewayd', 'core\\core.json'],
   ]) {
-    assert.match(template, new RegExp(`${binary}\\.exe"; Parameters: "--install-service --config .*${config}`));
-    assert.match(template, new RegExp(`${binary}\\.exe"; Parameters: "--uninstall-service --config .*${config}`));
+    const escaped = config.replaceAll('\\', '\\\\').replaceAll('.', '\\.');
+    assert.match(template, new RegExp(`RequireStep\\(ExpandConstant\\('\\{app\\}\\\\bin\\\\${binary}\\.exe'\\),\\s*'--install-service --config .*${escaped}`));
+    assert.match(template, new RegExp(`RunChecked\\(ExpandConstant\\('\\{app\\}\\\\bin\\\\${binary}\\.exe'\\),\\s*'--uninstall-service --config .*${escaped}`));
   }
+  const install = template.slice(template.indexOf('procedure CurStepChanged'));
+  const stages = ['prepare installation', 'register Host', 'register Web', 'register Brain',
+    "AccessArguments('Grant')", "AccessArguments('Verify')", "AccessArguments('Start')"];
+  let previous = -1;
+  for (const stage of stages) { const index = install.indexOf(stage); assert.ok(index > previous); previous = index; }
+  assert.match(template, /Result := Result and \(ExitCode = 0\)/);
+  assert.match(template, /if not RunChecked[\s\S]*?RaiseException/);
+  assert.ok(template.indexOf("AccessArguments('Prepare')") < template.indexOf('procedure CurStepChanged'));
+  assert.doesNotMatch(template.slice(template.indexOf('[Run]'), template.indexOf('[Code]')), /install-service/);
+  assert.doesNotMatch(template, /\[UninstallRun\]/);
+  const uninstall = template.slice(template.indexOf('function InitializeUninstall'));
+  assert.match(uninstall, /if Result then\s*Result := RunChecked/g);
+  assert.match(uninstall, /if not Result then\s*MsgBox/);
+  assert.ok(uninstall.indexOf('remove Web service') < uninstall.indexOf('remove Brain service'));
+  assert.ok(uninstall.indexOf('remove Brain service') < uninstall.indexOf('remove Host service'));
+});
+
+test('native brain launch paths agree with the partitioned published configuration', async () => {
+  const linux = await readFile(join(repositoryRoot, 'packaging/linux/forme-brain.service'), 'utf8');
+  assert.match(linux, /^ConditionPathExists=\/etc\/forme\/core\/core\.json$/m);
+  assert.match(linux, /^ExecStart=.* --config \/etc\/forme\/core\/core\.json$/m);
+  const macos = await readFile(join(repositoryRoot, 'packaging/macos/com.forme.brain.plist'), 'utf8');
+  assert.ok(macos.includes('<string>/Library/Application Support/ForMe/config/core/core.json</string>'));
+  assert.ok(!linux.includes('/etc/forme/core.json') && !macos.includes('/config/core.json'));
 });
