@@ -2,9 +2,11 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`。最新主脑工作台实现为 `477ef52`（设计说明 `f5ca7bf`、`c014a68`），权限分区 `29984a4`、前批配置闭合 `01b77f9`；验证日期 2026-10-22。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
+最新施工分支：`shu/installed-product`。最新实现 `b16997c`（原生打包入口/POSIX 权限），前批 `92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）；验证日期 2026-10-23。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
 
 ## 1. 实施顺序与当前范围
+
+2026-10-23 新增[原生打包入口与 POSIX 权限组件](installed-product-native-packaging-acceptance.md)：原生编译器固定参数/SHA pin/独立快照入口、首次安装权限和精确 bundle→signer 接缝已实现。当前 Rust 802 passed / 0 failed / 5 默认 ignored，打包与真实 Rust 验签 28/28，strict Clippy/完整合规/结构门通过。原生编译、签名公证、实际平台安装仍未执行；恢复切换、升级回滚、隔离和其余产品义务持续实施。
 
 2026-10-23 新增[离线数据维护与恢复候选组件](installed-product-offline-data-acceptance.md)：受管/只读密钥库、authority clone 生命周期 OS fence、本机 inspect/backup/verify/plan/restore，以及新路径正式 core 重启恢复回答已实现。离线存储投影不依赖模型配置可运行；实际临时进程链路已验证，活动数据切换与完整 Host 生命周期继续实施。总目标是全部已批准设计的实现与统一验收，组件完成不作为任务终点。
 
@@ -14,7 +16,7 @@
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
 | 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 已有受管 Host、三个 daemon 的 SCM host 与 typed 注册/移除；`29984a4` 增加新安装路径分权、固定 Windows ACL helper 和实际临时 NTFS 组件验证。真实服务账户 token/有效拒绝、job 强隔离/网络与会话 helper 仍未验收或完成，普通 worker 在生产继续 blocked。 |
-| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle、资源检查与三平台包模板；新增先保护目录再写秘密、逐步检查退出状态的首次安装/卸载控制流，旧布局保留并拒绝自动迁移。尚未编译 Inno Setup 或执行管理员原生安装；完整生命周期事务、签名可发布原生包与跨平台验收未完成。 |
+| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle、精确签名/验签和三平台原生编译入口；POSIX 权限、新配置发布、首次安装/卸载失败边界已实现。尚未运行原生编译器或管理员安装；完整生命周期事务、签名可发布原生包与跨平台验收未完成。 |
 | 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、受管 core 文件配置、私有模型凭据 resolver、签名会话桥与持久 nonce/fence 之后，`01b77f9` 完成模型配置 journal/staging/CAS、不可变凭据、重启恢复、静态校验、口令绑定启停与 core acknowledgement。实际 host/web/core 进程验证认领、配置持久化、幂等和正式 Run；已认证浏览器验证设置页。旧脑/备份接管、OS 恢复、LAN TLS、完整能力/渠道配置和整机初始化仍待实施。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、对话/事件续接/审批/取消、项目登记/路线规划/执行/取消、Charter 读写、认知只读投影、运行收件箱与密码/健康设置。新增模型设置、静态检查、重新认证启动/重启、原 operation 核实和主脑生效确认；关闭 core 仍可访问设置。附件/产物、完整收件箱/候选处置、其余设置/维护和完整浏览器联合流程尚未完成；不宣称 IP17–23/IP24 原生通过。 |
 

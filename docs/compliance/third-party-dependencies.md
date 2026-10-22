@@ -149,3 +149,11 @@ already recorded exact-pinned `serde 1.0.228` to encode typed, versioned
 restore plans and receipts. The implementation uses repository-owned data
 facades and the standard process/filesystem APIs. No internal crate edge,
 brain EventKind, copied implementation, fixture or source layout is added.
+
+Installed native package compilation (2026-10-23): repository-owned Node
+standard-library tooling and POSIX access hooks add no runtime package or
+third-party implementation. Native compilers are external build tools, supplied
+by explicit canonical path and SHA-256 pin; their version labels are operator
+metadata, not detected provenance. No native compiler, signing identity or
+notarization credential is bundled or silently installed. Actual tool license,
+provenance, code signing and native execution remain release obligations.
