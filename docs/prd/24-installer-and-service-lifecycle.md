@@ -196,6 +196,16 @@ Checking intent 先于重启。`ProductConfigAcknowledgement` 增加可选版本
 
 每个阶段的 intent 在副作用前，receipt 在完成核对后；子进程断连/超时/异常退出、备份失败、配置提交不明或就绪身份不符均进入 RecoveryRequired，保留原库、备份和原 operation。普通 StartCore/RestartCore 不能绕过未决生命周期事务，重复 CommitRestore 只查询原绑定；不以新 operation 号重试同一未决候选。Web 只提交重新认证绑定的 opaque ref/digest，不能提交数据路径、vault 或校验结果。上述运行语义的组件/进程证据与原生 SCM/IP 验收分别记录。
 
+### 4.10 已落盘发布的重新认证与升级接管
+
+升级/兼容回滚只能消费同一 installation 已 `Committed` 的 `StageSignedRelease`，不能拿 inbox、目录存在或前端自报摘要当作已就绪。`ReleaseStager::verified_staged(journal, release_id, release_digest)` 从原 journal 找到唯一成功 staging 操作，核对 installation 初始绑定、command/operation/ref、独立不可变 record 的 canonical digest 是否出现在原 receipt、签名与全部实际文件。源 inbox 可以已经移走；落盘 record 或文件被改动、阶段未完成、来自其他 installation、同名摘要不符都拒绝。返回的验证 handle 由库构造，不接受反序列化；切换前必须再次 recheck。
+
+兼容性依据离线检查到的实际 core config schema 和 SQLite schema，不用备份 manifest 的 schema_version，也不用发布自称的 write_version 代替当前库事实。目标必须能读当前版本、minimum_upgrader 不高于实际 updater；本机没有对应迁移实现时拒绝需要新写入 schema 的发布。binary rollback 不能悄悄恢复旧数据；不兼容转显式新路径恢复。签名、文件完整和 schema 检查通过只形成可用候选，不修改服务、active release、数据或工作准入。
+
+完整升级仍走 §5.4 的全部阶段。自更新使用受安装权限保护的固定 updater，由原生管理器托管在被更新的 Host/Web 服务生命周期之外；不依赖请求 handler 的生存时间，也不覆盖运行中的程序。Host 在启动 updater 之前持久化原 operation 的接管意图；updater 只接受固定安装记录与 operation 引用，取得原管理 writer 后核对确切 command、未决阶段、配置 revision、期限、原 release 和目标签名。接管失败/副作用不明保留原 operation，不能换号或重放。
+
+新 release 的程序保持不可变。切换只修改内置三个服务的确切 image/固定配置参数与受保护 active-release 投影，保留原账户、权限、依赖和恢复策略。初始 InstallationManifest 与 journal 的初始验证不改写；后续活动版本必须能追溯到同一 journal 的批准切换。Checking 期间新 Host 只能核实原接管，不重新停服/备份/切换；实际新程序、原 owner/store/event 连续性、配置 ack 与服务状态通过后，先提交 Committed 再开放工作准入。失败保留可运行的旧 release 和数据备份，显式进入恢复核实；组件通过不等于三平台自更新/IP14–15 已通过。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
