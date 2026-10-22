@@ -2688,6 +2688,11 @@ impl ContextSliceSource for ProductionContextSliceSource {
                 provenance,
             },
         ];
+        slices.extend(super::production_artifacts::workbench_artifact_slices(
+            &self.store,
+            &self.aggregates.owner,
+            &request.session,
+        )?);
         if let Some(charter) = self.store.workspace_charter(&request.workspace)? {
             p::CharterRules::parse(&charter)?;
             slices.push(ContextSlice {

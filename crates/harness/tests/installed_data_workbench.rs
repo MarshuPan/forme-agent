@@ -418,3 +418,42 @@ fn web_data_contract_rejects_paths_unknown_fields_and_internal_scopes_before_wri
     assert!(serde_json::from_value::<p::DataWorkbenchCommand>(raw).is_err());
     assert_eq!(events(&runtime), before);
 }
+
+#[test]
+fn workbench_artifacts_are_encrypted_idempotent_and_session_bound() {
+    let f = Fixture::new();
+    let runtime = f.build();
+    let upload = p::ArtifactUploadCommand {
+        schema_version: p::SchemaVersion(1),
+        command: p::IdempotencyKey("artifact:one".into()),
+        session: p::SessionId("session:one".into()),
+        workspace: Some(f.config.workspace.clone()),
+        file_name: "notes.txt".into(),
+        media_type: "text/plain".into(),
+        bytes_hex: "70726976617465206e6f746573".into(),
+    };
+    let receipt = runtime
+        .upload_workbench_artifact(&f.owner(), upload.clone())
+        .unwrap();
+    assert_eq!(
+        runtime
+            .read_workbench_artifact(
+                &f.owner(),
+                &receipt.content_ref,
+                &p::SessionId("session:one".into())
+            )
+            .unwrap(),
+        b"private notes"
+    );
+    assert!(runtime
+        .read_workbench_artifact(
+            &f.owner(),
+            &receipt.content_ref,
+            &p::SessionId("session:other".into())
+        )
+        .is_err());
+    let same = runtime
+        .upload_workbench_artifact(&f.owner(), upload)
+        .unwrap();
+    assert_eq!(same.content_ref, receipt.content_ref);
+}

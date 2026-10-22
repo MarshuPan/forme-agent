@@ -74,6 +74,15 @@ pub(super) fn bind_body(
         }
         return serde_json::to_vec(&command).map_err(|_| WebError::invalid());
     }
+    if path == "artifacts/upload" {
+        let command: p::ArtifactUploadCommand =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        command.validate().map_err(|_| WebError::invalid())?;
+        if Some(command.command.0.as_str()) != key {
+            return Err(WebError::invalid());
+        }
+        return serde_json::to_vec(&command).map_err(|_| WebError::invalid());
+    }
     if matches!(segments.as_slice(), ["runs", _, "control"]) {
         let control: WebRunControl =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;

@@ -71,6 +71,11 @@
 .inbox-list { display: grid; gap: .7rem; }
 .inbox-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.3rem 1.6rem; background: #fff; border: 1px solid var(--line); border-radius: .5rem; text-align: left; }
 .inbox-item:hover { border-color: #becbb0; background: #f8fbf4; }
+.attachment-button { position: relative; overflow: hidden; cursor: pointer; }
+.attachment-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.attachment-list { list-style: none; display: grid; gap: .5rem; margin: 0 0 .75rem; padding: 0; }
+.attachment-list li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem .9rem; border: 1px solid var(--line); background: #fbfcf9; border-radius: .4rem; }
+.attachment-list small { display: block; color: #98a28b; margin-top: .2rem; }
 .inbox-item strong { color: #647650; font-size: .92rem; font-weight: 500; }
 .inbox-item small { display: block; color: #98a28b; margin-top: .4rem; overflow-wrap: anywhere; }
 .inbox-item > span:last-child { color: #99a68b; font-size: .77rem; white-space: nowrap; }

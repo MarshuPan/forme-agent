@@ -1,5 +1,5 @@
 import { isRecord, versioned } from '../types.ts';
-import type { ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
 import type { WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
@@ -124,6 +124,20 @@ export class WorkbenchClient {
   run(run: string) { return this.json<RunSummary>(`brain/runs/${id(run)}`); }
   submit(command: RunCommand) { return this.json<string>('brain/runs', 'POST', command, command.idempotency_key); }
   async events(run: string, after: number) { return (await this.request(`brain/runs/${id(run)}/events?after=${after}`)).text(); }
+  async uploadArtifact(session: string, workspace: string | null, file: File, operation = newKey('artifact')) {
+    if (file.size === 0 || file.size > 4 * 1024 * 1024) throw new Error('附件必须大于 0 且不超过 4 MiB。');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bytesHex = '';
+    for (const byte of bytes) bytesHex += byte.toString(16).padStart(2, '0');
+    return this.json<ArtifactUploadReceipt>('artifacts/upload', 'POST', {
+      schema_version: 1, command: operation, session, workspace,
+      file_name: file.name, media_type: file.type || 'application/octet-stream', bytes_hex: bytesHex,
+    }, operation);
+  }
+  async artifact(contentRef: string, session: string) {
+    const response = await this.request(`artifacts/${id(contentRef)}?session=${id(session)}`);
+    return response.blob();
+  }
   answer(run: string) { return this.json<{ schema_version: 1; run: string; answer: string | null }>(`brain/runs/${id(run)}/answer`); }
   approvals(session: string) { return this.json<PendingApproval[]>(`brain/sessions/${id(session)}/approvals`); }
   async cancel(run: string, operation: string) {

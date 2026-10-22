@@ -80,6 +80,24 @@ test('project and charter mutations keep one server command key and use allowlis
   assert.deepEqual(JSON.parse(String(calls[0].request.body)), { schema_version: 1, request: { operation: 'execute', route: { route: 'route:fixture' } } });
 });
 
+test('artifact upload and download stay on same-origin scoped routes', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    if (calls.length === 1) return Response.json({ schema_version: 1, content_ref: 'content:fixture', content_digest: 'sha256:fixture', scope: 'workbench-artifact:session:one', bytes: 2, file_name: 'a.txt', media_type: 'text/plain' });
+    return new Response(new Uint8Array([104, 105]), { headers: { 'Content-Type': 'application/octet-stream' } });
+  });
+  const receipt = await api.uploadArtifact('session:one', null, new File(['hi'], 'a.txt', { type: 'text/plain' }), 'artifact:one');
+  assert.equal(receipt.content_ref, 'content:fixture');
+  assert.equal(calls[0].path, '/api/v1/artifacts/upload');
+  assert.equal(new Headers(calls[0].request.headers).get('Idempotency-Key'), 'artifact:one');
+  const body = JSON.parse(String(calls[0].request.body));
+  assert.equal(body.bytes_hex, '6869');
+  const bytes = new Uint8Array(await (await api.artifact(receipt.content_ref, 'session:one')).arrayBuffer());
+  assert.deepEqual([...bytes], [104, 105]);
+  assert.equal(calls[1].path, '/api/v1/artifacts/content%3Afixture?session=session%3Aone');
+});
+
 test('brain view pages retain their server digest and review controls retain the original binding', async () => {
   const calls: { path: string; request: RequestInit }[] = [];
   const api = new WorkbenchClient(async (input, request) => {

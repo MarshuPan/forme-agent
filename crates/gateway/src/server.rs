@@ -6,6 +6,7 @@ use runtime::serve_runtime_until;
 pub use runtime::{serve_environment, serve_environment_until, serve_managed_until};
 mod observability;
 use observability::*;
+mod artifacts;
 mod data;
 mod data_workbench;
 use data::*;
@@ -234,6 +235,8 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/brain/learning/goals", post(register_learning_goal))
         .route("/v1/brain/learning/answer", post(answer_learning))
         .route("/v1/brain/learning/resolve", post(resolve_learning))
+        .route("/v1/artifacts/upload", post(artifacts::upload))
+        .route("/v1/artifacts/{id}", get(artifacts::read))
         .route("/v1/profile", get(control_profile))
         .route("/v1/runs", get(list_runs).post(submit_run))
         .route("/v1/runs/{run}", get(run_summary))

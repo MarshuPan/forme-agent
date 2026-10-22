@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
 import { emptyEvents, parseEvents, readDelay, reduceEvents } from '../events.ts';
 import type { EventState } from '../events.ts';
 import { isFinished } from '../types.ts';
-import type { PendingApproval, RunCommand, RunSummary, RuntimeView, WorkbenchSessionRecord } from '../types.ts';
+import type { ArtifactUploadReceipt, PendingApproval, RunCommand, RunSummary, RuntimeView, WorkbenchSessionRecord } from '../types.ts';
 import { Approval } from './Approval.tsx';
 
 interface Props {
@@ -25,6 +25,8 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   const [answer, setAnswer] = useState<string | null>(null);
   const [events, setEvents] = useState<EventState>(() => emptyEvents(''));
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
+  const [attachments, setAttachments] = useState<ArtifactUploadReceipt[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const cancelOperation = useRef(newKey('cancel'));
@@ -85,6 +87,29 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     } catch (problem) { setError(problem instanceof Error ? problem.message : '提交结果尚未确认。'); }
     finally { setBusy(false); }
   }
+  async function upload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]; event.target.value = '';
+    if (!file || attachmentBusy) return;
+    setAttachmentBusy(true); setError('');
+    try {
+      let activeSession = session;
+      if (!sessions.some((item) => item.session === activeSession)) {
+        const created = await api.createWorkbenchSession(file.name.slice(0, 64) || '新对话', null);
+        activeSession = created.session; setSession(activeSession); setSessionTitle(created.title); await refreshSessions();
+      }
+      const receipt = await api.uploadArtifact(activeSession, null, file);
+      setAttachments((current) => [...current, receipt]);
+    } catch (problem) { setError(problem instanceof Error ? problem.message : '附件上传结果尚未确认。'); }
+    finally { setAttachmentBusy(false); }
+  }
+  async function downloadAttachment(attachment: ArtifactUploadReceipt) {
+    if (!sessions.some((item) => item.session === session)) return;
+    try {
+      const blob = await api.artifact(attachment.content_ref, session);
+      const url = URL.createObjectURL(blob), link = document.createElement('a');
+      link.href = url; link.download = attachment.file_name; link.click(); URL.revokeObjectURL(url);
+    } catch (problem) { setError(problem instanceof Error ? problem.message : '附件读取结果尚未确认。'); }
+  }
   async function renameSession() {
     const current = sessions.find((item) => item.session === session);
     if (!current) return;
@@ -124,10 +149,12 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
         {summary && answer === null && <p className="muted">{summary.status === 'Waiting' ? '任务正在等待输入、审批或结果核实。' : isFinished(summary.status) ? '本次运行没有可展示的最终回答。' : '主脑正在处理，公开进度见任务详情。'}</p>}
         {approvals.map((item) => <Approval key={item.approval_id} api={api} item={item} changed={() => { setRevision((v) => v + 1); void refresh(); }} />)}
       </div>
+      {attachments.length > 0 && <ul className="attachment-list" aria-label="当前会话附件">{attachments.map((attachment, index) => <li key={`${attachment.content_ref}:${index}`}><span>{attachment.file_name}<small>{Math.ceil(attachment.bytes / 1024)} KiB · 已加密保存，会话运行可读取</small></span><button type="button" className="text-button" onClick={() => void downloadAttachment(attachment)}>下载</button></li>)}</ul>}
       <form className="composer" onSubmit={submit}>
         <label className="sr-only" htmlFor="message">给 forme 的消息</label>
         <textarea id="message" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} maxLength={6000} disabled={pending !== null} placeholder="说说你的想法，或交给 forme 一件事…" required />
         <div className="composer-footer"><span className="muted">{pending ? '保留原操作标识，核实后再开始下一项。' : '任务执行与审批始终由主脑管理。'}</span>
+          <label className="secondary-button attachment-button">{attachmentBusy ? '正在上传…' : '添加附件'}<input type="file" onChange={(event) => void upload(event)} disabled={pending !== null || attachmentBusy} /></label>
           <button className="primary-button" disabled={busy || !runtime || (!pending && !draft.trim())}>{busy ? '正在提交…' : pending ? '核实原提交' : '发送'}</button></div>
       </form>
     </div><aside className="details-panel" aria-label="任务详情">

@@ -10,6 +10,10 @@ export interface WorkbenchSessionRecord {
   archived: boolean; created_at: number; updated_at: number;
 }
 export interface WorkbenchSessionList { schema_version: 1; sessions: WorkbenchSessionRecord[] }
+export interface ArtifactUploadReceipt {
+  schema_version: 1; content_ref: string; content_digest: string; scope: string;
+  bytes: number; file_name: string; media_type: string;
+}
 export type WorkbenchSessionMutation =
   | { operation: 'rename'; title: string }
   | { operation: 'archive'; archived: boolean }

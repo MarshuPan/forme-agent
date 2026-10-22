@@ -197,6 +197,8 @@ fn allowlisted_core_path(
         ["learning", "goals"] => ("/v1/brain/learning/goals".to_owned(), RouteMethods::Post),
         ["learning", "answer"] => ("/v1/brain/learning/answer".to_owned(), RouteMethods::Post),
         ["learning", "resolve"] => ("/v1/brain/learning/resolve".to_owned(), RouteMethods::Post),
+        ["artifacts", "upload"] => ("/v1/artifacts/upload".to_owned(), RouteMethods::Post),
+        ["artifacts", artifact] => (format!("/v1/artifacts/{artifact}"), RouteMethods::Get),
         ["workspaces", workspace, "charter"] => (
             format!("/v1/workspaces/{workspace}/charter"),
             RouteMethods::GetPostPut,
@@ -251,6 +253,8 @@ fn allowlisted_core_path(
                 | "review"
                 | "workbench"
                 | "query"
+                | "artifacts"
+                | "upload"
         )
     }) {
         forme_protocol::validate_product_id(segment).map_err(|_| WebError::invalid())?;
@@ -267,6 +271,20 @@ fn allowlisted_core_path(
                 .ok_or_else(WebError::invalid)?;
             let after = after.parse::<u64>().map_err(|_| WebError::invalid())?;
             Ok(format!("{core_path}?after={after}"))
+        }
+        Some(value) if matches!(segments.as_slice(), ["artifacts", _]) => {
+            let session = value
+                .strip_prefix("session=")
+                .filter(|value| {
+                    !value.is_empty()
+                        && value.len() <= 256
+                        && value.bytes().all(|byte| {
+                            byte.is_ascii_alphanumeric()
+                                || matches!(byte, b'%' | b':' | b'_' | b'-')
+                        })
+                })
+                .ok_or_else(WebError::invalid)?;
+            Ok(format!("{core_path}?session={session}"))
         }
         Some(_) => Err(WebError::invalid()),
     }
@@ -308,6 +326,18 @@ mod tests {
         assert_eq!(
             allowlisted_core_path("POST", "workspaces/workspace:demo/charter", None).unwrap(),
             "/v1/workspaces/workspace:demo/charter"
+        );
+        assert_eq!(
+            allowlisted_core_path(
+                "GET",
+                "artifacts/content:fixture",
+                Some("session=session%3Aone")
+            )
+            .unwrap(),
+            "/v1/artifacts/content:fixture?session=session%3Aone"
+        );
+        assert!(
+            allowlisted_core_path("GET", "artifacts/content:fixture", Some("scope=other")).is_err()
         );
         assert!(allowlisted_core_path("GET", "runtime/doctor", None).is_err());
         assert!(allowlisted_core_path("GET", "unknown", None).is_err());

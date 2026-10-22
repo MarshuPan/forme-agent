@@ -78,6 +78,90 @@ impl DataOperationPlan {
     }
 }
 impl ProductionRuntime {
+    pub fn upload_workbench_artifact(
+        &self,
+        owner: &p::VerifiedPrincipal,
+        command: p::ArtifactUploadCommand,
+    ) -> p::Result<p::ArtifactUploadReceipt> {
+        let _guard = self.data_read_guard()?;
+        self.require_brain_owner(owner)?;
+        command.validate()?;
+        if command
+            .workspace
+            .as_ref()
+            .is_some_and(|workspace| workspace.0 != self.config().workspace.0)
+        {
+            return Err(p::Error(
+                "artifact workspace is outside the configured brain".into(),
+            ));
+        }
+        let bytes = decode_hex(&command.bytes_hex)?;
+        if bytes.is_empty() || bytes.len() > 4 * 1024 * 1024 {
+            return Err(p::Error("artifact upload exceeds its bounded size".into()));
+        }
+        let scope = p::Scope(format!("workbench-artifact:{}", command.session.0));
+        let content_digest = p::sha256_content_digest(&bytes);
+        let subject = p::canonical_digest(&(
+            &command.session,
+            &command.workspace,
+            &command.file_name,
+            &command.media_type,
+            &content_digest,
+        ))?;
+        let object = format!("artifact:{}", command.command.0);
+        let protection = self
+            .services()
+            .store
+            .content_protection()?
+            .ok_or_else(|| p::Error("artifact protection is unavailable".into()))?;
+        let lifecycle = protection.lifecycle_service(self.services().store.as_ref().clone());
+        let (_, record) = protection.seal_record(&bytes, &scope, &object, &subject)?;
+        if let Some(existing) = lifecycle.protected_content(owner, &record.content_ref)? {
+            if existing.subject_digest != subject {
+                return Err(p::Error("artifact command identity conflict".into()));
+            }
+        } else {
+            lifecycle.put_protected_content(owner, record.clone())?;
+        }
+        Ok(p::ArtifactUploadReceipt {
+            schema_version: p::SchemaVersion(1),
+            content_ref: record.content_ref,
+            content_digest,
+            scope,
+            bytes: bytes.len() as u64,
+            file_name: command.file_name,
+            media_type: command.media_type,
+        })
+    }
+
+    pub fn read_workbench_artifact(
+        &self,
+        owner: &p::VerifiedPrincipal,
+        id: &p::ContentRef,
+        session: &p::SessionId,
+    ) -> p::Result<Vec<u8>> {
+        let _guard = self.data_read_guard()?;
+        self.require_brain_owner(owner)?;
+        let protection = self
+            .services()
+            .store
+            .content_protection()?
+            .ok_or_else(|| p::Error("artifact protection is unavailable".into()))?;
+        let lifecycle = protection.lifecycle_service(self.services().store.as_ref().clone());
+        let record = lifecycle
+            .protected_content(owner, id)?
+            .ok_or_else(|| p::Error("artifact is absent or erased".into()))?;
+        if !record.scope.0.starts_with("workbench-artifact:") {
+            return Err(p::Error("content is not a workbench artifact".into()));
+        }
+        if record.scope != p::Scope(format!("workbench-artifact:{}", session.0)) {
+            return Err(p::Error("artifact is outside the requested session".into()));
+        }
+        protection
+            .content_service()
+            .decrypt(&record.envelope.binding(), &record.envelope)
+    }
+
     pub fn read_protected_artifact(
         &self,
         owner: &p::VerifiedPrincipal,
@@ -429,6 +513,22 @@ impl ProductionRuntime {
         )?;
         Ok(result)
     }
+}
+
+fn decode_hex(value: &str) -> p::Result<Vec<u8>> {
+    value
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let high = (pair[0] as char)
+                .to_digit(16)
+                .ok_or_else(|| p::Error("artifact bytes are not valid hex".into()))?;
+            let low = (pair[1] as char)
+                .to_digit(16)
+                .ok_or_else(|| p::Error("artifact bytes are not valid hex".into()))?;
+            Ok(((high << 4) | low) as u8)
+        })
+        .collect()
 }
 fn lifecycle_request(
     owner: &p::VerifiedPrincipal,

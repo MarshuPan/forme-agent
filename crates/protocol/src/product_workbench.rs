@@ -141,3 +141,53 @@ pub struct ArtifactUploadReceipt {
     pub file_name: String,
     pub media_type: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactUploadCommand {
+    pub schema_version: SchemaVersion,
+    pub command: IdempotencyKey,
+    pub session: SessionId,
+    pub workspace: Option<WorkspaceRef>,
+    pub file_name: String,
+    pub media_type: String,
+    /// Hex is used at this closed JSON boundary so the browser never sends
+    /// multipart data through the core bridge. The plaintext is encrypted
+    /// before it reaches the protected content catalog.
+    pub bytes_hex: String,
+}
+
+impl ArtifactUploadCommand {
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.schema_version != SchemaVersion(1)
+            || !valid_id(&self.command.0)
+            || !valid_id(&self.session.0)
+            || self.file_name.trim().is_empty()
+            || self.file_name.len() > 200
+            || self.file_name.chars().any(char::is_control)
+            || self.media_type.trim().is_empty()
+            || self.media_type.len() > 128
+            || self
+                .media_type
+                .chars()
+                .any(|value| value.is_control() || value == '\n' || value == '\r')
+            || self.bytes_hex.is_empty()
+            || self.bytes_hex.len() > 8 * 1024 * 1024
+            || !self.bytes_hex.len().is_multiple_of(2)
+            || !self
+                .bytes_hex
+                .bytes()
+                .all(|value| value.is_ascii_hexdigit())
+        {
+            return Err(crate::Error("artifact upload command is invalid".into()));
+        }
+        if self
+            .workspace
+            .as_ref()
+            .is_some_and(|value| !valid_id(&value.0))
+        {
+            return Err(crate::Error("artifact workspace is invalid".into()));
+        }
+        Ok(())
+    }
+}
