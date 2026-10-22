@@ -62,9 +62,17 @@ pub(crate) struct WorkAdmission {
     state: Mutex<AdmissionState>,
     changed: Notify,
     stopped: Notify,
+    check: Option<Arc<dyn Fn() -> p::Result<()> + Send + Sync>>,
 }
 
 impl WorkAdmission {
+    pub(crate) fn guarded(check: impl Fn() -> p::Result<()> + Send + Sync + 'static) -> Self {
+        Self {
+            check: Some(Arc::new(check)),
+            ..Self::default()
+        }
+    }
+
     pub(crate) fn acquire(self: &Arc<Self>) -> p::Result<WorkLease> {
         let mut state = self
             .state
@@ -72,6 +80,9 @@ impl WorkAdmission {
             .map_err(|_| p::Error("core admission is unavailable".into()))?;
         if state.closing {
             return Err(p::Error("core is draining; new work is unavailable".into()));
+        }
+        if let Some(check) = &self.check {
+            check()?;
         }
         state.active = state
             .active

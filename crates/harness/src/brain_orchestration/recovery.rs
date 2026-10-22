@@ -215,6 +215,14 @@ impl ProductionRuntime {
         let Some(record) = state.routes.get(route) else {
             return Err(p::Error("unknown route".into()));
         };
+        if self
+            .services()
+            .store
+            .restored_execution_fence()?
+            .is_some_and(|fence| fence.contains(&record.declaration.parent))
+        {
+            return Ok(());
+        }
         for (id, node) in &record.nodes {
             if matches!(
                 node.status,

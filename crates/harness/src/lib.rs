@@ -2213,6 +2213,13 @@ impl ReactiveHarness {
         let mut followups = Vec::new();
         let max = self.scheduler_runtime()?.config.max_claims_per_tick as usize;
         'runs: for source_run in self.store.run_ids()? {
+            if self
+                .store
+                .restored_execution_fence()?
+                .is_some_and(|fence| fence.contains(&source_run))
+            {
+                continue;
+            }
             let events = self
                 .store
                 .read_run(source_run)
@@ -3532,6 +3539,7 @@ impl ReactiveHarness {
     }
 
     fn drive(&self, run: &p::RunId, handle: &Arc<RunHandle>) -> p::Result<()> {
+        self.store.require_current_execution(run)?;
         let _data_access = self.data_read_guard()?;
         loop {
             let mut record = handle
@@ -5380,6 +5388,7 @@ impl AgentHarness for ReactiveHarness {
     }
 
     fn resume(&self, run: p::RunId, input: ResumeInput) -> p::Result<()> {
+        self.store.require_current_execution(&run)?;
         if let Some(child) = self.child_executor(&run)? {
             return child.resume(run, input);
         }

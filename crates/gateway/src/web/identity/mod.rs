@@ -1,6 +1,8 @@
 //! Independent durable owner authentication. No brain-store or model access.
 mod account;
 mod challenge;
+mod local_fence;
+pub(crate) use local_fence::fence_installed_sessions;
 mod maintenance;
 mod password;
 mod recovery;

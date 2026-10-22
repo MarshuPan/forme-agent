@@ -42,7 +42,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         }
     }
 
-    fn change_core(&self, action: p::NativeServiceAction) -> p::Result<p::NativeReceipt> {
+    pub(super) fn change_core(
+        &self,
+        action: p::NativeServiceAction,
+    ) -> p::Result<p::NativeReceipt> {
         let receipt = self.services.apply(p::ValidatedServiceChange {
             schema_version: p::SchemaVersion(1),
             service: p::BuiltinServiceId::Brain,

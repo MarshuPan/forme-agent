@@ -18,6 +18,8 @@ pub struct ManagedBrainConfig {
     /// No keys are copied into backups or derived from the login password.
     #[serde(default)]
     pub content_key_directory: Option<PathBuf>,
+    #[serde(default)]
+    pub expected_restoration_fence: Option<p::SchemaDigest>,
     pub artifact_root: PathBuf,
     pub workspace: p::WorkspaceRef,
     pub agent_profile: p::AgentProfileRef,
@@ -38,6 +40,12 @@ pub struct ManagedModelProfile {
 
 impl ManagedBrainConfig {
     pub fn runtime_config(&self) -> p::Result<ProductionRuntimeConfig> {
+        if let Some(digest) = &self.expected_restoration_fence {
+            p::sha256_digest_bytes(digest)?;
+            if self.content_key_directory.is_none() {
+                return Err(invalid());
+            }
+        }
         if self.schema_version != p::SchemaVersion(1)
             || self.models.is_empty()
             || self.models.len() > 32

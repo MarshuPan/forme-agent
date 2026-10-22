@@ -20,6 +20,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
         owner: c.owner.clone(),
         store_path: c.store_path.clone(),
         content_key_directory: None,
+        expected_restoration_fence: None,
         artifact_root: c.data.artifact_root.clone(),
         workspace: c.workspace.clone(),
         agent_profile: c.agent_profile.clone(),
@@ -51,7 +52,8 @@ fn installed_offline_facade_restarts_a_restored_brain_with_the_original_key_vaul
     offline.backup(&backup).unwrap();
     drop(offline);
     let offline = OfflineBrainMaintenance::open(&config, &f.owner(), Some(&backup)).unwrap();
-    let target = root.join("restored-brain.db");
+    fs::create_dir(root.join("restored-candidates")).unwrap();
+    let target = root.join("restored-candidates/restored-brain.db");
     let plan = offline.plan_restore(&target).unwrap();
     let receipt = offline.restore(&target, &plan, &plan.digest).unwrap();
     assert!(!receipt.authority_switched);
@@ -66,12 +68,26 @@ fn installed_offline_facade_restarts_a_restored_brain_with_the_original_key_vaul
     );
     assert!(!target.with_extension("content-keys").exists());
     restored.content_key_directory = Some(config.content_key_directory().unwrap());
+    assert!(OfflineBrainMaintenance::open(&restored, &f.owner(), None).is_err());
+    assert!(
+        ProductionRuntimeBuilder::from_managed_config(restored.clone())
+            .unwrap()
+            .build()
+            .is_err()
+    );
+    restored.expected_restoration_fence = Some(receipt.execution_fence_digest.clone());
+    assert!(OfflineBrainMaintenance::open(&restored, &f.owner(), None).is_ok());
     let runtime = ProductionRuntimeBuilder::from_managed_config(restored.clone())
         .unwrap()
         .build()
         .unwrap();
     assert_eq!(runtime.services().authority.store_identity, binding);
     assert_eq!(runtime.owner(), &f.config.owner);
+    runtime
+        .create_data_backup(&f.owner(), "after-restore.db")
+        .unwrap();
+    assert!(root.join("data-operations/after-restore.db").is_file());
+    assert!(!root.join("restored-candidates/data-operations").exists());
     drop(runtime);
     assert_eq!(fs::read(&config.store_path).unwrap(), original);
     assert_eq!(f.calls.load(std::sync::atomic::Ordering::SeqCst), 0);

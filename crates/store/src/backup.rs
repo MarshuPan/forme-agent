@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{BrainAuthorityStore, EventStore, SchemaSnapshot, SqliteEventStore, StoreOptions};
 
+mod restore;
+
 const BACKUP_SCHEMA_VERSION: p::SchemaVersion = p::SchemaVersion(1);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,6 +76,10 @@ pub struct RestoreReport {
     pub schema_version: p::SchemaVersion,
     pub manifest: BackupManifest,
     pub verification: BackupVerification,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub store_identity: Option<p::SchemaDigest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub execution_fence_digest: Option<p::SchemaDigest>,
 }
 
 #[derive(Clone)]
@@ -144,37 +150,6 @@ impl BackupService {
         })
     }
 
-    pub fn restore_to(&self, source: &Path, target: &Path) -> p::Result<RestoreReport> {
-        reject_same_path(source, target)?;
-        let source_verification = self.verify_backup(source)?;
-        prepare_new_target(target)?;
-        let source_connection = read_only_connection(source)?;
-        source_connection
-            .backup(rusqlite::MAIN_DB, target, None)
-            .map_err(|error| p::Error(format!("SQLite restore failed: {error}")))?;
-        drop(source_connection);
-
-        let restored = self
-            .manifest_for(target)
-            .map_err(|error| p::Error(format!("restored database inspection failed: {error}")))?;
-        if restored.owner_digest != source_verification.manifest.owner_digest
-            || restored.schema_digest != source_verification.manifest.schema_digest
-            || restored.event_count != source_verification.manifest.event_count
-            || restored.last_stream_seq != source_verification.manifest.last_stream_seq
-        {
-            return Err(p::Error(
-                "restored database does not match source manifest".into(),
-            ));
-        }
-        write_manifest(target, &restored)?;
-        let verification = self.verify_backup(target)?;
-        Ok(RestoreReport {
-            schema_version: BACKUP_SCHEMA_VERSION,
-            manifest: restored,
-            verification,
-        })
-    }
-
     fn source_path(&self) -> p::Result<PathBuf> {
         let connection = self
             .store
@@ -194,10 +169,7 @@ impl BackupService {
         }
         Ok(BackupManifest {
             schema_version: BACKUP_SCHEMA_VERSION,
-            owner_digest: self
-                .store
-                .brain_authority()?
-                .map(|authority| authority.owner_digest),
+            owner_digest: inspection.owner_digest,
             schema_digest: inspection.schema_digest,
             event_count: inspection.event_count,
             last_stream_seq: inspection.last_stream_seq,

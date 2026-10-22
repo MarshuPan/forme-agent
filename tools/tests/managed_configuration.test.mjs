@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createManagedProduct, readJson } from './fixtures/managed_product.mjs';
 import { exerciseOfflineData } from './fixtures/offline_data_process.mjs';
+import { exerciseRestoreWorker, setFixtureAdmission } from './fixtures/restore_worker_process.mjs';
 
 const password = 'configuration process fixture 82';
 const credential = 'fixture-model-key-not-a-real-secret';
@@ -163,8 +164,12 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   // This is an explicit temporary test-process selection, not a production
   // active-pointer/Host restore transaction or a native service restart.
   await new Promise((resolve) => setTimeout(resolve, product.template.authority_lease + 200));
+  await exerciseRestoreWorker(product, offline, password);
+  await setFixtureAdmission(product, offline, false);
   const restoredCore = await product.start('forme-gatewayd', offline.restoredConfigPath,
     `FORME_GATEWAY_URL=http://${product.coreAddress}`);
+  await product.request(`/api/v1/brain/runs/${encodeURIComponent(run)}/answer`, { expected: 503 });
+  await setFixtureAdmission(product, offline, true);
   const restoredAnswer = await product.request(`/api/v1/brain/runs/${encodeURIComponent(run)}/answer`);
   assert.equal(restoredAnswer.answer, answer);
   assert.equal(modelRequests.length, callsBeforeMaintenance, 'restored read-only query must not call a model');

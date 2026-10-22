@@ -17,6 +17,7 @@ mod orchestration;
 mod projection;
 mod replay;
 mod replica;
+mod restoration_fence;
 mod schema;
 mod sqlite;
 mod store_access;
@@ -45,6 +46,7 @@ pub use replay::{
     SessionStatePath, TranscriptPath,
 };
 pub use replica::ReplicaSqliteStore;
+pub use restoration_fence::RestoredExecutionFence;
 pub use schema::{PayloadType, SchemaSnapshot, Upcaster};
 pub use sqlite::lifecycle::{
     DataLifecyclePlan, DataLifecycleRequest, DataLifecycleService, LifecycleObject,

@@ -5,10 +5,11 @@ mod journal;
 #[cfg(test)]
 mod maintenance_tests;
 mod materialize;
+mod restore;
 mod service_files;
 mod storage;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -38,23 +39,29 @@ struct ConfigState {
     revision: u64,
     models: Vec<p::ProductModelProfileView>,
     credentials: BTreeMap<String, PathBuf>,
+    #[serde(default)]
+    active_data: Option<p::ProductDataBinding>,
 }
 
 impl ConfigState {
     fn empty(install: &str) -> Self {
         Self {
-            schema_version: p::SchemaVersion(2),
+            schema_version: p::SchemaVersion(3),
             install_ref: install.to_owned(),
             owner: None,
             revision: 0,
             models: Vec::new(),
             credentials: BTreeMap::new(),
+            active_data: None,
         }
     }
 
     fn validate(&self, template: &p::ProductConfigTemplate) -> p::Result<()> {
-        if self.schema_version != p::SchemaVersion(2)
-            || self.install_ref != template.install_ref
+        if !matches!(
+            self.schema_version,
+            p::SchemaVersion(2) | p::SchemaVersion(3)
+        ) || self.install_ref != template.install_ref
+            || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
             || self.revision > 1_000_000_000
             || self.models.len() != self.credentials.len()
             || (self.revision == 0) != self.models.is_empty()
@@ -64,6 +71,35 @@ impl ConfigState {
         }
         if let Some(owner) = &self.owner {
             owner.validate()?;
+        }
+        if let Some(binding) = &self.active_data {
+            binding.validate()?;
+            let owner = self.owner.as_ref().ok_or_else(invalid)?;
+            if binding.owner_digest != p::sha256_content_digest(owner.0.as_bytes())
+                || binding.store_path == template.brain_store_path
+                || binding.store_path.starts_with(&template.artifact_root)
+                || binding
+                    .content_key_directory
+                    .starts_with(&template.artifact_root)
+                || binding
+                    .store_path
+                    .starts_with(&template.model_credentials_directory)
+                || binding
+                    .content_key_directory
+                    .starts_with(&template.model_credentials_directory)
+                || binding
+                    .store_path
+                    .starts_with(&binding.content_key_directory)
+                || binding
+                    .content_key_directory
+                    .starts_with(&binding.store_path)
+            {
+                return Err(invalid());
+            }
+            let parent = template.brain_store_path.parent().ok_or_else(invalid)?;
+            if !binding.store_path.starts_with(parent) {
+                return Err(invalid());
+            }
         }
         let mut ids = std::collections::BTreeSet::new();
         for model in &self.models {
@@ -137,6 +173,13 @@ impl ProductConfigStore {
         })
     }
 
+    /// Operation queries remain available when a core acknowledgement is bad.
+    pub(crate) fn maintenance_owner(&mut self) -> p::Result<Option<p::OwnerPrincipalRef>> {
+        self.recover()?;
+        self.verify_published()?;
+        Ok(self.state.owner.clone())
+    }
+
     pub fn bind_owner(
         &mut self,
         binding: p::ProductConfigOwnerBinding,
@@ -186,12 +229,13 @@ impl ProductConfigStore {
         let id = materialize::new_ref()?;
         let credentials = materialize::write_credentials(&self.template, &id, &prepared)?;
         let state = ConfigState {
-            schema_version: p::SchemaVersion(2),
+            schema_version: p::SchemaVersion(3),
             install_ref: self.template.install_ref.clone(),
             owner: Some(patch.owner),
             revision,
             models: prepared.iter().map(|(view, _)| view.clone()).collect(),
             credentials,
+            active_data: self.state.active_data.clone(),
         };
         self.commit_state(patch.operation_id.clone(), digest, state)?;
         self.response(patch.operation_id, true)
@@ -232,6 +276,15 @@ impl ProductConfigStore {
             return Err(p::Error(
                 "core acknowledged an unknown configuration revision".into(),
             ));
+        }
+        if let Some(binding) = &self.state.active_data {
+            let identity = acknowledgement.data_identity.as_ref().ok_or_else(invalid)?;
+            if identity.owner_digest != binding.owner_digest
+                || identity.store_identity != binding.store_identity
+                || identity.execution_fence_digest != binding.execution_fence_digest
+            {
+                return Err(invalid());
+            }
         }
         if self.journal.acknowledged() != Some(acknowledgement.revision) {
             self.journal.acknowledge(acknowledgement.revision)?;

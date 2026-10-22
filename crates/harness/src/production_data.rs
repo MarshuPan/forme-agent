@@ -186,7 +186,10 @@ impl ProductionRuntime {
             .store_path
             .parent()
             .unwrap_or_else(|| Path::new("."));
-        let root = base.join("data-operations");
+        let root = self
+            .data_operation_root
+            .clone()
+            .unwrap_or_else(|| base.join("data-operations"));
         std::fs::create_dir_all(&root)
             .map_err(|_| p::Error("data operations directory unavailable".into()))?;
         if std::fs::symlink_metadata(&root)
@@ -487,10 +490,11 @@ impl ProductionRuntime {
         )?;
         let result = match &plan.operation {
             DataPlannedOperation::Restore { source, target, .. } => DataOperationResult::Restored(
-                self.services()
-                    .store
-                    .backup_service()
-                    .restore_to(&self.data_path(source)?, &self.data_path(target)?)?,
+                self.services().store.backup_service().restore_approved_to(
+                    &self.data_path(source)?,
+                    &self.data_path(target)?,
+                    &plan.digest,
+                )?,
             ),
             DataPlannedOperation::Lifecycle { plan: cleanup } => {
                 let r = lifecycle_request(owner, cleanup, now);

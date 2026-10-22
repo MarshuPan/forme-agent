@@ -14,6 +14,8 @@ use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, Transact
 pub(crate) mod lifecycle;
 #[path = "migration.rs"]
 pub(crate) mod migration;
+#[path = "sqlite_projections.rs"]
+mod projections;
 
 use crate::brain::AuthorityLeaseGuardInner;
 use crate::{
@@ -471,7 +473,7 @@ END;
 
 const FTS_SCHEMA: &str = "CREATE VIRTUAL TABLE IF NOT EXISTS events_fts \
                          USING fts5(text, content='');";
-const DATABASE_SCHEMA_VERSION: i64 = 9;
+const DATABASE_SCHEMA_VERSION: i64 = 10;
 
 #[cfg(test)]
 std::thread_local! {
@@ -561,93 +563,6 @@ pub struct SqliteEventStore {
 }
 
 impl SqliteEventStore {
-    pub fn orchestration_ledger(&self, stream: &p::RunId) -> p::Result<p::OrchestrationLedger> {
-        let connection = self
-            .core
-            .connection
-            .lock()
-            .map_err(|_| p::Error("orchestration store is unavailable".into()))?;
-        crate::orchestration::read(&connection, stream)
-    }
-
-    pub fn rebuild_orchestration(&self, stream: &p::RunId) -> p::Result<()> {
-        self.require_authority_writer()?;
-        let events = self
-            .read_run(stream.clone())
-            .collect::<p::Result<Vec<_>>>()?;
-        let mut connection = self
-            .core
-            .connection
-            .lock()
-            .map_err(|_| p::Error("orchestration store is unavailable".into()))?;
-        let tx = connection
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(|_| p::Error("orchestration rebuild transaction failed".into()))?;
-        self.require_authority_writer_in_transaction(&tx)?;
-        if aggregate_version_in_transaction(&tx, stream)?
-            != events.last().map_or(0, |e| e.stream_seq)
-        {
-            return Err(p::Error("orchestration changed during rebuild".into()));
-        }
-        tx.execute(
-            "DELETE FROM orchestration_state WHERE stream=?1",
-            params![stream.0],
-        )
-        .map_err(|_| p::Error("orchestration reset failed".into()))?;
-        for event in &events {
-            crate::orchestration::fold(&tx, event)?;
-        }
-        tx.commit()
-            .map_err(|_| p::Error("orchestration rebuild commit failed".into()))
-    }
-
-    pub fn workspace_charter(
-        &self,
-        workspace: &p::WorkspaceRef,
-    ) -> p::Result<Option<p::WorkspaceCharterRecord>> {
-        let connection = self
-            .core
-            .connection
-            .lock()
-            .map_err(|_| p::Error("charter store is unavailable".into()))?;
-        crate::charter::read(&connection, workspace)
-    }
-
-    pub fn rebuild_charters(&self) -> p::Result<()> {
-        self.require_authority_writer()?;
-        let metadata = self
-            .brain_authority()?
-            .ok_or_else(|| p::Error("charter authority is missing".into()))?;
-        let stream = metadata
-            .aggregates
-            .get(&BrainAggregateKind::Charter)
-            .ok_or_else(|| p::Error("charter stream is missing".into()))?;
-        let events = self
-            .read_run(stream.clone())
-            .collect::<p::Result<Vec<_>>>()?;
-        let mut connection = self
-            .core
-            .connection
-            .lock()
-            .map_err(|_| p::Error("charter store is unavailable".into()))?;
-        let tx = connection
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(|_| p::Error("charter rebuild transaction failed".into()))?;
-        self.require_authority_writer_in_transaction(&tx)?;
-        if aggregate_version_in_transaction(&tx, stream)?
-            != events.last().map_or(0, |e| e.stream_seq)
-        {
-            return Err(p::Error("charter changed during rebuild".into()));
-        }
-        tx.execute("DELETE FROM workspace_charter_state", [])
-            .map_err(|_| p::Error("charter rebuild reset failed".into()))?;
-        for event in &events {
-            crate::charter::fold(&tx, event)?;
-        }
-        tx.commit()
-            .map_err(|_| p::Error("charter rebuild commit failed".into()))
-    }
-
     pub fn open(path: impl AsRef<Path>, options: StoreOptions) -> p::Result<Self> {
         validate_options(&options)?;
         let mut connection = Connection::open(path.as_ref())
@@ -4867,6 +4782,7 @@ fn append_prepared(
         }
     }
 
+    crate::restoration_fence::enforce_event(transaction, &prepared.event)?;
     let fts_was_current = if fts_enabled {
         let event_set = read_event_set_token(transaction)?;
         let schema_identity = fts_schema_identity
@@ -8126,6 +8042,10 @@ fn initialize_connection(
     transaction
         .execute_batch(crate::orchestration::SCHEMA)
         .map_err(|error| store_error("failed to initialize orchestration projection", error))?;
+    transaction
+        .execute_batch(crate::restoration_fence::SCHEMA)
+        .map_err(|error| store_error("failed to initialize restored execution boundary", error))?;
+    crate::restoration_fence::read(&transaction)?;
     if fts_enabled {
         transaction
             .execute_batch(FTS_SCHEMA)

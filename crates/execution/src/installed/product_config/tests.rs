@@ -49,7 +49,7 @@ fn profile() -> p::ProductModelProfilePatch {
     }
 }
 
-pub(super) fn patch(operation: &str, revision: u64) -> p::ProductConfigPatch {
+pub(crate) fn patch(operation: &str, revision: u64) -> p::ProductConfigPatch {
     p::ProductConfigPatch {
         schema_version: p::SchemaVersion(1),
         operation_id: operation.into(),
@@ -59,7 +59,7 @@ pub(super) fn patch(operation: &str, revision: u64) -> p::ProductConfigPatch {
     }
 }
 
-pub(super) fn fixture() -> (tempfile::TempDir, PathBuf, Mutex<ProductConfigStore>) {
+pub(crate) fn fixture() -> (tempfile::TempDir, PathBuf, Mutex<ProductConfigStore>) {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("template.json");
     fs::write(&path, storage::encode(&template(directory.path())).unwrap()).unwrap();
@@ -339,6 +339,7 @@ fn legacy_fixture(mismatch: bool) -> (tempfile::TempDir, PathBuf, Vec<u8>, PathB
         revision: 1,
         models: models.into_iter().map(|(view, _)| view).collect(),
         credentials: BTreeMap::from([("model:test".into(), credential.clone())]),
+        active_data: None,
     };
     let mut core = materialize::core_config(&template, &state).unwrap();
     if mismatch {
@@ -401,4 +402,97 @@ fn mismatched_legacy_import_never_rewrites_original_core_or_key() {
         legacy
     );
     assert_eq!(fs::read(key).unwrap(), b"fixture-key-only");
+}
+
+#[test]
+fn restored_binding_survives_model_save_reopen_and_rejects_stale_ack() {
+    let (_directory, path, store) = fixture();
+    let mut store = store.into_inner().unwrap();
+    store.apply(patch("save:before-restore", 0)).unwrap();
+    let binding = p::ProductDataBinding {
+        schema_version: p::PRODUCT_DATA_BINDING_SCHEMA_VERSION,
+        candidate_ref: "restored-brain.db".into(),
+        store_path: store
+            .template
+            .brain_store_path
+            .parent()
+            .unwrap()
+            .join("data-operations/restored-brain.db"),
+        content_key_directory: store
+            .template
+            .brain_store_path
+            .with_extension("content-keys"),
+        owner_digest: p::sha256_content_digest(b"owner:test"),
+        store_identity: p::sha256_content_digest(b"store-fixture"),
+        manifest_digest: p::sha256_content_digest(b"manifest-fixture"),
+        execution_fence_digest: Some(p::sha256_content_digest(b"fence-fixture")),
+    };
+    // Exercise only publication of a host-verified result. This fixture does
+    // not claim to execute the restore worker or its native lifecycle.
+    let mut state = store.state.clone();
+    state.revision = 2;
+    state.active_data = Some(binding.clone());
+    let mut old_state = state.clone();
+    old_state.schema_version = p::SchemaVersion(2);
+    assert!(old_state.validate(&store.template).is_err());
+    store
+        .commit_state(
+            "restore:fixture".into(),
+            p::canonical_digest(&binding).unwrap(),
+            state,
+        )
+        .unwrap();
+    assert!(store
+        .acknowledge(p::ProductConfigAcknowledgement {
+            schema_version: p::SchemaVersion(1),
+            install_ref: store.template.install_ref.clone(),
+            revision: 1,
+            data_identity: None,
+        })
+        .is_err());
+    let mut ack = p::ProductConfigAcknowledgement {
+        schema_version: p::SchemaVersion(1),
+        install_ref: store.template.install_ref.clone(),
+        revision: 2,
+        data_identity: None,
+    };
+    assert!(store.acknowledge(ack.clone()).is_err());
+    let identity = p::ProductDataAcknowledgement {
+        schema_version: p::SchemaVersion(1),
+        owner_digest: binding.owner_digest.clone(),
+        store_identity: binding.store_identity.clone(),
+        execution_fence_digest: binding.execution_fence_digest.clone(),
+        composition_digest: p::sha256_content_digest(b"actual-composition-fixture"),
+    };
+    ack.data_identity = Some(p::ProductDataAcknowledgement {
+        store_identity: p::sha256_content_digest(b"another-store"),
+        ..identity.clone()
+    });
+    assert!(store.acknowledge(ack.clone()).is_err());
+    assert!(store.snapshot().unwrap().pending_restart);
+    ack.data_identity = Some(identity);
+    store.acknowledge(ack).unwrap();
+    assert!(!store.snapshot().unwrap().pending_restart);
+    let saved = store.apply(patch("save:after-restore", 2)).unwrap();
+    assert_eq!(saved.view.active_revision, 3);
+    assert!(saved.view.pending_restart);
+    drop(store);
+    let store = ProductConfigStore::open(&path).unwrap();
+    let mut store = store.into_inner().unwrap();
+    assert_eq!(store.snapshot().unwrap().active_revision, 3);
+    assert_eq!(store.state.active_data, Some(binding.clone()));
+    let core: serde_json::Value =
+        storage::json(&store.template.core_config_path, MAX_CONFIG_BYTES).unwrap();
+    assert_eq!(
+        core["brain"]["store_path"],
+        binding.store_path.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        core["brain"]["content_key_directory"],
+        binding.content_key_directory.to_string_lossy().as_ref()
+    );
+    assert_eq!(
+        core["brain"]["expected_restoration_fence"],
+        serde_json::to_value(binding.execution_fence_digest).unwrap()
+    );
 }

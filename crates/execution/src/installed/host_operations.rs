@@ -11,6 +11,28 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
         request.validate()?;
+        if matches!(
+            request.command.kind,
+            p::MaintenanceKind::CommitRestore { .. }
+        ) {
+            let mut config = self
+                .product_config
+                .as_ref()
+                .ok_or_else(|| p::Error("restore requires managed configuration".into()))?
+                .lock()
+                .map_err(|_| p::Error("managed configuration is unavailable".into()))?;
+            return self.plan_restore_locked(auth, request, now, &mut config);
+        }
+        self.plan_without_restore_lock(auth, request, now)
+    }
+
+    pub(super) fn plan_without_restore_lock(
+        &self,
+        auth: &HostAuth,
+        request: p::HostManagementRequest,
+        now: p::Timestamp,
+    ) -> p::Result<p::MaintenanceOperation> {
+        request.validate()?;
         if request.command.actor_proof.proof_ref != auth.proof_ref.0 {
             return Err(p::Error(
                 "maintenance proof is not bound to this request".into(),
@@ -19,8 +41,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         // Historical queries do not depend on the original release inbox.
         if self
             .journal
-            .operation(&request.command.operation_id)
-            .is_ok()
+            .operations(0)?
+            .iter()
+            .any(|op| op.operation_id == request.command.operation_id)
         {
             return self
                 .journal
@@ -37,6 +60,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 | p::MaintenanceKind::StartCore
                 | p::MaintenanceKind::StopCore
                 | p::MaintenanceKind::RestartCore
+                | p::MaintenanceKind::CommitRestore { .. }
         ) {
             self.release_stager
                 .as_ref()
@@ -57,7 +81,12 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
     ) -> p::Result<p::MaintenanceOperation> {
         p::validate_product_id(operation_id)?;
         let operation = self.operation_state(operation_id)?;
-        if operation.stage == p::MaintenanceStage::Committed {
+        if operation.stage == p::MaintenanceStage::Committed
+            && !matches!(
+                self.journal.command_kind(operation_id)?,
+                p::MaintenanceKind::CommitRestore { .. }
+            )
+        {
             return Ok(operation);
         }
         if operation.stage == p::MaintenanceStage::RecoveryRequired {
@@ -69,6 +98,15 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             return Err(p::Error("operation has an unresolved stage intent".into()));
         }
         let command = self.journal.command(operation_id)?;
+        if matches!(command.kind, p::MaintenanceKind::CommitRestore { .. }) {
+            let mut config = self
+                .product_config
+                .as_ref()
+                .ok_or_else(|| p::Error("restore requires managed configuration".into()))?
+                .lock()
+                .map_err(|_| p::Error("managed configuration is unavailable".into()))?;
+            return self.execute_restore_locked(auth, operation_id, now, &mut config);
+        }
         if now >= command.requested_deadline
             || operation.original_release_ref != self.active_release
         {

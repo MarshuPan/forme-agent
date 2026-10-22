@@ -203,6 +203,7 @@ pub(crate) struct HostRuntimeConfig {
     pub worker_config_path: Option<PathBuf>,
     pub product_config_template_path: Option<PathBuf>,
     pub release_stager: Option<std::sync::Arc<ReleaseStager>>,
+    pub restore_worker: Option<std::sync::Arc<forme_execution::installed::InstalledRestoreWorker>>,
     pub host_bind: SocketAddr,
     pub agent_execution_bind: SocketAddr,
     pub configuration_bind: SocketAddr,
@@ -333,6 +334,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         worker_config_path: std::env::var_os("FORME_WORKER_CONFIG_PATH").map(PathBuf::from),
         product_config_template_path: None,
         release_stager: None,
+        restore_worker: None,
         host_bind,
         agent_execution_bind,
         configuration_bind,
@@ -347,6 +349,12 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
 pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
     let config = HostServiceConfig::load(path)?;
     let (manifest, manifest_digest) = manifest::load_installation_manifest(&config)?;
+    let restore_worker = config
+        .product_config_template_path
+        .as_ref()
+        .map(|_| forme_execution::installed::InstalledRestoreWorker::new(manifest.clone()))
+        .transpose()?
+        .map(std::sync::Arc::new);
     let worker_protected_paths = config.preflight_references(path)?;
     // Validate all trust/layout inputs before opening credentials or any journal.
     let release_stager = config
@@ -387,6 +395,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         worker_config_path: config.worker_config_path,
         product_config_template_path: config.product_config_template_path,
         release_stager,
+        restore_worker,
         host_bind: config.host_bind,
         agent_execution_bind: config.agent_execution_bind,
         configuration_bind: config.configuration_bind,

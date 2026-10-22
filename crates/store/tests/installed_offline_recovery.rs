@@ -288,3 +288,232 @@ fn offline_validation_checks_catalog_lineage_and_rechecks_key_revocation() {
     assert!(other.open().is_err());
     assert_eq!(other.bytes(), damaged);
 }
+
+fn append_fact(
+    store: &SqliteEventStore,
+    run: &str,
+    id: &str,
+    payload: p::EventPayload,
+) -> p::Result<p::EventId> {
+    store.append(p::Event::new(
+        p::EventId(id.into()),
+        p::RunId(run.into()),
+        None,
+        payload,
+        p::SchemaVersion(1),
+        2,
+        p::Provenance {
+            source: p::Source::OwnerControl,
+            actor: p::Actor::Owner,
+            trust_tier: p::TrustTier::OwnerInput,
+            caused_by: None,
+        },
+    ))
+}
+
+fn restored(f: &Fixture, target_name: &str) -> (PathBuf, forme_store::OfflineRestoreReceipt) {
+    let backup = f.root.join(format!("{target_name}-backup.db"));
+    f.open().unwrap().create_backup(&backup).unwrap();
+    let source = OfflineBrainSource::open(&backup, &owner(), scope(), &f.keys).unwrap();
+    let target = f.root.join(target_name);
+    let plan = source.plan_restore(&target).unwrap();
+    let receipt = source.restore_to(&target, &plan, &plan.digest).unwrap();
+    (target, receipt)
+}
+
+fn open_restored(f: &Fixture, target: &Path) -> SqliteEventStore {
+    let store = SqliteEventStore::open(target, StoreOptions::default()).unwrap();
+    let keys = Arc::new(FileContentKeyResolver::new_managed(&f.keys).unwrap());
+    store
+        .enable_content_protection(StoreContentProtection::new(&owner(), scope(), keys).unwrap())
+        .unwrap();
+    store
+}
+
+#[test]
+fn restored_history_never_regains_model_action_resume_or_intention_authority() {
+    let f = Fixture::new(true);
+    let source = open_restored(&f, &f.source);
+    append_fact(
+        &source,
+        "run:offline",
+        "event:old-intention",
+        p::EventPayload::ProspectiveIntentionCreated(p::ProspectiveIntentionCreatedPayload {
+            intention_id: p::IntentionId("intention:old".into()),
+            source: p::IntentionSource::Commitment,
+            trigger: p::IntentionTriggerRef("at:3".into()),
+            schedule: None,
+            goal_frame: None,
+        }),
+    )
+    .unwrap();
+    drop(source);
+    let original = f.bytes();
+    let (target, receipt) = restored(&f, "history.db");
+    assert_eq!(f.bytes(), original);
+    let store = open_restored(&f, &target);
+    let fence = store.restored_execution_fence().unwrap().unwrap();
+    assert_eq!(fence.digest().unwrap(), receipt.execution_fence_digest);
+    assert_eq!(fence.plan_digest, receipt.plan_digest);
+    assert_eq!(fence.streams[&p::RunId("run:offline".into())], 2);
+    assert!(store
+        .quarantined_intentions()
+        .unwrap()
+        .contains(&p::IntentionId("intention:old".into())));
+    let forbidden = vec![
+        p::EventPayload::ModelCallStarted(p::ModelCallStartedPayload {
+            call_id: p::ModelCallId("call:historical".into()),
+            model_profile: p::ModelProfileRef("model:fixture".into()),
+        }),
+        p::EventPayload::ActionStarted(p::ActionStartedPayload {
+            intent_id: p::ActionId("action:historical".into()),
+            backend: p::BackendKind::Shell,
+            scope: scope(),
+            remote_lease: None,
+        }),
+        p::EventPayload::RunResumed(p::RunResumedPayload {
+            wait_reason: p::WaitReason("approval".into()),
+            resume_ref: p::ResumeRef("resume:old".into()),
+        }),
+    ];
+    for (index, payload) in forbidden.into_iter().enumerate() {
+        assert!(append_fact(
+            &store,
+            "run:offline",
+            &format!("event:blocked:{index}"),
+            payload
+        )
+        .is_err());
+        assert_eq!(store.read_run(p::RunId("run:offline".into())).count(), 2);
+    }
+    // Moving the old intention into a fresh aggregate cannot reactivate it.
+    assert!(append_fact(
+        &store,
+        "run:new",
+        "event:blocked:fire",
+        p::EventPayload::ProspectiveIntentionResolved(p::ProspectiveIntentionResolvedPayload {
+            intention_id: p::IntentionId("intention:old".into()),
+            outcome: p::IntentionOutcome::Fired,
+        })
+    )
+    .is_err());
+    append_fact(
+        &store,
+        "run:offline",
+        "event:old-cancel",
+        p::EventPayload::ProspectiveIntentionResolved(p::ProspectiveIntentionResolvedPayload {
+            intention_id: p::IntentionId("intention:old".into()),
+            outcome: p::IntentionOutcome::Cancelled,
+        }),
+    )
+    .unwrap();
+    append_fact(
+        &store,
+        "run:new",
+        "event:new-call",
+        p::EventPayload::ModelCallStarted(p::ModelCallStartedPayload {
+            call_id: p::ModelCallId("call:fresh".into()),
+            model_profile: p::ModelProfileRef("model:fixture".into()),
+        }),
+    )
+    .unwrap();
+    assert!(store
+        .require_current_execution(&p::RunId("run:new".into()))
+        .is_ok());
+}
+
+#[test]
+fn repeated_restores_extend_fence_lineage_and_reject_tampering() {
+    let f = Fixture::new(true);
+    let (first, receipt) = restored(&f, "first.db");
+    let first_source = OfflineBrainSource::open(&first, &owner(), scope(), &f.keys).unwrap();
+    let second = f.root.join("second.db");
+    let plan = first_source.plan_restore(&second).unwrap();
+    let second_receipt = first_source
+        .restore_to(&second, &plan, &plan.digest)
+        .unwrap();
+    drop(first_source);
+    let store = open_restored(&f, &second);
+    let fence = store.restored_execution_fence().unwrap().unwrap();
+    assert_eq!(fence.generation, 2);
+    assert_eq!(fence.previous_digest, Some(receipt.execution_fence_digest));
+    assert_eq!(
+        fence.digest().unwrap(),
+        second_receipt.execution_fence_digest
+    );
+    assert!(store
+        .require_current_execution(&p::RunId("run:offline".into()))
+        .is_err());
+    drop(store);
+    let c = rusqlite::Connection::open(&second).unwrap();
+    c.execute(
+        "UPDATE brain_restore_fences SET digest=?1 WHERE generation=2",
+        [p::sha256_content_digest(b"tampered").0],
+    )
+    .unwrap();
+    drop(c);
+    assert!(SqliteEventStore::open(&second, StoreOptions::default()).is_err());
+    assert!(OfflineBrainSource::open(&second, &owner(), scope(), &f.keys).is_err());
+}
+
+#[test]
+fn a_sealed_restore_candidate_cannot_be_committed_after_it_has_run_again() {
+    let f = Fixture::new(true);
+    let (target, _) = restored(&f, "active-candidate.db");
+    let candidate = OfflineBrainSource::open(&target, &owner(), scope(), &f.keys).unwrap();
+    assert!(candidate.restored_candidate_fence_digest().is_ok());
+    drop(candidate);
+    let store = open_restored(&f, &target);
+    append_fact(
+        &store,
+        "run:after-seal",
+        "event:after-seal",
+        p::EventPayload::ModelCallStarted(p::ModelCallStartedPayload {
+            call_id: p::ModelCallId("call:after-seal".into()),
+            model_profile: p::ModelProfileRef("model:fixture".into()),
+        }),
+    )
+    .unwrap();
+    drop(store);
+    let candidate = OfflineBrainSource::open(&target, &owner(), scope(), &f.keys).unwrap();
+    assert!(candidate.execution_fence_digest().is_ok());
+    assert!(candidate.restored_candidate_fence_digest().is_err());
+}
+
+#[test]
+fn online_restore_binds_the_approved_plan_and_final_post_sealing_manifest() {
+    let f = Fixture::new(true);
+    let store = open_restored(&f, &f.source);
+    let service = store.backup_service();
+    let backup = f.root.join("online-restore-source.db");
+    service.create_cold_backup(&backup).unwrap();
+    let original = fs::read(&backup).unwrap();
+    let target = f.root.join("online-restored.db");
+    let plan = p::sha256_content_digest(b"persisted-owner-plan-fixture");
+    let report = service
+        .restore_approved_to(&backup, &target, &plan)
+        .unwrap();
+    assert!(report.verification.is_valid());
+    assert_eq!(fs::read(&backup).unwrap(), original);
+    assert_eq!(
+        p::sha256_content_digest(&fs::read(&target).unwrap()),
+        report.manifest.database_digest
+    );
+    let restored = open_restored(&f, &target);
+    let fence = restored.restored_execution_fence().unwrap().unwrap();
+    assert_eq!(fence.plan_digest, plan);
+    assert_eq!(Some(fence.digest().unwrap()), report.execution_fence_digest);
+    assert_eq!(Some(fence.store_identity), report.store_identity);
+    assert!(restored
+        .require_current_execution(&p::RunId("run:offline".into()))
+        .is_err());
+    assert!(service
+        .restore_approved_to(&backup, &target, &plan)
+        .is_err());
+    drop(restored);
+    let busy = StoreAccessGuard::online(&backup).unwrap();
+    let other = f.root.join("must-not-be-created.db");
+    assert!(service.restore_approved_to(&backup, &other, &plan).is_err());
+    assert!(!other.exists());
+    drop(busy);
+}

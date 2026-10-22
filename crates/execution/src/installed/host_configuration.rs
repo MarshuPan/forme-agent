@@ -39,10 +39,21 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .product_config
             .as_ref()
             .ok_or_else(|| p::Error("managed product configuration is unavailable".into()))?;
-        store
+        let mut store = store
             .lock()
-            .map_err(|_| p::Error("managed product configuration is unavailable".into()))?
-            .apply(patch)
+            .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
+        if self.journal.operations(0)?.iter().any(|operation| {
+            operation.stage != p::MaintenanceStage::Committed
+                && self
+                    .journal
+                    .command_kind(&operation.operation_id)
+                    .map_or(true, |kind| kind.is_lifecycle_transaction())
+        }) {
+            return Err(p::Error(
+                "configuration cannot change during an unresolved lifecycle operation".into(),
+            ));
+        }
+        store.apply(patch)
     }
 
     pub fn bind_configuration_owner(

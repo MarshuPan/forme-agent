@@ -149,6 +149,25 @@ try {
 
     Invoke-NamedTest "forme-harness" @("--test", "harness_contract") "default_approval_restart_rejects_foreign_or_unreproducible_contexts_without_effects"
 
+    foreach ($name in @(
+        "restore_stages_precede_effects_and_commit_releases_work_only_after_exact_readiness",
+        "every_interrupted_restore_keeps_original_operation_and_never_retries_side_effects",
+        "stale_config_owner_and_expired_approval_do_not_stop_the_brain"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_restore_tests::$name" }
+
+    foreach ($name in @(
+        "installed_restore_worker_holds_both_real_databases_backs_up_and_fences_sessions",
+        "installed_restore_worker_rejects_stale_revision_foreign_owner_digest_and_cross_operation_steps",
+        "managed_work_admission_rechecks_each_claim_and_cannot_use_foreign_or_missing_release"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") "server::lifecycle_tests::installed_restore::$name" }
+
+    foreach ($name in @(
+        "restored_history_never_regains_model_action_resume_or_intention_authority",
+        "repeated_restores_extend_fence_lineage_and_reject_tampering",
+        "a_sealed_restore_candidate_cannot_be_committed_after_it_has_run_again",
+        "online_restore_binds_the_approved_plan_and_final_post_sealing_manifest"
+    )) { Invoke-NamedTest "forme-store" @("--test", "installed_offline_recovery") $name }
+
     Write-Host "installed-host-foundation and core-shutdown-components: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }

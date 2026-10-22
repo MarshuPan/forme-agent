@@ -6,6 +6,24 @@ use std::sync::Arc;
 mod session_fence;
 use session_fence::SessionFence;
 
+pub(crate) fn apply_offline_session_fence(
+    path: &std::path::Path,
+    update: &p::WebSessionFenceUpdate,
+) -> p::Result<()> {
+    if !std::fs::metadata(path)
+        .map_err(|_| p::Error("core session fence must already exist".into()))?
+        .is_file()
+    {
+        return Err(p::Error("core session fence must already exist".into()));
+    }
+    SessionFence::open(
+        path,
+        &update.install_ref,
+        &p::VerifiedPrincipal(update.owner.0.clone()),
+    )?
+    .apply(update)
+}
+
 use axum::body::{to_bytes, Body};
 use axum::extract::{Extension, Json, Request, State};
 use axum::http::{header, HeaderValue, StatusCode};

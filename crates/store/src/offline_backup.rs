@@ -63,6 +63,7 @@ impl OfflineRestorePlan {
 pub struct OfflineRestoreReceipt {
     pub schema_version: p::SchemaVersion,
     pub plan_digest: p::SchemaDigest,
+    pub execution_fence_digest: p::SchemaDigest,
     pub source: OfflineBrainIdentity,
     pub restored: OfflineBrainIdentity,
     pub verification: BackupVerification,
@@ -108,6 +109,24 @@ impl OfflineBrainSource {
     }
     pub fn identity(&self) -> &OfflineBrainIdentity {
         &self.identity
+    }
+
+    pub fn execution_fence_digest(&self) -> p::Result<Option<p::SchemaDigest>> {
+        self.require_unchanged()?;
+        crate::restoration_fence::read(&immutable_source(&self.path)?)?
+            .map(|fence| fence.digest())
+            .transpose()
+    }
+
+    /// A switch candidate cannot contain activity performed after its seal.
+    pub fn restored_candidate_fence_digest(&self) -> p::Result<p::SchemaDigest> {
+        self.require_unchanged()?;
+        let c = immutable_source(&self.path)?;
+        let fence = crate::restoration_fence::read(&c)?.ok_or_else(invalid)?;
+        if crate::restoration_fence::stream_heads(&c)? != fence.streams {
+            return Err(invalid());
+        }
+        fence.digest()
     }
 
     pub fn verify_backup(&self) -> p::Result<BackupVerification> {
@@ -198,12 +217,21 @@ impl OfflineBrainSource {
         if !backup::replay_backup(&target, Some(self.protection.clone()))? {
             return Err(invalid());
         }
+        // Seal only the verified new copy. Historical content and source bytes
+        // stay untouched; the new authority boundary is part of its manifest.
+        let execution_fence_digest =
+            crate::restoration_fence::seal_target(&target, &self.identity, &plan.digest)?;
+        let restored = inspect(&target, &self.protection)?;
+        if !backup::replay_backup(&target, Some(self.protection.clone()))? {
+            return Err(invalid());
+        }
         let manifest = restored.manifest();
         backup::write_manifest(&target, &manifest)?;
         self.require_unchanged()?;
         Ok(OfflineRestoreReceipt {
-            schema_version: p::SchemaVersion(1),
+            schema_version: p::SchemaVersion(2),
             plan_digest: plan.digest.clone(),
+            execution_fence_digest,
             source: self.identity.clone(),
             restored,
             verification: BackupVerification {

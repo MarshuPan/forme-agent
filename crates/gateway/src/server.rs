@@ -1,3 +1,4 @@
+mod maintenance_admission;
 mod managed_config;
 mod runtime;
 pub use managed_config::CoreServiceConfig;
@@ -32,6 +33,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+pub(crate) use web_bridge::apply_offline_session_fence;
 use web_bridge::LocalBearerSecret;
 use web_bridge::{
     authenticate_web_bridge, load_configuration as load_web_bridge_configuration,

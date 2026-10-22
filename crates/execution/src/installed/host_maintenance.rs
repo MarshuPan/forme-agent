@@ -47,8 +47,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         let mut config = config
             .lock()
             .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
-        let view = config.snapshot()?;
-        if view.owner.as_ref() != Some(&request.owner) {
+        if config.maintenance_owner()?.as_ref() != Some(&request.owner) {
             return Err(p::Error(
                 "maintenance owner does not match the installed owner".into(),
             ));
@@ -83,25 +82,47 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 schema_version: p::SchemaVersion(1),
                 original_release_ref: original.into(),
                 target_release_ref: target.into(),
-                data_candidate_ref: None,
+                data_candidate_ref: match &request.action {
+                    p::ProductMaintenanceAction::CommitRestore { candidate_ref, .. } => {
+                        Some(candidate_ref.clone())
+                    }
+                    _ => None,
+                },
                 backup_ref: None,
             },
         };
         if existing.is_some() {
             // Only validate/query the exact original binding. Never resume an
             // interrupted or lost-response command by executing it a second time.
-            return self.plan_authorized(auth, command, now);
+            let op = self.plan_without_restore_lock(auth, command, now)?;
+            if op.stage == p::MaintenanceStage::Committed
+                && matches!(
+                    request.action,
+                    p::ProductMaintenanceAction::CommitRestore { .. }
+                )
+            {
+                self.release_committed_restore(&request.operation_id, &mut config)?;
+            }
+            return Ok(op);
         }
         if now >= request.requested_deadline
             || request.requested_deadline.saturating_sub(now) > 300_000
         {
             return Err(p::Error("owner maintenance authorization expired".into()));
         }
+        let view = config.snapshot()?;
         if matches!(
             request.action,
             p::ProductMaintenanceAction::StartCore {} | p::ProductMaintenanceAction::RestartCore {}
         ) {
             config.validate_revision(view.active_revision, &request.owner)?;
+        }
+        if matches!(
+            request.action,
+            p::ProductMaintenanceAction::CommitRestore { .. }
+        ) {
+            self.plan_restore_locked(auth, command, now, &mut config)?;
+            return self.execute_restore_locked(auth, &request.operation_id, now, &mut config);
         }
         self.plan_authorized(auth, command, now)?;
         // Keep configuration locked until native IO finishes: configuration
@@ -125,11 +146,27 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 | p::MaintenanceKind::UninstallPlan {
                     preserve_owner_data: true
                 }
+                | p::MaintenanceKind::CommitRestore { .. }
         ) {
             return Err(p::Error(
                 "operation is outside the owner maintenance domain".into(),
             ));
         }
-        self.journal.operation(id)
+        let op = self.journal.operation(id)?;
+        if op.stage == p::MaintenanceStage::Committed
+            && matches!(
+                self.journal.command_kind(id)?,
+                p::MaintenanceKind::CommitRestore { .. }
+            )
+        {
+            let mut config = self
+                .product_config
+                .as_ref()
+                .ok_or_else(|| p::Error("managed configuration unavailable".into()))?
+                .lock()
+                .map_err(|_| p::Error("managed configuration unavailable".into()))?;
+            self.release_committed_restore(id, &mut config)?;
+        }
+        Ok(op)
     }
 }

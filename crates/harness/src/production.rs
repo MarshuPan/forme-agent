@@ -19,9 +19,9 @@ use forme_capabilities::{
 };
 pub use forme_cognition::AgentWorkspaceProjection as OwnerAgentWorkspace;
 use forme_cognition::{
-    event_sourced_intention_services, AgentWorkspaceProjection, CognitionSnapshot,
-    CognitiveRuntime, CognitiveTickEngine, CognitiveTickInput, EvidenceCompetenceGate,
-    M0ProactivityEngine, ProactivityConfig, TickSignalCollector,
+    AgentWorkspaceProjection, CognitionSnapshot, CognitiveRuntime, CognitiveTickEngine,
+    CognitiveTickInput, EvidenceCompetenceGate, M0ProactivityEngine, ProactivityConfig,
+    TickSignalCollector,
 };
 pub use forme_cognition::{
     AgentWorkspaceQuery, CognitiveTickPhase, CognitiveTickPhaseReport, CognitiveTickPhaseStatus,
@@ -1955,6 +1955,7 @@ pub struct ProductionRuntime {
     services: Arc<BrainServices>,
     manifest: CompositionManifest,
     config: ProductionRuntimeConfig,
+    pub(crate) data_operation_root: Option<PathBuf>,
     tick_attempts: AtomicU64,
     learning_commands: Mutex<()>,
     pub(crate) orchestration_commands: Mutex<()>,
@@ -2782,8 +2783,11 @@ fn compose(
         memory.clone(),
         cognition.clone(),
     ));
-    let intentions =
-        event_sourced_intention_services(store.clone(), aggregates.intentions.clone())?;
+    let intentions = forme_cognition::event_sourced_intention_services_with_quarantine(
+        store.clone(),
+        aggregates.intentions.clone(),
+        store.quarantined_intentions()?,
+    )?;
 
     let capability_assembly = assemble_capabilities(
         &config,
@@ -2996,6 +3000,7 @@ fn compose(
     // The production guard is also held by the harness, so the lease remains
     // alive for compatibility callers that unwrap the runtime into a harness.
     let runtime = ProductionRuntime {
+        data_operation_root: None,
         harness,
         services,
         manifest,

@@ -26,6 +26,7 @@ pub(crate) fn inspect(
 ) -> p::Result<super::OfflineBrainIdentity> {
     let connection = immutable_source(path)?;
     crate::sqlite::migration::supported_schema(&connection)?;
+    crate::restoration_fence::read(&connection)?;
     let schema_digest = backup::schema_digest(&connection)?;
     let integrity: String = connection
         .query_row("PRAGMA integrity_check", [], |r| r.get(0))

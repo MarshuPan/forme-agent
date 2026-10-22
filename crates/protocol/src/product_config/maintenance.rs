@@ -13,6 +13,12 @@ pub enum ProductMaintenanceAction {
         release_digest: SchemaDigest,
     },
     UninstallPlan {},
+    CommitRestore {
+        candidate_ref: String,
+        candidate_digest: SchemaDigest,
+        owner_digest: SchemaDigest,
+        config_revision: u64,
+    },
 }
 
 impl ProductMaintenanceAction {
@@ -30,6 +36,17 @@ impl ProductMaintenanceAction {
             },
             Self::UninstallPlan {} => MaintenanceKind::UninstallPlan {
                 preserve_owner_data: true,
+            },
+            Self::CommitRestore {
+                candidate_ref,
+                candidate_digest,
+                owner_digest,
+                config_revision,
+            } => MaintenanceKind::CommitRestore {
+                candidate_ref: candidate_ref.clone(),
+                candidate_digest: candidate_digest.clone(),
+                owner_digest: owner_digest.clone(),
+                config_revision: *config_revision,
             },
         }
     }
@@ -56,6 +73,7 @@ impl ProductMaintenanceRequest {
         }
         validate_product_id(&self.operation_id)?;
         self.owner.validate()?;
+        self.action.maintenance_kind().validate()?;
         if let ProductMaintenanceAction::StageSignedRelease {
             release_id,
             release_digest,

@@ -237,11 +237,24 @@ pub(super) fn core_config(
             "credential_path": state.credentials.get(&view.id).ok_or_else(invalid)?,
         }));
     }
-    Ok(serde_json::json!({
+    let (store_path, content_key_directory, expected_restoration_fence) = state
+        .active_data
+        .as_ref()
+        .map(|binding| {
+            (
+                binding.store_path.clone(),
+                Some(binding.content_key_directory.clone()),
+                binding.execution_fence_digest.clone(),
+            )
+        })
+        .unwrap_or((template.brain_store_path.clone(), None, None));
+    let mut config = serde_json::json!({
         "schema_version":1, "install_ref":template.install_ref, "revision":state.revision,
         "brain": {
             "schema_version":1, "owner":state.owner.as_ref().ok_or_else(invalid)?,
-            "store_path":template.brain_store_path, "artifact_root":template.artifact_root,
+            "store_path":store_path, "content_key_directory":content_key_directory,
+            "expected_restoration_fence":expected_restoration_fence,
+            "artifact_root":template.artifact_root,
             "workspace":template.workspace, "agent_profile":template.agent_profile, "models":models,
             "scheduler_enabled":true,
             "scheduler":{"schema_version":1,"tick":template.scheduler_tick,"lease":template.scheduler_lease,"max_claims_per_tick":template.scheduler_max_claims},
@@ -258,7 +271,16 @@ pub(super) fn core_config(
             "max_body_bytes":262144,"request_timeout_ms":30000,"max_requests_per_minute":120
         },
         "drain_timeout_ms":template.drain_timeout.0
-    }))
+    });
+    if state.active_data.is_some() {
+        config["transport"]["work_admission_path"] = serde_json::to_value(
+            template
+                .core_config_path
+                .with_extension("work-admission.json"),
+        )
+        .map_err(|_| invalid())?;
+    }
+    Ok(config)
 }
 
 #[derive(Deserialize)]
@@ -310,12 +332,13 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         credentials.insert(model.id.clone(), path);
     }
     let state = ConfigState {
-        schema_version: p::SchemaVersion(2),
+        schema_version: p::SchemaVersion(3),
         install_ref: legacy.install_ref,
         owner: legacy.owner,
         revision: legacy.active_revision,
         models: legacy.models,
         credentials,
+        active_data: None,
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

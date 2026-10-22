@@ -47,6 +47,7 @@ impl ProductionRuntime {
             }
         }
         let before = self.services().store.run_head(&charter_stream)?;
+        let restoration = self.services().store.restored_execution_fence()?;
         for charter in charters.values() {
             if self
                 .services()
@@ -64,6 +65,17 @@ impl ProductionRuntime {
                 &events,
                 claim.window,
             )? {
+                // Project knowledge survives; only an owner-planned new route
+                // grants fresh authority to continue this project's work.
+                if let Some(fence) = &restoration {
+                    let fresh_route = snapshot.routes.values().any(|r| {
+                        r.declaration.project == review.project
+                            && !fence.contains(&r.declaration.parent)
+                    });
+                    if !fresh_route {
+                        continue;
+                    }
+                }
                 let current = self.orchestration_snapshot()?;
                 // Late foreground project changes and in-flight segments are left
                 // to the next snapshot; the tick cannot overwrite either.

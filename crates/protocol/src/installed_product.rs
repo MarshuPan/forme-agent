@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use crate::{canonical_digest, Error, Result, SchemaDigest, SchemaVersion, Timestamp};
 mod worker;
 pub use worker::*;
+mod restore;
+pub use restore::*;
 
 fn version(version: SchemaVersion) -> Result<()> {
     if version != SchemaVersion(1) {
@@ -413,6 +415,7 @@ pub enum MaintenanceKind {
         candidate_ref: String,
         candidate_digest: SchemaDigest,
         owner_digest: SchemaDigest,
+        config_revision: u64,
     },
     UninstallPlan {
         preserve_owner_data: bool,
@@ -448,8 +451,12 @@ impl MaintenanceKind {
                 candidate_ref,
                 candidate_digest,
                 owner_digest,
+                config_revision,
             } => {
-                validate_product_id(candidate_ref)?;
+                if *config_revision == 0 {
+                    return Err(Error("restore configuration revision is required".into()));
+                }
+                validate_release_id(candidate_ref)?;
                 validate_product_digest(candidate_digest)?;
                 validate_product_digest(owner_digest)?;
             }

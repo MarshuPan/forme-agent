@@ -11,6 +11,15 @@ impl ProductionRuntime {
     ) -> p::Result<p::WorkRouteRecord> {
         let _data_access = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
+        let record = self
+            .orchestration_snapshot()?
+            .routes
+            .get(route)
+            .cloned()
+            .ok_or_else(|| p::Error("unknown route".into()))?;
+        self.services()
+            .store
+            .require_current_execution(&record.declaration.parent)?;
         {
             let mut active = self
                 .orchestration_active

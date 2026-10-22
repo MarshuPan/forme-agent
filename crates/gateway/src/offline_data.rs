@@ -10,6 +10,8 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
 };
+mod restore;
+pub use restore::OfflineRestoreWorker;
 
 // A closed projection of the managed config, deliberately independent from
 // runtime/model/transport decoding. Ignored fields cannot influence storage.
@@ -35,6 +37,8 @@ struct StorageBinding {
     store_path: PathBuf,
     #[serde(default)]
     content_key_directory: Option<PathBuf>,
+    #[serde(default)]
+    expected_restoration_fence: Option<p::SchemaDigest>,
     artifact_root: PathBuf,
     #[serde(rename = "agent_profile")]
     _agent_profile: IgnoredAny,
@@ -90,6 +94,12 @@ impl OfflineCoreMaintenance {
     /// an elevation, arbitrary SQL or anonymous Web maintenance endpoint.
     pub fn open(config_path: &Path, backup: Option<&Path>) -> p::Result<Self> {
         let config = StorageConfig::load(config_path)?;
+        if let Some(digest) = &config.brain.expected_restoration_fence {
+            p::sha256_digest_bytes(digest)?;
+            if config.brain.content_key_directory.is_none() {
+                return Err(invalid());
+            }
+        }
         let owner = p::VerifiedPrincipal(config.brain.owner.0.clone());
         let keys = config
             .brain
@@ -97,16 +107,18 @@ impl OfflineCoreMaintenance {
             .as_ref()
             .cloned()
             .unwrap_or_else(|| config.brain.store_path.with_extension("content-keys"));
-        Ok(Self {
-            inner: OfflineBrainMaintenance::open_storage(
-                &owner,
-                p::Scope(config.brain.workspace.0),
-                &config.brain.store_path,
-                &config.brain.artifact_root,
-                &keys,
-                backup,
-            )?,
-        })
+        let inner = OfflineBrainMaintenance::open_storage(
+            &owner,
+            p::Scope(config.brain.workspace.0),
+            &config.brain.store_path,
+            &config.brain.artifact_root,
+            &keys,
+            backup,
+        )?;
+        if backup.is_none() {
+            inner.require_restoration_fence(config.brain.expected_restoration_fence.as_ref())?;
+        }
+        Ok(Self { inner })
     }
     pub fn identity(&self) -> &OfflineBrainIdentity {
         self.inner.identity()

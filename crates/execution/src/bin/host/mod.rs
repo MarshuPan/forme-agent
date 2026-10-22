@@ -125,6 +125,9 @@ fn run_host(
     if let Some(stager) = runtime.release_stager {
         broker = broker.with_release_stager(stager)?;
     }
+    if let Some(worker) = runtime.restore_worker {
+        broker = broker.with_restore_worker(worker)?;
+    }
     let broker = Arc::new(broker);
     if runtime.managed {
         broker.record_installation_verification(

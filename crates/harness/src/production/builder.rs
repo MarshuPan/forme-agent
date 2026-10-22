@@ -6,6 +6,8 @@ pub struct ProductionRuntimeBuilder {
     config: ProductionRuntimeConfig,
     credential_files: Option<BTreeMap<String, PathBuf>>,
     managed_key_directory: Option<PathBuf>,
+    // None is development; Some(None) is a managed, unrestored store.
+    required_restoration_fence: Option<Option<p::SchemaDigest>>,
 }
 
 impl ProductionRuntimeBuilder {
@@ -19,6 +21,7 @@ impl ProductionRuntimeBuilder {
             config,
             credential_files: None,
             managed_key_directory: None,
+            required_restoration_fence: None,
         })
     }
 
@@ -27,6 +30,7 @@ impl ProductionRuntimeBuilder {
     pub fn from_managed_config(config: crate::ManagedBrainConfig) -> p::Result<Self> {
         let runtime = config.runtime_config()?;
         let key_directory = config.content_key_directory()?;
+        let expected_fence = config.expected_restoration_fence.clone();
         let credential_files = config
             .models
             .into_iter()
@@ -36,6 +40,7 @@ impl ProductionRuntimeBuilder {
             config: runtime,
             credential_files: Some(credential_files),
             managed_key_directory: Some(key_directory),
+            required_restoration_fence: Some(expected_fence),
         })
     }
 
@@ -65,7 +70,23 @@ impl ProductionRuntimeBuilder {
         access: forme_store::StoreAccessGuard,
     ) -> p::Result<ProductionRuntime> {
         self.config.validate()?;
+        let data_operation_root = self
+            .managed_key_directory
+            .as_ref()
+            .and_then(|path| path.parent())
+            .map(|base| base.join("data-operations"));
         access.require_store(&store)?;
+        if let Some(expected) = &self.required_restoration_fence {
+            let actual = store
+                .restored_execution_fence()?
+                .map(|f| f.digest())
+                .transpose()?;
+            if &actual != expected {
+                return Err(p::Error(
+                    "managed restoration authority binding is missing or changed".into(),
+                ));
+            }
+        }
         if store.content_protection()?.is_none() {
             let key_path = self
                 .managed_key_directory
@@ -84,7 +105,9 @@ impl ProductionRuntimeBuilder {
                 Arc::new(keys),
             )?)?;
         }
-        compose(self.config, store, self.credential_files, access)
+        let mut runtime = compose(self.config, store, self.credential_files, access)?;
+        runtime.data_operation_root = data_operation_root;
+        Ok(runtime)
     }
 }
 

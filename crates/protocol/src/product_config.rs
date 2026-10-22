@@ -11,10 +11,11 @@ use std::path::PathBuf;
 
 use crate::{
     validate_product_id, AgentProfileRef, DurationMs, Error, OwnerPrincipalRef, Result,
-    SchemaVersion, WorkspaceRef,
+    SchemaDigest, SchemaVersion, WorkspaceRef,
 };
 
 pub const PRODUCT_CONFIG_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
+pub const PRODUCT_DATA_BINDING_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -40,6 +41,58 @@ pub struct ProductConfigTemplate {
     pub stable_evidence_max_age: DurationMs,
     pub authority_lease: DurationMs,
     pub drain_timeout: DurationMs,
+}
+
+/// Host-owned binding for a verified restored brain. It is deliberately not
+/// accepted by the ordinary browser model patch; only the local restore
+/// transaction may persist it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductDataBinding {
+    pub schema_version: SchemaVersion,
+    pub candidate_ref: String,
+    pub store_path: PathBuf,
+    pub content_key_directory: PathBuf,
+    pub owner_digest: SchemaDigest,
+    pub store_identity: SchemaDigest,
+    pub manifest_digest: SchemaDigest,
+    pub execution_fence_digest: Option<SchemaDigest>,
+}
+
+impl ProductDataBinding {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != PRODUCT_DATA_BINDING_SCHEMA_VERSION
+            || self.candidate_ref.trim().is_empty()
+            || self.candidate_ref.len() > 256
+            || !self.store_path.is_absolute()
+            || !self.content_key_directory.is_absolute()
+            || self.store_path.components().any(|part| {
+                matches!(
+                    part,
+                    std::path::Component::ParentDir | std::path::Component::CurDir
+                )
+            })
+            || self.content_key_directory.components().any(|part| {
+                matches!(
+                    part,
+                    std::path::Component::ParentDir | std::path::Component::CurDir
+                )
+            })
+        {
+            return Err(Error("product data binding is invalid".into()));
+        }
+        for digest in [
+            &self.owner_digest,
+            &self.store_identity,
+            &self.manifest_digest,
+        ]
+        .into_iter()
+        .chain(self.execution_fence_digest.iter())
+        {
+            crate::sha256_digest_bytes(digest)?;
+        }
+        Ok(())
+    }
 }
 
 impl ProductConfigTemplate {
@@ -254,6 +307,8 @@ pub struct ProductConfigAcknowledgement {
     pub schema_version: SchemaVersion,
     pub install_ref: String,
     pub revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub data_identity: Option<ProductDataAcknowledgement>,
 }
 
 impl ProductConfigAcknowledgement {
@@ -267,6 +322,9 @@ impl ProductConfigAcknowledgement {
             ));
         }
         validate_product_id(&self.install_ref)?;
+        if let Some(identity) = &self.data_identity {
+            identity.validate()?;
+        }
         Ok(())
     }
 }
@@ -379,3 +437,7 @@ pub struct ProductCoreActivationResponse {
 }
 mod maintenance;
 pub use maintenance::*;
+mod readiness;
+pub use readiness::*;
+mod admission;
+pub use admission::*;

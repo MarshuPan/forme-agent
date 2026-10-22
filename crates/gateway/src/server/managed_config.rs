@@ -25,6 +25,8 @@ pub struct ManagedGatewayTransport {
     pub web_session_fence_path: PathBuf,
     #[serde(default)]
     pub configuration_ack_path: Option<PathBuf>,
+    #[serde(default)]
+    pub work_admission_path: Option<PathBuf>,
     pub max_body_bytes: usize,
     pub request_timeout_ms: u64,
     pub max_requests_per_minute: u32,
@@ -66,6 +68,14 @@ impl CoreServiceConfig {
         ];
         if let Some(path) = self.transport.configuration_ack_path.as_ref() {
             paths.push(path);
+        }
+        if let Some(path) = self.transport.work_admission_path.as_ref() {
+            paths.push(path);
+        }
+        if self.brain.expected_restoration_fence.is_some()
+            && self.transport.work_admission_path.is_none()
+        {
+            return Err(invalid());
         }
         for (index, path) in paths.iter().enumerate() {
             crate::web::config::check_path(path)?;
@@ -116,6 +126,7 @@ impl CoreServiceConfig {
                 schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
                 install_ref: self.install_ref.clone(),
                 revision: self.revision,
+                data_identity: None,
             })
     }
 }

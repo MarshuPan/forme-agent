@@ -21,14 +21,18 @@ impl OfflineBrainMaintenance {
             ));
         }
         let keys = config.content_key_directory()?;
-        Self::open_storage(
+        let source = Self::open_storage(
             owner,
             p::Scope(config.workspace.0.clone()),
             &config.store_path,
             &config.artifact_root,
             &keys,
             backup,
-        )
+        )?;
+        if backup.is_none() {
+            source.require_restoration_fence(config.expected_restoration_fence.as_ref())?;
+        }
+        Ok(source)
     }
 
     /// Only storage/owner bindings are required for disaster recovery. A broken
@@ -63,6 +67,20 @@ impl OfflineBrainMaintenance {
     }
     pub fn identity(&self) -> &OfflineBrainIdentity {
         self.source.identity()
+    }
+    pub fn execution_fence_digest(&self) -> p::Result<Option<p::SchemaDigest>> {
+        self.source.execution_fence_digest()
+    }
+    pub fn restored_candidate_fence_digest(&self) -> p::Result<p::SchemaDigest> {
+        self.source.restored_candidate_fence_digest()
+    }
+    pub fn require_restoration_fence(&self, expected: Option<&p::SchemaDigest>) -> p::Result<()> {
+        if self.execution_fence_digest()?.as_ref() != expected {
+            return Err(p::Error(
+                "offline restoration fence differs from the installed configuration".into(),
+            ));
+        }
+        Ok(())
     }
     pub fn backup(&self, target: &Path) -> p::Result<forme_store::BackupVerification> {
         self.source.create_backup(target)

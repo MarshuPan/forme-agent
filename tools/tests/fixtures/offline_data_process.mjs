@@ -25,7 +25,7 @@ export async function exerciseOfflineData(product, originalConfig) {
       stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8',
     });
     assert.equal(result.error, undefined, 'local maintenance process did not finish');
-    assert.equal(result.status, success ? 0 : 1, 'local maintenance process result differs');
+    assert.equal(result.status, success ? 0 : 1, `local maintenance ${command} result differs: ${String(result.stderr).replaceAll(product.root, '[fixture-root]').slice(0, 400)}`);
     assert.equal(result.stdout.includes(product.root), false, 'maintenance output must use opaque digests');
     if (!success) { assert.equal(result.stdout, ''); return; }
     return JSON.parse(result.stdout);
@@ -99,10 +99,15 @@ export async function exerciseOfflineData(product, originalConfig) {
   // Opening a restored runtime is explicit and still uses the original vault.
   const restoredConfigPath = path.join(product.root, 'restored-core-config.json');
   config.brain.store_path = target;
+  config.brain.expected_restoration_fence = receipt.execution_fence_digest;
+  // This explicit test-process configuration is not a Host commit receipt.
+  // The managed-product test exercises closed/open admission separately.
+  config.transport.work_admission_path = path.join(product.root, 'restored-core.work-admission.json');
+  config.transport.configuration_ack_path = path.join(product.root, 'restored-config-ack.json');
   await writeJson(restoredConfigPath, config);
   for (const database of [source, backup, target]) {
     for (const suffix of ['-wal', '-shm', '-journal']) await absent(database + suffix);
   }
-  return { restoredConfigPath, identity, run: cli,
+  return { restoredConfigPath, identity, receipt, source, run: cli,
     verify: () => cli('verify-data', configPath, ['--source', target]) };
 }

@@ -64,14 +64,51 @@ where
     S: Future<Output = p::Result<()>>,
 {
     let transport = config.transport()?;
-    let configuration_ack = config.configuration_ack();
+    let mut configuration_ack = config.configuration_ack();
     let configuration_ack_path = config.transport.configuration_ack_path.clone();
+    let work_admission_path = config.transport.work_admission_path.clone();
     let lifecycle = GatewayLifecycleConfig {
         schema_version: p::SchemaVersion(1),
         drain_timeout: Duration::from_millis(config.drain_timeout_ms),
     };
     let runtime = Arc::new(ProductionRuntimeBuilder::from_managed_config(config.brain)?.build()?);
-    serve_runtime_until(
+    if let Some(acknowledgement) = &mut configuration_ack {
+        let manifest = runtime.manifest();
+        acknowledgement.data_identity = Some(p::ProductDataAcknowledgement {
+            schema_version: p::SchemaVersion(1),
+            owner_digest: manifest.owner_digest.clone(),
+            store_identity: manifest.store_identity.clone(),
+            execution_fence_digest: runtime
+                .services()
+                .store
+                .restored_execution_fence()?
+                .map(|fence| fence.digest())
+                .transpose()?,
+            composition_digest: manifest.digest.clone(),
+        });
+    }
+    let admission = match (work_admission_path.as_deref(), configuration_ack.as_ref()) {
+        (Some(path), Some(ack)) => super::maintenance_admission::managed_admission(
+            path.to_owned(),
+            ack.install_ref.clone(),
+            ack.revision,
+            ack.data_identity
+                .clone()
+                .ok_or_else(|| p::Error("managed data readiness is missing".into()))?,
+        ),
+        _ if runtime
+            .services()
+            .store
+            .restored_execution_fence()?
+            .is_some() =>
+        {
+            return Err(p::Error(
+                "restored managed core requires lifecycle admission".into(),
+            ))
+        }
+        _ => WorkAdmission::default(),
+    };
+    serve_with_admission_until(
         transport,
         runtime,
         lifecycle,
@@ -86,6 +123,7 @@ where
             Ok(())
         },
         shutdown,
+        Arc::new(admission),
     )
     .await
 }
@@ -96,6 +134,29 @@ pub(super) async fn serve_runtime_until<F, S>(
     lifecycle: GatewayLifecycleConfig,
     on_bound: F,
     shutdown: S,
+) -> p::Result<()>
+where
+    F: FnOnce(SocketAddr) -> p::Result<()>,
+    S: Future<Output = p::Result<()>>,
+{
+    serve_with_admission_until(
+        config,
+        runtime,
+        lifecycle,
+        on_bound,
+        shutdown,
+        Arc::new(WorkAdmission::default()),
+    )
+    .await
+}
+
+async fn serve_with_admission_until<F, S>(
+    config: GatewayServerConfig,
+    runtime: Arc<ProductionRuntime>,
+    lifecycle: GatewayLifecycleConfig,
+    on_bound: F,
+    shutdown: S,
+    admission: Arc<WorkAdmission>,
 ) -> p::Result<()>
 where
     F: FnOnce(SocketAddr) -> p::Result<()>,
@@ -136,7 +197,6 @@ where
             "local gateway resolved to a non-loopback address".into(),
         ));
     }
-    let admission = Arc::new(WorkAdmission::default());
     let _close_on_drop = CloseAdmissionOnDrop(admission.clone());
     let state = Arc::new(HttpState {
         gateway,
@@ -187,7 +247,7 @@ where
                     _ = interval.tick() => {}
                 }
                 let Ok(lease) = scheduler_admission.acquire() else {
-                    break;
+                    continue;
                 };
                 let scheduler = scheduler.clone();
                 let _ = tokio::task::spawn_blocking(move || {

@@ -11,6 +11,11 @@ mod host_maintenance;
 mod host_native;
 #[path = "host_operations.rs"]
 mod host_operations;
+#[path = "host_restore.rs"]
+mod host_restore;
+#[cfg(test)]
+#[path = "host_restore_tests.rs"]
+mod host_restore_tests;
 
 use super::{
     NativeServiceManager, ProductConfigStore, ProductJournal, ReleaseStager, SystemServiceManager,
@@ -154,6 +159,7 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     web_configuration_digest: Option<p::SchemaDigest>,
     product_config: Option<Arc<Mutex<ProductConfigStore>>>,
     release_stager: Option<Arc<ReleaseStager>>,
+    restore_worker: Option<Arc<dyn super::RestoreWorkerProvider>>,
     target: p::ProductTarget,
     install_id: String,
     active_release: String,
@@ -230,6 +236,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             web_configuration_digest,
             product_config,
             release_stager: None,
+            restore_worker: None,
             target,
             install_id: install_id.into(),
             active_release,
@@ -239,6 +246,21 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
 
     pub fn target(&self) -> p::ProductTarget {
         self.target
+    }
+
+    pub fn with_restore_worker(
+        mut self,
+        worker: Arc<dyn super::RestoreWorkerProvider>,
+    ) -> p::Result<Self> {
+        if worker.installation().install_id != self.install_id
+            || worker.installation().target != self.target
+        {
+            return Err(p::Error(
+                "restore worker belongs to another installation".into(),
+            ));
+        }
+        self.restore_worker = Some(worker);
+        Ok(self)
     }
 
     /// Attach a preflighted administrator-owned staging layout; never enables
@@ -258,6 +280,13 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         manifest_digest: p::SchemaDigest,
         release_digest: p::SchemaDigest,
     ) -> p::Result<u64> {
+        if let Some(worker) = &self.restore_worker {
+            if worker.installation().digest()? != manifest_digest {
+                return Err(p::Error(
+                    "restore worker has a different installation manifest".into(),
+                ));
+            }
+        }
         if let Some(stager) = &self.release_stager {
             if stager.installation_digest()? != manifest_digest {
                 return Err(p::Error(
@@ -353,6 +382,13 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         ];
         if self.release_stager.is_some() {
             allowed_operations.extend(["stage_signed_release".into(), "uninstall_plan".into()]);
+        }
+        if self
+            .restore_worker
+            .as_ref()
+            .is_some_and(|worker| worker.preflight().is_ok())
+        {
+            allowed_operations.push("commit_restore".into());
         }
         Ok(p::HostStatus {
             schema_version: p::SchemaVersion(1),
