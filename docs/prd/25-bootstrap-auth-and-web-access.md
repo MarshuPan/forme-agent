@@ -241,3 +241,9 @@ broker 的认领权威使用独立、OS 排他锁保护的 append journal；记�
 `POST /product/config/validate` 只检查指定已保存 revision 的静态配置、文件与凭据存在性，明确 `model_test_status=NotRun`。`POST /product/config/activate` 是有限的 Start/RestartCore 维护适配：绑定登录 owner、operation、配置 revision 和 action，要求该操作的近期口令重新认证；只能控制内置 Brain 服务，无任意服务名、程序、路径或 AgentExecution。服务动作沿既有产品维护 journal；中断后只查询原 operation，pending/unknown 不重新启停。配置与服务操作使用同一配置锁，防止检查之后换 revision。
 
 网页区分“保存”“静态检查”“请求启动/重启”“核心确认”，启动 OS receipt 不等于模型调用成功；已确认 revision 也不单独证明当前进程健康。模型真实测试仍只经正式 core 的 Run 路径。旧版已知配置只在 owner/模板/完整文件一致时迁移，无法核对则要求本机恢复，不能丢弃原配置。模型输入在凭据 staging/该命令 intent 之前被拒绝时，返回明确的 422/ConfigurationInvalid，允许编辑；任何发布或服务副作用不明不能映射成该错误，也不能换新 operation 自动重试。
+
+### 11.6 实施细化：配置发布与运行态的访问隔离
+
+新安装的路径/Windows ACL 采用 prd/24 §4.4。`brain/runtime` 在认领后由 core 首次启动按需创建；准备安装和赋权不往新脑目录预写占位文件/子目录，保持原“新脑候选必须为空”的检查。Host 创建的 `config/core` 和 `keys/model-credentials` 则可预建，未来发布/凭据 revision 继承只读授权。
+
+重复准备只核对原安装与其有界、版本化 template，报告 template 指定的 core 文件，不改写 template、密钥或旧 runtime。模板身份、路径归属、版本或文件类型不匹配即拒绝；不得把找不到新路径误当成旧安装没有配置，也不得通过放宽父目录写权限兼容旧布局。
