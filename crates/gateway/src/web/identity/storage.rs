@@ -94,7 +94,7 @@ impl Database {
             let version: i64 = reader
                 .pragma_query_value(None, "user_version", |r| r.get(0))
                 .map_err(|_| AuthError::RecoveryRequired)?;
-            if application != APPLICATION_ID || !matches!(version, 1..=4) {
+            if application != APPLICATION_ID || !matches!(version, 1..=5) {
                 return Err(AuthError::RecoveryRequired);
             }
         } else {
@@ -190,6 +190,25 @@ impl Database {
                     created INTEGER NOT NULL
                 );
                  PRAGMA user_version=4;",
+            )
+            .map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
+        }
+        if version <= 4 {
+            let tx = connection.transaction().map_err(storage_error)?;
+            tx.execute_batch(
+                "CREATE TABLE IF NOT EXISTS workbench_sessions (
+                    session TEXT PRIMARY KEY, owner TEXT NOT NULL, title TEXT NOT NULL,
+                    workspace TEXT, archived INTEGER NOT NULL, created INTEGER NOT NULL,
+                    updated INTEGER NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS workbench_sessions_owner_updated
+                    ON workbench_sessions(owner, updated DESC, session);
+                 CREATE TABLE IF NOT EXISTS workbench_session_commands (
+                    command TEXT PRIMARY KEY, owner TEXT NOT NULL, binding TEXT NOT NULL,
+                    response TEXT NOT NULL
+                 );
+                 PRAGMA user_version=5;",
             )
             .map_err(storage_error)?;
             tx.commit().map_err(storage_error)?;

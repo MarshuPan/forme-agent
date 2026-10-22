@@ -9,6 +9,14 @@ use super::super::WebError;
 enum WebRunControl {
     Cancel(p::CancelRequest),
     ResolveApproval(WebApproval),
+    ResolveToolOutcome {
+        command: p::IdempotencyKey,
+        resolution: p::ToolOutcomeResolution,
+    },
+    ResolveHandoff {
+        command: p::IdempotencyKey,
+        resolution: p::HandoffResolutionRequest,
+    },
 }
 
 #[derive(Deserialize)]
@@ -94,7 +102,32 @@ pub(super) fn bind_body(
                 decision.validate().map_err(|_| WebError::invalid())?;
                 p::RunControl::ResolveApproval(decision)
             }
+            WebRunControl::ResolveToolOutcome {
+                command,
+                resolution,
+            } => {
+                if Some(command.0.as_str()) != key {
+                    return Err(WebError::invalid());
+                }
+                p::RunControl::ResolveToolOutcome {
+                    command,
+                    resolution,
+                }
+            }
+            WebRunControl::ResolveHandoff {
+                command,
+                resolution,
+            } => {
+                if Some(command.0.as_str()) != key {
+                    return Err(WebError::invalid());
+                }
+                p::RunControl::ResolveHandoff {
+                    command,
+                    resolution,
+                }
+            }
         };
+        control.validate().map_err(|_| WebError::invalid())?;
         return serde_json::to_vec(&control).map_err(|_| WebError::invalid());
     }
     Ok(body.to_owned())

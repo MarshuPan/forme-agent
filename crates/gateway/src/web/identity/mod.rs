@@ -7,6 +7,7 @@ mod sessions;
 mod setup;
 mod setup_claim;
 mod storage;
+mod workbench;
 
 #[cfg(test)]
 mod tests;
@@ -188,6 +189,10 @@ impl AuthenticatedWebOwner {
             owner: self.view.owner.clone(),
             auth_epoch: self.view.auth_epoch,
         }
+    }
+
+    pub(crate) fn owner(&self) -> &p::OwnerPrincipalRef {
+        &self.view.owner
     }
 }
 

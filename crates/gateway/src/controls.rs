@@ -56,6 +56,7 @@ where
         auth: AuthContext,
     ) -> p::Result<()> {
         self.validate_owner_control(auth)?;
+        control.validate()?;
         if let p::RunControl::ResolveApproval(decision) = &control {
             if decision.approver != self.owner {
                 return Err(p::Error(

@@ -9,6 +9,7 @@ mod core_routes;
 mod data;
 mod error;
 mod security;
+mod sessions;
 
 #[cfg(test)]
 mod tests;
@@ -201,6 +202,11 @@ fn router(state: Arc<WebState>) -> Router {
         .route("/api/v1/auth/reauth", post(auth::reauthenticate))
         .route("/api/v1/auth/sessions", delete(auth::revoke))
         .route("/api/v1/auth/password", put(auth::password))
+        .route(
+            "/api/v1/sessions",
+            get(sessions::list).post(sessions::create),
+        )
+        .route("/api/v1/sessions/{session}", put(sessions::update))
         .route("/api/v1/data/query", post(data::query))
         .route("/api/v1/data/command", post(data::command))
         .route(

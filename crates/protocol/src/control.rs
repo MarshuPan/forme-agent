@@ -263,12 +263,6 @@ impl CancelRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RunControl {
-    ResolveApproval(ApprovalDecision),
-    Cancel(CancelRequest),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IntentionTrigger {
     At(Timestamp),
     OnEvent(EventKind),

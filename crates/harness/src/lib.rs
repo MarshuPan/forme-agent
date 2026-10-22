@@ -5630,6 +5630,52 @@ impl GatewayControl for ReactiveHarness {
                 request.validate()?;
                 AgentHarness::cancel(self, run)
             }
+            p::RunControl::ResolveToolOutcome {
+                command: _,
+                resolution,
+            } => {
+                resolution.validate()?;
+                let outcome = match resolution.outcome {
+                    p::ToolOutcomeKind::Completed => ResolvedOutcome::Completed(
+                        resolution.result_ref.ok_or_else(|| {
+                            p::Error("completed outcome has no result ref".into())
+                        })?,
+                        resolution.summary,
+                    ),
+                    p::ToolOutcomeKind::Failed => ResolvedOutcome::Failed(
+                        resolution
+                            .failure_ref
+                            .ok_or_else(|| p::Error("failed outcome has no failure ref".into()))?,
+                        resolution.summary,
+                    ),
+                    p::ToolOutcomeKind::Cancelled => ResolvedOutcome::Cancelled(
+                        resolution
+                            .reason
+                            .ok_or_else(|| p::Error("cancelled outcome has no reason".into()))?,
+                    ),
+                };
+                AgentHarness::resume(
+                    self,
+                    run,
+                    ResumeInput::ToolOutcome(resolution.action, outcome),
+                )
+            }
+            p::RunControl::ResolveHandoff {
+                command: _,
+                resolution,
+            } => {
+                resolution.validate()?;
+                AgentHarness::resume(
+                    self,
+                    run,
+                    ResumeInput::Handoff(HandoffResolution {
+                        schema_version: resolution.schema_version,
+                        target: resolution.target,
+                        accepted: resolution.accepted,
+                        result: resolution.result,
+                    }),
+                )
+            }
         }
     }
 

@@ -148,6 +148,9 @@ pub(super) async fn control_run(
     Json(control): Json<p::RunControl>,
 ) -> Result<StatusCode, ApiError> {
     let auth = state.authorize(&headers, true)?;
+    control
+        .validate()
+        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "invalid run control"))?;
     if let p::RunControl::ResolveApproval(decision) = &control {
         if decision.approver != state.owner {
             return Err(ApiError::new(
