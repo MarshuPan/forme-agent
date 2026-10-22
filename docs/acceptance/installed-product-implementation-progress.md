@@ -2,7 +2,7 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`。最新权限分区实现为 `29984a4`（设计说明 `76803c8`），前批配置闭合为 `01b77f9`；验证日期 2026-10-22。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
+最新施工分支：`shu/installed-product`。最新主脑工作台实现为 `477ef52`（设计说明 `f5ca7bf`、`c014a68`），权限分区 `29984a4`、前批配置闭合 `01b77f9`；验证日期 2026-10-22。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
 
 ## 1. 实施顺序与当前范围
 
@@ -16,7 +16,11 @@
 
 24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
 
-最新增量和证据边界见 [安装权限分区组件验收](installed-product-service-access-acceptance.md)；前批配置见 [模型配置与主脑启停验收](installed-product-configuration-acceptance.md)，2026-10-21 历史见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
+最新增量和证据边界见 [主脑投影与认知处置组件验收](installed-product-brain-views-acceptance.md)；前批见 [安装权限分区组件验收](installed-product-service-access-acceptance.md)、[模型配置与主脑启停验收](installed-product-configuration-acceptance.md)，2026-10-21 历史见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
+
+### 最新主脑工作台（2026-10-22，`477ef52`）
+
+工作台新增正式记忆/认知/收件箱投影、证据与血缘、受 governor 约束的候选处置及持久命令回执，AskToLearn 回答/拒绝/延后接回原学习路径。Unknown 不重复执行，同一候选刷新后换号也阻断；浏览器不能自填 evidence/actor/派生列表。全量源码质量门、5 条新增主脑测试和真实 Web→core HTTP 测试通过。完整 IP20、实际浏览器/原生产品验收尚未完成；完整收件箱、数据管理和其余整体义务继续实施。
 
 ### 最新权限分区（2026-10-22，`29984a4`）
 

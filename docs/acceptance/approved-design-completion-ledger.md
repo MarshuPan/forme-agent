@@ -52,8 +52,8 @@
 | P12 / IP17：对话 | 登录、提交/历史、cursor 续接、公开事件、幂等 | 会话创建/重命名/归档/项目关联，授权附件/产物；断线/双 tab 与 actual profile。 |
 | P12/P14 / IP18：审批与控制 | 最终审批 binding、取消、运行状态 | 其他 PendingKind 的 typed 恢复、Unknown probe/裁决及真正终态确认。 |
 | P13 / IP19：项目 | project/route register/plan/execute/cancel、charter | 意图/监管调整、历史/依赖/节点证据、刷新/恢复；不创建项目私有脑。 |
-| P14 / IP20：收件箱 | waiting/failed 运行基础列表 | 主动建议/AskToLearn/审批/失败/Unknown 的来源、状态、采纳/拒绝/延后/回答/裁决；查看不等于采纳。 |
-| P14 / IP20：记忆与认知 | 事件统计和只读注意投影 | 原始记忆/认知/候选/稳定/撤回/重评视图、证据/血缘、正式 review/纠正/撤回/遗忘。 |
+| P14 / IP20：收件箱 | `477ef52` 正式主动提案/AskToLearn/失败投影、问询回应与 waiting/failed 运行入口 | 普通建议完整采纳/拒绝/延后、Unknown 探测/裁决及完整浏览器验收；查看不等于采纳。 |
+| P14 / IP20：记忆与认知 | `477ef52` 原始记忆引用、认知/候选/稳定/撤回/重评投影，证据/传递血缘及正式 review/撤回 | 授权原始正文、认知纠正/真正遗忘与完整 IP20；现有组件证据不等于产品通过。 |
 | P07/P15 / IP21：设置 | 模型、口令、主脑状态、启动/ack | 完整分区的正式命令与维护；无假开关/任意 shell/SQL。 |
 | P08/P12 / IP22：浏览器安全 | CSP、无 raw HTML、独立限流、private cache 清理 | 附件/下载隔离、实际浏览器故障/恶意内容、键盘/窄屏与认证恢复验收。 |
 | P16 / IP23：前端来源 | 自有 React/TypeScript UI，白名单/依赖/NOTICE/资源构建门 | 新组件继续来源审查；无 upstream runtime、fixture 或 build/import。 |
