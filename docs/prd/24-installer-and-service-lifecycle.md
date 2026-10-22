@@ -188,6 +188,8 @@ Validated 核对请求、安装/config/revision 和候选引用；Quiescing inte
 
 Switching 内，worker 撤销所有旧 Web session/reauth、持久提升全局 auth epoch，并将相同 epoch 写入离线 core session fence；不修改口令、OwnerId 或内容密钥。每次操作留绑定 operation/command 的幂等回执。Host 在同一配置锁内以 expected revision/CAS 发布实际验证的 ProductDataBinding，递增配置版本并保留模型/凭据配置；绑定路径只能来自该 worker。两库 fence 持有到发布完成；只有释放确认且 worker 正常退出后才允许重启 core。
 
+Web 在此期间仍可运行，不能尝试第二次取得 Web daemon 的 singleton writer lock。受保护本机 worker 只可通过专用的认证维护外观打开既有 identity DB（READ_WRITE、无 CREATE/迁移，核对 application/schema/install/issuer）；以 SQLite IMMEDIATE 事务串行执行上述唯一 fence 操作及幂等回执。该外观不构造第二个 WebIdentityStore，不登录、不改密码、不提供任意 SQL；普通认证仍只有一个 Web daemon。core fence 文件须已经由 core 账户建立，离线 worker 只更新其原 inode/事务，不创建 root/SYSTEM 所有的新文件代替它；缺失时保持 RecoveryRequired，避免跨账户重启失去访问权。
+
 Checking intent 先于重启。`ProductConfigAcknowledgement` 增加可选版本化 data identity（实际 owner/store、恢复边界、composition digest）；只有正式 ProductionRuntime 完成启动、恢复扫描和绑定检查后才能生成。无恢复绑定时兼容旧 ack；存在 active_data 时，缺少 identity、错 owner/store/fence 或旧 revision 一律不能标为生效。Host 等待确切新 revision 的有效回执并复查原生服务 Running，随后 Committed；只看到进程 Running 或配置文件存在不算通过。
 
 就绪回执不等于工作准入。Switching 发布配置前，Host 在固定 configuration_ack_path 的 `work-admission.json` 同伴文件原子写入 closed、版本化 `ProductWorkAdmission`（install/operation/command digest/config revision/owner digest/恢复边界/released=false）；core 对每次 HTTP 工作和 scheduler claim 读取此记录，恢复绑定存在时记录缺失、损坏、身份不符或未释放均拒绝。只读健康、回执和维护不被关闭。Checking 失败保持 hold，即使进程已经 Running 也不得接任务。Committed 落盘后 Host 才原子发布 released=true；崩溃于两者之间只会保持关闭，可在查询同一已提交 operation 时重核当前 config ack/服务后补发准入记录，不重跑停服、备份、切换或其他副作用。配置后续保存须保持同一数据绑定，较新的配置 revision 可以沿用已提交的同一恢复边界；旧 revision、其他 owner/边界不可沿用。全部阶段共享同一个授权截止时刻，准备与等待消耗授权时间，关键副作用前重新检查，不能重新开始计时。
