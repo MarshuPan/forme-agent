@@ -111,6 +111,14 @@ trait CoreWebBridge {
 - 全局与单会话 fence 均只增不减，乱序或重复递交不复活旧授权。待同步记录未清空时不向 core 发送新的脑请求；登录、状态和受认证的独立宿主维护继续可用。不存在 core 配置时保留记录，不伪造远端确认；后续接通仍先同步。
 - 原子性验收覆盖：core 离线注销/改密码、提交后重启、ack 丢失、同记录重复/乱序同步、无效 proof 零变化、旧内存身份/已签旧 assertion 拒绝、新 session 先同步后提交，以及 logout 不取消已授权任务。此组件不替代原生安装或 IP06/IP24 联合验收。
 
+### 4.4 窄维护外观与原操作核实
+
+`GET/POST /api/v1/product/maintenance` 与 `GET /api/v1/product/maintenance/operations/{id}` 使用已认证 session；写请求还需 Origin/CSRF、稳定 operation id 与针对服务端重建 digest 的单次密码重认证。浏览器只能选择 StartCore、StopCore、RestartCore、StageSignedRelease 或保留数据的 UninstallPlan；没有 arbitrary MaintenanceKind、路径、程序、SQL 或恢复裁决参数。owner 取自已验证会话，Host 再与产品配置绑定核对；读取不授予操作权。
+
+该外观经 Configuration 域的固定路由转发，不给 Web 发 maintenance bearer，也不让 Configuration token 访问通用管理/AgentExecution 路由。Host 在内部构造原 MaintenanceCommand，复用同一 ProductJournal/CAS/intent/receipt。快照带独立 `product_revision`、实际 HostStatus、owner 绑定与最多 25 条最近 operation；读取时版本变化返回 conflict，不能把配置 revision 当产品 revision。
+
+Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 release worker 已配置且预检通过才可执行；卸载按钮只生成范围计划，不删除数据。丢响应时页面保留原 operation id，只查询该操作，不能自动再次派发；pending/RecoveryRequired 继续显示原阶段。主脑离线时认证和这些受限维护仍可用。其他升级/恢复动作需各自完整 worker，不能在此借通用代理放开。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 认领与口令恢复

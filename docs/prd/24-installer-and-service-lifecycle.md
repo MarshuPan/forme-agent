@@ -114,6 +114,22 @@ Windows 包使用随包、固定入口的 PowerShell/.NET ACL helper；它不是
 
 既有 `prepare-installation` 重开必须读取并校验原 `product-template.json`，沿用其中的 core/ack/fence 路径；旧布局不自动搬移。旧布局转为原生服务仍需显式、停服的数据/权限迁移。ACL descriptor、真实临时 NTFS 继承/原子替换、安装控制流与实际服务账户访问拒绝分别取证；前几项通过不能标记 IP01/IP10/IP24 或管理员 SCM 演练通过。
 
+### 4.5 签名发布落盘与卸载范围的执行细化
+
+`HostManagement` 与 `NativeServiceManager` 保持既有实现签名。受管 Host 可显式加载 closed、版本化的 `ReleaseStagingConfig`，只含 installation 引用与管理员预置发布公钥；缺失配置时不开放发布操作。它不从包内导入信任根，不接受来自 Web/Agent 的文件路径。
+
+发布源固定为本 installation 的 `host-state/release-inbox/<release_id>/`，其中 `manifest.json`、原始 64 字节 `signature.ed25519` 与 `content/` 分离。`StageSignedRelease` 在 plan 前和 execute 前各验证身份、目标、签名、完整闭合文件集及 command 的 release digest。执行必须先持久化 Checking intent，再在 releases 同卷创建 operation 专属新目录，逐文件有界复制、sync、复核、原子更名，最后保存独立不可变 receipt；既有 release 绝不覆盖。中断现场保留，只查询原 operation，不重新复制或删除重试。staging 成功仅证明发布文件就绪，不能冒充 Upgrade、服务 image 切换或 IP 原生验收。
+
+`UninstallPlan` 仅输出绑定 installation manifest 的确切服务/程序移除范围与全部保留路径，结果存于 host-state 的不可变管理记录，journal 仅记摘要。它不执行卸载、不删除数据，也不将 preserve=false 转换成数据清除权限。阶段/终态查询和同义幂等重查不重新创建文件。
+
+离线构建使用 `tools/sign-product-release.mjs` 将已审查 bundle 转为 `manifest.json + signature.ed25519 + content/`；明确输入兼容范围与独立私有 Ed25519 key 文件，输出/来源不得包含私钥。`share/forme/web` 映射为签名内容中的 `web`，文件摘要与序列化次序遵循 protocol 的 Rust `ReleaseManifest::digest`，不另造规范化算法。受管 Host 的独立只读入口 `--verify-release <absolute-directory> --trust-config <absolute-file> --target <wire-target>` 复用同一个 verifier，既不创建 journal，也不进入 SCM/ProductionRuntime。签名回执记录原生包签名/安装未验证；发布包内自报公钥不能成为安装信任根。原生 Authenticode/Developer ID/仓库签名与真正安装验收独立完成。
+
+### 4.6 在线与离线 store 互斥、密钥库访问
+
+ProductionRuntime 在打开持久 store 前取得同目录 `<store-stem>.access-lock` 的 OS shared lock，锁由其 Harness 的 authority heartbeat 一起持有，不能随 builder 或 HTTP 请求结束而释放。多个在线候选仍由既有 authority lease 决定唯一写者；shared lock 不替代 epoch/nonce/恢复扫描。离线维护工具必须先取得同一文件的 exclusive lock，随后才可检查、备份、恢复或迁移；冲突时零 brain/keys 写入，不靠“服务已停止”推断独占。锁文件不删除、不重命名，进程退出由 OS 释放；换路径维护同时绑定源与目标，拒绝链接/别名。没有这条锁的历史进程仍须停服和 SQLite 占用检查，不能宣称新锁能约束旧二进制。
+
+开发密钥库的显式本机权限准备保持兼容；受管构造沿用安装器设置的目录 ACL，不读取交互 USERNAME，也不执行 icacls 改写固定服务 SID。只读 existing 构造不得创建目录/密钥、调整 ACL 或销毁密钥；缺 key、破损 key、链接、撤销标记均拒绝，不自动生成替代材料。离线检查先用只读 resolver 验证 owner/解密/replay，实际迁移或新路径恢复另有绑定的写入操作。库接口变化为 additive，不改 ContentKeyResolver 与既有 store trait。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
