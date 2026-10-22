@@ -64,6 +64,14 @@ API 不接受任意 URL/SQL/方法名；TypedWorkbenchCommand 是已存在的 ru
 
 reducer 为纯函数：`reduce(snapshot, ordered_event) -> view`，重复 event 不改变结果，gap 返回需要重新同步。多 run 列表使用 server cursor，不拼出全局 stream_seq。stream.close 仅关闭连接，不取消任务。
 
+### 4.1 工作台投影与认知处置适配
+
+`POST /v1/brain/workbench/query` 接受版本化 `WorkbenchQuery`（section、可选 scope、offset、limit、可选 snapshot digest）。这是无模型调用、无写入的认证查询；每页最多 100 项。分页绑定实际投影摘要，快照变化返回冲突，调用方重新读取第一页；不把跨 run 的事件序号拼成全局游标。对象包含原 run/event/stream_seq、证据、血缘、状态与允许的处置。原始材料只返回授权 content ref，未解密的引用不冒充正文。
+
+`POST /v1/brain/workbench/review` 的 `WorkbenchReviewCommand` 只接受 command key、run、candidate、expected_state、decision。owner 来自认证，证据、稳定目标与传递派生关系由正式 core 重新解析，再调用既有 CandidateReviewCommand/governor。浏览器不能指定 actor、证据或失效列表；确认仍可能因证据不足被拒绝。
+
+适配层不新增脑 EventKind。认知 review 的命令回执使用既有 `MemoryMaintenanceApplied.deltas_ref` 的保留编码 `workbench-review-v1|key_digest|binding_digest|started/confirmed/rejected`，只记录命令绑定与处置状态，不携带用户正文或秘密。相同 key/相同绑定返回原回执；相同 key/不同绑定拒绝。已记录 started 但没有终态时返回 Unknown，不盲重放中间提升/撤回；UI 查询真实对象状态和原回执。此记录是认知维护审计，不充当安装、认证或配置事实。
+
 ## 5. 页面、行为与状态
 
 ### 5.1 全局外壳与初始化
