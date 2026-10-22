@@ -16,7 +16,9 @@ use std::io::Read;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-use forme_execution::installed::{HostCredentials, WorkerRuntimeConfig};
+use forme_execution::installed::{
+    HostCredentials, ReleaseStager, ReleaseStagingConfig, WorkerRuntimeConfig,
+};
 use forme_protocol as p;
 use serde::Deserialize;
 
@@ -35,6 +37,8 @@ pub(crate) struct HostServiceConfig {
     pub web_configuration_credential_path: Option<PathBuf>,
     #[serde(default)]
     pub product_config_template_path: Option<PathBuf>,
+    #[serde(default)]
+    pub release_staging_config_path: Option<PathBuf>,
     pub worker_config_path: Option<PathBuf>,
     pub bootstrap_config_path: Option<PathBuf>,
     pub host_bind: SocketAddr,
@@ -145,6 +149,9 @@ impl HostServiceConfig {
         if let Some(path) = &self.product_config_template_path {
             paths.push(path);
         }
+        if let Some(path) = &self.release_staging_config_path {
+            paths.push(path);
+        }
         paths
     }
 
@@ -195,6 +202,7 @@ pub(crate) struct HostRuntimeConfig {
     pub bootstrap_config_path: Option<PathBuf>,
     pub worker_config_path: Option<PathBuf>,
     pub product_config_template_path: Option<PathBuf>,
+    pub release_stager: Option<std::sync::Arc<ReleaseStager>>,
     pub host_bind: SocketAddr,
     pub agent_execution_bind: SocketAddr,
     pub configuration_bind: SocketAddr,
@@ -206,10 +214,17 @@ pub(crate) struct HostRuntimeConfig {
 }
 
 pub(crate) enum Launch {
-    Development { process_workers: bool },
+    Development {
+        process_workers: bool,
+    },
     Managed(PathBuf),
     InstallService(PathBuf),
     UninstallService(PathBuf),
+    VerifyRelease {
+        root: PathBuf,
+        trust: PathBuf,
+        target: p::ProductTarget,
+    },
 }
 
 pub(crate) fn launch_from_args(
@@ -237,6 +252,27 @@ pub(crate) fn launch_from_args(
             let path = PathBuf::from(path);
             reject_path(&path)?;
             Ok(Launch::UninstallService(path))
+        }
+        [verify, root, trust_flag, trust, target_flag, target]
+            if verify == "--verify-release"
+                && trust_flag == "--trust-config"
+                && target_flag == "--target" =>
+        {
+            let (root, trust) = (PathBuf::from(root), PathBuf::from(trust));
+            reject_path(&root)?;
+            reject_path(&trust)?;
+            let target = serde_json::from_value(serde_json::Value::String(
+                target
+                    .to_str()
+                    .ok_or_else(|| p::Error("release target is invalid".into()))?
+                    .to_owned(),
+            ))
+            .map_err(|_| p::Error("release target is invalid".into()))?;
+            Ok(Launch::VerifyRelease {
+                root,
+                trust,
+                target,
+            })
         }
         _ => Err(p::Error(
             "host arguments are invalid for this execution mode".into(),
@@ -296,6 +332,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         bootstrap_config_path: std::env::var_os("FORME_BOOTSTRAP_CONFIG_PATH").map(PathBuf::from),
         worker_config_path: std::env::var_os("FORME_WORKER_CONFIG_PATH").map(PathBuf::from),
         product_config_template_path: None,
+        release_stager: None,
         host_bind,
         agent_execution_bind,
         configuration_bind,
@@ -311,6 +348,13 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
     let config = HostServiceConfig::load(path)?;
     let (manifest, manifest_digest) = manifest::load_installation_manifest(&config)?;
     let worker_protected_paths = config.preflight_references(path)?;
+    // Validate all trust/layout inputs before opening credentials or any journal.
+    let release_stager = config
+        .release_staging_config_path
+        .as_deref()
+        .map(|path| ReleaseStager::open(manifest.clone(), ReleaseStagingConfig::load(path)?))
+        .transpose()?
+        .map(std::sync::Arc::new);
     let credentials = HostCredentials::new(
         read_managed_credential(&config.maintenance_credential_path, "maintenance")?,
         Some(read_managed_credential(
@@ -342,6 +386,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         bootstrap_config_path: config.bootstrap_config_path,
         worker_config_path: config.worker_config_path,
         product_config_template_path: config.product_config_template_path,
+        release_stager,
         host_bind: config.host_bind,
         agent_execution_bind: config.agent_execution_bind,
         configuration_bind: config.configuration_bind,

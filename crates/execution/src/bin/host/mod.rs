@@ -19,6 +19,25 @@ use http::handle_connection;
 
 pub(super) fn run() -> p::Result<()> {
     let launch = launch_from_args(std::env::args_os().skip(1))?;
+    let launch = match launch {
+        Launch::VerifyRelease {
+            root,
+            trust,
+            target,
+        } => {
+            let config = forme_execution::installed::ReleaseStagingConfig::load(&trust)?;
+            let digest = forme_execution::installed::ReleaseStager::verify_directory(
+                &root, &config, target,
+            )?;
+            println!(
+                "{}",
+                serde_json::json!({ "schema_version": 1, "release_digest": digest,
+                "verification": "signature_and_closed_content", "native_installation": "not_performed" })
+            );
+            return Ok(());
+        }
+        launch => launch,
+    };
     #[cfg(windows)]
     {
         match launch {
@@ -35,6 +54,9 @@ pub(super) fn run() -> p::Result<()> {
                     "Windows service dispatcher failed: {error}"
                 ))),
             },
+            Launch::VerifyRelease { .. } => Err(p::Error(
+                "offline verification cannot start a service".into(),
+            )),
         }
     }
     #[cfg(not(windows))]
@@ -43,6 +65,9 @@ pub(super) fn run() -> p::Result<()> {
         Launch::InstallService(_) | Launch::UninstallService(_) => Err(p::Error(
             "host service installation is managed by the native package manager on this platform"
                 .into(),
+        )),
+        Launch::VerifyRelease { .. } => Err(p::Error(
+            "offline verification cannot start a service".into(),
         )),
     }
 }
@@ -88,7 +113,7 @@ fn run_host(
         .transpose()?
         .map(Arc::new);
     let has_configuration = credentials.web_configuration().is_some() && product_config.is_some();
-    let broker = Arc::new(ProductHostBroker::open_with_service_manager_and_config(
+    let mut broker = ProductHostBroker::open_with_service_manager_and_config(
         &journal,
         &install_id,
         credentials,
@@ -96,7 +121,11 @@ fn run_host(
         runtime.active_release,
         product_config,
         forme_execution::installed::SystemServiceManager,
-    )?);
+    )?;
+    if let Some(stager) = runtime.release_stager {
+        broker = broker.with_release_stager(stager)?;
+    }
+    let broker = Arc::new(broker);
     if runtime.managed {
         broker.record_installation_verification(
             runtime

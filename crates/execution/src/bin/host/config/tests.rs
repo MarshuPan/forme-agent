@@ -273,3 +273,28 @@ fn broad_credential_permissions_are_refused() {
     .unwrap();
     assert!(read_managed_credential(&fixture.0.join("maintenance.key"), "maintenance").is_err());
 }
+
+#[test]
+fn release_staging_roots_are_checked_before_credentials_and_journal() {
+    let fixture = Fixture::new();
+    let mut doc = fixture.document();
+    let staging_path = fixture.0.join("release-staging.json");
+    doc["release_staging_config_path"] = serde_json::json!(staging_path);
+    let path = fixture.save(&doc);
+    let key = ed25519_dalek::SigningKey::from_bytes(&[0x22; 32]);
+    let mut staging = serde_json::json!({ "schema_version": 1,
+        "install_ref": "another-install", "pinned_keys": { "test-key": key.verifying_key().to_bytes() } });
+    std::fs::write(&staging_path, serde_json::to_vec(&staging).unwrap()).unwrap();
+    assert!(from_managed_config(&path).is_err());
+    assert!(!fixture.journal().exists());
+    assert!(!fixture.maintenance_key().exists());
+    staging["install_ref"] = serde_json::json!("managed-host-test");
+    std::fs::write(&staging_path, serde_json::to_vec(&staging).unwrap()).unwrap();
+    fixture.key("maintenance.key", b"test-maintenance-only-token-0000000001");
+    fixture.key("agent.key", b"test-agent-only-token-000000000000002");
+    let runtime = from_managed_config(&path).unwrap();
+    assert!(runtime.release_stager.is_some());
+    assert!(!fixture.journal().exists());
+    doc["release_staging_config_path"] = doc["journal_path"].clone();
+    assert!(HostServiceConfig::load(&fixture.save(&doc)).is_err());
+}

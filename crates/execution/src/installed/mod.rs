@@ -10,6 +10,7 @@ mod product_config;
 #[cfg(windows)]
 mod registration;
 mod release;
+mod release_staging;
 mod service;
 mod worker;
 mod worker_config;
@@ -22,6 +23,7 @@ pub use product_config::*;
 #[cfg(windows)]
 pub use registration::{register_windows_service, unregister_windows_service};
 pub use release::*;
+pub use release_staging::*;
 pub use service::*;
 pub use worker::*;
 pub use worker_config::*;

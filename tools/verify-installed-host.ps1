@@ -55,6 +55,17 @@ try {
         "broker_crash_after_native_effect_preserves_intent_and_forbids_reexecution"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_host_contract") $name }
 
+    foreach ($name in @(
+        "stage_publishes_exact_files_once_and_replays_without_the_source",
+        "tampered_inbox_at_plan_has_no_fact_and_after_plan_keeps_unknown_intent",
+        "existing_destination_extra_files_and_wrong_digest_are_rejected_without_publication",
+        "concurrent_execution_publishes_a_single_immutable_record",
+        "uninstall_scope_retains_every_data_domain_and_never_uninstalls",
+        "wrong_installation_worker_cannot_attach",
+        "interrupted_stage_directory_is_preserved_and_cannot_be_reused",
+        "restart_rejects_misbound_stop_receipt_before_attempting_start"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") $name }
+
     Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "tests::ordinary_http11_is_parsed_and_ambiguous_or_browser_requests_are_rejected"
     Invoke-NamedTest "forme-execution" @("--test", "installed_host_transport") "http_broker_authenticates_and_reuses_the_original_read_only_operation"
 
@@ -73,6 +84,7 @@ try {
         "managed_host_needs_private_distinct_file_credentials_and_cannot_enable_process_workers",
         "host_configuration_cannot_alias_itself_or_the_fallback_worker_journal",
         "managed_bootstrap_reference_is_preflighted_without_opening_its_authority",
+        "release_staging_roots_are_checked_before_credentials_and_journal",
         "administrative_arguments_need_an_explicit_config_and_never_start_development"
     )) { Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::config::tests::$name" }
     foreach ($name in @(

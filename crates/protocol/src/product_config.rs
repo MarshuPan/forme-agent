@@ -377,3 +377,5 @@ pub struct ProductCoreActivationResponse {
     pub configuration: ProductConfigView,
     pub service: crate::NativeServiceStatus,
 }
+mod maintenance;
+pub use maintenance::*;

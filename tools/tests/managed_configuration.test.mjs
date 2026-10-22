@@ -78,6 +78,25 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   const journalLength = (await fs.stat(product.host.journal_path)).size;
   await product.request('/api/v1/product/config/activate', { method: 'POST', key: activation.operation_id, body: activation, expected: 401 });
   assert.equal((await fs.stat(product.host.journal_path)).size, journalLength, 'wrong password must not reach host maintenance');
+  const maintenance = await product.request('/api/v1/product/maintenance');
+  assert.equal(maintenance.owner, session.session.owner);
+  assert.ok(maintenance.product_revision > 0);
+  assert.deepEqual(maintenance.operations, []);
+  const ownerAction = { schema_version: 1, operation_id: 'maintenance:process',
+    expected_revision: maintenance.product_revision, action: { kind: 'stop_core' },
+    requested_deadline: Date.now() + 120000, password };
+  await product.request('/api/v1/product/maintenance', { method: 'POST', key: ownerAction.operation_id,
+    body: { ...ownerAction, password: 'incorrect fixture password' }, expected: 401 });
+  await product.request('/api/v1/product/maintenance', { method: 'POST', key: ownerAction.operation_id,
+    body: ownerAction, headers: { 'X-Forme-Csrf': 'wrong-fixture-csrf' }, expected: 403 });
+  await product.request('/api/v1/product/maintenance', { method: 'POST', key: ownerAction.operation_id,
+    body: { ...ownerAction, action: { kind: 'stop_core', command: 'forbidden' } }, expected: 400 });
+  // A real successful password reaches host CAS, but a deliberately stale product
+  // revision guarantees zero OS service calls, even if this PC has an installation.
+  await product.request('/api/v1/product/maintenance', { method: 'POST', key: ownerAction.operation_id,
+    body: { ...ownerAction, expected_revision: maintenance.product_revision + 100 }, expected: 409 });
+  assert.equal((await fs.stat(product.host.journal_path)).size, journalLength);
+  assert.equal(modelRequests.length, 0, 'maintenance must not use the model');
   await product.stop(web); await product.stop(host);
   host = await product.startHost(); web = await product.startWeb();
   const replay = await product.request('/api/v1/product/config', { method: 'POST', key: initial.operation_id, body: initial });

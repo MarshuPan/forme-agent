@@ -31,6 +31,14 @@ try {
     Invoke-QualityStep 'frontend dependency vulnerability audit' 'npm' @('audit', '--prefix', 'frontend', '--audit-level=moderate')
     Invoke-QualityStep 'frontend types, regressions and reproducible embedded assets' 'npm' @('--prefix', 'frontend', 'run', 'verify')
     Invoke-QualityStep 'bundle integrity and preservation regressions' 'node' @('--test', 'tools/tests/product_bundle.test.mjs')
+    Invoke-QualityStep 'current offline release verifier' 'cargo' @('build', '--locked', '-p', 'forme-execution', '--bin', 'forme-hostd')
+    $oldReleaseVerifier = $env:FORME_RELEASE_VERIFIER
+    try {
+        $verifierName = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'forme-hostd.exe' } else { 'forme-hostd' }
+        $env:FORME_RELEASE_VERIFIER = (Resolve-Path (Join-Path $repoRoot "target/debug/$verifierName")).Path
+        Invoke-QualityStep 'offline signature and actual Rust verification' 'node' @('--test', 'tools/tests/signed_release.test.mjs')
+    }
+    finally { $env:FORME_RELEASE_VERIFIER = $oldReleaseVerifier }
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Invoke-QualityStep 'current installation preparation binary' 'cargo' @('build', '--locked', '-p', 'forme-cli', '--bin', 'forme-hostctl')
         Invoke-QualityStep 'native NTFS access descriptors and safe installation refusal' 'powershell.exe' @('-NoProfile', '-NonInteractive', '-File', 'tools/tests/windows_service_access.tests.ps1')

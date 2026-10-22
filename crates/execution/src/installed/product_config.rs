@@ -2,6 +2,8 @@
 #[cfg(test)]
 mod activation_tests;
 mod journal;
+#[cfg(test)]
+mod maintenance_tests;
 mod materialize;
 mod storage;
 #[cfg(test)]

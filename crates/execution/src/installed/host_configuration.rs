@@ -5,7 +5,7 @@ use forme_protocol as p;
 use super::{HostAuth, HostCredentialDomain, NativeServiceManager, ProductHostBroker};
 
 impl<M: NativeServiceManager> ProductHostBroker<M> {
-    fn verify_web_configuration_auth(&self, auth: &HostAuth) -> p::Result<()> {
+    pub(super) fn verify_web_configuration_auth(&self, auth: &HostAuth) -> p::Result<()> {
         if auth.domain != HostCredentialDomain::OwnerMaintenance
             || auth.actor != p::MaintenanceActorClass::OwnerReauthenticated
             || self.web_configuration_digest.as_ref() != Some(&auth.proof_ref)

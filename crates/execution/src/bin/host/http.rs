@@ -118,6 +118,28 @@ fn route(
             serde_json::to_vec(&broker.activate_configuration(auth, request, now_ms())?)
                 .map_err(|_| p::Error("host activation response failed".into()))?
         }
+        ("GET", "/v1/host/configuration/maintenance")
+            if matches!(domain, EndpointDomain::Configuration) =>
+        {
+            serde_json::to_vec(&broker.maintenance_snapshot(auth)?)
+                .map_err(|_| p::Error("host maintenance snapshot failed".into()))?
+        }
+        ("POST", "/v1/host/configuration/maintenance")
+            if matches!(domain, EndpointDomain::Configuration) =>
+        {
+            let request: p::ProductMaintenanceRequest = serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("host maintenance body is invalid".into()))?;
+            serde_json::to_vec(&broker.owner_maintenance(auth, request, now_ms())?)
+                .map_err(|_| p::Error("host maintenance response failed".into()))?
+        }
+        ("GET", path)
+            if matches!(domain, EndpointDomain::Configuration)
+                && path.starts_with("/v1/host/configuration/maintenance/operations/") =>
+        {
+            let id = path.trim_start_matches("/v1/host/configuration/maintenance/operations/");
+            serde_json::to_vec(&broker.owner_maintenance_operation(auth, id)?)
+                .map_err(|_| p::Error("host maintenance operation response failed".into()))?
+        }
         ("GET", path)
             if matches!(domain, EndpointDomain::Configuration)
                 && path.starts_with("/v1/host/configuration/operations/") =>
@@ -213,7 +235,9 @@ fn is_configuration_path(path: &str) -> bool {
             | "/v1/host/configuration/owner"
             | "/v1/host/configuration/validate"
             | "/v1/host/configuration/activate"
+            | "/v1/host/configuration/maintenance"
     ) || path.starts_with("/v1/host/configuration/operations/")
+        || path.starts_with("/v1/host/configuration/maintenance/operations/")
 }
 
 fn worker_id<'a>(path: &'a str, prefix: &str, suffix: &str) -> p::Result<&'a str> {

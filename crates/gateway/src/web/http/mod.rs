@@ -8,6 +8,7 @@ mod connections;
 mod core_routes;
 mod data;
 mod error;
+mod maintenance;
 mod security;
 mod sessions;
 
@@ -229,6 +230,14 @@ fn router(state: Arc<WebState>) -> Router {
         .route(
             "/api/v1/product/operations/{id}",
             get(configuration::operation),
+        )
+        .route(
+            "/api/v1/product/maintenance",
+            get(maintenance::read).post(maintenance::apply),
+        )
+        .route(
+            "/api/v1/product/maintenance/operations/{id}",
+            get(maintenance::operation),
         )
         .route(
             "/api/v1/brain/{*path}",

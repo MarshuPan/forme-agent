@@ -129,7 +129,7 @@ fn require_local_administrator() -> Result<(), String> {
         {
             return Err("local administrator authority is required".into());
         }
-        return Ok(());
+        Ok(())
     }
     #[cfg(unix)]
     {
@@ -140,7 +140,7 @@ fn require_local_administrator() -> Result<(), String> {
         if !output.status.success() || String::from_utf8_lossy(&output.stdout).trim() != "0" {
             return Err("local administrator authority is required".into());
         }
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(any(windows, unix)))]
     {

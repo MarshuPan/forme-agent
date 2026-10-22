@@ -1,6 +1,6 @@
 //! Typed Web-to-host product configuration bridge.
 //!
-//! This channel can stage model configuration only. It cannot call a model,
+//! This channel can stage configuration and fixed owner maintenance. It cannot call a model,
 //! inspect the brain store, or submit an AgentExecution request.
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -97,6 +97,26 @@ impl LocalConfigurationClient {
         )
     }
 
+    pub(super) fn maintenance(&self) -> p::Result<p::ProductMaintenanceSnapshot> {
+        self.request("GET", "/v1/host/configuration/maintenance", None::<&()>)
+    }
+
+    pub(super) fn maintain(
+        &self,
+        request: p::ProductMaintenanceRequest,
+    ) -> p::Result<p::MaintenanceOperation> {
+        self.request("POST", "/v1/host/configuration/maintenance", Some(&request))
+    }
+
+    pub(super) fn maintenance_operation(&self, id: &str) -> p::Result<p::MaintenanceOperation> {
+        p::validate_product_id(id)?;
+        self.request(
+            "GET",
+            &format!("/v1/host/configuration/maintenance/operations/{id}"),
+            None::<&()>,
+        )
+    }
+
     fn request<T: DeserializeOwned, B: Serialize>(
         &self,
         method: &str,
@@ -110,9 +130,12 @@ impl LocalConfigurationClient {
                 | ("POST", "/v1/host/configuration/owner")
                 | ("POST", "/v1/host/configuration/validate")
                 | ("POST", "/v1/host/configuration/activate")
+                | ("GET", "/v1/host/configuration/maintenance")
+                | ("POST", "/v1/host/configuration/maintenance")
         ) && !(method == "GET"
             && path
                 .strip_prefix("/v1/host/configuration/operations/")
+                .or_else(|| path.strip_prefix("/v1/host/configuration/maintenance/operations/"))
                 .is_some_and(|id| p::validate_product_id(id).is_ok()))
         {
             return Err(invalid());

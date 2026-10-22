@@ -3,6 +3,7 @@ import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, Orchestratio
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
 import type { WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
+import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -118,6 +119,11 @@ export class WorkbenchClient {
     return this.json<ProductCoreActivationResult>('product/config/activate', 'POST', { ...command, password }, command.operation_id);
   }
   productOperation(operation: string) { return this.json<ProductOperation>(`product/operations/${id(operation)}`); }
+  maintenance() { return this.json<MaintenanceSnapshot>('product/maintenance'); }
+  maintain(command: MaintenanceCommand, password: string) {
+    return this.json<ProductOperation>('product/maintenance', 'POST', { ...command, password }, command.operation_id);
+  }
+  maintenanceOperation(operation: string) { return this.json<ProductOperation>(`product/maintenance/operations/${id(operation)}`); }
   profile() { return this.json<ControlProfile>('brain/profile'); }
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }
   runs() { return this.json<RunSummary[]>('brain/runs'); }

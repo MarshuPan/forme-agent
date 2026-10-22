@@ -52,7 +52,7 @@ fn client(state: &WebState) -> Result<(), WebError> {
     }
 }
 
-async fn owner(
+pub(super) async fn owner(
     state: &WebState,
     headers: &HeaderMap,
     mutation: bool,

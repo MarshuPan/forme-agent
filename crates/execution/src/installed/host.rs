@@ -5,8 +5,16 @@ use forme_protocol as p;
 
 #[path = "host_configuration.rs"]
 mod host_configuration;
+#[path = "host_maintenance.rs"]
+mod host_maintenance;
+#[path = "host_native.rs"]
+mod host_native;
+#[path = "host_operations.rs"]
+mod host_operations;
 
-use super::{NativeServiceManager, ProductConfigStore, ProductJournal, SystemServiceManager};
+use super::{
+    NativeServiceManager, ProductConfigStore, ProductJournal, ReleaseStager, SystemServiceManager,
+};
 
 /// Credentials for the two product control planes. The maintenance and
 /// execution values are intentionally separate so one leaked domain cannot be
@@ -145,6 +153,7 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     web_configuration_bearer: Option<String>,
     web_configuration_digest: Option<p::SchemaDigest>,
     product_config: Option<Arc<Mutex<ProductConfigStore>>>,
+    release_stager: Option<Arc<ReleaseStager>>,
     target: p::ProductTarget,
     install_id: String,
     active_release: String,
@@ -220,6 +229,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             web_configuration_bearer: credentials.web_configuration().map(str::to_owned),
             web_configuration_digest,
             product_config,
+            release_stager: None,
             target,
             install_id: install_id.into(),
             active_release,
@@ -231,11 +241,30 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         self.target
     }
 
+    /// Attach a preflighted administrator-owned staging layout; never enables
+    /// upgrade/restore without their independent lifecycle execution workers.
+    pub fn with_release_stager(mut self, stager: Arc<ReleaseStager>) -> p::Result<Self> {
+        if stager.install_ref() != self.install_id || stager.target() != self.target {
+            return Err(p::Error(
+                "release worker belongs to another installation".into(),
+            ));
+        }
+        self.release_stager = Some(stager);
+        Ok(self)
+    }
+
     pub fn record_installation_verification(
         &self,
         manifest_digest: p::SchemaDigest,
         release_digest: p::SchemaDigest,
     ) -> p::Result<u64> {
+        if let Some(stager) = &self.release_stager {
+            if stager.installation_digest()? != manifest_digest {
+                return Err(p::Error(
+                    "release worker has a different installation manifest".into(),
+                ));
+            }
+        }
         self.journal
             .record_installation_verification(manifest_digest, release_digest)
     }
@@ -258,66 +287,17 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         &self,
         operation_id: &str,
         stage: p::MaintenanceStage,
+        actor: p::MaintenanceActorClass,
         now: p::Timestamp,
         receipt: p::SchemaDigest,
     ) -> p::Result<p::MaintenanceOperation> {
         let current = self.operation_state(operation_id)?;
-        self.journal.begin_stage(
-            operation_id,
-            current.revision,
-            stage,
-            p::MaintenanceActorClass::LocalAdministrator,
-            now,
-        )?;
+        self.journal
+            .begin_stage(operation_id, current.revision, stage, actor, now)?;
         let current = self.operation_state(operation_id)?;
         self.journal
             .finish_stage(operation_id, current.revision, stage, vec![receipt], now)?;
         self.operation_state(operation_id)
-    }
-
-    fn apply_native(&self, kind: &p::MaintenanceKind) -> p::Result<p::SchemaDigest> {
-        let receipt = match kind {
-            p::MaintenanceKind::StartCore => self.services.apply(p::ValidatedServiceChange {
-                schema_version: p::SchemaVersion(1),
-                service: p::BuiltinServiceId::Brain,
-                action: p::NativeServiceAction::Start,
-            })?,
-            p::MaintenanceKind::StopCore => self.services.apply(p::ValidatedServiceChange {
-                schema_version: p::SchemaVersion(1),
-                service: p::BuiltinServiceId::Brain,
-                action: p::NativeServiceAction::Stop,
-            })?,
-            p::MaintenanceKind::RestartCore => {
-                self.services.apply(p::ValidatedServiceChange {
-                    schema_version: p::SchemaVersion(1),
-                    service: p::BuiltinServiceId::Brain,
-                    action: p::NativeServiceAction::Stop,
-                })?;
-                self.services.apply(p::ValidatedServiceChange {
-                    schema_version: p::SchemaVersion(1),
-                    service: p::BuiltinServiceId::Brain,
-                    action: p::NativeServiceAction::Start,
-                })?
-            }
-            p::MaintenanceKind::Inspect => {
-                return p::canonical_digest(&self.services.inspect(p::BuiltinServiceId::Brain)?);
-            }
-            _ => {
-                return Err(p::Error(
-                    "maintenance operation requires its typed lifecycle worker".into(),
-                ));
-            }
-        };
-        let expected = match receipt.requested {
-            p::NativeServiceAction::Start => p::NativeServiceState::Running,
-            p::NativeServiceAction::Stop => p::NativeServiceState::Stopped,
-        };
-        if receipt.observed != expected {
-            return Err(p::Error(
-                "native service has no settled result; probe the original operation".into(),
-            ));
-        }
-        p::canonical_digest(&receipt)
     }
 
     fn status_for(&self) -> p::Result<p::HostStatus> {
@@ -363,6 +343,17 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 _ => p::ProductState::Degraded,
             }
         };
+        let mut allowed_operations = vec![
+            "inspect".into(),
+            "start_core".into(),
+            "stop_core".into(),
+            "restart_core".into(),
+            "plan".into(),
+            "execute".into(),
+        ];
+        if self.release_stager.is_some() {
+            allowed_operations.extend(["stage_signed_release".into(), "uninstall_plan".into()]);
+        }
         Ok(p::HostStatus {
             schema_version: p::SchemaVersion(1),
             install_id_safe_ref: self.install_id.clone(),
@@ -376,14 +367,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 .as_ref()
                 .and_then(|view| view.acknowledged_revision),
             issue_refs: Vec::new(),
-            allowed_operations: vec![
-                "inspect".into(),
-                "start_core".into(),
-                "stop_core".into(),
-                "restart_core".into(),
-                "plan".into(),
-                "execute".into(),
-            ],
+            allowed_operations,
         })
     }
 }
@@ -422,30 +406,7 @@ impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
         self.verify_maintenance_auth(auth)?;
-        request.validate()?;
-        if request.command.actor_proof.proof_ref != auth.proof_ref.0 {
-            return Err(p::Error(
-                "maintenance proof is not bound to this request".into(),
-            ));
-        }
-        if request.references.original_release_ref != self.active_release {
-            return Err(p::Error(
-                "maintenance command is bound to a stale active release".into(),
-            ));
-        }
-        if !matches!(
-            &request.command.kind,
-            p::MaintenanceKind::Inspect
-                | p::MaintenanceKind::StartCore
-                | p::MaintenanceKind::StopCore
-                | p::MaintenanceKind::RestartCore
-        ) {
-            return Err(p::Error(
-                "maintenance operation has no installed lifecycle worker".into(),
-            ));
-        }
-        self.journal
-            .plan(request.command, auth.actor, request.references, now)
+        self.plan_authorized(auth, request, now)
     }
 
     fn execute(
@@ -455,88 +416,7 @@ impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
         self.verify_maintenance_auth(auth)?;
-        p::validate_product_id(operation_id)?;
-        let operation = self.operation_state(operation_id)?;
-        if operation.stage == p::MaintenanceStage::Committed {
-            return Ok(operation);
-        }
-        if operation.stage == p::MaintenanceStage::RecoveryRequired {
-            return Err(p::Error(
-                "operation requires explicit recovery review".into(),
-            ));
-        }
-        if operation.pending_stage.is_some() {
-            return Err(p::Error("operation has an unresolved stage intent".into()));
-        }
-        let command = self.journal.command(operation_id)?;
-        if now >= command.requested_deadline
-            || operation.original_release_ref != self.active_release
-        {
-            return Err(p::Error(
-                "maintenance plan expired or its active release changed".into(),
-            ));
-        }
-        if operation.stage != p::MaintenanceStage::Planned {
-            return Err(p::Error(
-                "interrupted maintenance requires read-only recovery review".into(),
-            ));
-        }
-        let operation = self.record_stage(
-            operation_id,
-            p::MaintenanceStage::Validated,
-            now,
-            p::canonical_digest(&"host-validation-passed")?,
-        )?;
-        if operation.command_digest.0.is_empty() {
-            return Err(p::Error("maintenance command digest is unavailable".into()));
-        }
-        // Persist the native action's intent BEFORE invoking any service control.
-        // The CAS admits only one caller; crashes leave this exact intent unresolved.
-        self.journal.begin_stage(
-            operation_id,
-            operation.revision,
-            p::MaintenanceStage::Checking,
-            auth.actor,
-            now,
-        )?;
-        let receipt = match self.apply_native(&command.kind) {
-            Ok(receipt) => receipt,
-            Err(error) => {
-                let issue = p::canonical_digest(&error.to_string())?;
-                self.journal.require_recovery(
-                    operation_id,
-                    self.journal.revision()?,
-                    issue,
-                    now,
-                )?;
-                return self.operation_state(operation_id);
-            }
-        };
-        self.journal.finish_stage(
-            operation_id,
-            self.journal.revision()?,
-            p::MaintenanceStage::Checking,
-            vec![receipt],
-            now,
-        )?;
-        let operation = self.operation_state(operation_id)?;
-        let current = operation.revision;
-        self.journal.begin_stage(
-            operation_id,
-            current,
-            p::MaintenanceStage::Committed,
-            auth.actor,
-            now,
-        )?;
-        let current = self.operation_state(operation_id)?;
-        self.journal.finish_stage(
-            operation_id,
-            current.revision,
-            p::MaintenanceStage::Committed,
-            vec![p::canonical_digest(&"host-commit-observed")?],
-            now,
-        )?;
-        self.operation_state(operation_id)
+        self.execute_authorized(auth, operation_id, now)
     }
 
     fn operation(&self, auth: &HostAuth, operation_id: &str) -> p::Result<p::MaintenanceOperation> {
