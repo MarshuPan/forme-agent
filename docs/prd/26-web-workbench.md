@@ -72,6 +72,16 @@ reducer 为纯函数：`reduce(snapshot, ordered_event) -> view`，重复 event 
 
 适配层不新增脑 EventKind。认知 review 的命令回执使用既有 `MemoryMaintenanceApplied.deltas_ref` 的保留编码 `workbench-review-v1|key_digest|binding_digest|started/confirmed/rejected|target_digest`，只记录命令绑定、目标摘要与处置状态，不携带用户正文或秘密。相同 key/相同绑定返回原回执；相同 key/不同绑定拒绝。同一候选的控制串行，存在未确认处置时，新 key 同样不能重新执行。已记录 started 但没有终态时返回 Unknown，不盲重放中间提升/撤回；UI 查询真实对象状态和原回执。此记录是认知维护审计，不充当安装、认证或配置事实。
 
+### 4.2 数据工作台的安全适配
+
+Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/workbench/query`（目录、原操作状态、备份验证）与 `POST /v1/data/workbench/command`（备份、准备恢复、准备生命周期、批准原计划）。浏览器入口为 `/api/v1/data/query|command`；不经过通配 brain proxy，mutation 先验证 owner、CSRF、命令号与本次命令摘要绑定的口令，再由签名 bridge 发往 core。口令不进入 core、journal 或日志。
+
+目录仅展示 scope、subject digest、对象/投影数量、生命周期版本与 pending fence，不返回表名、row key、加密 envelope 或 key digest。分页使用实际目录 digest，快照改变返回冲突。生命周期范围预览展示直接与派生对象总数及不可逆性；计划内部明细留在 core。恢复只创建新的 opaque 本地对象，不切换 active brain，不接受任意路径；完成不能宣称已经恢复外部世界或旧 key。
+
+数据命令在现有 protected-content 存储中保存 owner/命令绑定的加密操作伴随记录（started、confirmed 不可变对象）；这不是新的认知事实源，批准/生命周期/完成仍使用既有权威事件和消费账本。完整计划仅在 core 解密，浏览器收到安全 preview、原命令号与 plan digest。相同号/不同参数冲突，同号重复查询原回执；started 缺少 confirmed 返回 Unknown，不再次运行备份、恢复或删除。准备/批准分成不同命令；批准重新加载原加密计划并调用已有 plan-bound one-shot 路径。删除执行期间及失败后的 data fence 保留，不能为工作台读取绕过它。
+
+操作列表/原回执在刷新、重启后仍可核实；Unknown 没有默认重试按钮。备份验证是只读文件/完整性/replay检查，不是批准、导入或切换。数据删除回执区分本地结果与远端 Unknown，不把密钥计数或组件测试当成远端擦除证明。内部操作记录不作为任意产物下载源。
+
 ## 5. 页面、行为与状态
 
 ### 5.1 全局外壳与初始化
