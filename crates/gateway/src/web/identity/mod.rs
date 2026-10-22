@@ -3,6 +3,7 @@ mod account;
 mod challenge;
 mod maintenance;
 mod password;
+mod recovery;
 mod sessions;
 mod setup;
 mod setup_claim;
