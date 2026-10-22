@@ -178,6 +178,8 @@ Windows 额外保持原库只读、拒绝写/删除共享的文件 handle；POSI
 
 ### 4.9 Host 恢复事务的离线 worker 与就绪回执
 
+`MaintenanceKind::CommitRestore` 增加必填 `config_revision`，与 candidate_ref、candidate_digest（最终 BackupManifest 的 canonical digest）及 owner_digest 一同进入 command binding；未实现过的旧 CommitRestore 请求缺少 revision 必须拒绝。Web 的同名 ProductMaintenanceAction 仅转发这些字段。配置保存遇到未决生命周期操作须拒绝，不能在 plan 后用新模型配置替换批准时的 config revision。
+
 Host 不增加对 store/harness/gateway 的依赖。使用已安装、只读程序目录中的固定 `bin/forme-hostctl` 作为有限本机维护子进程；程序路径取安装清单，不从请求、PATH 或当前目录寻找。参数只选择 `maintenance-restore` 与受保护安装清单；版本化、closed、有界 stdin/stdout 协议只接受 operation、当前 config revision、owner、opaque candidate ref 和确切 candidate manifest digest。子进程清理环境，不读取模型凭据、不构造 ProductionRuntime，不提供 shell/任意 SQL。缺失合法 worker 时继续拒绝 CommitRestore。
 
 Validated 核对请求、安装/config/revision 和候选引用；Quiescing intent 先落盘，再停止 core 并核对 Stopped。随后 worker 持当前库与候选库的 exclusive OS fence，实际验证同一 owner/store、候选最终 manifest、密钥与恢复边界。BackedUp intent 先于创建独立新备份，备份路径固定为 installation.backups 下的 operation 摘要，不覆盖既有目标。候选验证成功不能替代当前活动数据备份。
