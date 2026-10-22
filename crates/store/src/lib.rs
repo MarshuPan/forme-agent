@@ -8,6 +8,7 @@ mod charter;
 mod checksum;
 mod content;
 mod cursor;
+mod data_catalog;
 mod orchestration;
 mod projection;
 mod replay;

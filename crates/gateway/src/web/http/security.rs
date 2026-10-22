@@ -99,6 +99,7 @@ pub(super) async fn boundary(
                 | "/api/v1/auth/login-challenge"
                 | "/api/v1/auth/reauth"
                 | "/api/v1/auth/password"
+                | "/api/v1/data/command"
         ) {
             0
         } else if matches!(*request.method(), Method::GET | Method::HEAD) {

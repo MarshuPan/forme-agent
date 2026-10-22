@@ -7,6 +7,7 @@ pub use runtime::{serve_environment, serve_environment_until, serve_managed_unti
 mod observability;
 use observability::*;
 mod data;
+mod data_workbench;
 use data::*;
 mod projects;
 use projects::*;
@@ -219,6 +220,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/data/restore-plan", post(data_restore_plan))
         .route("/v1/data/restore", post(data_restore))
         .route("/v1/data/lifecycle", post(data_lifecycle))
+        .merge(data_workbench::routes())
         .route(
             "/v1/brain/projects",
             get(project_ledger).post(project_command),

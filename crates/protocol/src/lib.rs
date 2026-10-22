@@ -13,6 +13,7 @@ mod brain_relevance;
 pub use brain_relevance::*;
 mod content_protection;
 mod control;
+mod data_workbench;
 mod event;
 mod installed_product;
 mod lifecycle;
@@ -38,6 +39,7 @@ pub use workspace_charter::*;
 
 pub use content_protection::*;
 pub use control::*;
+pub use data_workbench::*;
 pub use event::*;
 pub use installed_product::*;
 pub use lifecycle::*;

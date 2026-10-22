@@ -2,6 +2,7 @@ import { isRecord, versioned } from '../types.ts';
 import type { ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
 import type { WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
+import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -128,6 +129,12 @@ export class WorkbenchClient {
   }
   workspace() { return this.json<Record<string, unknown>>('brain/workspace'); }
   dashboard() { return this.json<Record<string, unknown>>('brain/dashboard'); }
+  queryData(query: DataRead) {
+    return this.json<DataView>('data/query', 'POST', { schema_version: 1, query }, newKey('data-query'));
+  }
+  commandData(command: DataCommand, password: string) {
+    return this.json<DataReceipt>('data/command', 'POST', { command, password }, command.command);
+  }
   workbench(section: WorkbenchSection, offset = 0, snapshot: string | null = null, scope: string | null = null) {
     return this.json<WorkbenchSnapshot>('brain/workbench/query', 'POST', { schema_version: 1, section, scope, offset, limit: 50, snapshot }, newKey('view'));
   }

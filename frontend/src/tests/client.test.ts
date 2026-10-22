@@ -99,3 +99,23 @@ test('brain view pages retain their server digest and review controls retain the
     assert.equal('actor' in body, false); assert.equal('evidence' in body, false); assert.equal('retraction' in body, false);
   }
 });
+
+test('data maintenance keeps the exact command and a lost response is probed without password or action replay', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    if (calls.length === 1) throw new Error('socket closed after dispatch');
+    return Response.json({ schema_version: 1, kind: 'Receipt', receipt: null });
+  });
+  const command = { schema_version: 1 as const, command: 'data:one', action: { Backup: { target: 'backup.sqlite' } } };
+  await assert.rejects(() => api.commandData(command, 'fixture password'), ApiError);
+  await api.queryData({ Inspect: { command: command.command } });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].path, '/api/v1/data/command');
+  assert.deepEqual(JSON.parse(String(calls[0].request.body)), { command, password: 'fixture password' });
+  assert.equal(new Headers(calls[0].request.headers).get('Idempotency-Key'), command.command);
+  assert.equal(calls[1].path, '/api/v1/data/query');
+  assert.deepEqual(JSON.parse(String(calls[1].request.body)), { schema_version: 1, query: { Inspect: { command: command.command } } });
+  assert.equal(String(calls[1].request.body).includes('password'), false);
+  assert.equal(String(calls[1].request.body).includes('Backup'), false);
+});

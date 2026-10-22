@@ -6,6 +6,7 @@ mod configuration;
 mod connections;
 #[path = "core.rs"]
 mod core_routes;
+mod data;
 mod error;
 mod security;
 
@@ -180,6 +181,8 @@ fn router(state: Arc<WebState>) -> Router {
         .route("/api/v1/auth/reauth", post(auth::reauthenticate))
         .route("/api/v1/auth/sessions", delete(auth::revoke))
         .route("/api/v1/auth/password", put(auth::password))
+        .route("/api/v1/data/query", post(data::query))
+        .route("/api/v1/data/command", post(data::command))
         .route(
             "/api/v1/product/config",
             get(configuration::read)

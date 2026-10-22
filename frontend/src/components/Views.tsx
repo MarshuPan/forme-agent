@@ -6,6 +6,7 @@ import type { ProductConfigView, ProductModelProfilePatch, RuntimeView } from '.
 import { draftFromConfig, emptyModel, patchFromDraft } from '../configuration.ts';
 import type { ModelDraft } from '../configuration.ts';
 import { ConfigurationActivation } from './ConfigurationActivation.tsx';
+import { DataManagement } from './DataManagement.tsx';
 
 
 export function Settings({ api, runtime, issue, refresh, signedOut }: { api: WorkbenchClient; runtime: RuntimeView | null; issue: string; refresh: () => void; signedOut: () => void }) {
@@ -42,7 +43,7 @@ export function Settings({ api, runtime, issue, refresh, signedOut }: { api: Wor
       <label>新密码<input name="next" type="password" autoComplete="new-password" required minLength={12} maxLength={128} /></label>
       <label>确认新密码<input name="confirm" type="password" autoComplete="new-password" required minLength={12} maxLength={128} /></label>
       {error && <p role="alert" className="form-error">{error}</p>}<button className="primary-button" disabled={busy}>{busy ? '正在确认…' : '更新密码并重新登录'}</button>
-    </form></article></div>
+    </form></article></div><DataManagement api={api} connected={Boolean(runtime)} />
   </section>;
 }
 

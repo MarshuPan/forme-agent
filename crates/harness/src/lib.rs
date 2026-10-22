@@ -53,6 +53,7 @@ mod brain_evolution_seed;
 mod brain_models;
 mod brain_route_fitness;
 mod candidate_review;
+mod data_workbench;
 mod workbench;
 pub use brain_evolution::ProductionStrategySpec;
 pub use brain_evolution_seed::ProductionSeedSpec;
