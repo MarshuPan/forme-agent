@@ -9,6 +9,17 @@ Microsoft implementation, new runtime package, upstream script or fixture, and a
 no Cargo/npm dependency. Inno Setup compiler pinning, installer licensing/signing and
 native service-account acceptance remain release work, not established by these tests.
 
+Development native compilation (2026-10-23) used an isolated, non-redistributed
+`Tools.InnoSetup 6.6.1` NuGet wrapper from
+`https://api.nuget.org/v3-flatcontainer/tools.innosetup/6.6.1/tools.innosetup.6.6.1.nupkg`,
+SHA256 `9c994256f6fb3ed7f28e9637b97a3a328c2a3d1d5ba57537ac6b7dcc414ddbe2`.
+The ISCC executable is Authenticode-valid (Pyrsys B.V.), independently pinned to
+`f8deb3e9e54303c178fd3513357ebc4d580a63bd072e24c221442b06f884b8fc`.
+The package license and tool usage were reviewed; no tool implementation, example
+or installer script was copied. Tool licensing/neighbor-file pinning and official
+distribution provenance must be reviewed again for production release; this
+development compile is neither a native package signature nor an installation.
+
 ## Web workbench dependency review (2026-10-21)
 
 The workbench uses project-authored React/TypeScript components; no DeepSeek source,
@@ -59,6 +70,7 @@ forme 的项目许可证为 MIT，以根 `LICENSE` 和 `Cargo.toml` 为准。下
 | chacha20poly1305 | 0.11.0 | [crates.io](https://crates.io/crates/chacha20poly1305) | [RustCrypto/AEADs](https://github.com/RustCrypto/AEADs) | Apache-2.0 OR MIT | Low | Public AEAD API only behind the project-owned protected-content envelope; key material stays outside events and artifacts | No copied code, examples, fixtures, or naming | Review LICENSE/NOTICE and reachable advisories before release |
 | axum | 0.8.9 | [crates.io](https://crates.io/crates/axum) | [tokio-rs/axum](https://github.com/tokio-rs/axum) | MIT | Low | Public routing/extractor/response APIs only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
 | tokio | 1.52.3 | [crates.io](https://crates.io/crates/tokio) | [tokio-rs/tokio](https://github.com/tokio-rs/tokio) | MIT | Low | Public runtime, listener, task, and signal APIs only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
+| tokio-rustls | 0.26.6 | [crates.io](https://crates.io/crates/tokio-rustls) | [rustls/tokio-rustls](https://github.com/rustls/tokio-rustls) | MIT OR Apache-2.0 | Low | Public async server TLS API only; defaults disabled, ring/tls12 enabled | No copied source, examples, certificate material, fixtures, or naming | Exact pin; review locked licenses and reachable advisories before release |
 | tower-http | 0.7.0 | [crates.io](https://crates.io/crates/tower-http) | [tower-rs/tower-http](https://github.com/tower-rs/tower-http) | MIT | Low | Public timeout middleware API only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
 | getrandom | 0.4.3 | [crates.io](https://crates.io/crates/getrandom) | [rust-random/getrandom](https://github.com/rust-random/getrandom) | MIT OR Apache-2.0 | Low | Public operating-system entropy API only | No copied code, examples, fixtures, errors, or naming | Review LICENSE/NOTICE before release |
 | headless_chrome | 1.0.22 | [crates.io](https://crates.io/crates/headless_chrome) | [rust-headless-chrome/rust-headless-chrome](https://github.com/rust-headless-chrome/rust-headless-chrome) | MIT | Low | Public CDP client API only, behind the project-owned `BrowserDriver` boundary | No copied code, examples, fixtures, errors, flags list, or naming | Review LICENSE and transitive notices before release |

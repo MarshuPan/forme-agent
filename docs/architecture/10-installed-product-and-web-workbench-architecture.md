@@ -170,6 +170,8 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 
 Binary rollback 只在 schema/config 兼容时允许；不兼容进入新路径恢复流程。restore 从 manifest/checksum/event continuity/replay 验证，到 owner 明确切换 active data ref；原库保留。任何恢复都不能抹去外部已发生动作，旧计划/nonce/authority fencing 必须失效并经既有恢复扫描处理。
 
+恢复后的执行授权边界与活动数据配置按 `prd/24 §4.8`：store 封存每 run 的恢复水位，不改历史事件/旧 lease；旧 run/intention/route 只读核对、取消和重新规划，不能复活旧执行。Host 将新路径、原 vault 与期望边界一同写入 revision/CAS 配置事务；保存模型不能退回旧脑。完整切换仍须走全部生命周期阶段，离线候选不等于 CommitRestore 完成。
+
 卸载默认移除产品 binaries/services/session helpers/firewall 与注册项，保留 owner brain/备份/workspaces/恢复说明。主动删除数据是另一项显式确认、范围预览和可验证生命周期操作；不递归删除 owner 自选的项目根或其他程序目录。
 
 ## 10. Web 状态与交互架构

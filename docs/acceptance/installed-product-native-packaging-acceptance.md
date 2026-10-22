@@ -16,10 +16,13 @@
 | Rust | `cargo test --locked --workspace --all-targets`，155 suites，802 passed / 0 failed / 5 默认 ignored；日志 `target/posix-access-workspace-current.log`。Unix-only 新权限测试在 Windows 不执行。 |
 | 静态门 | fmt、workspace check、strict Clippy、默认完整 compliance、diff whitespace 通过；结构门 508 文件、62 个既有规模债务，未刷新基线。 |
 | 打包/签名 | 设置 `FORME_RELEASE_VERIFIER` 为本轮构建的 hostd 后，native_package、posix_packaging、product_bundle、signed_release 合计 28/28，通过实际 Rust 验签，无 skip。布局/架构头 fixture 不执行、不代表 native compiler 或目标平台。 |
-| 长门 | 前次 `target/offline-recovery-m5-current.log` 因编辑中的临时语法错误退出，明确失败，不能复用为通过。当前固定源码的完整门另记实际结果。 |
+| 长门 | `target/installed-product-fixed-m5-current.log` 在固定源码 `8b7f0f4` 跑到 S99；此前运行/合规门通过，但 S99 因 `tokio-rustls` 缺正式依赖表行失败。此处补清单，不改写失败为通过；后续固定源码重新审计。前次语法错误日志也不作为通过证据。 |
+| Windows 原生编译 | 真实 Inno ISCC 编译完成，开发候选 `forme-0.0.1-windows-x86_64.exe`，88,947,246 bytes，SHA256 `00448599ac5e599738893525c9b0c52a4d91d8ca329db0e383d24830f04f8e14`。bundle 摘要 `de0deb8525a0c01787e3a4e6affc711e25b7090429588294cb2ad77cfe30aecc`，回执明确 development=true、unsigned/uninstalled、release_ready=false。只对派生二进制去调试信息，原 debug 文件未改；安装器未运行。 |
+
+编译工具来自隔离解压的非官方 NuGet 包 `Tools.InnoSetup 6.6.1`，包 SHA256 `9c994256f6fb3ed7f28e9637b97a3a328c2a3d1d5ba57537ac6b7dcc414ddbe2`；实际 ISCC SHA256 `f8deb3e9e54303c178fd3513357ebc4d580a63bd072e24c221442b06f884b8fc`，Authenticode Valid，签名者 Pyrsys B.V.。已检查工具许可；仅主编译器显式 pin，未全量 pin 相邻工具文件，版本标签为操作员元数据，不冒充自动版本探测。工具在临时开发目录使用，未安装到系统、未作为产品组件再分发。
 
 ## 尚未完成
 
-未运行 Inno/dpkg-deb/rpmbuild/pkgbuild/productbuild；未配置正式原生编译器 pin、签名证书或公证凭据；未原生安装、注册真实账户/服务、验证平台有效拒绝、执行 IP01–IP24。当前机器无 Inno，Docker daemon 未运行，现有 WSL Ubuntu 26.04 也不是声明的 Ubuntu 24.04 目标。本组件不扩大支持平台清单。
+未运行 dpkg-deb/rpmbuild/pkgbuild/productbuild；未配置正式发布工具链、签名证书或公证凭据；未原生安装、注册真实账户/服务、验证平台有效拒绝、执行 IP01–IP24。Docker daemon 未运行，现有 WSL Ubuntu 26.04 也不是声明的 Ubuntu 24.04 目标。本组件不扩大支持平台清单。
 
 完整恢复切换、升级回滚、强隔离 worker/桌面 helper、其余设置和联合验收继续属于同一总目标，不因本组件提交而关闭。

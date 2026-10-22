@@ -154,6 +154,26 @@ Windows 额外保持原库只读、拒绝写/删除共享的文件 handle；POSI
 
 恢复计划绑定源文件、manifest、owner/store、确切目标和 15 分钟有效期，执行在校验前和目标创建前都检查有效期。计划与回执以 create-new、sync 写入 `<target>.restore-plan.json` 和 `<target>.restore-receipt.json`，只包含摘要与结果，不包含 key 或路径。成功回执的 `authority_switched=false` 是明确边界：候选数据已验证，不表示 Host 已完成 active data/config 切换、旧 authority/审批 nonce fencing 或原生恢复验收。
 
+### 4.8 恢复后的执行授权隔离与活动数据绑定
+
+恢复是历史事实回到本机，不是历史行动权限重新生效。备份可能早于已经发生的外部副作用；不得把备份里的 Waiting 当作“尚未执行”，也不得批量改为 Aborted/Complete 来清理现场。
+
+离线恢复在新路径完成事件/解密/replay 验证后，必须封存恢复边界，再生成最终 manifest/receipt。边界是 store 持有的 authority companion metadata，含 schema、代次、原 owner/store、源数据库摘要、批准的恢复计划摘要、前一边界摘要和每个 run 的精确 stream_seq 水位。它不记录安装操作阶段、口令或模型秘密，不增加 EventKind、不改变 EventStore/Harness trait，也不是另一个脑事实源。SQLite 存储格式由 9 升到 10；显式支持旧 9 的只读检查，初始化时原子添加元数据表，未知或额外 schema 仍拒绝。现有历史事件和内容 key 不重写，authority lease 不通过删行或伪造时间失效。
+
+运行时与 store 执行边界共同 enforce：
+
+- 边界之前存在的 run 不再取得 model/tool/approval resume 权限；旧 idempotency key 可以查询原 receipt，不能重新 drive。最终回答与证据保持只读可见。
+- 旧 prospective/scheduled intention 不再 claim/履约；仍可查询和取消。新 owner 命令需新 intention/plan，不能仅延长旧 TTL 复活授权。列表标记需重新确认，不能伪报已完成。
+- 历史 route 不恢复 child、不 retry 或续段；项目 charter/资料保留，owner 重新规划后形成新 route。后台可反思历史形成候选/建议，但不能把旧授权转换成新执行。
+- 原 Unknown、ActionStarted 无完成和未决 remote/worker receipt 保留为待核实。只读 probe/证据核对不产生第二次执行；历史 nonce/lease 不能批准新动作。新动作继续走同一 Harness、最终 plan recheck 与 one-shot permission。
+- 元数据摘要、owner/store、水位/代次或期望边界不匹配则拒绝启动/写入；不忽略坏边界回到无隔离状态。restore 之后再次备份/恢复保留并延长边界链。
+
+活动数据是 Host 配置事务的一部分：持久 state 包含可选的已验证 data binding（数据库、原 vault、owner/store、候选/恢复边界摘要），与模型等配置共用 revision/CAS、immutable staging、intent/commit 和 acknowledged revision。旧 state 只显式兼容读，下一次事务写新版本；保存模型或重启不能丢失 data binding。发布的 core config 明确携带 content_key_directory 和期望恢复边界；不能根据新文件名创建新 vault。普通浏览器 patch 不接受路径或自报验证材料。
+
+完整 CommitRestore 仍必须经过 Planned→Validated→Quiescing→BackedUp→Switching→Checking→Committed：停止准入/排空与独占 fence、验证当前数据并留备份、重新验证候选与 keys、提交活动指针、核对同一 owner/store/边界与 config ack，最后才开放新任务。切换/回执不明保持 RecoveryRequired，查询原 operation；不能换号重做。Web 会话撤销和旧执行隔离都完成前，不报告恢复已可继续工作。离线复制或本节单独通过不等于 Host 生命周期/IP14 已通过。
+
+验收同时覆盖：旧审批零模型/driver 调用，旧 intention/route 零履约/child，Unknown 未洗掉，原回答/记忆可读，新 owner 请求可按新计划执行，重复恢复链连续，篡改/缺失期望边界拒绝，保存模型后活动路径/vault/边界不变，以及切换中断不得退回原路径或静默执行旧任务。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
