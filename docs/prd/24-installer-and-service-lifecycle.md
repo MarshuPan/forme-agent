@@ -114,6 +114,14 @@ Windows 包使用随包、固定入口的 PowerShell/.NET ACL helper；它不是
 
 既有 `prepare-installation` 重开必须读取并校验原 `product-template.json`，沿用其中的 core/ack/fence 路径；旧布局不自动搬移。旧布局转为原生服务仍需显式、停服的数据/权限迁移。ACL descriptor、真实临时 NTFS 继承/原子替换、安装控制流与实际服务账户访问拒绝分别取证；前几项通过不能标记 IP01/IP10/IP24 或管理员 SCM 演练通过。
 
+### 4.4.1 POSIX 原生权限与后续发布
+
+Linux/macOS 使用同一有限权限矩阵：管理域与 backups 仅 root；brain/workspaces 仅 Brain；web-auth 仅 Web；config/keys 父目录只允许遍历。`core-owner.token`、`agent-execution.token` 仅额外授予 Brain 组读取；`core-web.token` 由专用 bridge 组供 Brain/Web 读取，该组不拥有其他管理凭据。Web 不能读取 Brain/owner/model/management secrets，也不能写 core 配置；Brain 不能写管理配置或全局 keys。Brain 自身内容 vault 位于 brain 数据域，不需要全局 keys 写权限。
+
+`config/core` 与 `keys/model-credentials` 由 root 拥有，Brain 组只读并设置 setgid；后续 Host 创建的共享 revision 目录继承同组与 `2750`，共享文件为 `0640`。配置日志及内部 state revision 继续 root 私有。发布前核对实际继承 gid/父目录模式，再给新 inode 最小读取权限，原子替换不能让下一个 core 配置退回 `0600`。没有安装器明确设置的 setgid 共享父目录时，开发路径仍保持 `0700/0600`，不全局放宽文件权限。
+
+Linux Host 的 mount sandbox 明确允许受保护 config、model credential、Host journal、release staging、backups 与自身日志写入；Web/Brain 只写各自数据与日志。Brain service 预先 enable，但首次安装不 start，`ConditionPathExists` 在认领配置前阻止启动。卸载必须先停止 Brain，再停止 Web/Host，检查实际 inactive 后才移除程序；失败保留现场，不能以 `|| true` 忽略。macOS 通过原生 bootstrap/bootout 管理 Brain，首次安装不 bootstrap Brain；不能把“plist 已安装”写成进程已运行。账户、ACL 与实际拒绝仍按原生 IP 场景取证。
+
 ### 4.5 签名发布落盘与卸载范围的执行细化
 
 `HostManagement` 与 `NativeServiceManager` 保持既有实现签名。受管 Host 可显式加载 closed、版本化的 `ReleaseStagingConfig`，只含 installation 引用与管理员预置发布公钥；缺失配置时不开放发布操作。它不从包内导入信任根，不接受来自 Web/Agent 的文件路径。
