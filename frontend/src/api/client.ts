@@ -1,6 +1,7 @@
 import { isRecord, versioned } from '../types.ts';
-import type { CandidateReviewCommand, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
+import type { WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -127,36 +128,39 @@ export class WorkbenchClient {
   }
   workspace() { return this.json<Record<string, unknown>>('brain/workspace'); }
   dashboard() { return this.json<Record<string, unknown>>('brain/dashboard'); }
+  workbench(section: WorkbenchSection, offset = 0, snapshot: string | null = null, scope: string | null = null) {
+    return this.json<WorkbenchSnapshot>('brain/workbench/query', 'POST', { schema_version: 1, section, scope, offset, limit: 50, snapshot }, newKey('view'));
+  }
+  reviewWorkbench(command: WorkbenchReview) {
+    return this.json<WorkbenchReceipt>('brain/workbench/review', 'POST', command, command.command);
+  }
   projects() { return this.json<OrchestrationLedger>('brain/projects'); }
   project(command: ProjectCommand, key = newKey('project')) {
     return this.json<Record<string, unknown>>('brain/projects', 'POST', { schema_version: 1, request: command }, key);
   }
-  charter(workspace: string) { return this.json<WorkspaceCharterRecord | null>(`workspaces/${id(workspace)}/charter`); }
+  charter(workspace: string) { return this.json<WorkspaceCharterRecord | null>(`brain/workspaces/${id(workspace)}/charter`); }
   prepareCharter(workspace: string, record: WorkspaceCharterRecord, expectedVersion: number, key = newKey('charter-prepare')) {
-    return this.json<WorkspaceCharterChangedPayload>(`workspaces/${id(workspace)}/charter`, 'POST', {
+    return this.json<WorkspaceCharterChangedPayload>(`brain/workspaces/${id(workspace)}/charter`, 'POST', {
       schema_version: 1, command: key, record, expected_version: expectedVersion,
     }, key);
   }
   updateCharter(workspace: string, change: WorkspaceCharterChangedPayload, key = newKey('charter')) {
-    return this.json<Record<string, unknown>>(`workspaces/${id(workspace)}/charter`, 'PUT', { schema_version: 1, command: key, change }, key);
+    return this.json<Record<string, unknown>>(`brain/workspaces/${id(workspace)}/charter`, 'PUT', { schema_version: 1, command: key, change }, key);
   }
-  jobs() { return this.json<ScheduledJob[]>('jobs'); }
+  jobs() { return this.json<ScheduledJob[]>('brain/jobs'); }
   schedule(command: ScheduleCommand, key = newKey('schedule')) {
-    return this.json<Record<string, unknown>>('jobs', 'POST', command, key);
+    return this.json<Record<string, unknown>>('brain/jobs', 'POST', command, key);
   }
   async cancelJob(intention: string, key = newKey('cancel-job')) {
-    await this.request(`jobs/${id(intention)}/cancel`, 'POST', undefined, key);
-  }
-  async reviewCandidate(candidate: string, command: CandidateReviewCommand, key = newKey('candidate-review')) {
-    await this.request(`candidates/${id(candidate)}/review`, 'POST', command, key);
+    await this.request(`brain/jobs/${id(intention)}/cancel`, 'POST', undefined, key);
   }
   async registerLearningGoal(body: unknown, key = newKey('learning-goal')) {
-    return this.json<Record<string, unknown>>('learning/goals', 'POST', body, key);
+    return this.json<Record<string, unknown>>('brain/learning/goals', 'POST', body, key);
   }
   async answerLearning(body: unknown, key = newKey('learning-answer')) {
-    return this.json<Record<string, unknown>>('learning/answer', 'POST', body, key);
+    return this.json<Record<string, unknown>>('brain/learning/answer', 'POST', body, key);
   }
   async resolveLearning(body: unknown, key = newKey('learning-resolve')) {
-    return this.json<Record<string, unknown>>('learning/resolve', 'POST', body, key);
+    return this.json<Record<string, unknown>>('brain/learning/resolve', 'POST', body, key);
   }
 }

@@ -70,12 +70,32 @@ test('project and charter mutations keep one server command key and use allowlis
     committed_version: 2,
   }, charterKey);
   assert.equal(calls[0].path, '/api/v1/brain/projects');
-  assert.equal(calls[1].path, '/api/v1/workspaces/workspace%3Ademo/charter');
-  assert.equal(calls[2].path, '/api/v1/workspaces/workspace%3Ademo/charter');
+  assert.equal(calls[1].path, '/api/v1/brain/workspaces/workspace%3Ademo/charter');
+  assert.equal(calls[2].path, '/api/v1/brain/workspaces/workspace%3Ademo/charter');
   const expectedKeys: Array<[number, string]> = [[0, key], [1, charterKey], [2, charterKey]];
   for (const [index, expected] of expectedKeys) {
     assert.equal(new Headers(calls[index].request.headers).get('Idempotency-Key'), expected);
     assert.equal(calls[index].request.credentials, 'same-origin');
   }
   assert.deepEqual(JSON.parse(String(calls[0].request.body)), { schema_version: 1, request: { operation: 'execute', route: { route: 'route:fixture' } } });
+});
+
+test('brain view pages retain their server digest and review controls retain the original binding', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    return Response.json({ schema_version: 1, status: 'Unknown' });
+  });
+  await api.workbench('Cognition', 50, 'sha256:original', 'workspace:one');
+  assert.equal(calls[0].path, '/api/v1/brain/workbench/query');
+  assert.deepEqual(JSON.parse(String(calls[0].request.body)), { schema_version: 1, section: 'Cognition', offset: 50, limit: 50, scope: 'workspace:one', snapshot: 'sha256:original' });
+  const review = { schema_version: 1 as const, command: 'review:stable', run: 'run:one', candidate: 'candidate:one', expected_state: 'Candidate' as const, decision: 'Promote' as const };
+  for (let i = 0; i < 2; i++) assert.equal((await api.reviewWorkbench(review)).status, 'Unknown');
+  for (const call of calls.slice(1)) {
+    assert.equal(call.path, '/api/v1/brain/workbench/review');
+    assert.equal(new Headers(call.request.headers).get('Idempotency-Key'), review.command);
+    const body = JSON.parse(String(call.request.body));
+    assert.deepEqual(body, review);
+    assert.equal('actor' in body, false); assert.equal('evidence' in body, false); assert.equal('retraction' in body, false);
+  }
 });

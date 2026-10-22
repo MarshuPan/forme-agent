@@ -51,6 +51,21 @@ pub(super) fn bind_body(
         return serde_json::to_vec(&request).map_err(|_| WebError::invalid());
     }
     let segments: Vec<_> = path.split('/').collect();
+    if path == "workbench/query" {
+        let query: p::WorkbenchQuery =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        query.validate().map_err(|_| WebError::invalid())?;
+        return serde_json::to_vec(&query).map_err(|_| WebError::invalid());
+    }
+    if path == "workbench/review" {
+        let command: p::WorkbenchReviewCommand =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        command.validate().map_err(|_| WebError::invalid())?;
+        if Some(command.command.0.as_str()) != key {
+            return Err(WebError::invalid());
+        }
+        return serde_json::to_vec(&command).map_err(|_| WebError::invalid());
+    }
     if matches!(segments.as_slice(), ["runs", _, "control"]) {
         let control: WebRunControl =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;

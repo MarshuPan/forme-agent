@@ -29,9 +29,11 @@ mod product_config;
 mod provider;
 mod v1_closure;
 mod web_identity;
+mod workbench;
 mod workspace_charter;
 pub use brain_learning::*;
 pub use web_identity::*;
+pub use workbench::*;
 pub use workspace_charter::*;
 
 pub use content_protection::*;

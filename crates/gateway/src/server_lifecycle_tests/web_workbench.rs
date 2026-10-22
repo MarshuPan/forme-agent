@@ -9,6 +9,9 @@ const INSTALL: &str = "installation:workbench-fixture";
 const PASSWORD: &str = "workbench fixture password 25";
 const BRIDGE_TOKEN: &str = "workbench-bridge-0123456789abcdef0123456789abcdef";
 
+#[path = "web_workbench/brain_views.rs"]
+mod brain_views;
+
 struct Reply {
     status: u16,
     head: String,
@@ -269,6 +272,7 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
         403
     );
     let (cookie, csrf) = login(web_address).await;
+    brain_views::verify(web_address, &runtime, &cookie, &csrf).await;
     let proof = proof_headers(&key, &cookie, "proof:before-logout");
     assert_eq!(
         request(

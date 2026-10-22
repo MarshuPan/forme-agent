@@ -190,6 +190,8 @@ fn allowlisted_core_path(
         }
         ["workspace"] => ("/v1/brain/workspace".to_owned(), RouteMethods::Get),
         ["dashboard"] => ("/v1/brain/dashboard".to_owned(), RouteMethods::Get),
+        ["workbench", "query"] => ("/v1/brain/workbench/query".to_owned(), RouteMethods::Post),
+        ["workbench", "review"] => ("/v1/brain/workbench/review".to_owned(), RouteMethods::Post),
         ["projects"] => ("/v1/brain/projects".to_owned(), RouteMethods::GetPost),
         ["learning", "goals"] => ("/v1/brain/learning/goals".to_owned(), RouteMethods::Post),
         ["learning", "answer"] => ("/v1/brain/learning/answer".to_owned(), RouteMethods::Post),
@@ -201,10 +203,6 @@ fn allowlisted_core_path(
         ["evals", "cases"] => ("/v1/evals/cases".to_owned(), RouteMethods::Get),
         ["evals", "run"] => ("/v1/evals/run".to_owned(), RouteMethods::Post),
         ["evals", eval] => (format!("/v1/evals/{eval}"), RouteMethods::Get),
-        ["candidates", candidate, "review"] => (
-            format!("/v1/candidates/{candidate}/review"),
-            RouteMethods::Post,
-        ),
         _ => {
             return Err(WebError::new(
                 StatusCode::NOT_FOUND,
@@ -250,6 +248,8 @@ fn allowlisted_core_path(
                 | "run"
                 | "candidates"
                 | "review"
+                | "workbench"
+                | "query"
         )
     }) {
         forme_protocol::validate_product_id(segment).map_err(|_| WebError::invalid())?;
@@ -310,6 +310,7 @@ mod tests {
         );
         assert!(allowlisted_core_path("GET", "runtime/doctor", None).is_err());
         assert!(allowlisted_core_path("GET", "unknown", None).is_err());
+        assert!(allowlisted_core_path("POST", "candidates/candidate:one/review", None).is_err());
         assert!(allowlisted_core_path("POST", "profile", None).is_err());
         assert!(allowlisted_core_path("DELETE", "runs/run:one/control", None).is_err());
     }

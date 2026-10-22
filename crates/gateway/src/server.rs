@@ -15,6 +15,7 @@ use runs::*;
 mod evaluation;
 use evaluation::*;
 mod evolution;
+mod workbench;
 use evolution::*;
 mod secrets;
 pub(crate) use secrets::default_token_path;
@@ -205,6 +206,14 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/runtime/tick", post(runtime_tick))
         .route("/v1/brain/workspace", get(brain_workspace))
         .route("/v1/brain/dashboard", get(brain_dashboard))
+        .route(
+            "/v1/brain/workbench/query",
+            post(workbench::query_workbench),
+        )
+        .route(
+            "/v1/brain/workbench/review",
+            post(workbench::review_workbench),
+        )
         .route("/v1/data/backup", post(data_backup))
         .route("/v1/data/verify-backup", post(data_verify_backup))
         .route("/v1/data/restore-plan", post(data_restore_plan))
