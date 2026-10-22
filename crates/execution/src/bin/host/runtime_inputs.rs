@@ -185,7 +185,13 @@ pub(super) fn read_managed_credential(path: &Path, domain: &str) -> p::Result<St
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if metadata.permissions().mode() & 0o077 != 0 {
+        let mode = metadata.permissions().mode() & 0o7777;
+        // The installed AgentExecution bearer is the sole Host credential
+        // deliberately shared read-only with Brain. Manifest validation pins
+        // this exact path before this reader is entered; management/setup
+        // credentials keep their private-only rule.
+        let service_read = domain == "agent execution" && mode == 0o640;
+        if mode & 0o077 != 0 && !service_read {
             return Err(p::Error(format!(
                 "{domain} credential file permissions are too broad"
             )));

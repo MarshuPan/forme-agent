@@ -1,0 +1,20 @@
+#!/bin/sh
+# Package extraction must never overwrite a running or retained installation.
+set -eu
+case "${1:-}" in
+  install|upgrade)
+    for root in /opt/forme /etc/forme /var/lib/forme; do
+      cursor=$root
+      while [ "$cursor" != / ]; do
+        [ ! -L "$cursor" ] || { echo 'forme: linked installation path' >&2; exit 1; }
+        cursor=$(dirname "$cursor")
+      done
+      if [ -e "$root" ]; then
+        [ -d "$root" ] && [ -z "$(find "$root" -mindepth 1 -print -quit)" ] || {
+          echo 'forme: existing installation requires the authenticated lifecycle path' >&2
+          exit 1
+        }
+      fi
+    done
+    ;;
+esac

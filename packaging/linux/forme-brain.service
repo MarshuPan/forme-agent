@@ -11,6 +11,7 @@ StartLimitBurst=3
 Type=exec
 User=forme-brain
 Group=forme-brain
+SupplementaryGroups=forme-bridge
 ExecStart=/opt/forme/bin/forme-gatewayd --config /etc/forme/core/core.json
 Restart=on-failure
 RestartSec=5s
@@ -19,7 +20,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/forme/brain /var/lib/forme/keys /var/lib/forme/logs /var/lib/forme/workspaces
+ReadWritePaths=/var/lib/forme/brain /var/log/forme/brain /var/lib/forme/workspaces
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 MemoryDenyWriteExecute=yes
 

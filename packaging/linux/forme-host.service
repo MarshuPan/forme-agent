@@ -16,7 +16,9 @@ NoNewPrivileges=no
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/forme/host-state /var/lib/forme/logs /run/forme
+ReadWritePaths=/etc/forme /var/lib/forme/host-state /var/lib/forme/keys/model-credentials /var/lib/forme/backups /var/log/forme/host /run/forme -/opt/forme/releases
+RuntimeDirectory=forme
+RuntimeDirectoryMode=0700
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]

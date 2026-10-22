@@ -9,6 +9,7 @@ StartLimitBurst=3
 Type=exec
 User=forme-web
 Group=forme-web
+SupplementaryGroups=forme-bridge
 ExecStart=/opt/forme/bin/forme-webd --config /etc/forme/web.json
 Restart=on-failure
 RestartSec=5s
@@ -17,7 +18,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/forme/web-auth /var/lib/forme/logs
+ReadWritePaths=/var/lib/forme/web-auth /var/log/forme/web
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 MemoryDenyWriteExecute=yes
 

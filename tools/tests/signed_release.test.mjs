@@ -6,6 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { signBundle } from '../sign-product-release.mjs';
+import { buildBundle } from '../build-product-bundle.mjs';
 
 const sha = (value) => createHash('sha256').update(value).digest('hex');
 const hash = (value) => `sha256:${sha(JSON.stringify(value))}`;
@@ -60,6 +61,38 @@ test('signed release binds Rust field order, every binary, UI, target and explic
   const second = await signBundle({ ...config, output: `${config.output}-second` });
   assert.equal(second.release_digest, receipt.release_digest);
   assert.deepEqual(await readFile(join(`${config.output}-second`, 'signature.ed25519')), signature);
+});
+
+test('the actual bundle output signs with its exact derived checksum index', async (t) => {
+  const { root, config } = await fixture(t);
+  const project = join(root, 'project');
+  const binaries = join(project, 'target/release');
+  const web = join(project, 'crates/gateway/assets/product/dist');
+  await mkdir(binaries, { recursive: true });
+  await mkdir(web, { recursive: true });
+  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl']) {
+    await writeFile(join(binaries, `${name}.exe`), `original chained fixture ${name}`);
+  }
+  const webFiles = [];
+  for (const path of ['index.html', 'LICENSES.txt', 'dependencies.json']) {
+    const value = `original chained Web fixture ${path}`;
+    await writeFile(join(web, path), value);
+    webFiles.push({ path, sha256: sha(value), bytes: Buffer.byteLength(value) });
+  }
+  await writeFile(join(web, 'manifest.json'), JSON.stringify({ schema_version: 1, files: webFiles }));
+  for (const path of ['LICENSE', 'NOTICE', 'packaging/windows/forme.iss', 'packaging/windows/install-access.ps1', 'packaging/windows/service-access.psm1']) {
+    await mkdir(dirname(join(project, path)), { recursive: true });
+    await writeFile(join(project, path), `original chained fixture ${path}`);
+  }
+  const bundle = join(root, 'chained-bundle');
+  await buildBundle({ target: 'windows-x86_64', releaseId: '0.0.3', binaryDir: binaries, output: bundle, development: false }, project);
+  const receipt = await signBundle({ ...config, bundle });
+  assert.equal(receipt.native_installation, 'not_performed');
+  const sums = join(bundle, 'SHA256SUMS');
+  await writeFile(sums, `${await readFile(sums, 'utf8')}unlisted-index-line\n`);
+  const badOutput = join(root, 'tampered-index-output');
+  await assert.rejects(signBundle({ ...config, bundle, output: badOutput }));
+  await assert.rejects(readdir(badOutput), { code: 'ENOENT' });
 });
 
 test('no output is created for tampered inventory, escaping paths, extra files or bad compatibility', async (t) => {

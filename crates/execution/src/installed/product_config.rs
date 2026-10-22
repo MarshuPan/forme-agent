@@ -5,6 +5,7 @@ mod journal;
 #[cfg(test)]
 mod maintenance_tests;
 mod materialize;
+mod service_files;
 mod storage;
 #[cfg(test)]
 mod tests;

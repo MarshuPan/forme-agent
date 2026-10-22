@@ -15,15 +15,31 @@ A single-owner brain with a system service and browser workbench.
 /usr/lib/systemd/system/forme-web.service
 /usr/lib/systemd/system/forme-brain.service
 
+%pre
+set -eu
+[ "$1" -eq 1 ] || { echo 'forme: use the authenticated lifecycle path for upgrades' >&2; exit 1; }
+. /etc/os-release
+[ "$ID" = rocky ] && [ "${VERSION_ID%%.*}" = 9 ] && [ "$(uname -m)" = x86_64 ] || exit 1
+for root in /opt/forme /etc/forme /var/lib/forme; do
+    cursor=$root
+    while [ "$cursor" != / ]; do
+        [ ! -L "$cursor" ] || exit 1
+        cursor=$(dirname "$cursor")
+    done
+    if [ -e "$root" ]; then
+        [ -d "$root" ] && [ -z "$(find "$root" -mindepth 1 -print -quit)" ] || exit 1
+    fi
+done
+
 %post
+set -eu
 if [ "$1" -ge 1 ]; then
     getent group forme-brain >/dev/null || groupadd --system forme-brain
     getent passwd forme-brain >/dev/null || useradd --system --gid forme-brain --home-dir /var/lib/forme/brain --shell /sbin/nologin forme-brain
     getent group forme-web >/dev/null || groupadd --system forme-web
     getent passwd forme-web >/dev/null || useradd --system --gid forme-web --home-dir /var/lib/forme/web-auth --shell /sbin/nologin forme-web
-    install -d -o forme-brain -g forme-brain -m 0750 /var/lib/forme/brain /var/lib/forme/keys /var/lib/forme/workspaces
-    install -d -o forme-web -g forme-web -m 0750 /var/lib/forme/web-auth
-    install -d -o root -g root -m 0750 /etc/forme /var/lib/forme/host-state /var/log/forme /run/forme
+    getent group forme-bridge >/dev/null || groupadd --system forme-bridge
+    /bin/sh /opt/forme/packaging/posix/service-access.sh linux prepare
     /opt/forme/bin/forme-hostctl prepare-installation \
       --install-root /opt/forme \
       --state-root /var/lib/forme \
@@ -32,15 +48,18 @@ if [ "$1" -ge 1 ]; then
       --ipc-root /run/forme \
       --target rocky9_x86_64 \
       --bundle-inventory /opt/forme/bundle-inventory.json || exit 1
-    chown root:forme-web /etc/forme /etc/forme/web.json /var/lib/forme/web-auth/bootstrap-web.token
-    chmod 0750 /etc/forme
-    chmod 0640 /etc/forme/web.json /var/lib/forme/web-auth/bootstrap-web.token
+    /bin/sh /opt/forme/packaging/posix/service-access.sh linux apply
+    /bin/sh /opt/forme/packaging/posix/service-access.sh linux verify
     systemctl daemon-reload
-    systemctl enable forme-host.service forme-web.service
+    systemctl enable forme-host.service forme-web.service forme-brain.service
     systemctl start forme-host.service forme-web.service
 fi
 
 %preun
+set -eu
 if [ "$1" -eq 0 ]; then
-    systemctl disable --now forme-web.service forme-host.service >/dev/null 2>&1 || :
+    /bin/sh /opt/forme/packaging/linux/forme.prerm remove
+else
+    echo 'forme: use the authenticated lifecycle path for upgrades' >&2
+    exit 1
 fi

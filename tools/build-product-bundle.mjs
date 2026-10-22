@@ -10,8 +10,8 @@ const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const binaryNames = ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl'];
 const requiredPackagingFiles = Object.freeze({
   windows: ['forme.iss', 'install-access.ps1', 'service-access.psm1'],
-  linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.postinst', 'forme.spec'],
-  macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/postinstall'],
+  linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.preinst', 'forme.postinst', 'forme.prerm', 'forme.spec'],
+  macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/preinstall', 'scripts/postinstall'],
 });
 export const targets = Object.freeze({
   'windows-x86_64': { extension: '.exe', template: 'windows' },
@@ -131,6 +131,9 @@ export async function buildBundle(config, root = repository) {
     if (!templateRelativePaths.has(required)) throw new Error(`Packaging template is missing required input: ${required}`);
   }
   for (const source of templateFiles) inputs.push({ source, path: `packaging/${slash(relative(join(root, 'packaging'), source))}` });
+  if (target.template !== 'windows') {
+    inputs.push({ source: join(root, 'packaging/posix/service-access.sh'), path: 'packaging/posix/service-access.sh' });
+  }
   // Verify every input before creating any output, including executable bytes.
   for (const input of inputs) {
     const { bytes } = await regularFile(input.source);

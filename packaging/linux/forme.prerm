@@ -1,0 +1,17 @@
+#!/bin/sh
+# Removal is stopped if any service cannot be observed inactive.
+set -eu
+case "${1:-}" in
+  remove)
+    for service in forme-brain.service forme-web.service forme-host.service; do
+      systemctl stop "$service"
+      state=$(systemctl show --property=ActiveState --value "$service")
+      [ "$state" = inactive ] || { echo 'forme: service removal needs recovery review' >&2; exit 1; }
+      systemctl disable "$service"
+    done
+    ;;
+  upgrade|deconfigure)
+    echo 'forme: use the authenticated lifecycle path before replacing installed programs' >&2
+    exit 1
+    ;;
+esac

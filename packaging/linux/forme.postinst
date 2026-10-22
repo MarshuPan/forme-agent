@@ -20,9 +20,8 @@ case "${1:-}" in
     getent passwd forme-brain >/dev/null || useradd --system --gid forme-brain --home-dir /var/lib/forme/brain --shell /usr/sbin/nologin forme-brain
     getent group forme-web >/dev/null || groupadd --system forme-web
     getent passwd forme-web >/dev/null || useradd --system --gid forme-web --home-dir /var/lib/forme/web-auth --shell /usr/sbin/nologin forme-web
-    install -d -o forme-brain -g forme-brain -m 0750 /var/lib/forme/brain /var/lib/forme/keys /var/lib/forme/workspaces
-    install -d -o forme-web -g forme-web -m 0750 /var/lib/forme/web-auth
-    install -d -o root -g root -m 0750 /etc/forme /var/lib/forme/host-state /var/log/forme /run/forme
+    getent group forme-bridge >/dev/null || groupadd --system forme-bridge
+    /bin/sh /opt/forme/packaging/posix/service-access.sh linux prepare
     /opt/forme/bin/forme-hostctl prepare-installation \
       --install-root /opt/forme \
       --state-root /var/lib/forme \
@@ -31,11 +30,10 @@ case "${1:-}" in
       --ipc-root /run/forme \
       --target "$target" \
       --bundle-inventory /opt/forme/bundle-inventory.json
-    chown root:forme-web /etc/forme /etc/forme/web.json /var/lib/forme/web-auth/bootstrap-web.token
-    chmod 0750 /etc/forme
-    chmod 0640 /etc/forme/web.json /var/lib/forme/web-auth/bootstrap-web.token
+    /bin/sh /opt/forme/packaging/posix/service-access.sh linux apply
+    /bin/sh /opt/forme/packaging/posix/service-access.sh linux verify
     systemctl daemon-reload
-    systemctl enable forme-host.service forme-web.service
+    systemctl enable forme-host.service forme-web.service forme-brain.service
     systemctl start forme-host.service forme-web.service
     ;;
 esac

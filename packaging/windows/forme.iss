@@ -2,9 +2,13 @@
 ; The release pipeline must define AppVersion/AppId and sign the resulting EXE.
 ; This script installs a complete release but never embeds model keys.
 #define ProductName "forme"
+#ifndef ProductVersion
 #define ProductVersion "0.0.1"
+#endif
 #define ProductPublisher "forme contributors"
+#ifndef ReleaseRoot
 #define ReleaseRoot "..\.."
+#endif
 
 [Setup]
 AppId={{9F0D7A2B-5BF8-4A6F-9AC1-5A2D3F4E6B7C}

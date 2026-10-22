@@ -158,11 +158,11 @@ pub(super) fn write_credentials(
     models: &[(p::ProductModelProfileView, Vec<u8>)],
 ) -> p::Result<BTreeMap<String, PathBuf>> {
     let directory = template.model_credentials_directory.join(id);
-    storage::directory(&directory)?;
+    super::service_files::directory(&directory)?;
     let mut paths = BTreeMap::new();
     for (view, secret) in models {
         let path = directory.join(credential_name(&view.id)?);
-        storage::immutable(&path, secret)?;
+        super::service_files::immutable(&path, secret)?;
         paths.insert(view.id.clone(), path);
     }
     storage::sync_directory(&template.model_credentials_directory)?;

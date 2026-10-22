@@ -83,6 +83,7 @@ pub(super) fn publish(path: &Path, bytes: &[u8]) -> p::Result<()> {
     let parent = path.parent().ok_or_else(invalid)?;
     directory(parent)?;
     let mut staged = tempfile::NamedTempFile::new_in(parent).map_err(|_| invalid())?;
+    super::service_files::prepare_file(parent, staged.as_file())?;
     staged
         .write_all(bytes)
         .and_then(|_| staged.as_file().sync_all())

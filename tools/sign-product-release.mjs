@@ -134,8 +134,16 @@ export async function signBundle(config) {
   const publicBytes = Array.from(publicDer.subarray(-32));
   const actual = (await inventoryFiles(bundle)).sort(ordered);
   const names = inventory.files.map((file) => safeRelative(file.path));
+  // buildBundle emits a derived checksum index outside its own file list.
+  // Accept that one exact derived file, never arbitrary unlisted inputs.
+  const metadata = ['bundle-inventory.json'];
+  if (actual.includes('SHA256SUMS') && !names.includes('SHA256SUMS')) {
+    const expected = `${inventory.files.map((file) => `${file.sha256}  ${file.path}`).join('\n')}\n`;
+    if ((await bounded(join(bundle, 'SHA256SUMS'), 8 * 1024 ** 2)).toString('utf8') !== expected) throw invalid();
+    metadata.push('SHA256SUMS');
+  }
   if (new Set(names.map((name) => name.toLowerCase())).size !== names.length ||
-      JSON.stringify(actual) !== JSON.stringify([...names, 'bundle-inventory.json'].sort(ordered))) throw invalid();
+      JSON.stringify(actual) !== JSON.stringify([...names, ...metadata].sort(ordered))) throw invalid();
   const mapped = [], collision = new Set();
   let total = 0;
   for (const file of inventory.files) {

@@ -81,8 +81,18 @@ done
 command -v dscl >/dev/null 2>&1 || { echo "forme: dscl is unavailable" >&2; exit 1; }
 ensure_service_account _formeweb 450
 ensure_service_account _formebrain 451
+if ! dscl . -read /Groups/_formebridge >/dev/null 2>&1; then
+  if dscl . -search /Groups PrimaryGroupID 452 2>/dev/null | grep -q .; then
+    echo 'forme: bridge GID is already in use' >&2; exit 1
+  fi
+  dscl . -create /Groups/_formebridge
+  dscl . -create /Groups/_formebridge PrimaryGroupID 452
+fi
+[ "$(dscl . -read /Groups/_formebridge PrimaryGroupID | awk '{print $2}')" = 452 ] || exit 1
+dseditgroup -o edit -a _formeweb -t user _formebridge
+dseditgroup -o edit -a _formebrain -t user _formebridge
 
-install -d -m 0750 "$state_root" "$config_root" "$log_root" "$ipc_root"
+/bin/sh "$install_root/packaging/posix/service-access.sh" macos prepare
 "$hostctl" prepare-installation \
   --install-root "$install_root" \
   --state-root "$state_root" \
@@ -92,19 +102,8 @@ install -d -m 0750 "$state_root" "$config_root" "$log_root" "$ipc_root"
   --target "$target" \
   --bundle-inventory "$inventory"
 
-chmod 0711 "$state_root"
-chown root:_formeweb "$config_root"
-chmod 0711 "$config_root"
-chown root:_formeweb "$config_root/web.json"
-chmod 0640 "$config_root/web.json"
-chown _formeweb:_formeweb "$state_root/web-auth"
-chmod 0700 "$state_root/web-auth"
-chown _formeweb:_formeweb "$state_root/web-auth/bootstrap-web.token"
-chmod 0600 "$state_root/web-auth/bootstrap-web.token"
-chown _formebrain:_formebrain "$state_root/brain" "$state_root/workspaces"
-chmod 0700 "$state_root/brain" "$state_root/workspaces"
-chown root:_formebrain "$state_root/keys"
-chmod 0750 "$state_root/keys"
+/bin/sh "$install_root/packaging/posix/service-access.sh" macos apply
+/bin/sh "$install_root/packaging/posix/service-access.sh" macos verify
 
 bootstrap_service() {
   label="$1"
@@ -115,7 +114,7 @@ bootstrap_service() {
   launchctl kickstart -k "system/$label"
 }
 
-# The brain is deliberately registered but not started before owner claim and
-# model configuration. Host and Web are the resident, unclaimed setup surface.
+# Only its protected plist is installed. The broker bootstraps Brain after
+# authenticated claim/configuration; it is not a loaded or running job yet.
 bootstrap_service com.forme.host /Library/LaunchDaemons/com.forme.host.plist
 bootstrap_service com.forme.web /Library/LaunchDaemons/com.forme.web.plist

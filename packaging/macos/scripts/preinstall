@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+[ "$(id -u)" -eq 0 ] || exit 1
+[ "$(uname -s)" = Darwin ] || exit 1
+command -v sw_vers >/dev/null 2>&1 || exit 1
+major=$(sw_vers -productVersion | awk -F. '{print $1}')
+case "$major" in ''|*[!0-9]*) exit 1 ;; esac
+[ "$major" -ge 14 ] || { echo 'forme: macOS 14 or newer is required' >&2; exit 1; }
+case "$(uname -m)" in arm64|x86_64) ;; *) exit 1 ;; esac
+for root in /Library/ForMe '/Library/Application Support/ForMe'; do
+  cursor=$root
+  while [ "$cursor" != / ]; do
+    [ ! -L "$cursor" ] || { echo 'forme: linked installation path' >&2; exit 1; }
+    cursor=$(dirname "$cursor")
+  done
+  if [ -e "$root" ]; then
+    [ -d "$root" ] && [ -z "$(find "$root" -mindepth 1 -print -quit)" ] || {
+      echo 'forme: existing installation requires the authenticated lifecycle path' >&2
+      exit 1
+    }
+  fi
+done

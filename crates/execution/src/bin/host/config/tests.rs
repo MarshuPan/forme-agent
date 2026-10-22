@@ -274,6 +274,27 @@ fn broad_credential_permissions_are_refused() {
     assert!(read_managed_credential(&fixture.0.join("maintenance.key"), "maintenance").is_err());
 }
 
+#[cfg(unix)]
+#[test]
+fn only_agent_credentials_allow_the_installed_read_only_service_group() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    let key = fixture.0.join("agent-execution.token");
+    fixture.key(
+        "agent-execution.token",
+        b"test-agent-only-token-00000000000001",
+    );
+    for mode in [0o640, 0o660, 0o644, 0o2640] {
+        std::fs::set_permissions(&key, std::fs::Permissions::from_mode(mode)).unwrap();
+        assert_eq!(
+            read_managed_credential(&key, "agent execution").is_ok(),
+            mode == 0o640
+        );
+        assert!(read_managed_credential(&key, "maintenance").is_err());
+        assert!(read_managed_credential(&key, "Web configuration").is_err());
+    }
+}
+
 #[test]
 fn release_staging_roots_are_checked_before_credentials_and_journal() {
     let fixture = Fixture::new();

@@ -33,8 +33,8 @@ async function fixture(t, target = 'windows-x86_64') {
   await mkdir(template, { recursive: true });
   const required = {
     windows: ['forme.iss', 'install-access.ps1', 'service-access.psm1'],
-    linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.postinst', 'forme.spec'],
-    macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/postinstall'],
+    linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.preinst', 'forme.postinst', 'forme.prerm', 'forme.spec'],
+    macos: ['Distribution.xml', 'com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist', 'scripts/preinstall', 'scripts/postinstall'],
   }[targets[target].template];
   for (const path of required) {
     const destination = join(template, path);
@@ -44,6 +44,10 @@ async function fixture(t, target = 'windows-x86_64') {
   if (targets[target].template === 'macos') {
     await mkdir(join(template, 'scripts'), { recursive: true });
     await writeFile(join(template, 'scripts', 'postinstall'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  }
+  if (targets[target].template !== 'windows') {
+    await mkdir(join(root, 'packaging/posix'), { recursive: true });
+    await writeFile(join(root, 'packaging/posix/service-access.sh'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   }
   return { root, assets, scratch, config: { target, releaseId: '0.0.1-test', binaryDir, output, development: false } };
 }
