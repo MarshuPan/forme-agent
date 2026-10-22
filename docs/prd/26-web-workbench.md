@@ -70,7 +70,7 @@ reducer 为纯函数：`reduce(snapshot, ordered_event) -> view`，重复 event 
 
 `POST /v1/brain/workbench/review` 的 `WorkbenchReviewCommand` 只接受 command key、run、candidate、expected_state、decision。owner 来自认证，证据、稳定目标与传递派生关系由正式 core 重新解析，再调用既有 CandidateReviewCommand/governor。浏览器不能指定 actor、证据或失效列表；确认仍可能因证据不足被拒绝。
 
-适配层不新增脑 EventKind。认知 review 的命令回执使用既有 `MemoryMaintenanceApplied.deltas_ref` 的保留编码 `workbench-review-v1|key_digest|binding_digest|started/confirmed/rejected`，只记录命令绑定与处置状态，不携带用户正文或秘密。相同 key/相同绑定返回原回执；相同 key/不同绑定拒绝。已记录 started 但没有终态时返回 Unknown，不盲重放中间提升/撤回；UI 查询真实对象状态和原回执。此记录是认知维护审计，不充当安装、认证或配置事实。
+适配层不新增脑 EventKind。认知 review 的命令回执使用既有 `MemoryMaintenanceApplied.deltas_ref` 的保留编码 `workbench-review-v1|key_digest|binding_digest|started/confirmed/rejected|target_digest`，只记录命令绑定、目标摘要与处置状态，不携带用户正文或秘密。相同 key/相同绑定返回原回执；相同 key/不同绑定拒绝。同一候选的控制串行，存在未确认处置时，新 key 同样不能重新执行。已记录 started 但没有终态时返回 Unknown，不盲重放中间提升/撤回；UI 查询真实对象状态和原回执。此记录是认知维护审计，不充当安装、认证或配置事实。
 
 ## 5. 页面、行为与状态
 
