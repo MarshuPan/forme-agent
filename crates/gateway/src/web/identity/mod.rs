@@ -1,6 +1,7 @@
 //! Independent durable owner authentication. No brain-store or model access.
 mod account;
 mod challenge;
+mod maintenance;
 mod password;
 mod sessions;
 mod setup;

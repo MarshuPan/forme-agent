@@ -1,5 +1,6 @@
 import { isRecord, versioned } from '../types.ts';
 import type { CandidateReviewCommand, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -97,6 +98,13 @@ export class WorkbenchClient {
       'product/config', 'POST', { schema_version: 1, operation_id: operation, expected_revision, models }, operation,
     );
   }
+  validateProductConfig(revision: number, operation = newKey('config-check')) {
+    return this.json<ProductConfigValidation>('product/config/validate', 'POST', { schema_version: 1, revision }, operation);
+  }
+  activateProductConfig(command: ProductCoreActivation, password: string) {
+    return this.json<ProductCoreActivationResult>('product/config/activate', 'POST', { ...command, password }, command.operation_id);
+  }
+  productOperation(operation: string) { return this.json<ProductOperation>(`product/operations/${id(operation)}`); }
   profile() { return this.json<ControlProfile>('brain/profile'); }
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }
   runs() { return this.json<RunSummary[]>('brain/runs'); }

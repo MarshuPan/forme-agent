@@ -27,6 +27,21 @@ export interface ProductConfigView {
   active_revision: number; acknowledged_revision: number | null; pending_restart: boolean;
   configured: boolean; models: ProductModelProfile[]; issue_refs: string[];
 }
+export interface ProductConfigValidation {
+  schema_version: 1; revision: number; valid: boolean; restart_required: boolean;
+  model_test_status: 'NotRun'; issue_refs: string[];
+}
+export interface ProductCoreActivation {
+  schema_version: 1; operation_id: string; expected_revision: number;
+  action: 'start' | 'restart'; requested_deadline: number;
+}
+export interface ProductOperation {
+  schema_version: 1; operation_id: string; stage: string; pending_stage: string | null;
+}
+export interface ProductCoreActivationResult {
+  schema_version: 1; operation: ProductOperation; configuration: ProductConfigView;
+  service: { schema_version: 1; service: string; state: string };
+}
 export interface ProductModelProfilePatch {
   schema_version: 1; id: string; provider: string; model: string; base_url: string;
   credential?: string; context_window: number; tool_use: boolean; strength: 'basic' | 'standard' | 'strong';

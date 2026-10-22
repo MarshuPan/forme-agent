@@ -23,7 +23,7 @@ export function App() {
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns(items); }, [api]);
   const refreshCore = useCallback(async () => {
     try { const next = await api.runtime(); setRuntime(next); setIssue(''); await refreshRuns(); }
-    catch (problem) { setRuntime(null); setIssue(problem instanceof Error ? problem.message : '主脑服务暂不可用。'); }
+    catch (problem) { setRuntime(null); setTab('settings'); setIssue(problem instanceof Error ? problem.message : '主脑服务暂不可用。'); }
   }, [api, refreshRuns]);
   const cognition = useCallback(() => api.dashboard(), [api]);
   function authenticated(view: SessionResponse) { setSession(view.session); setEntry('ready'); }

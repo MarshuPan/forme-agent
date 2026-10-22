@@ -140,6 +140,13 @@ impl WebState {
             )
         })?
         .map_err(|error| {
+            if error.0 == "configuration patch rejected before publication" {
+                return WebError::new(
+                    axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+                    "ConfigurationInvalid",
+                    "模型配置未保存，请检查端点、模型参数及密钥",
+                );
+            }
             WebError::new(
                 if error.0.contains("stale") || error.0.contains("reused") {
                     axum::http::StatusCode::CONFLICT
@@ -175,7 +182,21 @@ fn router(state: Arc<WebState>) -> Router {
         .route("/api/v1/auth/password", put(auth::password))
         .route(
             "/api/v1/product/config",
-            get(configuration::read).post(configuration::write),
+            get(configuration::read)
+                .post(configuration::write)
+                .layer(DefaultBodyLimit::max(256 * 1024)),
+        )
+        .route(
+            "/api/v1/product/config/validate",
+            post(configuration::validate),
+        )
+        .route(
+            "/api/v1/product/config/activate",
+            post(configuration::activate),
+        )
+        .route(
+            "/api/v1/product/operations/{id}",
+            get(configuration::operation),
         )
         .route(
             "/api/v1/brain/{*path}",

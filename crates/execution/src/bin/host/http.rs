@@ -56,7 +56,17 @@ pub(super) fn handle_connection(
     match route(&request, broker.as_ref(), worker.as_ref(), &auth, domain) {
         Ok((status, body)) => write_response(&mut stream, status, &body),
         Err(error) => {
-            write_error(&mut stream, 400, error)?;
+            let status = if error.0 == "configuration patch rejected before publication" {
+                422
+            } else if error.0.contains("stale")
+                || error.0.contains("reused")
+                || error.0.contains("conflict")
+            {
+                409
+            } else {
+                400
+            };
+            write_error(&mut stream, status, error)?;
             Ok(())
         }
     }
@@ -91,6 +101,30 @@ fn route(
                 .map_err(|_| p::Error("host owner binding body is invalid".into()))?;
             serde_json::to_vec(&broker.bind_configuration_owner(auth, binding)?)
                 .map_err(|_| p::Error("host configuration response failed".into()))?
+        }
+        ("POST", "/v1/host/configuration/validate")
+            if matches!(domain, EndpointDomain::Configuration) =>
+        {
+            let request: p::ProductConfigValidationRequest = serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("host validation body is invalid".into()))?;
+            serde_json::to_vec(&broker.validate_configuration(auth, request)?)
+                .map_err(|_| p::Error("host validation response failed".into()))?
+        }
+        ("POST", "/v1/host/configuration/activate")
+            if matches!(domain, EndpointDomain::Configuration) =>
+        {
+            let request: p::ProductCoreActivation = serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("host activation body is invalid".into()))?;
+            serde_json::to_vec(&broker.activate_configuration(auth, request, now_ms())?)
+                .map_err(|_| p::Error("host activation response failed".into()))?
+        }
+        ("GET", path)
+            if matches!(domain, EndpointDomain::Configuration)
+                && path.starts_with("/v1/host/configuration/operations/") =>
+        {
+            let id = path.trim_start_matches("/v1/host/configuration/operations/");
+            serde_json::to_vec(&broker.configuration_operation(auth, id)?)
+                .map_err(|_| p::Error("host configuration operation response failed".into()))?
         }
         ("POST", "/v1/host/plan") => {
             let request: p::HostManagementRequest = serde_json::from_slice(&request.body)
@@ -175,8 +209,11 @@ fn is_agent_path(path: &str) -> bool {
 fn is_configuration_path(path: &str) -> bool {
     matches!(
         path,
-        "/v1/host/configuration" | "/v1/host/configuration/owner"
-    )
+        "/v1/host/configuration"
+            | "/v1/host/configuration/owner"
+            | "/v1/host/configuration/validate"
+            | "/v1/host/configuration/activate"
+    ) || path.starts_with("/v1/host/configuration/operations/")
 }
 
 fn worker_id<'a>(path: &'a str, prefix: &str, suffix: &str) -> p::Result<&'a str> {

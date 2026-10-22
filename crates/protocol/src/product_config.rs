@@ -309,3 +309,71 @@ pub struct ProductConfigResponse {
     pub applied: bool,
     pub operation_id: Option<String>,
 }
+
+/// Static validation deliberately does not assert provider availability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProductModelTestStatus {
+    NotRun,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductConfigValidationReport {
+    pub schema_version: SchemaVersion,
+    pub revision: u64,
+    pub valid: bool,
+    pub restart_required: bool,
+    pub model_test_status: ProductModelTestStatus,
+    pub issue_refs: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductConfigValidationRequest {
+    pub schema_version: SchemaVersion,
+    pub revision: u64,
+    pub owner: OwnerPrincipalRef,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProductCoreAction {
+    Start,
+    Restart,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductCoreActivation {
+    pub schema_version: SchemaVersion,
+    pub operation_id: String,
+    pub expected_revision: u64,
+    pub owner: OwnerPrincipalRef,
+    pub action: ProductCoreAction,
+    pub requested_deadline: crate::Timestamp,
+}
+
+impl ProductCoreActivation {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != PRODUCT_CONFIG_SCHEMA_VERSION || self.expected_revision == 0 {
+            return Err(Error("product core activation is invalid".into()));
+        }
+        validate_product_id(&self.operation_id)?;
+        self.owner.validate()
+    }
+
+    pub fn digest(&self) -> Result<crate::SchemaDigest> {
+        self.validate()?;
+        crate::canonical_digest(&("forme-product-core-activation-v1", self))
+    }
+}
+
+/// OS operation completion and core configuration acknowledgement are separate.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductCoreActivationResponse {
+    pub schema_version: SchemaVersion,
+    pub operation: crate::MaintenanceOperation,
+    pub configuration: ProductConfigView,
+    pub service: crate::NativeServiceStatus,
+}

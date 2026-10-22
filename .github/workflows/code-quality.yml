@@ -52,3 +52,6 @@ jobs:
       - name: Managed Web-to-brain contracts
         shell: pwsh
         run: ./tools/verify-web-workbench.ps1
+      - name: Managed configuration and real process recovery
+        shell: pwsh
+        run: ./tools/verify-product-configuration.ps1

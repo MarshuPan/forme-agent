@@ -1,117 +1,134 @@
-//! Host-owned configuration staging for the managed core.
-//!
-//! This module never calls a model and never writes brain state. It owns the
-//! product configuration file, model credential files, revision CAS, and the
-//! safe projection returned to Web. The core service remains the only reader
-//! that can turn the resulting file into a ProductionRuntime.
+//! Host-owned, recoverable configuration transactions. Never a brain writer.
+#[cfg(test)]
+mod activation_tests;
+mod journal;
+mod materialize;
+mod storage;
+#[cfg(test)]
+mod tests;
 
-use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
+use journal::{ConfigJournal, Intent, SnapshotRef};
+use storage::invalid;
+
 const MAX_CONFIG_BYTES: u64 = 256 * 1024;
 const MAX_STATE_BYTES: u64 = 128 * 1024;
 
-#[derive(Clone)]
 pub struct ProductConfigStore {
     template: p::ProductConfigTemplate,
-    state_path: PathBuf,
-    state: ProductConfigState,
+    state: ConfigState,
+    journal: ConfigJournal,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ProductConfigState {
+struct ConfigState {
     schema_version: p::SchemaVersion,
     install_ref: String,
     owner: Option<p::OwnerPrincipalRef>,
-    active_revision: u64,
-    acknowledged_revision: Option<u64>,
-    pending_restart: bool,
+    revision: u64,
     models: Vec<p::ProductModelProfileView>,
-    last_operation_id: Option<String>,
-    last_patch_digest: Option<p::SchemaDigest>,
+    credentials: BTreeMap<String, PathBuf>,
 }
 
-impl ProductConfigState {
-    fn empty(install_ref: &str) -> Self {
+impl ConfigState {
+    fn empty(install: &str) -> Self {
         Self {
-            schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-            install_ref: install_ref.to_owned(),
+            schema_version: p::SchemaVersion(2),
+            install_ref: install.to_owned(),
             owner: None,
-            active_revision: 0,
-            acknowledged_revision: None,
-            pending_restart: false,
+            revision: 0,
             models: Vec::new(),
-            last_operation_id: None,
-            last_patch_digest: None,
+            credentials: BTreeMap::new(),
         }
     }
 
-    fn validate(&self, install_ref: &str) -> p::Result<()> {
-        if self.schema_version != p::PRODUCT_CONFIG_SCHEMA_VERSION
-            || self.install_ref != install_ref
-            || self.active_revision > 1_000_000_000
+    fn validate(&self, template: &p::ProductConfigTemplate) -> p::Result<()> {
+        if self.schema_version != p::SchemaVersion(2)
+            || self.install_ref != template.install_ref
+            || self.revision > 1_000_000_000
+            || self.models.len() != self.credentials.len()
+            || (self.revision == 0) != self.models.is_empty()
+            || (self.revision > 0 && self.owner.is_none())
         {
             return Err(invalid());
         }
         if let Some(owner) = &self.owner {
             owner.validate()?;
         }
-        if let Some(acknowledged) = self.acknowledged_revision {
-            if acknowledged == 0 || acknowledged > self.active_revision {
+        let mut ids = std::collections::BTreeSet::new();
+        for model in &self.models {
+            materialize::validate_model(&materialize::patch_from_view(model))?;
+            if !model.credential_configured || !ids.insert(&model.id) {
+                return Err(invalid());
+            }
+            let path = self.credentials.get(&model.id).ok_or_else(invalid)?;
+            storage::check(path)?;
+            if !path.starts_with(&template.model_credentials_directory) {
                 return Err(invalid());
             }
         }
-        for model in &self.models {
-            if model.schema_version != p::PRODUCT_CONFIG_SCHEMA_VERSION
-                || model.id.trim().is_empty()
-                || !model.credential_configured
-            {
-                return Err(invalid());
-            }
+        if !self.models.is_empty() && self.models.iter().filter(|model| model.default).count() != 1
+        {
+            return Err(invalid());
         }
         Ok(())
     }
 }
 
 impl ProductConfigStore {
+    /// Own the OS writer lock until drop. Corrupt or unbound state never becomes
+    /// an empty configuration; pending publication resumes only its original intent.
     pub fn open(template_path: &Path) -> p::Result<Mutex<Self>> {
-        let template = load_json::<p::ProductConfigTemplate>(template_path, MAX_CONFIG_BYTES)?;
-        template.validate()?;
-        reject_path(&template.core_config_path)?;
-        reject_path(&template.configuration_ack_path)?;
-        reject_path(&template.model_credentials_directory)?;
-        let state_path = template.core_config_path.with_extension("state.json");
-        reject_path(&state_path)?;
-        let state = if state_path.exists() {
-            load_json::<ProductConfigState>(&state_path, MAX_STATE_BYTES)?
-        } else {
-            ProductConfigState::empty(&template.install_ref)
-        };
-        state.validate(&template.install_ref)?;
-        Ok(Mutex::new(Self {
+        let template = storage::json::<p::ProductConfigTemplate>(template_path, MAX_CONFIG_BYTES)?;
+        materialize::validate_template(&template, template_path)?;
+        let journal_path = template.core_config_path.with_extension("journal.jsonl");
+        if !journal_path.try_exists().map_err(|_| invalid())?
+            && template
+                .core_config_path
+                .with_extension("revisions")
+                .try_exists()
+                .map_err(|_| invalid())?
+        {
+            // A missing journal cannot erase a previously committed owner,
+            // including the bound-but-not-yet-configured revision zero.
+            return Err(invalid());
+        }
+        let journal = ConfigJournal::open(&journal_path, &template.install_ref)?;
+        let mut store = Self {
+            state: ConfigState::empty(&template.install_ref),
             template,
-            state_path,
-            state,
-        }))
+            journal,
+        };
+        if let Some(reference) = store.journal.current() {
+            store.state = store.load_state(reference)?;
+        } else if store.journal.pending().is_none() {
+            store.import_legacy()?;
+        }
+        store.recover()?;
+        store.verify_published()?;
+        Ok(Mutex::new(store))
     }
 
     pub fn snapshot(&mut self) -> p::Result<p::ProductConfigView> {
+        self.recover()?;
+        self.verify_published()?;
         self.sync_acknowledgement()?;
-        self.state.validate(&self.template.install_ref)?;
+        let acknowledged = self.journal.acknowledged();
         Ok(p::ProductConfigView {
             schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
             install_ref: self.template.install_ref.clone(),
             owner: self.state.owner.clone(),
-            active_revision: self.state.active_revision,
-            acknowledged_revision: self.state.acknowledged_revision,
-            pending_restart: self.state.pending_restart,
-            configured: !self.state.models.is_empty() && self.state.owner.is_some(),
+            active_revision: self.state.revision,
+            acknowledged_revision: acknowledged,
+            pending_restart: self.state.revision > 0 && acknowledged != Some(self.state.revision),
+            configured: self.state.revision > 0,
             models: self.state.models.clone(),
             issue_refs: Vec::new(),
         })
@@ -122,51 +139,28 @@ impl ProductConfigStore {
         binding: p::ProductConfigOwnerBinding,
     ) -> p::Result<p::ProductConfigResponse> {
         binding.validate()?;
+        self.recover()?;
         let digest = p::canonical_digest(&(
             &binding.schema_version,
             &binding.operation_id,
             &binding.expected_revision,
             &binding.owner,
         ))?;
-        if self.state.last_operation_id.as_deref() == Some(&binding.operation_id) {
-            if self.state.last_patch_digest.as_ref() != Some(&digest) {
-                return Err(p::Error(
-                    "configuration operation id was reused with different content".into(),
-                ));
-            }
-            return Ok(p::ProductConfigResponse {
-                schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-                view: self.snapshot()?,
-                applied: false,
-                operation_id: Some(binding.operation_id),
-            });
+        if self.journal.existing(&binding.operation_id, &digest)? {
+            return self.response(binding.operation_id, false);
         }
-        if binding.expected_revision != self.state.active_revision {
-            return Err(p::Error(
-                "configuration revision is stale; refresh before saving".into(),
-            ));
-        }
-        if let Some(owner) = &self.state.owner {
-            if owner != &binding.owner {
-                return Err(p::Error(
-                    "configuration owner does not match the installed owner".into(),
-                ));
-            }
-        }
-        self.state.owner = Some(binding.owner);
-        self.state.last_operation_id = Some(binding.operation_id.clone());
-        self.state.last_patch_digest = Some(digest);
-        self.persist_state()?;
-        Ok(p::ProductConfigResponse {
-            schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-            view: self.snapshot()?,
-            applied: true,
-            operation_id: Some(binding.operation_id),
-        })
+        self.check_revision(binding.expected_revision, &binding.owner, false)?;
+        let mut state = self.state.clone();
+        state.owner = Some(binding.owner);
+        self.commit_state(binding.operation_id.clone(), digest, state)?;
+        self.response(binding.operation_id, true)
     }
 
+    /// Validate every profile and credential before writing staging files. Keys
+    /// have immutable revision paths, including when a saved key is retained.
     pub fn apply(&mut self, patch: p::ProductConfigPatch) -> p::Result<p::ProductConfigResponse> {
-        patch.validate()?;
+        patch.validate().map_err(|_| rejected_patch())?;
+        self.recover()?;
         let digest = p::canonical_digest(&(
             &patch.schema_version,
             &patch.operation_id,
@@ -174,78 +168,53 @@ impl ProductConfigStore {
             &patch.owner,
             &patch.models,
         ))?;
-        if self.state.last_operation_id.as_deref() == Some(&patch.operation_id) {
-            if self.state.last_patch_digest.as_ref() != Some(&digest) {
-                return Err(p::Error(
-                    "configuration operation id was reused with different content".into(),
-                ));
-            }
-            return Ok(p::ProductConfigResponse {
-                schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-                view: self.snapshot()?,
-                applied: false,
-                operation_id: Some(patch.operation_id),
-            });
+        if self.journal.existing(&patch.operation_id, &digest)? {
+            return self.response(patch.operation_id, false);
         }
-        if patch.expected_revision != self.state.active_revision {
-            return Err(p::Error(
-                "configuration revision is stale; refresh before saving".into(),
-            ));
-        }
-        if let Some(owner) = &self.state.owner {
-            if owner != &patch.owner {
-                return Err(p::Error(
-                    "configuration owner does not match the installed owner".into(),
-                ));
-            }
-        }
-
-        fs::create_dir_all(&self.template.model_credentials_directory).map_err(|_| invalid())?;
-        let mut views = Vec::with_capacity(patch.models.len());
-        for model in &patch.models {
-            let credential_path =
-                credential_path(&self.template.model_credentials_directory, &model.id)?;
-            let configured = if let Some(value) = model.credential.as_deref() {
-                write_secret(&credential_path, value)?;
-                true
-            } else {
-                credential_path.is_file()
-            };
-            if !configured {
-                return Err(p::Error(format!(
-                    "credential for model profile {} is not configured",
-                    model.id
-                )));
-            }
-            views.push(view(model));
-        }
-
+        self.check_revision(patch.expected_revision, &patch.owner, true)?;
+        let prepared = materialize::prepare_models(&patch.models, &self.state.credentials)
+            .map_err(|_| rejected_patch())?;
         let revision = self
             .state
-            .active_revision
+            .revision
             .checked_add(1)
+            .filter(|value| *value <= 1_000_000_000)
             .ok_or_else(invalid)?;
-        let core = core_config(&self.template, &patch, revision)?;
-        let encoded = serde_json::to_vec_pretty(&core).map_err(|_| invalid())?;
-        write_atomic(&self.template.core_config_path, &encoded, 0o600)?;
-        self.state = ProductConfigState {
-            schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
+        let id = materialize::new_ref()?;
+        let credentials = materialize::write_credentials(&self.template, &id, &prepared)?;
+        let state = ConfigState {
+            schema_version: p::SchemaVersion(2),
             install_ref: self.template.install_ref.clone(),
             owner: Some(patch.owner),
-            active_revision: revision,
-            acknowledged_revision: None,
-            pending_restart: true,
-            models: views,
-            last_operation_id: Some(patch.operation_id.clone()),
-            last_patch_digest: Some(digest),
+            revision,
+            models: prepared.iter().map(|(view, _)| view.clone()).collect(),
+            credentials,
         };
-        let state = serde_json::to_vec_pretty(&self.state).map_err(|_| invalid())?;
-        write_atomic(&self.state_path, &state, 0o600)?;
-        Ok(p::ProductConfigResponse {
+        self.commit_state(patch.operation_id.clone(), digest, state)?;
+        self.response(patch.operation_id, true)
+    }
+
+    pub fn validate_revision(
+        &mut self,
+        revision: u64,
+        owner: &p::OwnerPrincipalRef,
+    ) -> p::Result<p::ProductConfigValidationReport> {
+        self.recover()?;
+        self.check_revision(revision, owner, true)?;
+        if revision == 0 {
+            return Err(p::Error("model configuration is not saved".into()));
+        }
+        self.verify_published()?;
+        for path in self.state.credentials.values() {
+            storage::secret(path)?;
+        }
+        Ok(p::ProductConfigValidationReport {
             schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-            view: self.snapshot()?,
-            applied: true,
-            operation_id: Some(patch.operation_id),
+            revision,
+            valid: true,
+            restart_required: self.journal.acknowledged() != Some(revision),
+            model_test_status: p::ProductModelTestStatus::NotRun,
+            issue_refs: Vec::new(),
         })
     }
 
@@ -255,221 +224,166 @@ impl ProductConfigStore {
     ) -> p::Result<()> {
         acknowledgement.validate()?;
         if acknowledgement.install_ref != self.template.install_ref
-            || acknowledgement.revision != self.state.active_revision
+            || acknowledgement.revision != self.state.revision
         {
             return Err(p::Error(
                 "core acknowledged an unknown configuration revision".into(),
             ));
         }
-        self.state.acknowledged_revision = Some(acknowledgement.revision);
-        self.state.pending_restart = false;
-        self.persist_state()
+        if self.journal.acknowledged() != Some(acknowledgement.revision) {
+            self.journal.acknowledge(acknowledgement.revision)?;
+        }
+        Ok(())
     }
 
-    fn sync_acknowledgement(&mut self) -> p::Result<()> {
-        if !self.template.configuration_ack_path.is_file() {
-            return Ok(());
-        }
-        let acknowledgement = load_json::<p::ProductConfigAcknowledgement>(
-            &self.template.configuration_ack_path,
-            MAX_STATE_BYTES,
-        )?;
-        if acknowledgement.install_ref != self.template.install_ref {
+    fn check_revision(
+        &self,
+        revision: u64,
+        owner: &p::OwnerPrincipalRef,
+        require_owner: bool,
+    ) -> p::Result<()> {
+        if revision != self.state.revision {
             return Err(p::Error(
-                "product configuration acknowledgement belongs to another installation".into(),
+                "configuration revision is stale; refresh before saving".into(),
             ));
         }
-        if acknowledgement.revision == self.state.active_revision
-            && self.state.acknowledged_revision != Some(acknowledgement.revision)
+        if self
+            .state
+            .owner
+            .as_ref()
+            .is_some_and(|bound| bound != owner)
+            || (require_owner && self.state.owner.is_none())
         {
-            self.acknowledge(acknowledgement)?;
-        } else if acknowledgement.revision > self.state.active_revision {
             return Err(p::Error(
-                "product configuration acknowledgement is ahead of active state".into(),
+                "configuration owner does not match the installed owner".into(),
             ));
         }
         Ok(())
     }
 
-    fn persist_state(&self) -> p::Result<()> {
-        let state = serde_json::to_vec_pretty(&self.state).map_err(|_| invalid())?;
-        write_atomic(&self.state_path, &state, 0o600)
+    fn commit_state(
+        &mut self,
+        operation: String,
+        digest: p::SchemaDigest,
+        state: ConfigState,
+    ) -> p::Result<()> {
+        state.validate(&self.template)?;
+        let reference = materialize::stage(&self.template, &state)?;
+        self.journal.prepare(Intent {
+            operation,
+            digest,
+            snapshot: reference,
+        })?;
+        self.recover()
+    }
+
+    fn recover(&mut self) -> p::Result<()> {
+        let Some(intent) = self.journal.pending().cloned() else {
+            return Ok(());
+        };
+        let state = self.load_state(&intent.snapshot)?;
+        if self.state.owner.is_some() && state.owner != self.state.owner {
+            return Err(invalid());
+        }
+        if intent.snapshot.core_digest.is_some() {
+            let bytes = materialize::core_bytes(&self.template, &intent.snapshot)?;
+            let actual: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+            if actual != materialize::core_config(&self.template, &state)? {
+                return Err(invalid());
+            }
+            for path in state.credentials.values() {
+                storage::secret(path)?;
+            }
+            storage::publish(&self.template.core_config_path, &bytes)?;
+        }
+        self.journal.commit(intent.operation)?;
+        self.state = state;
+        Ok(())
+    }
+
+    fn load_state(&self, reference: &SnapshotRef) -> p::Result<ConfigState> {
+        let bytes = storage::read(
+            &materialize::revision_directory(&self.template, &reference.id).join("state.json"),
+            MAX_STATE_BYTES,
+        )?;
+        if materialize::bytes_digest(&bytes) != reference.state_digest {
+            return Err(invalid());
+        }
+        let state: ConfigState = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        state.validate(&self.template)?;
+        if state.revision != reference.revision {
+            return Err(invalid());
+        }
+        Ok(state)
+    }
+
+    fn verify_published(&self) -> p::Result<()> {
+        self.state.validate(&self.template)?;
+        if let Some(reference) = self
+            .journal
+            .current()
+            .filter(|value| value.core_digest.is_some())
+        {
+            let bytes = storage::read(&self.template.core_config_path, MAX_CONFIG_BYTES)?;
+            if Some(materialize::bytes_digest(&bytes)) != reference.core_digest {
+                return Err(invalid());
+            }
+            let expected = materialize::core_config(&self.template, &self.state)?;
+            let actual: serde_json::Value =
+                serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+            if actual != expected {
+                return Err(invalid());
+            }
+        } else if self.template.core_config_path.exists() {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+
+    fn sync_acknowledgement(&mut self) -> p::Result<()> {
+        if !self
+            .template
+            .configuration_ack_path
+            .try_exists()
+            .map_err(|_| invalid())?
+        {
+            return Ok(());
+        }
+        let ack = storage::json::<p::ProductConfigAcknowledgement>(
+            &self.template.configuration_ack_path,
+            4096,
+        )?;
+        ack.validate()?;
+        if ack.install_ref != self.template.install_ref || ack.revision > self.state.revision {
+            return Err(invalid());
+        }
+        if ack.revision == self.state.revision {
+            self.acknowledge(ack)?;
+        }
+        Ok(())
+    }
+
+    fn response(
+        &mut self,
+        operation: String,
+        applied: bool,
+    ) -> p::Result<p::ProductConfigResponse> {
+        Ok(p::ProductConfigResponse {
+            schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
+            view: self.snapshot()?,
+            applied,
+            operation_id: Some(operation),
+        })
+    }
+
+    fn import_legacy(&mut self) -> p::Result<()> {
+        materialize::import_legacy(self)
     }
 }
 
-fn view(model: &p::ProductModelProfilePatch) -> p::ProductModelProfileView {
-    p::ProductModelProfileView {
-        schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-        id: model.id.clone(),
-        provider: model.provider.clone(),
-        model: model.model.clone(),
-        base_url: model.base_url.clone(),
-        context_window: model.context_window,
-        tool_use: model.tool_use,
-        strength: model.strength.clone(),
-        input_microunits_per_million: model.input_microunits_per_million,
-        output_microunits_per_million: model.output_microunits_per_million,
-        requests_per_minute: model.requests_per_minute,
-        tokens_per_minute: model.tokens_per_minute,
-        timeout_ms: model.timeout_ms,
-        fallback_group: model.fallback_group.clone(),
-        default: model.default,
-        tool_schema_versions: model.tool_schema_versions.clone(),
-        credential_configured: true,
-    }
-}
-
-fn core_config(
-    template: &p::ProductConfigTemplate,
-    patch: &p::ProductConfigPatch,
-    revision: u64,
-) -> p::Result<serde_json::Value> {
-    let mut models = Vec::with_capacity(patch.models.len());
-    for model in &patch.models {
-        let credential_path = credential_path(&template.model_credentials_directory, &model.id)?;
-        models.push(serde_json::json!({
-            "schema_version": 1,
-            "profile": {
-                "id": model.id,
-                "provider": model.provider,
-                "model": model.model,
-                "base_url": model.base_url,
-                "credential_env": "FORME_MANAGED_CREDENTIAL",
-                "context_window": model.context_window,
-                "tool_use": model.tool_use,
-                "strength": model.strength,
-                "input_microunits_per_million": model.input_microunits_per_million,
-                "output_microunits_per_million": model.output_microunits_per_million,
-                "requests_per_minute": model.requests_per_minute,
-                "tokens_per_minute": model.tokens_per_minute,
-                "timeout_ms": model.timeout_ms,
-                "fallback_group": model.fallback_group,
-                "default": model.default,
-                "tool_schema_versions": model.tool_schema_versions,
-            },
-            "credential_path": credential_path,
-        }));
-    }
-    Ok(serde_json::json!({
-        "schema_version": 1,
-        "install_ref": template.install_ref,
-        "revision": revision,
-        "brain": {
-            "schema_version": 1,
-            "owner": patch.owner,
-            "store_path": template.brain_store_path,
-            "artifact_root": template.artifact_root,
-            "workspace": template.workspace,
-            "agent_profile": template.agent_profile,
-            "models": models,
-            "scheduler_enabled": true,
-            "scheduler": {
-                "schema_version": 1,
-                "tick": template.scheduler_tick,
-                "lease": template.scheduler_lease,
-                "max_claims_per_tick": template.scheduler_max_claims,
-            },
-            "cognition": {
-                "relevance_mode": "DirectModel",
-                "schema_version": 1,
-                "tick_enabled": true,
-                "tick_interval": template.cognition_tick,
-                "stable_evidence_max_age": template.stable_evidence_max_age,
-            },
-            "authority_lease": template.authority_lease,
-        },
-        "transport": {
-            "schema_version": 1,
-            "bind": template.core_bind,
-            "owner_credential_path": template.core_owner_credential_path,
-            "web_credential_path": template.core_web_credential_path,
-            "web_assertion_verifying_key": template.core_web_assertion_verifying_key,
-            "web_session_fence_path": template.core_session_fence_path,
-            "configuration_ack_path": template.configuration_ack_path,
-            "max_body_bytes": 262144,
-            "request_timeout_ms": 30000,
-            "max_requests_per_minute": 120,
-        },
-        "drain_timeout_ms": template.drain_timeout.0,
-    }))
-}
-
-fn credential_path(directory: &Path, id: &str) -> p::Result<PathBuf> {
-    let digest = p::canonical_digest(&("forme-model-credential-path-v1", id))?;
-    let name = format!("{}.secret", digest.0.trim_start_matches("sha256:"));
-    let path = directory.join(name);
-    reject_path(&path)?;
-    Ok(path)
-}
-
-fn write_secret(path: &Path, value: &str) -> p::Result<()> {
-    if value.trim().is_empty() || value.contains(['\r', '\n']) || value.len() > 16 * 1024 {
-        return Err(p::Error("model credential is empty or malformed".into()));
-    }
-    write_atomic(path, value.as_bytes(), 0o600)
-}
-
-fn load_json<T: for<'de> Deserialize<'de>>(path: &Path, limit: u64) -> p::Result<T> {
-    reject_path(path)?;
-    let file = File::open(path).map_err(|_| invalid())?;
-    let metadata = file.metadata().map_err(|_| invalid())?;
-    if !metadata.is_file() || metadata.len() > limit {
-        return Err(invalid());
-    }
-    let mut bytes = Vec::new();
-    file.take(limit + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| invalid())?;
-    if bytes.len() as u64 > limit {
-        return Err(invalid());
-    }
-    serde_json::from_slice(&bytes).map_err(|_| invalid())
-}
-
-fn write_atomic(path: &Path, bytes: &[u8], mode: u32) -> p::Result<()> {
-    reject_path(path)?;
-    let parent = path.parent().ok_or_else(invalid)?;
-    fs::create_dir_all(parent).map_err(|_| invalid())?;
-    let nonce = p::canonical_digest(&(
-        path.to_string_lossy().as_ref(),
-        bytes.len(),
-        std::process::id(),
-    ))?;
-    let temporary = parent.join(format!(".{}.tmp", nonce.0.trim_start_matches("sha256:")));
-    reject_path(&temporary)?;
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(mode);
-    }
-    #[cfg(not(unix))]
-    let _ = mode;
-    let mut file = options.open(&temporary).map_err(|_| invalid())?;
-    if file.write_all(bytes).is_err() || file.sync_all().is_err() {
-        let _ = fs::remove_file(&temporary);
-        return Err(invalid());
-    }
-    #[cfg(windows)]
-    if path.exists() {
-        fs::remove_file(path).map_err(|_| invalid())?;
-    }
-    fs::rename(&temporary, path).map_err(|_| {
-        let _ = fs::remove_file(&temporary);
-        invalid()
-    })?;
-    #[cfg(unix)]
-    if let Ok(directory) = File::open(parent) {
-        let _ = directory.sync_all();
-    }
-    Ok(())
-}
-
-fn reject_path(path: &Path) -> p::Result<()> {
-    super::reject_linked_ancestors(path).map_err(|_| invalid())
-}
-
-fn invalid() -> p::Error {
-    p::Error("managed product configuration is unavailable or invalid".into())
+fn rejected_patch() -> p::Error {
+    // Only failures before credential staging or this command's durable intent
+    // may be exposed as definite input rejections by the product transport.
+    p::Error("configuration patch rejected before publication".into())
 }

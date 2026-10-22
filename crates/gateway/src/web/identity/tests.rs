@@ -107,6 +107,68 @@ fn owner(store: &WebIdentityStore, login: &SessionCookie, now: i64) -> Authentic
 }
 
 #[test]
+fn product_operation_confirmation_consumes_only_exact_password_bound_proof() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let clock = super::now();
+    let session = login(&store, clock);
+    let owner = owner(&store, &session, clock);
+    let operation = p::canonical_digest(&("core-start", 1)).unwrap();
+    assert!(matches!(
+        store.authorize_product_operation(
+            &owner,
+            SensitivePassword::new("wrong fixture password".into()),
+            &operation
+        ),
+        Err(AuthError::Unauthenticated)
+    ));
+    let count = || {
+        store
+            .database()
+            .unwrap()
+            .connection
+            .query_row("SELECT count(*) FROM reauth", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap()
+    };
+    assert_eq!(count(), 0);
+    store
+        .authorize_product_operation(&owner, SensitivePassword::new(PASSWORD.into()), &operation)
+        .unwrap();
+    assert_eq!(count(), 0);
+    let proof = store
+        .reauthenticate(&owner, SensitivePassword::new(PASSWORD.into()), &operation)
+        .unwrap();
+    let other = p::canonical_digest(&("core-start", 2)).unwrap();
+    let db = store.database().unwrap();
+    assert!(storage::claim_proof(&db.connection, &owner, &proof, &other, super::now()).is_err());
+    storage::claim_proof(&db.connection, &owner, &proof, &operation, super::now()).unwrap();
+    assert!(
+        storage::claim_proof(&db.connection, &owner, &proof, &operation, super::now()).is_err()
+    );
+}
+
+#[test]
+fn revoked_session_cannot_confirm_product_operation_even_with_correct_password() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let clock = super::now();
+    let session = login(&store, clock);
+    let owner = owner(&store, &session, clock);
+    store.logout(&owner).unwrap();
+    let operation = p::canonical_digest(&"core-start-after-logout").unwrap();
+    assert!(matches!(
+        store.authorize_product_operation(
+            &owner,
+            SensitivePassword::new(PASSWORD.into()),
+            &operation
+        ),
+        Err(AuthError::Unauthenticated)
+    ));
+}
+
+#[test]
 fn identity_claim_requires_pinned_signature_and_exact_account_commitment() {
     let directory = Directory::new();
     let store = open(&directory);

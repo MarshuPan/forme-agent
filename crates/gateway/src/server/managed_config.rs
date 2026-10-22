@@ -154,34 +154,17 @@ pub(super) fn write_configuration_ack(
     let parent = path.parent().ok_or_else(invalid)?;
     std::fs::create_dir_all(parent).map_err(|_| invalid())?;
     let bytes = serde_json::to_vec_pretty(acknowledgement).map_err(|_| invalid())?;
-    let digest = p::canonical_digest(&(path.to_string_lossy().as_ref(), &bytes))?;
-    let temporary = parent.join(format!(".{}.tmp", digest.0.trim_start_matches("sha256:")));
-    crate::web::config::check_path(&temporary)?;
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(&temporary).map_err(|_| invalid())?;
+    let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|_| invalid())?;
     use std::io::Write;
-    if file.write_all(&bytes).is_err() || file.sync_all().is_err() {
-        let _ = std::fs::remove_file(&temporary);
-        return Err(invalid());
-    }
-    #[cfg(windows)]
-    if path.exists() {
-        std::fs::remove_file(path).map_err(|_| invalid())?;
-    }
-    std::fs::rename(&temporary, path).map_err(|_| {
-        let _ = std::fs::remove_file(&temporary);
-        invalid()
-    })?;
+    file.write_all(&bytes)
+        .and_then(|_| file.as_file().sync_all())
+        .map_err(|_| invalid())?;
+    crate::web::config::check_path(path)?;
+    file.persist(path).map_err(|_| invalid())?;
     #[cfg(unix)]
-    if let Ok(directory) = std::fs::File::open(parent) {
-        let _ = directory.sync_all();
-    }
+    std::fs::File::open(parent)
+        .and_then(|directory| directory.sync_all())
+        .map_err(|_| invalid())?;
     Ok(())
 }
 

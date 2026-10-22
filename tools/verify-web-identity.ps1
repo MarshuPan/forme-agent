@@ -20,7 +20,9 @@ try {
         "identity_login_challenge_is_csrf_bound_expiring_and_consumed_once_across_restart",
         "identity_known_schema_upgrade_preserves_existing_account_and_session",
         "identity_setup_scope_is_distinct_and_candidate_binding_survives_restart",
-        "identity_invalid_setup_proof_can_be_discarded_without_touching_claim_intent"
+        "identity_invalid_setup_proof_can_be_discarded_without_touching_claim_intent",
+        "product_operation_confirmation_consumes_only_exact_password_bound_proof",
+        "revoked_session_cannot_confirm_product_operation_even_with_correct_password"
     )
     $ErrorActionPreference = "Continue"
     $output = @(& cargo test -p forme-gateway --lib web::identity::tests:: -- --test-threads=2 2>&1 | ForEach-Object { "$_" })

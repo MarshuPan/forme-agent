@@ -74,6 +74,29 @@ impl LocalConfigurationClient {
         self.request("POST", "/v1/host/configuration", Some(&patch))
     }
 
+    pub(super) fn validate(
+        &self,
+        request: p::ProductConfigValidationRequest,
+    ) -> p::Result<p::ProductConfigValidationReport> {
+        self.request("POST", "/v1/host/configuration/validate", Some(&request))
+    }
+
+    pub(super) fn activate(
+        &self,
+        request: p::ProductCoreActivation,
+    ) -> p::Result<p::ProductCoreActivationResponse> {
+        self.request("POST", "/v1/host/configuration/activate", Some(&request))
+    }
+
+    pub(super) fn operation(&self, id: &str) -> p::Result<p::MaintenanceOperation> {
+        p::validate_product_id(id)?;
+        self.request(
+            "GET",
+            &format!("/v1/host/configuration/operations/{id}"),
+            None::<&()>,
+        )
+    }
+
     fn request<T: DeserializeOwned, B: Serialize>(
         &self,
         method: &str,
@@ -85,7 +108,13 @@ impl LocalConfigurationClient {
             ("GET", "/v1/host/configuration")
                 | ("POST", "/v1/host/configuration")
                 | ("POST", "/v1/host/configuration/owner")
-        ) {
+                | ("POST", "/v1/host/configuration/validate")
+                | ("POST", "/v1/host/configuration/activate")
+        ) && !(method == "GET"
+            && path
+                .strip_prefix("/v1/host/configuration/operations/")
+                .is_some_and(|id| p::validate_product_id(id).is_ok()))
+        {
             return Err(invalid());
         }
         let encoded = body
@@ -137,6 +166,16 @@ impl LocalConfigurationClient {
             wire.extend_from_slice(&chunk[..count]);
         }
         let (status, response_body) = parse_response(&wire)?;
+        if status == 422 {
+            return Err(p::Error(
+                "configuration patch rejected before publication".into(),
+            ));
+        }
+        if status == 409 {
+            return Err(p::Error(
+                "configuration revision is stale or operation id was reused".into(),
+            ));
+        }
         if status != 200 {
             return Err(p::Error(
                 "managed product configuration request was rejected".into(),
