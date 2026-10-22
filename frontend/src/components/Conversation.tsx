@@ -5,17 +5,19 @@ import type { WorkbenchClient } from '../api/client.ts';
 import { emptyEvents, parseEvents, readDelay, reduceEvents } from '../events.ts';
 import type { EventState } from '../events.ts';
 import { isFinished } from '../types.ts';
-import type { PendingApproval, RunCommand, RunSummary, RuntimeView } from '../types.ts';
+import type { PendingApproval, RunCommand, RunSummary, RuntimeView, WorkbenchSessionRecord } from '../types.ts';
 import { Approval } from './Approval.tsx';
 
 interface Props {
   api: WorkbenchClient; runtime: RuntimeView | null; runs: RunSummary[];
-  selected: string | null; select: (run: string | null) => void; refresh: () => Promise<void>;
+  sessions: WorkbenchSessionRecord[]; selected: string | null; select: (run: string | null) => void;
+  refresh: () => Promise<void>; refreshSessions: () => Promise<void>;
 }
 
-export function Conversation({ api, runtime, runs, selected, select, refresh }: Props) {
+export function Conversation({ api, runtime, runs, sessions, selected, select, refresh, refreshSessions }: Props) {
   const [draft, setDraft] = useState('');
-  const [session, setSession] = useState(() => newKey('session'));
+  const [session, setSession] = useState(() => sessions[0]?.session ?? newKey('session'));
+  const [sessionTitle, setSessionTitle] = useState('新对话');
   const [pending, setPending] = useState<RunCommand | null>(null);
   const pendingRef = useRef<RunCommand | null>(null);
   const [busy, setBusy] = useState(false);
@@ -26,6 +28,13 @@ export function Conversation({ api, runtime, runs, selected, select, refresh }: 
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const cancelOperation = useRef(newKey('cancel'));
+
+  useEffect(() => {
+    if (!sessions.length) return;
+    if (!sessions.some((item) => item.session === session)) setSession(sessions[0].session);
+    const current = sessions.find((item) => item.session === session) ?? sessions[0];
+    setSessionTitle(current.title);
+  }, [sessions, session]);
 
   useEffect(() => {
     if (!selected) { setSummary(null); setEvents(emptyEvents('')); setAnswer(null); setApprovals([]); return; }
@@ -58,8 +67,13 @@ export function Conversation({ api, runtime, runs, selected, select, refresh }: 
   async function submit(event: FormEvent) {
     event.preventDefault(); if (busy || !runtime) return;
     // The ref closes a rapid double-submit before React commits disabled state.
+    let activeSession = session;
+    if (!sessions.some((item) => item.session === activeSession)) {
+      const created = await api.createWorkbenchSession(draft.trim().slice(0, 64) || '新对话', null);
+      activeSession = created.session; setSession(activeSession); setSessionTitle(created.title); await refreshSessions();
+    }
     const command = pendingRef.current ?? {
-      schema_version: 1 as const, source: 'UserTurn' as const, session,
+      schema_version: 1 as const, source: 'UserTurn' as const, session: activeSession,
       agent_profile: runtime.agent_profile, input: draft, budget: null,
       idempotency_key: newKey('command'),
     };
@@ -71,6 +85,24 @@ export function Conversation({ api, runtime, runs, selected, select, refresh }: 
     } catch (problem) { setError(problem instanceof Error ? problem.message : '提交结果尚未确认。'); }
     finally { setBusy(false); }
   }
+  async function renameSession() {
+    const current = sessions.find((item) => item.session === session);
+    if (!current) return;
+    const title = window.prompt('会话名称', current.title)?.trim();
+    if (!title || title === current.title) return;
+    try { const updated = await api.updateWorkbenchSession(current.session, current.updated_at, { operation: 'rename', title }); setSessionTitle(updated.title); await refreshSessions(); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : '会话名称修改尚未确认。'); }
+  }
+  async function archiveSession() {
+    const current = sessions.find((item) => item.session === session);
+    if (!current || !window.confirm('归档当前会话？归档不会删除运行记录。')) return;
+    try { await api.updateWorkbenchSession(current.session, current.updated_at, { operation: 'archive', archived: true }); await refreshSessions(); setSession(sessions.find((item) => !item.archived && item.session !== current.session)?.session ?? newKey('session')); select(null); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : '会话归档尚未确认。'); }
+  }
+  async function chooseSession(value: string) {
+    if (!value) return;
+    setSession(value); select(null);
+  }
   async function cancel() {
     if (!selected) return;
     try { await api.cancel(selected, cancelOperation.current); setRevision((v) => v + 1); }
@@ -79,14 +111,15 @@ export function Conversation({ api, runtime, runs, selected, select, refresh }: 
   const related = runs.filter((run) => run.session === session);
   return <section className="conversation" aria-labelledby="conversation-title">
     <header className="view-header"><div><p className="eyebrow">与你一起推进</p><h1 id="conversation-title">对话</h1></div>
-      <button className="secondary-button" disabled={pending !== null} onClick={() => { select(null); setSession(newKey('session')); setSummary(null); setAnswer(null); setEvents(emptyEvents('')); }}>新对话</button>
+      <div className="button-row"><select aria-label="当前会话" value={sessions.some((item) => item.session === session) ? session : ''} onChange={(event) => void chooseSession(event.target.value)}><option value="">新会话（发送时创建）</option>{sessions.filter((item) => !item.archived).map((item) => <option value={item.session} key={item.session}>{item.title}</option>)}</select><button className="secondary-button" disabled={pending !== null} onClick={() => { select(null); setSession(newKey('session')); setSessionTitle('新对话'); setSummary(null); setAnswer(null); setEvents(emptyEvents('')); }}>新对话</button>{sessions.some((item) => item.session === session) && <><button className="text-button" onClick={() => void renameSession()}>重命名</button><button className="text-button" onClick={() => void archiveSession()}>归档</button></>}
+      </div>
     </header>
     {!runtime && <p className="notice" role="status">主脑暂不可用。可以在设置中查看连接状态。</p>}
     {error && <p role="alert" className="form-error">{error}</p>}
     <div className="conversation-layout"><div className="conversation-main">
       {related.length > 1 && <nav className="run-tabs" aria-label="当前会话运行">{related.map((run, i) => <button className={selected === run.run ? 'active' : ''} key={run.run} onClick={() => select(run.run)}>第 {i + 1} 次 · {statusLabel(run.status)}</button>)}</nav>}
       <div className="messages" aria-live="polite" aria-relevant="additions text">
-        {!summary && !selected && <div className="empty-state"><h2>今天，想一起做点什么？</h2><p>从一个问题、一项任务，或一个长期项目开始。</p></div>}
+        {!summary && !selected && <div className="empty-state"><h2>{sessionTitle}，想一起做点什么？</h2><p>从一个问题、一项任务，或一个长期项目开始。</p></div>}
         {answer !== null && <article className="answer"><p className="message-label">forme</p><div className="message-text">{answer}</div></article>}
         {summary && answer === null && <p className="muted">{summary.status === 'Waiting' ? '任务正在等待输入、审批或结果核实。' : isFinished(summary.status) ? '本次运行没有可展示的最终回答。' : '主脑正在处理，公开进度见任务详情。'}</p>}
         {approvals.map((item) => <Approval key={item.approval_id} api={api} item={item} changed={() => { setRevision((v) => v + 1); void refresh(); }} />)}

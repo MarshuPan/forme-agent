@@ -5,6 +5,15 @@ export interface SessionView {
   auth_epoch: number; idle_expires_at: number; absolute_expires_at: number;
 }
 export interface SessionResponse { schema_version: 1; session: SessionView; csrf: string; revoke_operation?: string }
+export interface WorkbenchSessionRecord {
+  schema_version: 1; session: string; title: string; workspace: string | null;
+  archived: boolean; created_at: number; updated_at: number;
+}
+export interface WorkbenchSessionList { schema_version: 1; sessions: WorkbenchSessionRecord[] }
+export type WorkbenchSessionMutation =
+  | { operation: 'rename'; title: string }
+  | { operation: 'archive'; archived: boolean }
+  | { operation: 'associate_workspace'; workspace: string | null };
 export interface ControlProfile {
   schema_version: 1; owner: string;
   gateway: { schema_version: 1; surface: string; policy: string; model: string; toolset: string; workspace: string };

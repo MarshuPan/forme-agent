@@ -1,5 +1,5 @@
 import { isRecord, versioned } from '../types.ts';
-import type { ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
 import type { WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
@@ -91,6 +91,17 @@ export class WorkbenchClient {
     this.csrf = view.csrf; return view;
   }
   async logout() { await this.request('auth/logout', 'POST', undefined, newKey('logout')); this.clear(); }
+  workbenchSessions() { return this.json<WorkbenchSessionList>('sessions'); }
+  createWorkbenchSession(title: string, workspace: string | null, operation = newKey('session')) {
+    return this.json<WorkbenchSessionRecord>('sessions', 'POST', {
+      schema_version: 1, command: operation, title, workspace,
+    }, operation);
+  }
+  updateWorkbenchSession(session: string, expected_updated_at: number, mutation: WorkbenchSessionMutation, operation = newKey('session-update')) {
+    return this.json<WorkbenchSessionRecord>(`sessions/${id(session)}`, 'PUT', {
+      schema_version: 1, command: operation, session, expected_updated_at, mutation,
+    }, operation);
+  }
   async password(old_password: string, new_password: string, operation: string) {
     await this.request('auth/password', 'PUT', { schema_version: 1, old_password, new_password }, operation); this.clear();
   }

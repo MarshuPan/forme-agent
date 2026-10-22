@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ApiError, WorkbenchClient } from './api/client.ts';
-import type { RunSummary, RuntimeView, SessionResponse, SessionView } from './types.ts';
+import type { RunSummary, RuntimeView, SessionResponse, SessionView, WorkbenchSessionRecord } from './types.ts';
 import { Entry } from './components/Entry.tsx';
 import { Conversation, statusLabel } from './components/Conversation.tsx';
 import { Settings } from './components/Views.tsx';
@@ -15,15 +15,17 @@ export function App() {
   const [session, setSession] = useState<SessionView | null>(null);
   const [runtime, setRuntime] = useState<RuntimeView | null>(null);
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [sessions, setSessions] = useState<WorkbenchSessionRecord[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('conversation');
   const [menu, setMenu] = useState(false);
   const [issue, setIssue] = useState('');
-  const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSelected(null); setEntry('login'); }, []);
+  const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setEntry('login'); }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns(items); }, [api]);
+  const refreshSessions = useCallback(async () => { const view = await api.workbenchSessions(); setSessions(view.sessions); }, [api]);
   const refreshCore = useCallback(async () => {
-    try { const next = await api.runtime(); setRuntime(next); setIssue(''); await refreshRuns(); }
+    try { const [next] = await Promise.all([api.runtime(), refreshSessions()]); setRuntime(next); setIssue(''); await refreshRuns(); }
     catch (problem) { setRuntime(null); setTab('settings'); setIssue(problem instanceof Error ? problem.message : '主脑服务暂不可用。'); }
   }, [api, refreshRuns]);
   function authenticated(view: SessionResponse) { setSession(view.session); setEntry('ready'); }
@@ -72,7 +74,7 @@ export function App() {
       <p className="section-label">最近运行</p><div className="recent-runs">{runs.slice(-12).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small>{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">还没有运行记录</p>}</div>
       <p className="sidebar-footnote">一个主脑，持续协同。</p>
     </aside><main id="main-content" className="main-content" key={session.account_ref}>
-      {tab === 'conversation' && <Conversation api={api} runtime={runtime} runs={runs} selected={selected} select={setSelected} refresh={refreshRuns} />}
+      {tab === 'conversation' && <Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} />}
       {tab === 'workspace' && <WorkspaceView api={api} runtime={runtime} />}
       {tab === 'inbox' && <BrainInbox api={api} runs={runs} open={open} />}
       {tab === 'cognition' && <CognitionView api={api} open={open} />}
