@@ -35,6 +35,16 @@ current-tree check; a successful bundle does not establish native product accept
 
 ## Rust dependency review
 
+Installed HTTPS ingress (2026-10-22) adds exact `tokio-rustls 0.26.6`
+(MIT OR Apache-2.0, crates.io, https://github.com/rustls/tokio-rustls),
+with default features disabled and only ring/tls12 enabled. It reuses patched
+`rustls 0.23.46` and `rustls-pki-types 1.15.0` through their public APIs;
+`rcgen 0.14.8` remains test-only for locally generated identities. No source,
+example, certificate or fixture is copied. Runtime supports TLS 1.2/1.3,
+disables early data, and bounds handshake work. This dependency review is not
+a claim of browser certificate trust, firewall acceptance or native installation.
+The locked dependency audit and NOTICE remain release gates.
+
 forme 的项目许可证为 MIT，以根 `LICENSE` 和 `Cargo.toml` 为准。下表记录第三方组件自身的实际许可证；它们不会随项目许可证变更，NOTICE 与相应归属义务继续保留。历史发布回执保留原输入，当前发布必须重新审计。
 
 | Package | Version | Source | Repository | License | Copy risk | Implementation rule | Copied material | Release action |

@@ -125,6 +125,8 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 
 按类型提供采纳、拒绝、延后、回答、探测/裁决等允许操作；点击/已读不等于采纳。采纳建议若涉及真实动作，会进入既有新计划/审批，不直接调用工具；拒绝抑制/延后 intention 由后端事件确认。过期项保留历史，不用前端删除隐藏失败。
 
+普通主动建议通过 closed `WorkbenchProposalCommand`（`schema_version, command, run, proposal, outcome, defer_until`）处置；key 与 command 必须一致，run/proposal 必须指向已发出的普通建议，不能用该入口回答 AskToLearn。延后必须指定未来时间并生成既有 DeferredProposal intention；采纳/拒绝不得夹带时间或替换 actor。回执复用 `MemoryMaintenanceApplied` 的 `workbench-proposal-v1|key_digest|binding_digest|started/confirmed/rejected|target_digest`，target 锁覆盖不同 key 的并发。started 无终态返回 Unknown，原命令可查询但换 key 不得绕过未决 target；已有同义终态先返回，不能因延后时间已过去而破坏历史核实。采纳只确认 owner outcome，不创建 Run、审批或动作，后续执行仍走主脑正式计划与权限路径。
+
 ### 5.6 记忆与认知
 
 区分原始记录（会话/每日/episode/反思等视图）与认知（UserModel、AgentSelfModel、CognitiveMap、strategy 等）。长期/每日/会话是读取组织方式，不建立另一套 markdown 文件事实源。

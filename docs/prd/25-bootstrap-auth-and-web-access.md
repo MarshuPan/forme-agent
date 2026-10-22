@@ -147,6 +147,8 @@ run SSE 依 `stream_seq` 恢复；收件箱/多 run 列表使用服务端 opaque
 
 默认 loopback:8765；LAN 变更先预检绑定地址、Host allowlist、证书私钥、HTTPS、firewall 范围，再写操作 intent，切换并自检。原连接失效时提供已验证新地址和恢复说明；失败回到可达的 loopback 修复状态，不能全接口裸 HTTP 兜底。
 
+Web 传输配置使用可缺省的 `tls` 对象（`schema_version, certificate_path, private_key_path, allowed_hosts`）。未配置时只接受 loopback HTTP；配置后整个 listener 使用 TLS 1.2/1.3，不在同一端口嗅探/降级明文。证书与私钥由安装管理域配置为 Web 只读的绝对路径，拒绝链接、超限文件、无效 PEM 和不匹配的密钥。Host 白名单为有限、去重、含实际端口的精确 authority，拒绝通配、userinfo、模糊别名和代理头；mutation Origin 必须与实际 Host 的 HTTPS origin 一致。TLS 下所有认证 cookie 加 Secure，仍保持 HttpOnly、SameSite=Strict、host-only；不因 TLS 取消 CSRF 检查。握手并发、握手时间、已接受连接总数和连接存活时间均有界；慢握手不阻塞其他连接。成功加载证书不等于客户端信任、网络可达或防火墙配置成功；配置事务和 IP12 仍须分别验收。
+
 管理 RPC 必须验证 OS peer/服务身份。core 不可达时，Web 可以显示状态、改配置、检查指定备份并请求受控恢复；不能在 Web 进程自己打开脑数据库补读。离线完整性/恢复委托获得 exclusive lock 的既有维护路径。
 
 ## 6. 错误、安全、权限与审批
