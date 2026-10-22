@@ -174,6 +174,8 @@ Windows 额外保持原库只读、拒绝写/删除共享的文件 handle；POSI
 
 验收同时覆盖：旧审批零模型/driver 调用，旧 intention/route 零履约/child，Unknown 未洗掉，原回答/记忆可读，新 owner 请求可按新计划执行，重复恢复链连续，篡改/缺失期望边界拒绝，保存模型后活动路径/vault/边界不变，以及切换中断不得退回原路径或静默执行旧任务。
 
+在线工作台创建恢复候选也使用同一隔离规则：一次性批准的 DataOperationPlan 摘要传入 BackupService，源备份与新目标分别持 OS 独占 fence，核对实际 owner/store 与当前脑一致后复制，在新目标封存历史执行水位，最后重新计算 manifest。恢复结果返回可选 store/fence 摘要；仅没有绑定脑身份的底层事件存储兼容路径可以为空，正式主脑不得为空。源库与旧事件不改写，候选形成不切换活动脑；后续 CommitRestore 仍必须独立完成全部生命周期阶段。旧 restore_to 签名作为本机底层兼容入口保留，正式审批路径使用 additive restore_approved_to 并传入已落盘计划摘要，不能自行拼一个“看起来像审批”的摘要。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
