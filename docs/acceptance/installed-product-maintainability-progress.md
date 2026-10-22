@@ -32,3 +32,9 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 本批拆出 harness ingress、production builder、capability 文档解析和 models 文件凭据 resolver；`production_config.rs` 从历史 841 行降至 493 行，解析子模块 356 行，并移除已偿还的规模豁免。harness lib 约 7390 行、store sqlite 约 8975 行，仍按历史棘轮管理，不宣称全仓大模块债务已清。
 
 结构门当前检查 414 个源文件，剩余 **63 处历史规模债务**，没有扩大基线。`harness/src/brain_orchestration.rs` 已完成首批职责拆分：节点构造、输出归并、签名转换和独立验证移到 `brain_orchestration/support.rs`；公开 API、事件顺序、事务边界和恢复语义保持不变，C16 编排全套 23 项回归通过，并移除该文件的旧规模豁免。统一源码门新增 TypeScript、前端行为、可重复资源和 bundle 保留/完整性验证；GitHub CI 使用同一脚本。组件与最终源码结果详见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。本节数值更新不覆盖上节 `26ce4b4` 的历史测试回执。
+
+## 5. 模型配置增量（2026-10-22）
+
+`01b77f9` 将配置事务按状态协调、journal、文件发布、模型校验和测试分责；前端将草稿转换与受控启停从设置页拆出。配置入口 389 行，journal/materialize/storage 分别为 304/348/103 行，启停组件 73 行；没有使用 include 拼接、扩大旧基线或新增内部依赖边。
+
+最终结构门扫描 433 个源文件，仍为 **63 处历史规模债务**；新增文件均符合 600/1200 行约定。全量 Rust 749 passed / 0 failed / 5 默认 ignored，strict Clippy、14 项前端测试、7 项 bundle 回归与完整合规门通过。已认证浏览器检查了本次设置交互，其他页面与原生平台证据不由它替代。详细范围和可重复命令见 [配置闭合验收](installed-product-configuration-acceptance.md)。

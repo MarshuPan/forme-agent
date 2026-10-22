@@ -2,6 +2,8 @@
 
 日期：2026-10-21。承接 prd/24–26 与代码维护规范。本记录不重开 M6、不改写核心历史验收，不以组件 PASS 替代原生安装或 IP01–IP24。
 
+本页保留当时的组件状态与缺口。2026-10-22 模型配置 staging/CAS、凭据持久化、静态检查、受控启停和 core acknowledgement 的增量已另行完成，详见 [配置闭合验收](installed-product-configuration-acceptance.md)；当前完整进度以 [总实施记录](installed-product-implementation-progress.md) 为准。
+
 ## 1. 已实现的纵向路径
 
 - `forme-hostd --config` 明确安装/target/release、双 loopback listener、两个凭据文件与可选 worker/bootstrap 配置；closed schema、有界读取、路径分离。服务模式不从环境补值，不能开启普通进程 worker。

@@ -2,7 +2,7 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`。本轮代码与组件门基于提交 `785027b` 验证；本分支尚未替代 `main`，也没有读取真实 owner/model secret 或注册本机系统服务。
+最新施工分支：`shu/installed-product`。最新配置闭合实现为 `01b77f9`（设计说明 `3577c8b`），验证日期 2026-10-22；本分支尚未替代 `main`，也没有读取真实 owner/model secret 或注册本机系统服务。
 
 ## 1. 实施顺序与当前范围
 
@@ -10,13 +10,19 @@
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
 | 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 继基础 `7eec019`、进程边界 `0021902`、worker 控制面 `f1122ec`，新增显式受管 Host 配置、三个 daemon 的 SCM host 与共用注册/移除；重复注册检查完整绑定，故障恢复有限。真实 Host 进程证明不回退 shell 环境、两域隔离。实际服务账户/ACL、job 强隔离/网络与会话 helper 尚未完成，普通 worker 在生产继续 blocked。 |
-| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle 构建器、清单/资源完整性检查与 Windows/Linux/macOS 包输入模板；`785027b` 修复 Windows 模板遗漏的 `forme-gatewayd` 安装注册，并用 bundle 回归锁定三个 daemon 的安装/卸载对称性。仍仅属未签名开发输入；尚无首次安装配置/权限预置、可发布原生包、安装升级卸载事务或跨平台验收。 |
-| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 继 `12b3f5d`、`49674b7`、`52808df` 的认证/认领，新增受管 core 文件配置、私有模型凭据 resolver、Web→core 签名会话桥、持久 nonce/fence。已用 ProductionRuntime 与计数模型 fixture 验证同 key 单次运行和注销 fence。配置 staging/CAS/ack、旧脑接管、OS 恢复、LAN TLS 和整机首次初始化仍待实施。 |
-| 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、对话/事件续接/审批/取消、项目登记/路线规划/执行/取消、Charter 读写、认知只读投影、运行收件箱、密码/健康设置；由独立 webd 提供编译资源。工作空间命令层使用正式 API、ProductionRuntime、稳定幂等键和服务端确认。附件/产物、完整收件箱处置、候选处置、完整设置/维护、已认证浏览器全链路和 IP17–23/IP24 原生联合验收尚未完成。 |
+| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle 构建器、清单/资源完整性检查与 Windows/Linux/macOS 包输入模板；`785027b` 修复 Windows 三个 daemon 安装/卸载对称性。已有 `prepare-installation` 生成独立产品配置和密钥，当前以临时目录/实际进程取证。仍仅属未签名开发输入；账户/ACL、安装升级恢复卸载事务、可发布原生包与跨平台验收尚未完成。 |
+| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、受管 core 文件配置、私有模型凭据 resolver、签名会话桥与持久 nonce/fence 之后，`01b77f9` 完成模型配置 journal/staging/CAS、不可变凭据、重启恢复、静态校验、口令绑定启停与 core acknowledgement。实际 host/web/core 进程验证认领、配置持久化、幂等和正式 Run；已认证浏览器验证设置页。旧脑/备份接管、OS 恢复、LAN TLS、完整能力/渠道配置和整机初始化仍待实施。 |
+| 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、对话/事件续接/审批/取消、项目登记/路线规划/执行/取消、Charter 读写、认知只读投影、运行收件箱与密码/健康设置。新增模型设置、静态检查、重新认证启动/重启、原 operation 核实和主脑生效确认；关闭 core 仍可访问设置。附件/产物、完整收件箱/候选处置、其余设置/维护和完整浏览器联合流程尚未完成；不宣称 IP17–23/IP24 原生通过。 |
 
 24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
 
-最新增量和证据边界见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
+最新增量和证据边界见 [模型配置与主脑启停验收](installed-product-configuration-acceptance.md)；2026-10-21 的组件历史见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
+
+### 最新配置闭合（2026-10-22，`01b77f9`）
+
+统一源码门 PASS：Rust 749 passed / 0 failed / 5 默认 ignored，strict Clippy、前端 14/14、bundle 7/7、依赖漏洞审计和资源可重复校验通过；结构门扫描 433 个文件、63 处历史规模债务未增长。默认参数完整合规门另跑 PASS。宿主 70 个命名场景、identity 18/18、ingress 8/8、workbench 8/8 与冻结 workspace 门通过。
+
+配置专项 16 个 Rust 场景和 1 个正式 binary 综合进程场景通过，真实浏览器完成临时账号登录/配置检查/错误编辑恢复；真实 Run 经 ProductionRuntime 调用本地计数模型。原生 SCM 启停仅有 adapter 契约证据，本轮没有原生安装、真实 provider、完整 M5 长链重验或新的发布回执。详细命令、截图与未闭合内容见上述报告。
 
 ### 前批工程维护与认证基础（截至 `1140101`，历史记录）
 
@@ -65,7 +71,7 @@
 
 此前底板已完成 fmt、workspace check/test、strict clippy、compliance、冻结 18-crate/99-kind 门与原 S1–S99 workspace 回归。worker 控制面 `f1122ec` 当时的宿主专项 51 项、657 passed / 0 failed / 5 默认 ignored 是历史组件证据，保留于 [worker 控制面报告](installed-product-24-2-worker-control-plane.md)。最新源码 `26ce4b4` 的全量/宿主/质量证据见上文；当前 `tools/verify-m5.ps1` 与发布回执重验统一见 [M5 报告 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。macOS/Linux 原生目标和全部 IP 安装场景继续 NOT_RUN，不使用 Windows 组件测试代替。
 
-本轮 `785027b` 后复跑结果：统一代码质量门 PASS（结构回归 6/6、421 个源文件、63 个历史规模债务未增长；Rust fmt/check/test/strict Clippy、前端依赖审计/TypeScript/行为测试、Web 资源、bundle、原创性与许可证均 PASS）；产品组件门 PASS（Host/worker 专项、Web identity 16/16、Web ingress 8/8、Web workbench 8/8，以及 webd 空环境启动、kill/restart 和独立认证存储 smoke）。这些证据仍不提升为 IP01–IP24。
+此前 `785027b` 后复跑结果：统一代码质量门 PASS（结构回归 6/6、421 个源文件、63 个历史规模债务未增长；Rust fmt/check/test/strict Clippy、前端依赖审计/TypeScript/行为测试、Web 资源、bundle、原创性与许可证均 PASS）；产品组件门 PASS（Host/worker 专项、Web identity 16/16、Web ingress 8/8、Web workbench 8/8，以及 webd 空环境启动、kill/restart 和独立认证存储 smoke）。这是历史组件证据；最新结果见上方 `01b77f9` 记录，两者均不提升为 IP01–IP24。
 
 本批证据边界：组件测试、loopback HTTP 集成测试和受注册入口的真实子进程测试通过，worker admission、进程启动和 receipt 恢复基础已闭合；这仍不等于 SCM/systemd/LaunchDaemon 已注册，不等于 worker 账户/ACL/Job Object/cgroup/网络隔离已证明，也不等于 Windows/macOS/Linux 安装包可发布。下一批继续实现平台级隔离、常驻 service host、会话 helper 与 24.3 安装事务。
 
