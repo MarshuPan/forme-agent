@@ -94,7 +94,7 @@ impl Database {
             let version: i64 = reader
                 .pragma_query_value(None, "user_version", |r| r.get(0))
                 .map_err(|_| AuthError::RecoveryRequired)?;
-            if application != APPLICATION_ID || !matches!(version, 1..=3) {
+            if application != APPLICATION_ID || !matches!(version, 1..=4) {
                 return Err(AuthError::RecoveryRequired);
             }
         } else {
@@ -162,7 +162,7 @@ impl Database {
         if version == 1 {
             let tx = connection.transaction().map_err(storage_error)?;
             tx.execute_batch(
-                "CREATE TABLE login_challenges (digest TEXT PRIMARY KEY, expires INTEGER NOT NULL,
+                "CREATE TABLE IF NOT EXISTS login_challenges (digest TEXT PRIMARY KEY, expires INTEGER NOT NULL,
                     session TEXT); PRAGMA user_version=2;",
             )
             .map_err(storage_error)?;
@@ -171,10 +171,27 @@ impl Database {
         if version <= 2 {
             let tx = connection.transaction().map_err(storage_error)?;
             tx.execute_batch(
-                "CREATE TABLE setup_sessions (operation TEXT PRIMARY KEY, digest TEXT UNIQUE NOT NULL,
+                "CREATE TABLE IF NOT EXISTS setup_sessions (operation TEXT PRIMARY KEY, digest TEXT UNIQUE NOT NULL,
                     expires INTEGER NOT NULL, active INTEGER NOT NULL, candidate TEXT);
                  PRAGMA user_version=3;",
             ).map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
+        }
+        if version <= 3 {
+            let tx = connection.transaction().map_err(storage_error)?;
+            tx.execute_batch(
+                "CREATE TABLE IF NOT EXISTS fence_outbox (
+                    operation TEXT PRIMARY KEY,
+                    owner TEXT NOT NULL,
+                    source_session TEXT NOT NULL,
+                    source_epoch INTEGER NOT NULL,
+                    target_session TEXT,
+                    minimum_epoch INTEGER NOT NULL,
+                    created INTEGER NOT NULL
+                );
+                 PRAGMA user_version=4;",
+            )
+            .map_err(storage_error)?;
             tx.commit().map_err(storage_error)?;
         }
         connection
@@ -237,6 +254,97 @@ pub(super) fn check_owner(
         return Err(AuthError::Unauthenticated);
     }
     Ok(current)
+}
+
+pub(super) fn enqueue_fence(
+    tx: &rusqlite::Transaction<'_>,
+    owner: &p::OwnerPrincipalRef,
+    source_session: &str,
+    source_epoch: u64,
+    target_session: Option<&str>,
+    minimum_epoch: u64,
+    created: i64,
+) -> AuthResult<()> {
+    owner.validate().map_err(|_| AuthError::RecoveryRequired)?;
+    let source = p::SchemaDigest(source_session.to_owned());
+    p::validate_product_digest(&source).map_err(|_| AuthError::RecoveryRequired)?;
+    if source_epoch == 0 || minimum_epoch <= source_epoch || created <= 0 {
+        return Err(AuthError::RecoveryRequired);
+    }
+    if let Some(target) = target_session {
+        p::validate_product_digest(&p::SchemaDigest(target.to_owned()))
+            .map_err(|_| AuthError::RecoveryRequired)?;
+    }
+    let operation = p::canonical_digest(&(
+        p::SchemaVersion(1),
+        "forme-web-fence-outbox-v1",
+        owner,
+        source_session,
+        source_epoch,
+        target_session,
+        minimum_epoch,
+    ))
+    .map_err(|_| AuthError::Unavailable)?;
+    tx.execute(
+        "INSERT OR IGNORE INTO fence_outbox
+         (operation,owner,source_session,source_epoch,target_session,minimum_epoch,created)
+         VALUES(?1,?2,?3,?4,?5,?6,?7)",
+        params![
+            operation.0,
+            owner.0,
+            source_session,
+            sql_epoch(source_epoch)?,
+            target_session,
+            sql_epoch(minimum_epoch)?,
+            created,
+        ],
+    )
+    .map_err(storage_error)?;
+    Ok(())
+}
+
+pub(super) fn pending_fences(connection: &Connection) -> AuthResult<Vec<super::FenceOutboxRecord>> {
+    let mut statement = connection
+        .prepare(
+            "SELECT operation,owner,source_session,source_epoch,target_session,minimum_epoch,created
+             FROM fence_outbox ORDER BY created,operation",
+        )
+        .map_err(storage_error)?;
+    let rows = statement
+        .query_map([], |row| {
+            let source_epoch: i64 = row.get(3)?;
+            let minimum_epoch: i64 = row.get(5)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                source_epoch,
+                row.get::<_, Option<String>>(4)?,
+                minimum_epoch,
+                row.get::<_, i64>(6)?,
+            ))
+        })
+        .map_err(storage_error)?;
+    let mut fences = Vec::new();
+    for row in rows {
+        let (operation, owner, source, source_epoch, target, minimum, created) =
+            row.map_err(storage_error)?;
+        let source_epoch = u64::try_from(source_epoch).map_err(|_| AuthError::RecoveryRequired)?;
+        let minimum_epoch = u64::try_from(minimum).map_err(|_| AuthError::RecoveryRequired)?;
+        let record = super::FenceOutboxRecord {
+            schema_version: p::SchemaVersion(1),
+            operation: p::SchemaDigest(operation),
+            owner: p::OwnerPrincipalRef(owner),
+            source_session: p::SchemaDigest(source),
+            source_auth_epoch: source_epoch,
+            target_session: target.map(p::SchemaDigest),
+            minimum_auth_epoch: minimum_epoch,
+            created_at: created,
+        };
+        record.validate()?;
+        fences.push(record);
+    }
+    Ok(fences)
 }
 
 pub(super) fn claim_proof(

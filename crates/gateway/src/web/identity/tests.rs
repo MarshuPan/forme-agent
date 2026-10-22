@@ -257,8 +257,18 @@ fn identity_logout_revocation_survives_restart_and_secrets_are_not_stored() {
     let csrf_copy = login.csrf.expose_for_transport().to_owned();
     let authenticated = owner(&store, &login, NOW + 1);
     store.logout_at(&authenticated, NOW + 2).unwrap();
+    let pending = store.pending_fences().unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(
+        pending[0].target_session.as_ref(),
+        Some(&pending[0].source_session)
+    );
+    let operation = pending[0].operation.clone();
     drop(store);
     let store = open(&directory);
+    assert_eq!(store.pending_fences().unwrap().len(), 1);
+    store.acknowledge_fence(&operation).unwrap();
+    assert!(store.pending_fences().unwrap().is_empty());
     assert!(matches!(
         store.authenticate_at(
             &login.cookie,
@@ -279,6 +289,25 @@ fn identity_logout_revocation_survives_restart_and_secrets_are_not_stored() {
                 .any(|window| window == secret.as_bytes()));
         }
     }
+}
+
+#[test]
+fn identity_tampered_fence_outbox_requires_local_recovery() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let login = login(&store, NOW);
+    let authenticated = owner(&store, &login, NOW + 1);
+    store.logout_at(&authenticated, NOW + 2).unwrap();
+    store
+        .database()
+        .unwrap()
+        .connection
+        .execute("UPDATE fence_outbox SET minimum_epoch=1", [])
+        .unwrap();
+    assert!(matches!(
+        store.pending_fences(),
+        Err(AuthError::RecoveryRequired)
+    ));
 }
 
 #[test]
@@ -807,7 +836,7 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 3);
+    assert_eq!(version, 4);
     store.login_challenge_at(NOW + 2).unwrap();
 }
 

@@ -8,6 +8,7 @@ use axum::Json;
 use forme_protocol as p;
 use serde::Deserialize;
 
+use super::FenceSync;
 use super::{security, WebError, WebState};
 use crate::web::identity::{
     AuthError, LoginChallengeBinding, ReauthenticationProof, RevokeSessions, SensitiveCookie,
@@ -180,17 +181,12 @@ pub(super) async fn logout(
             identity.authenticate(&cookie, binding)
         })
         .await?;
-    state
-        .fence_session(
-            &owner,
-            Some(p::SchemaDigest(owner.core_binding().session_digest.clone())),
-            owner.view().auth_epoch.saturating_add(1),
-        )
-        .await?;
+    let _fence_gate = state.fence_gate().await;
     state
         .blocking(false, move |identity| identity.logout(&owner))
         .await?;
-    let mut response = StatusCode::NO_CONTENT.into_response();
+    let synced = matches!(state.sync_fences_locked().await, Ok(FenceSync::Clean));
+    let mut response = fence_response(synced);
     security::set_cookie(&mut response, security::SESSION_COOKIE, "", 0)?;
     security::set_cookie(&mut response, security::LOGIN_COOKIE, "", 0)?;
     Ok(response)
@@ -246,13 +242,25 @@ pub(super) async fn revoke(
             }
         })
         .await?;
-    state
-        .fence_session(&owner, None, owner.view().auth_epoch.saturating_add(1))
-        .await?;
+    let _fence_gate = state.fence_gate().await;
     let revision = state
         .blocking(false, move |identity| identity.revoke(&owner, command))
         .await?;
-    let mut response = Json(revision).into_response();
+    let synced = matches!(state.sync_fences_locked().await, Ok(FenceSync::Clean));
+    let mut response = if synced {
+        Json(revision).into_response()
+    } else {
+        (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({
+                "schema_version": 1,
+                "state": "local_revoked_core_sync_pending",
+                "auth_epoch": revision.auth_epoch,
+                "credential_revision": revision.credential_revision,
+            })),
+        )
+            .into_response()
+    };
     security::set_cookie(&mut response, security::SESSION_COOKIE, "", 0)?;
     Ok(response)
 }
@@ -290,9 +298,7 @@ pub(super) async fn password(
             move |identity| identity.reauthenticate(&owner, old_password, &operation_digest)
         })
         .await?;
-    state
-        .fence_session(&owner, None, owner.view().auth_epoch.saturating_add(1))
-        .await?;
+    let _fence_gate = state.fence_gate().await;
     let revision = state
         .blocking(false, move |identity| {
             identity.change_password(
@@ -305,11 +311,40 @@ pub(super) async fn password(
             )
         })
         .await?;
-    let mut response = Json(revision).into_response();
+    let synced = matches!(state.sync_fences_locked().await, Ok(FenceSync::Clean));
+    let mut response = if synced {
+        Json(revision).into_response()
+    } else {
+        (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({
+                "schema_version": 1,
+                "state": "local_revoked_core_sync_pending",
+                "auth_epoch": revision.auth_epoch,
+                "credential_revision": revision.credential_revision,
+            })),
+        )
+            .into_response()
+    };
     security::set_cookie(&mut response, security::SESSION_COOKIE, "", 0)?;
     Ok(response)
 }
 
 pub(super) async fn missing() -> WebError {
     WebError::new(StatusCode::NOT_FOUND, "NotFound", "此接口不可用")
+}
+
+fn fence_response(synced: bool) -> Response {
+    if synced {
+        StatusCode::NO_CONTENT.into_response()
+    } else {
+        (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({
+                "schema_version": 1,
+                "state": "local_revoked_core_sync_pending",
+            })),
+        )
+            .into_response()
+    }
 }

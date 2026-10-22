@@ -26,7 +26,7 @@ use tokio::sync::Semaphore;
 use tower_http::timeout::TimeoutLayer;
 
 use crate::lifecycle::WorkAdmission;
-use crate::web::identity::{AuthError, AuthResult, AuthenticatedWebOwner, WebIdentityStore};
+use crate::web::identity::{AuthError, AuthResult, FenceOutboxRecord, WebIdentityStore};
 use crate::web::WebServerConfig;
 use error::WebError;
 
@@ -41,6 +41,7 @@ pub(super) struct WebState {
     reads: Arc<Semaphore>,
     passwords: Arc<Semaphore>,
     admission: Arc<WorkAdmission>,
+    fence_gate: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl WebState {
@@ -73,36 +74,55 @@ impl WebState {
         .map_err(Into::into)
     }
 
-    async fn fence_session(
-        &self,
-        owner: &AuthenticatedWebOwner,
-        session_digest: Option<p::SchemaDigest>,
-        minimum_auth_epoch: u64,
-    ) -> Result<(), WebError> {
+    async fn fence_gate(&self) -> tokio::sync::OwnedMutexGuard<()> {
+        self.fence_gate.clone().lock_owned().await
+    }
+
+    async fn core_access(&self) -> Result<tokio::sync::OwnedMutexGuard<()>, WebError> {
+        let gate = self.fence_gate.clone().lock_owned().await;
+        if self.sync_fences_locked().await? == FenceSync::Clean {
+            Ok(gate)
+        } else {
+            Err(WebError::new(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "CoreFencePending",
+                "主脑授权撤销正在同步，请稍后再访问主脑",
+            ))
+        }
+    }
+
+    async fn sync_fences_locked(&self) -> Result<FenceSync, WebError> {
+        let pending = self
+            .blocking(false, |identity| identity.pending_fences())
+            .await?;
+        if pending.is_empty() {
+            return Ok(FenceSync::Clean);
+        }
         let Some(client) = self.core.clone() else {
-            // During first-run/maintenance there is no core that could accept
-            // an assertion. The Web identity store remains independently
-            // usable; once a bridge is configured, failures are fail-closed.
-            return Ok(());
+            return Ok(FenceSync::Pending);
         };
-        let binding = owner.core_binding();
-        tokio::task::spawn_blocking(move || {
-            client.fence_session(&binding, session_digest, minimum_auth_epoch)
-        })
-        .await
-        .map_err(|_| {
-            WebError::new(
-                axum::http::StatusCode::SERVICE_UNAVAILABLE,
-                "CoreUnavailable",
-                "主脑服务不可用",
-            )
-        })?
-        .map_err(|_| {
-            WebError::new(
-                axum::http::StatusCode::SERVICE_UNAVAILABLE,
-                "CoreUnavailable",
-                "主脑会话撤销无法提交",
-            )
+        for fence in pending {
+            if !send_fence(&client, &fence).await {
+                return Ok(FenceSync::Pending);
+            }
+            let operation = fence.operation.clone();
+            if self
+                .blocking(false, move |identity| {
+                    identity.acknowledge_fence(&operation)
+                })
+                .await
+                .is_err()
+            {
+                return Ok(FenceSync::Pending);
+            }
+        }
+        let remaining = self
+            .blocking(false, |identity| identity.pending_fences())
+            .await?;
+        Ok(if remaining.is_empty() {
+            FenceSync::Clean
+        } else {
+            FenceSync::Pending
         })
     }
 
@@ -347,6 +367,7 @@ where
         reads: Arc::new(Semaphore::new(16)),
         passwords: Arc::new(Semaphore::new(2)),
         admission: admission.clone(),
+        fence_gate: Arc::new(tokio::sync::Mutex::new(())),
     });
     let signal = admission.clone();
     let server = axum::serve(connections::BoundedListener::new(listener), router(state))
@@ -374,6 +395,25 @@ where
         .await
         .map_err(|_| p::Error("Web authentication drain timed out".into()))??;
     result
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum FenceSync {
+    Clean,
+    Pending,
+}
+
+async fn send_fence(
+    client: &Arc<crate::web::core::CoreBridgeClient>,
+    fence: &FenceOutboxRecord,
+) -> bool {
+    let client = client.clone();
+    let binding = fence.binding();
+    let target = fence.target_session.clone();
+    let minimum = fence.minimum_auth_epoch;
+    tokio::task::spawn_blocking(move || client.fence_session(&binding, target, minimum))
+        .await
+        .is_ok_and(|result| result.is_ok())
 }
 
 pub async fn shutdown_signal() -> p::Result<()> {

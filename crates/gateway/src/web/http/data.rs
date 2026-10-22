@@ -74,6 +74,7 @@ async fn forward<T: serde::Serialize>(
             "主脑服务不可用，数据操作未发送",
         )
     })?;
+    let _fence_gate = state.core_access().await?;
     let bytes = serde_json::to_vec(body).map_err(|_| WebError::invalid())?;
     let path = format!("/v1/data/workbench/{route}");
     let binding = owner.core_binding();

@@ -117,6 +117,66 @@ pub(crate) struct CoreSessionBinding {
     pub(crate) auth_epoch: u64,
 }
 
+/// A local-only, durable reduction of a Web session fence. It contains only
+/// opaque digests and the monotonic epoch; it is never sent to the browser or
+/// written to the brain store.
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct FenceOutboxRecord {
+    pub(crate) schema_version: p::SchemaVersion,
+    pub(crate) operation: p::SchemaDigest,
+    pub(crate) owner: p::OwnerPrincipalRef,
+    pub(crate) source_session: p::SchemaDigest,
+    pub(crate) source_auth_epoch: u64,
+    pub(crate) target_session: Option<p::SchemaDigest>,
+    pub(crate) minimum_auth_epoch: u64,
+    pub(crate) created_at: p::Timestamp,
+}
+
+impl FenceOutboxRecord {
+    pub(crate) fn validate(&self) -> AuthResult<()> {
+        if self.schema_version != p::SchemaVersion(1)
+            || self.source_auth_epoch == 0
+            || self.minimum_auth_epoch <= self.source_auth_epoch
+            || self.created_at <= 0
+        {
+            return Err(AuthError::RecoveryRequired);
+        }
+        self.owner
+            .validate()
+            .map_err(|_| AuthError::RecoveryRequired)?;
+        let expected = p::canonical_digest(&(
+            p::SchemaVersion(1),
+            "forme-web-fence-outbox-v1",
+            &self.owner,
+            &self.source_session.0,
+            self.source_auth_epoch,
+            self.target_session.as_ref().map(|value| &value.0),
+            self.minimum_auth_epoch,
+        ))
+        .map_err(|_| AuthError::RecoveryRequired)?;
+        if expected != self.operation {
+            return Err(AuthError::RecoveryRequired);
+        }
+        p::validate_product_digest(&self.operation)
+            .and_then(|_| p::validate_product_digest(&self.source_session))
+            .and_then(|_| {
+                self.target_session
+                    .as_ref()
+                    .map_or(Ok(()), p::validate_product_digest)
+            })
+            .map_err(|_| AuthError::RecoveryRequired)
+    }
+
+    pub(crate) fn binding(&self) -> CoreSessionBinding {
+        CoreSessionBinding {
+            session_digest: self.source_session.0.clone(),
+            owner: self.owner.clone(),
+            auth_epoch: self.source_auth_epoch,
+        }
+    }
+}
+
 impl AuthenticatedWebOwner {
     pub fn view(&self) -> &p::WebSessionView {
         &self.view
@@ -234,6 +294,26 @@ impl WebIdentityStore {
             })
             .map_err(|_| AuthError::Busy)?;
         Ok(PasswordJob(&self.password_jobs))
+    }
+
+    pub(crate) fn pending_fences(&self) -> AuthResult<Vec<FenceOutboxRecord>> {
+        let db = self.database()?;
+        storage::pending_fences(&db.connection)
+    }
+
+    pub(crate) fn acknowledge_fence(&self, operation: &p::SchemaDigest) -> AuthResult<()> {
+        let mut db = self.database()?;
+        let tx = db.connection.transaction().map_err(storage_error)?;
+        let removed = tx
+            .execute(
+                "DELETE FROM fence_outbox WHERE operation=?1",
+                [&operation.0],
+            )
+            .map_err(storage_error)?;
+        if removed > 1 {
+            return Err(AuthError::RecoveryRequired);
+        }
+        tx.commit().map_err(storage_error)
     }
 }
 

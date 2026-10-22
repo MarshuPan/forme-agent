@@ -251,7 +251,20 @@ impl WebIdentityStore {
         let mut db = self.database()?;
         let now = supplied_time.unwrap_or_else(now);
         let tx = db.connection.transaction().map_err(storage_error)?;
-        storage::check_owner(&tx, owner, now)?;
+        let current = storage::check_owner(&tx, owner, now)?;
+        let minimum_epoch = current
+            .auth_epoch
+            .checked_add(1)
+            .ok_or(AuthError::RecoveryRequired)?;
+        storage::enqueue_fence(
+            &tx,
+            &current.owner,
+            &owner.session_digest,
+            current.auth_epoch,
+            Some(&owner.session_digest),
+            minimum_epoch,
+            now,
+        )?;
         tx.execute(
             "DELETE FROM reauth WHERE session=?1",
             [&owner.session_digest],
@@ -358,10 +371,20 @@ impl WebIdentityStore {
         let tx = db.connection.transaction().map_err(storage_error)?;
         let mut current = storage::check_owner(&tx, owner, now)?;
         storage::claim_proof(&tx, owner, &command.proof, &command.operation_digest, now)?;
-        current.auth_epoch = current
+        let next_epoch = current
             .auth_epoch
             .checked_add(1)
             .ok_or(AuthError::RecoveryRequired)?;
+        storage::enqueue_fence(
+            &tx,
+            &current.owner,
+            &owner.session_digest,
+            current.auth_epoch,
+            None,
+            next_epoch,
+            now,
+        )?;
+        current.auth_epoch = next_epoch;
         storage::save_account(&tx, &current)?;
         tx.execute("DELETE FROM sessions", [])
             .map_err(storage_error)?;

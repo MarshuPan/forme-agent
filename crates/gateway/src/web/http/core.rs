@@ -78,6 +78,7 @@ async fn forward(
             identity.authenticate(&cookie, binding)
         })
         .await?;
+    let _fence_gate = state.core_access().await?;
     let core_path = allowlisted_core_path(method.as_str(), &path, query)?;
     let body = commands::bind_body(
         method.as_str(),

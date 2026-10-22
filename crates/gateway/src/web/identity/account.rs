@@ -295,11 +295,21 @@ impl WebIdentityStore {
             return Err(AuthError::Conflict);
         }
         storage::claim_proof(&tx, owner, &command.proof, &command.operation_digest, now)?;
-        current.password = prepared.password;
-        current.auth_epoch = current
+        let next_epoch = current
             .auth_epoch
             .checked_add(1)
             .ok_or(AuthError::RecoveryRequired)?;
+        storage::enqueue_fence(
+            &tx,
+            &current.owner,
+            &owner.session_digest,
+            current.auth_epoch,
+            None,
+            next_epoch,
+            now,
+        )?;
+        current.password = prepared.password;
+        current.auth_epoch = next_epoch;
         current.credential_revision = current
             .credential_revision
             .checked_add(1)

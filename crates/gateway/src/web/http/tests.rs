@@ -287,7 +287,8 @@ fn web_login_logout_and_reauth_revoke_enforce_live_sessions() {
         ("Idempotency-Key", "logout:fixture".into()),
     ];
     let reply = fixture.request("POST", "/api/v1/auth/logout", &headers, "");
-    assert_eq!(reply.status, 204);
+    assert_eq!(reply.status, 202);
+    assert_eq!(reply.json()["state"], "local_revoked_core_sync_pending");
     assert!(reply
         .header("set-cookie")
         .contains("HttpOnly; SameSite=Strict; Max-Age=0"));
@@ -315,7 +316,7 @@ fn web_login_logout_and_reauth_revoke_enforce_live_sessions() {
     let proof=fixture.request("POST","/api/v1/auth/reauth",&headers,&json!({"schema_version":1,"password":PASSWORD,"operation_digest":session["revoke_operation"]}).to_string());
     assert_eq!(proof.status, 200);
     let revoke=fixture.request("DELETE","/api/v1/auth/sessions",&headers,&json!({"schema_version":1,"operation_digest":session["revoke_operation"],"proof":proof.json()["proof"]}).to_string());
-    assert_eq!(revoke.status, 200);
+    assert_eq!(revoke.status, 202);
     assert_eq!(revoke.json()["auth_epoch"], 2);
     assert_eq!(
         fixture
@@ -394,7 +395,8 @@ fn web_password_change_revokes_old_cookies_without_changing_owner() {
         &headers,
         &json!({"schema_version":1,"old_password":PASSWORD,"new_password":replacement}).to_string(),
     );
-    assert_eq!(changed.status, 200);
+    assert_eq!(changed.status, 202);
+    assert_eq!(changed.json()["state"], "local_revoked_core_sync_pending");
     assert_eq!(changed.json()["credential_revision"], 2);
     assert_eq!(
         fixture
@@ -520,6 +522,7 @@ async fn web_cancelled_request_keeps_password_capacity_until_real_work_finishes(
         reads: Arc::new(Semaphore::new(16)),
         passwords: Arc::new(Semaphore::new(1)),
         admission: admission.clone(),
+        fence_gate: Arc::new(tokio::sync::Mutex::new(())),
     });
     let (started, ready) = tokio::sync::oneshot::channel();
     let (release, waiting) = mpsc::channel();
