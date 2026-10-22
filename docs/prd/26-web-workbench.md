@@ -82,6 +82,14 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 
 操作列表/原回执在刷新、重启后仍可核实；Unknown 没有默认重试按钮。备份验证是只读文件/完整性/replay检查，不是批准、导入或切换。数据删除回执区分本地结果与远端 Unknown，不把密钥计数或组件测试当成远端擦除证明。内部操作记录不作为任意产物下载源。
 
+### 4.3 恢复候选的独立激活
+
+成功执行批准的恢复计划后，DataBackupView 增加可选、版本化的 `restoration` 安全投影：candidate_ref、最终 manifest 的 candidate_digest、owner_digest、store_identity、execution_fence_digest。它只能由正式 RestoreReport 的已验证结果构造；普通备份/历史缺字段回执不提供激活按钮。不得把 database_digest 当 candidate_digest，不向浏览器输出数据库/vault 路径，也不让浏览器自行填写校验结果。
+
+候选完成与活动主脑切换仍是两次独立批准。工作台读取当前 Host 维护快照及配置 revision，展示候选身份、配置版本、会话将撤销、旧任务不会恢复执行和原数据保留的确认，再通过现有 operation-bound 近期口令与 `ProductMaintenanceAction::CommitRestore` 提交确切引用/摘要/owner/config revision。只在 Host 声明允许此操作时显示可用入口；缺 helper/未安装服务不得以 UI 开关伪造能力。
+
+提交后保留原 operation；结果不明只核实原回执，不换号重试、不重新发送口令。恢复撤销当前登录时重新登录后从维护记录核实，不能把 401 当恢复失败或自动重做。Host 在副作用前拒绝当前已经激活的同一候选；实际候选仍须由固定 worker 重新验证，浏览器投影不是授权依据。页面的已提交、待核实和恢复受阻状态与原生验收分开记录。
+
 ## 5. 页面、行为与状态
 
 ### 5.1 全局外壳与初始化

@@ -31,7 +31,7 @@
 | P09 / IP10：实际分权与 worker | 双域 broker、exact permit、持久 job receipt；普通进程生产 blocked；Windows 新安装 ACL | 逐 job 文件/网络/进程隔离、正式 core→broker driver、独立实际账户；每个平台有效拒绝。 |
 | P09 / IP11：会话桥 | 核心 desktop grant/driver 治理基线 | 指定 OS 会话的有限 helper、TTL/liveness/锁屏/注销/TCC/Wayland 行为与平台证据。 |
 | P10 / IP12–13：数据与接管 | AEAD/backup/restore/data lifecycle 核心；新脑认领；旧安装 template 原位保留 | 旧脑/备份离线验证、候选绑定、显式迁移与新路径切换、恢复材料；不接管错误 owner/key/占用库。 |
-| P11 / IP14–15：升级回滚恢复 | product journal、release trust/compatibility、服务 adapter、阶段事实基础 | 签名 staging→排空→备份→切换→健康验证的完整事务；断电/磁盘失败恢复，不盲重放。 |
+| P11 / IP14–15：升级回滚恢复 | product journal、release trust/compatibility、服务 adapter；`5b99ac5` 已实现恢复水位、活动数据 CAS、完整 CommitRestore 与提交后准入（组件/真实进程证据） | 恢复的完整 Web/原生 SCM 联调；签名 Upgrade/Rollback/self-update 的排空→备份→程序切换→健康验证与断电/磁盘失败恢复。不以恢复组件代替原生升级验收。 |
 | P11 / IP16：卸载 | typed 停服/移除、默认保留数据的安装入口 | 原生卸载/网络与 helper 清理、准确范围/恢复说明；受阻时不继续删除程序。 |
 | 平台账户/权限 | Windows 新布局组件验证；Linux/macOS 服务模板 | Linux/macOS 固定账户与权限预置、包生命周期、SELinux；平台未跑不扩大支持声明。 |
 
