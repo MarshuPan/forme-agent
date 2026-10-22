@@ -178,6 +178,8 @@ Windows 额外保持原库只读、拒绝写/删除共享的文件 handle；POSI
 
 ### 4.9 Host 恢复事务的离线 worker 与就绪回执
 
+受管安装的数据操作目录固定为 installation.brain/data-operations；恢复库可以位于其中，但切换后不随活动库 parent 再嵌套一层。正式 builder 从原 vault 的受保护父目录传递这个固定根，不增加公开 ProductionRuntimeConfig 字段；未受管开发入口仍沿用原 store-parent 行为。Host 配置发布与离线 worker 使用同一固定根。
+
 `MaintenanceKind::CommitRestore` 增加必填 `config_revision`，与 candidate_ref、candidate_digest（最终 BackupManifest 的 canonical digest）及 owner_digest 一同进入 command binding；未实现过的旧 CommitRestore 请求缺少 revision 必须拒绝。Web 的同名 ProductMaintenanceAction 仅转发这些字段。配置保存遇到未决生命周期操作须拒绝，不能在 plan 后用新模型配置替换批准时的 config revision。
 
 Host 不增加对 store/harness/gateway 的依赖。使用已安装、只读程序目录中的固定 `bin/forme-hostctl` 作为有限本机维护子进程；程序路径取安装清单，不从请求、PATH 或当前目录寻找。参数只选择 `maintenance-restore` 与受保护安装清单；版本化、closed、有界 stdin/stdout 协议只接受 operation、当前 config revision、owner、opaque candidate ref 和确切 candidate manifest digest。子进程清理环境，不读取模型凭据、不构造 ProductionRuntime，不提供 shell/任意 SQL。缺失合法 worker 时继续拒绝 CommitRestore。
