@@ -14,6 +14,10 @@ pub struct ManagedBrainConfig {
     pub schema_version: p::SchemaVersion,
     pub owner: p::OwnerPrincipalRef,
     pub store_path: PathBuf,
+    /// Recovery may select a new database while retaining the original vault.
+    /// No keys are copied into backups or derived from the login password.
+    #[serde(default)]
+    pub content_key_directory: Option<PathBuf>,
     pub artifact_root: PathBuf,
     pub workspace: p::WorkspaceRef,
     pub agent_profile: p::AgentProfileRef,
@@ -42,6 +46,13 @@ impl ManagedBrainConfig {
         }
         for path in [&self.store_path, &self.artifact_root] {
             check_managed_path(path)?;
+        }
+        let keys = self.content_key_directory()?;
+        if self.store_path.starts_with(&keys)
+            || keys.starts_with(&self.artifact_root)
+            || self.artifact_root.starts_with(&keys)
+        {
+            return Err(invalid());
         }
         for model in &self.models {
             if model.schema_version != p::SchemaVersion(1) {
@@ -89,6 +100,15 @@ impl ManagedBrainConfig {
         };
         config.validate()?;
         Ok(config)
+    }
+
+    pub fn content_key_directory(&self) -> p::Result<PathBuf> {
+        let path = self
+            .content_key_directory
+            .clone()
+            .unwrap_or_else(|| self.store_path.with_extension("content-keys"));
+        check_managed_path(&path)?;
+        Ok(path)
     }
 }
 

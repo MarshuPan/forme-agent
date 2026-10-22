@@ -9,6 +9,7 @@ mod evolution;
 mod federation;
 mod ingress;
 mod lifecycle;
+pub mod offline_data;
 mod runtime;
 mod scheduled;
 mod server;

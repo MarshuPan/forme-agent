@@ -139,6 +139,7 @@ pub(crate) struct AuthorityLeaseGuardInner {
     pub(crate) store_identity: p::SchemaDigest,
     pub(crate) process_nonce: p::Nonce,
     pub(crate) lease_ttl: p::DurationMs,
+    access: std::sync::Mutex<Option<crate::StoreAccessGuard>>,
 }
 
 impl AuthorityLeaseGuard {
@@ -165,8 +166,25 @@ impl AuthorityLeaseGuard {
                 store_identity: binding.store_identity.clone(),
                 process_nonce: binding.writer_lease.process_nonce.clone(),
                 lease_ttl,
+                access: std::sync::Mutex::new(None),
             }),
         })
+    }
+
+    /// Binds an OS access fence to every clone of this authority, including
+    /// service handles retained after the runtime facade and Harness drop.
+    pub fn retain_store_access(&self, access: crate::StoreAccessGuard) -> p::Result<()> {
+        access.require_store(&self.inner.store)?;
+        let mut slot = self
+            .inner
+            .access
+            .lock()
+            .map_err(|_| p::Error("authority store access is unavailable".into()))?;
+        if slot.is_some() {
+            return Err(p::Error("authority store access is already bound".into()));
+        }
+        *slot = Some(access);
+        Ok(())
     }
 
     /// Renews the exact lease and verifies that the durable owner/store

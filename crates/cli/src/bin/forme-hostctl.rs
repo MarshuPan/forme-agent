@@ -18,6 +18,14 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|value| {
+        matches!(
+            value.as_str(),
+            "inspect-data" | "backup-data" | "verify-data" | "plan-restore-data" | "restore-data"
+        )
+    }) {
+        return forme_cli::hostctl_data::run(&args);
+    }
     if args
         .first()
         .is_some_and(|value| value == "prepare-installation")

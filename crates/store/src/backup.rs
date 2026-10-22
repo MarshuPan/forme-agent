@@ -8,19 +8,17 @@
 #![forbid(unsafe_code)]
 
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use forme_protocol as p;
-use rusqlite::{Connection, OpenFlags, OptionalExtension, Row};
+use rusqlite::{Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 
 use crate::{BrainAuthorityStore, EventStore, SchemaSnapshot, SqliteEventStore, StoreOptions};
 
 const BACKUP_SCHEMA_VERSION: p::SchemaVersion = p::SchemaVersion(1);
-static REPLAY_NONCE: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -258,7 +256,7 @@ fn inspect_database(path: &Path) -> p::Result<Inspection> {
     })
 }
 
-fn event_continuity(connection: &Connection) -> p::Result<bool> {
+pub(crate) fn event_continuity(connection: &Connection) -> p::Result<bool> {
     let mut statement = connection
         .prepare("SELECT run_id, stream_seq FROM events ORDER BY run_id, stream_seq")
         .map_err(|error| p::Error(format!("backup continuity query failed: {error}")))?;
@@ -286,7 +284,7 @@ fn event_continuity(connection: &Connection) -> p::Result<bool> {
     Ok(true)
 }
 
-fn schema_digest(connection: &Connection) -> p::Result<p::SchemaDigest> {
+pub(crate) fn schema_digest(connection: &Connection) -> p::Result<p::SchemaDigest> {
     let mut statement = connection
         .prepare(
             "SELECT type, name, COALESCE(sql, '') FROM sqlite_master
@@ -310,21 +308,15 @@ fn schema_digest(connection: &Connection) -> p::Result<p::SchemaDigest> {
     p::canonical_digest(&schema)
 }
 
-fn replay_backup(
+pub(crate) fn replay_backup(
     path: &Path,
     protection: Option<crate::StoreContentProtection>,
 ) -> p::Result<bool> {
     // Replay a private copy. Opening a backup with the normal writable store
     // may initialize/checkpoint SQLite state, so verification must never alter
     // the artifact whose digest it is validating.
-    let replay_path = std::env::temp_dir().join(format!(
-        "forme-backup-replay-{}-{}.sqlite",
-        std::process::id(),
-        REPLAY_NONCE.fetch_add(1, Ordering::Relaxed)
-    ));
-    if replay_path.exists() {
-        return Err(p::Error("backup replay path already exists".into()));
-    }
+    let scratch = ReplayScratch::new()?;
+    let replay_path = scratch.0.join("replay.sqlite");
     let result = (|| {
         let source = read_only_connection(path)?;
         source
@@ -359,6 +351,37 @@ fn replay_backup(
     result
 }
 
+struct ReplayScratch(PathBuf);
+impl ReplayScratch {
+    fn new() -> p::Result<Self> {
+        let mut random = [0; 32];
+        getrandom::fill(&mut random)
+            .map_err(|_| p::Error("backup replay workspace is unavailable".into()))?;
+        let digest = p::sha256_content_digest(&random);
+        let path = std::env::temp_dir().join(format!("forme-replay-{}", &digest.0[7..]));
+        let directory = fs::DirBuilder::new();
+        #[cfg(unix)]
+        let directory = {
+            use std::os::unix::fs::DirBuilderExt;
+            let mut directory = directory;
+            directory.mode(0o700);
+            directory
+        };
+        directory
+            .create(&path)
+            .map_err(|_| p::Error("backup replay workspace is unavailable".into()))?;
+        Ok(Self(path))
+    }
+}
+impl Drop for ReplayScratch {
+    fn drop(&mut self) {
+        // This random directory was atomically created by this operation.
+        // Never recursively follow or remove unexpected children.
+        remove_sqlite_files(&self.0.join("replay.sqlite"));
+        let _ = fs::remove_dir(&self.0);
+    }
+}
+
 fn remove_sqlite_files(path: &Path) {
     let _ = fs::remove_file(path);
     let raw_path = path.to_string_lossy();
@@ -367,28 +390,42 @@ fn remove_sqlite_files(path: &Path) {
 }
 
 fn read_only_connection(path: &Path) -> p::Result<Connection> {
-    Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|error| p::Error(format!("failed to open backup read-only: {error}")))
+    crate::offline_access::require_cold_source(path)?;
+    crate::offline_access::immutable_source(path)
 }
 
-fn file_digest(path: &Path) -> p::Result<p::SchemaDigest> {
-    let bytes = fs::read(path)
-        .map_err(|error| p::Error(format!("failed to read backup bytes: {error}")))?;
-    Ok(p::sha256_content_digest(&bytes))
+pub(crate) fn file_digest(path: &Path) -> p::Result<p::SchemaDigest> {
+    let file =
+        fs::File::open(path).map_err(|_| p::Error("backup digest source is unavailable".into()))?;
+    p::sha256_reader_digest(file)
 }
 
-fn manifest_path(path: &Path) -> PathBuf {
+pub(crate) fn manifest_path(path: &Path) -> PathBuf {
     PathBuf::from(format!("{}.manifest.json", path.display()))
 }
 
-fn read_manifest(path: &Path) -> p::Result<BackupManifest> {
-    let bytes = fs::read(manifest_path(path))
-        .map_err(|error| p::Error(format!("backup manifest is unavailable: {error}")))?;
+pub(crate) fn read_manifest(path: &Path) -> p::Result<BackupManifest> {
+    let path = crate::store_access::normalized(&manifest_path(path))?;
+    let file =
+        fs::File::open(path).map_err(|_| p::Error("backup manifest is unavailable".into()))?;
+    let meta = file
+        .metadata()
+        .map_err(|_| p::Error("backup manifest is unavailable".into()))?;
+    if !meta.is_file() || meta.len() > 64 * 1024 {
+        return Err(p::Error("backup manifest exceeds its bound".into()));
+    }
+    let mut bytes = Vec::new();
+    file.take(64 * 1024 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| p::Error("backup manifest is unavailable".into()))?;
+    if bytes.len() > 64 * 1024 {
+        return Err(p::Error("backup manifest exceeds its bound".into()));
+    }
     serde_json::from_slice(&bytes)
         .map_err(|error| p::Error(format!("backup manifest is invalid: {error}")))
 }
 
-fn write_manifest(path: &Path, manifest: &BackupManifest) -> p::Result<()> {
+pub(crate) fn write_manifest(path: &Path, manifest: &BackupManifest) -> p::Result<()> {
     manifest.validate()?;
     let destination = manifest_path(path);
     let temporary = destination.with_extension("json.tmp");

@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 use super::{checksum, PersistedEnvelope, SqliteEventStore, StoredEvent};
+use crate::offline_access::{immutable_source, require_cold_source, OfflineSource};
 use crate::{at_rest, EventStore, SchemaSnapshot, StoreContentProtection, StoreOptions};
 use forme_protocol as p;
 use rusqlite::{params, Connection, OpenFlags, TransactionBehavior};
@@ -115,7 +116,7 @@ impl LegacyPlaintextMigration {
         self.require_owner(owner)?;
         let source = source_path(source)?;
         let target = new_target_path(target)?;
-        let lock = OfflineSource::acquire(&source)?;
+        let lock = OfflineSource::acquire_legacy(&source)?;
         let connection = immutable_source(&source)?;
         let inspection = self.inspect_source(&connection)?;
         let digest = file_digest(&source)?;
@@ -166,7 +167,7 @@ impl LegacyPlaintextMigration {
         {
             return Err(failure("approved plan binding mismatch"));
         }
-        let lock = OfflineSource::acquire(&source)?;
+        let lock = OfflineSource::acquire_legacy(&source)?;
         require_source_digest(&source, &plan.source_database_digest)?;
         let source_connection = immutable_source(&source)?;
         let inspection = self.inspect_source(&source_connection)?;
@@ -815,7 +816,7 @@ fn replay_snapshot() -> SchemaSnapshot {
     }
 }
 
-fn supported_schema(c: &Connection) -> p::Result<p::SchemaDigest> {
+pub(crate) fn supported_schema(c: &Connection) -> p::Result<p::SchemaDigest> {
     let version: i64 = c
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .map_err(|_| failure("source schema version is unavailable"))?;
@@ -1013,11 +1014,11 @@ fn table_exists(c: &Connection, name: &str) -> p::Result<bool> {
 }
 
 fn source_path(path: &Path) -> p::Result<PathBuf> {
+    let path = crate::store_access::normalized(path)?;
     if !path.is_file() {
         return Err(failure("source must be an existing regular database"));
     }
-    path.canonicalize()
-        .map_err(|_| failure("source path cannot be resolved"))
+    Ok(path)
 }
 fn new_target_path(path: &Path) -> p::Result<PathBuf> {
     let name = path
@@ -1054,18 +1055,6 @@ fn require_source_digest(path: &Path, expected: &p::SchemaDigest) -> p::Result<(
     }
     Ok(())
 }
-fn require_cold_source(path: &Path) -> p::Result<()> {
-    for suffix in ["-wal", "-shm", "-journal"] {
-        let mut sidecar = path.as_os_str().to_os_string();
-        sidecar.push(suffix);
-        if fs::symlink_metadata(PathBuf::from(sidecar)).is_ok() {
-            return Err(failure(
-                "database must be offline and checkpointed without SQLite sidecars",
-            ));
-        }
-    }
-    Ok(())
-}
 fn reserve_target(path: &Path) -> p::Result<File> {
     let mut options = OpenOptions::new();
     options.read(true).write(true).create_new(true);
@@ -1082,85 +1071,6 @@ fn reserve_target(path: &Path) -> p::Result<File> {
     options
         .open(path)
         .map_err(|_| failure("target must be a NEW regular file"))
-}
-
-// immutable=1 avoids even transient WAL/SHM creation or recovery on the source.
-// It is only safe after the offline guard and cold-sidecar checks above.
-fn immutable_source(path: &Path) -> p::Result<Connection> {
-    let raw = path
-        .to_str()
-        .ok_or_else(|| failure("source path encoding unsupported"))?;
-    let raw = raw.strip_prefix(r"\\?\").unwrap_or(raw).replace('\\', "/");
-    let mut uri = String::from("file:");
-    for b in raw.bytes() {
-        if b.is_ascii_alphanumeric() || b"/:_-.".contains(&b) {
-            uri.push(b as char);
-        } else {
-            uri.push_str(&format!("%{b:02X}"));
-        }
-    }
-    uri.push_str("?mode=ro&immutable=1");
-    Connection::open_with_flags(
-        uri,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
-    )
-    .map_err(|_| failure("offline source cannot be opened read-only"))
-}
-
-struct OfflineSource {
-    _file: File,
-    #[cfg(not(windows))]
-    writer_reservation: Connection,
-}
-impl OfflineSource {
-    fn acquire(path: &Path) -> p::Result<Self> {
-        require_cold_source(path)?;
-        let mut options = OpenOptions::new();
-        options.read(true);
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::OpenOptionsExt;
-            // Deny existing/new writable and deleting handles, including any
-            // live SQLite connection, for the entire backup/verify interval.
-            options.share_mode(1);
-        }
-        let file = options
-            .open(path)
-            .map_err(|_| failure("source is not offline or cannot be locked"))?;
-        #[cfg(not(windows))]
-        {
-            // POSIX share modes do not fence SQLite. Reserve its writer lock
-            // without modifying content; backup reads the cold main file.
-            let reservation = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)
-                .map_err(|_| failure("offline source writer reservation failed"))?;
-            reservation
-                .busy_timeout(std::time::Duration::ZERO)
-                .map_err(|_| failure("source lock setup failed"))?;
-            reservation
-                .execute_batch("BEGIN IMMEDIATE")
-                .map_err(|_| failure("source has an active writer"))?;
-            Ok(Self {
-                _file: file,
-                writer_reservation: reservation,
-            })
-        }
-        #[cfg(windows)]
-        {
-            Ok(Self { _file: file })
-        }
-    }
-    fn release(self) -> p::Result<()> {
-        #[cfg(not(windows))]
-        {
-            self.writer_reservation
-                .execute_batch("ROLLBACK")
-                .map_err(|_| failure("source writer reservation release failed"))?;
-            self.writer_reservation
-                .close()
-                .map_err(|_| failure("source writer reservation close failed"))?;
-        }
-        Ok(())
-    }
 }
 
 fn failure(reason: &str) -> p::Error {

@@ -5,6 +5,7 @@ use super::*;
 pub struct ProductionRuntimeBuilder {
     config: ProductionRuntimeConfig,
     credential_files: Option<BTreeMap<String, PathBuf>>,
+    managed_key_directory: Option<PathBuf>,
 }
 
 impl ProductionRuntimeBuilder {
@@ -17,6 +18,7 @@ impl ProductionRuntimeBuilder {
         Ok(Self {
             config,
             credential_files: None,
+            managed_key_directory: None,
         })
     }
 
@@ -24,6 +26,7 @@ impl ProductionRuntimeBuilder {
     /// to process environment. File ACLs must also be enforced by installation.
     pub fn from_managed_config(config: crate::ManagedBrainConfig) -> p::Result<Self> {
         let runtime = config.runtime_config()?;
+        let key_directory = config.content_key_directory()?;
         let credential_files = config
             .models
             .into_iter()
@@ -32,12 +35,14 @@ impl ProductionRuntimeBuilder {
         Ok(Self {
             config: runtime,
             credential_files: Some(credential_files),
+            managed_key_directory: Some(key_directory),
         })
     }
 
     pub fn build(self) -> p::Result<ProductionRuntime> {
         let path = self.config.store_path.clone();
         ensure_store_parent(&path)?;
+        let access = forme_store::StoreAccessGuard::online(&path)?;
         let store = SqliteEventStore::open(
             path,
             StoreOptions {
@@ -45,23 +50,41 @@ impl ProductionRuntimeBuilder {
                 ..StoreOptions::default()
             },
         )?;
-        self.build_with_store(store)
+        self.finish_build(store, access)
     }
 
     /// Uses exactly the same composition and credential source as `build`.
     pub fn build_with_store(self, store: SqliteEventStore) -> p::Result<ProductionRuntime> {
+        let access = forme_store::StoreAccessGuard::online(&self.config.store_path)?;
+        self.finish_build(store, access)
+    }
+
+    fn finish_build(
+        self,
+        store: SqliteEventStore,
+        access: forme_store::StoreAccessGuard,
+    ) -> p::Result<ProductionRuntime> {
         self.config.validate()?;
+        access.require_store(&store)?;
         if store.content_protection()?.is_none() {
-            let keys = forme_store::FileContentKeyResolver::new(
-                self.config.store_path.with_extension("content-keys"),
-            )?;
+            let key_path = self
+                .managed_key_directory
+                .unwrap_or_else(|| self.config.store_path.with_extension("content-keys"));
+            let keys = if self.credential_files.is_some() {
+                if store.brain_authority()?.is_some() || !store.run_ids()?.is_empty() {
+                    forme_store::FileContentKeyResolver::open_existing(&key_path)?;
+                }
+                forme_store::FileContentKeyResolver::new_managed(key_path)?
+            } else {
+                forme_store::FileContentKeyResolver::new(key_path)?
+            };
             store.enable_content_protection(forme_store::StoreContentProtection::new(
                 &p::VerifiedPrincipal(self.config.owner.0.clone()),
                 p::Scope(self.config.workspace.0.clone()),
                 Arc::new(keys),
             )?)?;
         }
-        compose(self.config, store, self.credential_files)
+        compose(self.config, store, self.credential_files, access)
     }
 }
 

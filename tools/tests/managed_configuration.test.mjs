@@ -5,6 +5,7 @@ import { promises as fs } from 'node:fs';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createManagedProduct, readJson } from './fixtures/managed_product.mjs';
+import { exerciseOfflineData } from './fixtures/offline_data_process.mjs';
 
 const password = 'configuration process fixture 82';
 const credential = 'fixture-model-key-not-a-real-secret';
@@ -141,6 +142,9 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
     await new Promise((resolve) => { process.stdin.once('data', resolve); process.stdin.resume(); });
     process.stdin.pause();
   }
+  const callsBeforeMaintenance = modelRequests.length;
+  const offline = await exerciseOfflineData(product, coreConfig);
+  assert.equal(modelRequests.length, callsBeforeMaintenance, 'offline maintenance must not construct or call a model');
   // New config is saved while old core continues using its immutable key file.
   const second = save(baseUrl, 1, 'config:process-second');
   second.models[0].credential = 'rotated-fixture-key-not-a-real-secret';
@@ -155,5 +159,15 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal((await product.request('/api/v1/product/config')).acknowledged_revision, 2);
   // Acknowledgement means loaded, not that the rotated provider credential works.
   assert.equal((await readJson(product.template.configuration_ack_path)).revision, 2);
-  await product.stop(core); await product.stop(web); await product.stop(host);
+  await product.stop(core);
+  // This is an explicit temporary test-process selection, not a production
+  // active-pointer/Host restore transaction or a native service restart.
+  await new Promise((resolve) => setTimeout(resolve, product.template.authority_lease + 200));
+  const restoredCore = await product.start('forme-gatewayd', offline.restoredConfigPath,
+    `FORME_GATEWAY_URL=http://${product.coreAddress}`);
+  const restoredAnswer = await product.request(`/api/v1/brain/runs/${encodeURIComponent(run)}/answer`);
+  assert.equal(restoredAnswer.answer, answer);
+  assert.equal(modelRequests.length, callsBeforeMaintenance, 'restored read-only query must not call a model');
+  offline.run('inspect-data', offline.restoredConfigPath, [], false);
+  await product.stop(restoredCore); await product.stop(web); await product.stop(host);
 });

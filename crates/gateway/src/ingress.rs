@@ -123,8 +123,8 @@ where
     }
 
     /// Owner-authenticated read of a run's final model text for remote
-    /// clients. The text is process state, not an event fact, so a run from
-    /// an earlier daemon process reports `None`.
+    /// clients. Committed answers may be recovered read-only from their event
+    /// stream after restart; incomplete outputs are never promoted to answers.
     pub fn answer_for_owner(&self, run: p::RunId, auth: AuthContext) -> p::Result<Option<String>> {
         auth.validate(now_ms())?;
         match auth.principal {

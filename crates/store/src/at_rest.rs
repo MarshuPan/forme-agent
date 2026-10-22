@@ -6,12 +6,7 @@
 use crate::{ContentKeyResolver, ProtectedContentService};
 use forme_protocol as p;
 use rusqlite::{functions::FunctionFlags, params, Connection};
-use std::{
-    fs::{self, OpenOptions},
-    io::Write,
-    path::{Path, PathBuf},
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 pub(crate) const PREFIX: &[u8] = b"FORME-AEAD-1\n";
 pub(crate) type ProtectionState = Arc<RwLock<Option<StoreContentProtection>>>;
@@ -479,188 +474,13 @@ fn collect_references(value: &serde_json::Value, refs: &mut std::collections::BT
     }
 }
 
-/// Local resolver. The vault must be outside artifact/backup directories.
-/// Debug deliberately exposes neither its location nor key material.
-pub struct FileContentKeyResolver {
-    root: PathBuf,
-    index: RwLock<std::collections::BTreeMap<String, PathBuf>>,
-}
-impl std::fmt::Debug for FileContentKeyResolver {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("FileContentKeyResolver { [local resolver] }")
-    }
-}
-impl FileContentKeyResolver {
-    pub fn new(root: impl AsRef<Path>) -> p::Result<Self> {
-        fs::create_dir_all(root.as_ref())
-            .map_err(|_| p::Error("content key vault could not be created".into()))?;
-        let root = root
-            .as_ref()
-            .canonicalize()
-            .map_err(|_| p::Error("content key vault is unavailable".into()))?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).map_err(|_| {
-                p::Error("content key vault permissions could not be restricted".into())
-            })?;
-        }
-        #[cfg(windows)]
-        {
-            let user = std::env::var("USERNAME")
-                .map_err(|_| p::Error("local key vault owner is unavailable".into()))?;
-            let output = std::process::Command::new("icacls")
-                .arg(&root)
-                .args(["/inheritance:r", "/grant:r", &format!("{user}:(OI)(CI)F")])
-                .output()
-                .map_err(|_| p::Error("local key vault access could not be restricted".into()))?;
-            if !output.status.success() {
-                return Err(p::Error("local key vault access restriction failed".into()));
-            }
-        }
-        let mut index = std::collections::BTreeMap::new();
-        for entry in
-            fs::read_dir(&root).map_err(|_| p::Error("content key vault cannot be read".into()))?
-        {
-            let path = entry
-                .map_err(|_| p::Error("content key vault entry is unavailable".into()))?
-                .path();
-            if path.extension().is_some_and(|e| e == "key") {
-                let bytes =
-                    fs::read(&path).map_err(|_| p::Error("content key is unavailable".into()))?;
-                if bytes.len() != p::CHACHA20_POLY1305_KEY_BYTES {
-                    return Err(p::Error(
-                        "content key vault contains an incomplete key".into(),
-                    ));
-                }
-                index.insert(p::sha256_content_digest(&bytes).0, path);
-            }
-        }
-        Ok(Self {
-            root,
-            index: RwLock::new(index),
-        })
-    }
-}
-impl ContentKeyResolver for FileContentKeyResolver {
-    fn resolve(&self, digest: &p::SchemaDigest) -> p::Result<Vec<u8>> {
-        p::sha256_digest_bytes(digest)?;
-        let path = self
-            .index
-            .read()
-            .map_err(|_| p::Error("content key index is unavailable".into()))?
-            .get(&digest.0)
-            .cloned()
-            .ok_or_else(|| p::Error("content key is unavailable".into()))?;
-        if path.with_extension("revoked").exists() {
-            return Err(p::Error("content key has been revoked".into()));
-        }
-        fs::read(path).map_err(|_| p::Error("content key is unavailable".into()))
-    }
-    fn subject_key(
-        &self,
-        binding: &p::ContentBinding,
-        subject: &p::SchemaDigest,
-    ) -> p::Result<p::SchemaDigest> {
-        binding.validate()?;
-        p::sha256_digest_bytes(subject)?;
-        let name = p::canonical_digest(&(
-            binding.owner_digest.clone(),
-            binding.scope.clone(),
-            subject,
-            binding.object.clone(),
-        ))?;
-        let stem = name
-            .0
-            .strip_prefix("sha256:")
-            .ok_or_else(|| p::Error("subject key identity is invalid".into()))?;
-        let path = self.root.join(format!("{stem}.key"));
-        if self.root.join(format!("{stem}.revoked")).exists() {
-            return Err(p::Error("subject content key has been destroyed".into()));
-        }
-        if !path.exists() {
-            let mut key = vec![0; p::CHACHA20_POLY1305_KEY_BYTES];
-            getrandom::fill(&mut key)
-                .map_err(|_| p::Error("content key generation failed".into()))?;
-            let mut options = OpenOptions::new();
-            options.write(true).create_new(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::OpenOptionsExt;
-                options.mode(0o600);
-            }
-            match options.open(&path) {
-                Ok(mut file) => {
-                    file.write_all(&key)
-                        .and_then(|()| file.sync_all())
-                        .map_err(|_| p::Error("content key could not be persisted".into()))?;
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(_) => return Err(p::Error("content key could not be created".into())),
-            }
-        }
-        let bytes = fs::read(&path).map_err(|_| p::Error("subject key is unavailable".into()))?;
-        if bytes.len() != p::CHACHA20_POLY1305_KEY_BYTES {
-            return Err(p::Error("subject key is corrupt".into()));
-        }
-        let digest = p::sha256_content_digest(&bytes);
-        self.index
-            .write()
-            .map_err(|_| p::Error("content key index is unavailable".into()))?
-            .insert(digest.0.clone(), path);
-        Ok(digest)
-    }
-    fn destroy(&self, digest: &p::SchemaDigest) -> p::Result<()> {
-        p::sha256_digest_bytes(digest)?;
-        let paths = self
-            .index
-            .read()
-            .map_err(|_| p::Error("content key index is unavailable".into()))?
-            .get(&digest.0)
-            .cloned()
-            .into_iter()
-            .collect::<Vec<_>>();
-        for path in paths {
-            if path.extension().is_some_and(|e| e == "key") {
-                let bytes = fs::read(&path).map_err(|_| {
-                    p::Error("content key destruction could not be verified".into())
-                })?;
-                if p::sha256_content_digest(&bytes) == *digest {
-                    // Persist denial of regeneration before removing key bytes.
-                    let revoked = path.with_extension("revoked");
-                    let mut file = OpenOptions::new()
-                        .write(true)
-                        .create(true)
-                        .truncate(true)
-                        .open(&revoked)
-                        .map_err(|_| {
-                            p::Error("content key revocation could not be recorded".into())
-                        })?;
-                    file.write_all(digest.0.as_bytes())
-                        .and_then(|()| file.sync_all())
-                        .map_err(|_| {
-                            p::Error("content key revocation could not be persisted".into())
-                        })?;
-                    fs::remove_file(&path)
-                        .map_err(|_| p::Error("content key destruction failed".into()))?;
-                    self.index
-                        .write()
-                        .map_err(|_| p::Error("content key index is unavailable".into()))?
-                        .remove(&digest.0);
-                }
-            }
-        }
-        if self.resolve(digest).is_ok() {
-            return Err(p::Error("content key remains available".into()));
-        }
-        Ok(())
-    }
-}
+pub use crate::file_keys::FileContentKeyResolver;
 
 #[cfg(test)]
 mod auxiliary_tests {
     use super::*;
     use crate::{EventStore, SqliteEventStore, StoreOptions};
+    use std::fs;
     #[test]
     fn c22_all_auxiliary_blob_writers_authenticate_insert_update_and_row_binding() {
         let root = std::env::temp_dir().join(format!(

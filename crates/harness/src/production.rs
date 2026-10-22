@@ -10,7 +10,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Mutex};
 
 use forme_capabilities::{
     AppApiConnectorRegistry, Capability, CapabilityDescriptor, CapabilityRegistry,
@@ -61,6 +61,8 @@ use super::{now_ms, GovernanceConfig, HarnessConfig, ReactiveHarness};
 
 mod builder;
 pub use builder::ProductionRuntimeBuilder;
+mod runtime_guard;
+pub(crate) use runtime_guard::LeaseHeartbeat;
 
 /// A tick claim's lease. A crashed attempt's window is retried once the
 /// lease lapses; a live attempt is never shared.
@@ -1959,59 +1961,6 @@ pub struct ProductionRuntime {
     pub(crate) orchestration_active: Mutex<BTreeSet<p::ExecutionRouteRef>>,
 }
 
-/// Keeps the sole-writer lease alive while the runtime exists, including idle
-/// periods and long model calls that perform no durable write. Without it an
-/// idle authority could silently lose its lease to a second process.
-pub(crate) struct LeaseHeartbeat {
-    stop: Arc<(Mutex<bool>, Condvar)>,
-    handle: Option<std::thread::JoinHandle<()>>,
-}
-
-impl LeaseHeartbeat {
-    pub(crate) fn start(guard: AuthorityLeaseGuard, ttl: p::DurationMs) -> p::Result<Self> {
-        let stop = Arc::new((Mutex::new(false), Condvar::new()));
-        let signal = stop.clone();
-        let period = std::time::Duration::from_millis((ttl.0 / 3).max(1));
-        let handle = std::thread::Builder::new()
-            .name("forme-authority-lease".into())
-            .spawn(move || {
-                let (lock, wake) = &*signal;
-                let Ok(mut stopped) = lock.lock() else {
-                    return;
-                };
-                loop {
-                    match wake.wait_timeout(stopped, period) {
-                        Ok((next, _)) => stopped = next,
-                        Err(_) => return,
-                    }
-                    // A lost lease is final: writes are already fenced, and
-                    // the heartbeat must never try to reclaim authority.
-                    if *stopped || guard.ensure(now_ms()).is_err() {
-                        return;
-                    }
-                }
-            })
-            .map_err(|_| p::Error("authority lease heartbeat could not start".into()))?;
-        Ok(Self {
-            stop,
-            handle: Some(handle),
-        })
-    }
-}
-
-impl Drop for LeaseHeartbeat {
-    fn drop(&mut self) {
-        let (lock, wake) = &*self.stop;
-        if let Ok(mut stopped) = lock.lock() {
-            *stopped = true;
-            wake.notify_all();
-        }
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
-    }
-}
-
 /// Outcome of one shared scheduler pass. Each half is reported separately so
 /// a failing scheduled intention never hides the brain tick, or vice versa.
 #[derive(Debug)]
@@ -2786,6 +2735,7 @@ fn compose(
     config: ProductionRuntimeConfig,
     store: SqliteEventStore,
     credential_files: Option<BTreeMap<String, PathBuf>>,
+    access: forme_store::StoreAccessGuard,
 ) -> p::Result<ProductionRuntime> {
     if !store.is_file_backed()? {
         return Err(p::Error(
@@ -2802,6 +2752,7 @@ fn compose(
         lease_ttl: config.authority_lease,
     })?;
     let guard = store.install_authority_lease_guard(&authority, config.authority_lease)?;
+    guard.retain_store_access(access)?;
     let aggregates = BrainAggregateRefs::from_binding(&authority, config.owner.clone())?;
     let store = Arc::new(store);
 

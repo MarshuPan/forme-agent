@@ -54,6 +54,7 @@ mod brain_models;
 mod brain_route_fitness;
 mod candidate_review;
 mod data_workbench;
+mod run_output;
 mod workbench;
 pub use brain_evolution::ProductionStrategySpec;
 pub use brain_evolution_seed::ProductionSeedSpec;
@@ -70,6 +71,7 @@ mod m3_b;
 mod m4;
 mod m5;
 mod managed_config;
+pub mod offline_data;
 #[cfg(windows)]
 pub use forme_execution::installed::{register_windows_service, unregister_windows_service};
 pub use managed_config::ManagedBrainConfig;
@@ -1251,29 +1253,6 @@ impl ReactiveHarness {
         config.validate()?;
         self.scheduler = Some(SchedulerRuntime { config, intentions });
         Ok(self)
-    }
-
-    pub fn output_text(&self, run: p::RunId) -> p::Result<Option<String>> {
-        let _data_access = self.data_read_guard()?;
-        let handle = match self.run_handle(&run) {
-            Ok(handle) => handle,
-            // Model output text is process state, not an event fact; a run
-            // from an earlier process exists but has no retrievable text.
-            Err(error) => {
-                return if self.store.read_run(run).next().is_some() {
-                    Ok(None)
-                } else {
-                    Err(error)
-                };
-            }
-        };
-        let output = handle
-            .record
-            .lock()
-            .map_err(|_| p::Error("run state is unavailable".into()))?
-            .final_output
-            .clone();
-        Ok(output)
     }
 
     pub fn pending_approvals(&self, session: p::SessionId) -> p::Result<Vec<ApprovalRequest>> {

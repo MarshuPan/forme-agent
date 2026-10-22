@@ -11,6 +11,7 @@ pub use brain_memory::*;
 pub use brain_orchestration::*;
 mod brain_relevance;
 pub use brain_relevance::*;
+mod content_digest;
 mod content_protection;
 mod control;
 mod control_resolution;
@@ -39,6 +40,7 @@ pub use web_identity::*;
 pub use workbench::*;
 pub use workspace_charter::*;
 
+pub use content_digest::*;
 pub use content_protection::*;
 pub use control::*;
 pub use control_resolution::*;

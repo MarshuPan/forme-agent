@@ -4,7 +4,6 @@
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::*;
 
@@ -37,33 +36,6 @@ fn validate_sorted_unique<T: Ord>(values: &[T], name: &str) -> Result<()> {
     } else {
         Ok(())
     }
-}
-
-pub fn sha256_content_digest(bytes: &[u8]) -> SchemaDigest {
-    let digest = Sha256::digest(bytes);
-    let mut encoded = String::from("sha256:");
-    for byte in digest {
-        use core::fmt::Write as _;
-        let _ = write!(&mut encoded, "{byte:02x}");
-    }
-    SchemaDigest(encoded)
-}
-
-pub fn sha256_digest_bytes(digest: &SchemaDigest) -> Result<[u8; 32]> {
-    let Some(encoded) = digest.0.strip_prefix("sha256:") else {
-        return Err(Error("digest is not sha256-prefixed".into()));
-    };
-    if encoded.len() != 64 || !encoded.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(Error("digest is not a canonical sha256 value".into()));
-    }
-    let mut bytes = [0_u8; 32];
-    for (index, pair) in encoded.as_bytes().chunks_exact(2).enumerate() {
-        let text = core::str::from_utf8(pair)
-            .map_err(|_| Error("digest contains invalid bytes".into()))?;
-        bytes[index] = u8::from_str_radix(text, 16)
-            .map_err(|_| Error("digest contains invalid hexadecimal".into()))?;
-    }
-    Ok(bytes)
 }
 
 fn required_digest(digest: &SchemaDigest, name: &str) -> Result<()> {

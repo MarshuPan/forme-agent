@@ -9,12 +9,17 @@ mod checksum;
 mod content;
 mod cursor;
 mod data_catalog;
+mod file_keys;
+mod offline_access;
+mod offline_backup;
+mod offline_validation;
 mod orchestration;
 mod projection;
 mod replay;
 mod replica;
 mod schema;
 mod sqlite;
+mod store_access;
 
 use forme_protocol as p;
 
@@ -28,6 +33,9 @@ pub use brain::{
 };
 pub use content::{ContentKeyResolver, ProtectedContentService};
 pub use cursor::EventCursor;
+pub use offline_backup::{
+    OfflineBrainIdentity, OfflineBrainSource, OfflineRestorePlan, OfflineRestoreReceipt,
+};
 pub use projection::{
     SearchHit, SessionState, SessionStateProjection, Transcript, TranscriptEntry,
     TranscriptProjection,
@@ -47,6 +55,7 @@ pub use sqlite::migration::{
     LEGACY_MIGRATION_SCHEMA_VERSION,
 };
 pub use sqlite::{DomainClaimProbe, SqliteEventStore, StoreOptions};
+pub use store_access::StoreAccessGuard;
 
 pub const APPROVAL_CONSUMPTION_SCHEMA_VERSION: p::SchemaVersion = p::SchemaVersion(1);
 
