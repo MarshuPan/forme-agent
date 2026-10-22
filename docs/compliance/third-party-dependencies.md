@@ -143,3 +143,9 @@ features, transport traits, and crate graph remain unchanged. The root NOTICE
 also records the existing Windows-only `windows-service 0.8.1` direct
 dependency. No advisory is ignored; the full current-tree release audit and
 S1-S99 gate must pass after the update.
+
+Installed offline maintenance (2026-10-23): `forme-cli` directly uses the
+already recorded exact-pinned `serde 1.0.228` to encode typed, versioned
+restore plans and receipts. The implementation uses repository-owned data
+facades and the standard process/filesystem APIs. No internal crate edge,
+brain EventKind, copied implementation, fixture or source layout is added.

@@ -126,9 +126,25 @@ Windows 包使用随包、固定入口的 PowerShell/.NET ACL helper；它不是
 
 ### 4.6 在线与离线 store 互斥、密钥库访问
 
-ProductionRuntime 在打开持久 store 前取得同目录 `<store-stem>.access-lock` 的 OS shared lock，锁由其 Harness 的 authority heartbeat 一起持有，不能随 builder 或 HTTP 请求结束而释放。多个在线候选仍由既有 authority lease 决定唯一写者；shared lock 不替代 epoch/nonce/恢复扫描。离线维护工具必须先取得同一文件的 exclusive lock，随后才可检查、备份、恢复或迁移；冲突时零 brain/keys 写入，不靠“服务已停止”推断独占。锁文件不删除、不重命名，进程退出由 OS 释放；换路径维护同时绑定源与目标，拒绝链接/别名。没有这条锁的历史进程仍须停服和 SQLite 占用检查，不能宣称新锁能约束旧二进制。
+ProductionRuntime 在打开持久 store 前取得同目录 `<store-stem>.access-lock` 的 OS shared lock，锁绑定实际数据库并由 authority guard 及其所有 clone 持有，直到最后的 Harness、BrainServices、heartbeat 或独立 authority guard 释放后才结束；不能随 builder、HTTP 请求或 runtime facade 结束提前释放。多个在线候选仍由既有 authority lease 决定唯一写者；shared lock 不替代 epoch/nonce/恢复扫描。离线维护工具必须先取得同一文件的 exclusive lock，随后才可检查、备份、恢复或迁移；冲突时零 brain/keys 写入，不靠“服务已停止”推断独占。锁文件不删除、不重命名，进程退出由 OS 释放；换路径维护同时绑定源与目标，拒绝链接/别名。没有这条锁的历史进程仍须停服和 SQLite 占用检查，不能宣称新锁能约束旧二进制。
 
 开发密钥库的显式本机权限准备保持兼容；受管构造沿用安装器设置的目录 ACL，不读取交互 USERNAME，也不执行 icacls 改写固定服务 SID。只读 existing 构造不得创建目录/密钥、调整 ACL 或销毁密钥；缺 key、破损 key、链接、撤销标记均拒绝，不自动生成替代材料。离线检查先用只读 resolver 验证 owner/解密/replay，实际迁移或新路径恢复另有绑定的写入操作。库接口变化为 additive，不改 ContentKeyResolver 与既有 store trait。
+
+### 4.7 本机离线数据外观与新路径恢复
+
+旧明文迁移的 plan/拒绝路径继续保持零文件创建：已有 access fence 时取得原锁，没有 fence 时不补建；Windows 以原库拒绝写/删除共享 handle 防止新写者，Unix 的新运行时同时取得原库 advisory shared lock，旧源检查持 exclusive lock，避免首次建立 fence 的竞态。非参与旧程序的停服要求仍适用，不修改旧迁移的计划/审批协议。
+
+本机命令沿 `forme-hostctl → Gateway OfflineCoreMaintenance → Harness OfflineBrainMaintenance → Store OfflineBrainSource`；不为 execution 增加脑库依赖，也不构造 ProductionRuntime。调用者必须已有受保护 config、数据库和原 vault 的 OS 访问权；该命令不是提权代理或匿名 HTTP 接口，不替代 Host 的 owner 重新认证和生命周期事务。
+
+离线配置使用受保护 CoreServiceConfig 的封闭存储投影：校验安装/schema/revision、owner/workspace、store/artifact/key 路径与隔离，不加载模型凭据，不要求模型、scheduler 或 transport 配置可运行。未知顶层/brain 字段和错误存储身份仍拒绝；坏模型端点或凭据不能挡住灾难恢复，也不能借维护投影启动 core。
+
+`inspect-data --config <absolute-core-config>` 只读检查；`backup-data --config … --target <new-database>` 创建新备份；`verify-data --config … --source <backup>` 验证；`plan-restore-data --config … --source <backup> --target <new-database>` 保存计划；`restore-data --config … --source <backup> --target <new-database> --approve <prepared-digest>` 执行一次。路径只来自本机操作员，不接受网页传入的任意路径。
+
+已有源先拒绝 SQLite WAL/SHM/journal 与旧写者，再用 immutable read-only 连接检查受支持 schema、owner/store identity、integrity、每 run 连续性、全部已知内容列的保护与行绑定、key history、实际解密和投影 replay；检查不得恢复或初始化原库。备份沿用既有 BackupManifest，流式计算摘要，原 key 不打包。目标必须全新、同样持 exclusive fence，部分失败保留现场；不覆盖、不删除后重试。
+
+Windows 额外保持原库只读、拒绝写/删除共享的文件 handle；POSIX 对非 WAL 源保留 SQLite writer reservation。POSIX 冷 WAL 源不执行会创建 sidecar 的 BEGIN IMMEDIATE，使用 OS access fence、原文件摘要与冷源检查；不遵守 access fence 的历史二进制必须先经本机服务管理停服，不能声称新锁约束任意旧进程。新运行时和离线流程间的互斥由共享同一 OS 锁保障，原生平台另行验证。
+
+恢复计划绑定源文件、manifest、owner/store、确切目标和 15 分钟有效期，执行在校验前和目标创建前都检查有效期。计划与回执以 create-new、sync 写入 `<target>.restore-plan.json` 和 `<target>.restore-receipt.json`，只包含摘要与结果，不包含 key 或路径。成功回执的 `authority_switched=false` 是明确边界：候选数据已验证，不表示 Host 已完成 active data/config 切换、旧 authority/审批 nonce fencing 或原生恢复验收。
 
 ## 5. 行为、状态与并发
 

@@ -248,6 +248,8 @@ broker 的认领权威使用独立、OS 排他锁保护的 append journal；记�
 
 `forme-gatewayd --config <absolute-path>` 从版本化 `CoreServiceConfig` 加载安装身份、配置 revision、loopback transport、受管 brain 配置及 drain 时限。`ManagedBrainConfig` 明确 owner/store/workspace/profile、模型声明与各 profile 的凭据文件、scheduler、cognition 和 artifact 路径；模型声明中的历史 `credential_env` 字段仅为兼容旧模型 schema 的槽位名，此模式不读取该环境变量。模型值在 provider 绑定时从私有受限文件解析，不写 process env，也不复制进配置、manifest、事件或诊断。
 
+`ManagedBrainConfig.content_key_directory` 是可选的绝对、无链接 vault 路径；缺省沿用 store 的 `.content-keys` 同级目录。新路径恢复可显式沿用原 vault，不能由登录口令派生或从备份中臆造 key。已存在 authority/events 的受管脑先用 existing 只读 resolver 核对原材料；vault 缺失即拒绝，不生成替代目录后假装重启成功。artifact、store 和 vault 范围不得重叠；新路径选择不是自动切换授权。
+
 服务模式必须显式传 `--config`；前台开发保留无参数 environment 模式。Windows SCM 同样使用进程命令行中的受管路径，不从交互 shell 推断配置。路径必须绝对、无链接/reparse-point，读取有界、closed schema/version；检查失败不退回环境或创建替代脑。Web/core 仍使用同一 ProductionRuntimeBuilder 和受控停止接缝。文件结构检查不代表原生 ACL 已验证。
 
 本节定义持久启动来源与模型 file resolver；配置 staging/CAS、secret 写入和 core ack 进一步按 §11.5 实施并独立取证。尚未接到隔离 worker 的可执行能力在受管模式中保持不可用，不得借环境启用原地 shell/MCP/browser。capability worker 接入和原生安装仍须单独实施，不能把受管启动配置称为 IP08 或完整设置页验收。

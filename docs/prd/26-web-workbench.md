@@ -98,6 +98,7 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 - composer 支持文本、授权附件、停止生成/任务控制；模型选择只提交被允许的 profile hint，实际 profile 由 core 决定并显示。
 - 提交即锁定 idempotency key，返回 receipt 后绑定 run；双击/刷新/网络超时都复用或查询原命令。
 - 流式显示公开回答、动作名称/资源/状态、等待审批、产物与失败。展示模型明确公开的 reasoning 摘要须符合内容/保留策略；不制造“脑内独白”。
+- 重启/恢复后读取原 run 时，Harness 从其受保护事件流只读重建已提交最终回答：匹配同一 model call/profile 的 delta 与 finished、Final classification，且 RunComplete 的停止原因必须为 final_output；未完成、工具/handoff、失败/中止/限额运行和后续内部思考不成为回答。读取不调模型、不创建 run、不写新事件；有界文本或存储错误明确失败，不静默截断。Web 不另存回答作为第二事实源。
 - 子代理/DAG 是任务详情，可查看节点、依赖、当前阻断和验证结果，不能向 child 私发越权命令。
 - RunWaiting/PendingKind 显示用户需要做什么；Unknown 显示“结果待核实”及 probe/裁决入口；没有“重新执行以试试看”的默认按钮。
 - 工具终态、验证与最终回答分开：模型说完成但 verifier 未通过时显示验证失败/未验证，不使用绿色成功覆盖。

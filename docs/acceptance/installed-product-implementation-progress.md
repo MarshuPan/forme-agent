@@ -6,6 +6,8 @@
 
 ## 1. 实施顺序与当前范围
 
+2026-10-23 新增[离线数据维护与恢复候选组件](installed-product-offline-data-acceptance.md)：受管/只读密钥库、authority clone 生命周期 OS fence、本机 inspect/backup/verify/plan/restore，以及新路径正式 core 重启恢复回答已实现。离线存储投影不依赖模型配置可运行；实际临时进程链路已验证，活动数据切换与完整 Host 生命周期继续实施。总目标是全部已批准设计的实现与统一验收，组件完成不作为任务终点。
+
 2026-10-23 新增[签名发布暂存与窄维护入口组件](installed-product-release-maintenance-acceptance.md)：实际 Rust 验签与同卷不可变暂存、owner 重新认证启停/范围计划、原 operation 核实和回执精确绑定已实现。786 项 Rust、前端 19 项、签名 4 项等源码/进程证据通过；独立 npm audit 受 registry TLS 失败影响。完整升级/恢复、强隔离与原生安装验收仍开放，不能据此关闭全产品里程碑。
 
 | 顺序 | 交付 | 当前状态 |
