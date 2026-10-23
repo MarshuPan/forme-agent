@@ -2,6 +2,12 @@
 
 These files are release inputs, not proof that a native package has been built or installed. The bundle inventory must be generated first and signed by a release pipeline that records the target OS/CPU, exact binary/UI digests, package-tool version and signing receipt.
 
+## Service recovery status
+
+The canonical service policy is three OS-level restarts with delays `5s -> 30s -> 120s`, then diagnosis/recovery required, with a 24-hour failure-count reset. Windows SCM registration expresses and verifies that policy directly. The current Linux units use a finite systemd guard (the initial start plus at most three automatic restarts in a 24-hour window, with a fixed 5-second delay); this is a safety fallback and does not prove the canonical delay sequence. The current macOS LaunchDaemon inputs deliberately omit `KeepAlive` because launchd has no finite failure-count and escalating-delay primitive. Linux and macOS native packages remain `release_ready: false` until their platform-specific recovery adapters and native evidence are complete.
+
+No package or acceptance report may describe these POSIX inputs as supported merely because the unit/plist parses or a bundle was staged. A platform becomes supported only after its service manager expresses the bounded policy, the installed service is observed under the target OS, and the corresponding IP evidence is recorded.
+
 - Windows: compile `windows/forme.iss` with a pinned Inno Setup toolchain, then sign the installer. The two mandatory original access helpers use the OS-provided Windows PowerShell/.NET ACL APIs, protect empty default roots before writing data, and grant/verify fixed service roles before starting Host/Web. Existing installations require the separate lifecycle/recovery path. Installation checks every typed registration result; uninstall stops before program removal if a typed unregister fails. These inputs have not yet been compiled into an accepted native installer.
 - Linux: install the three units, control files and post-install policy through a pinned `.deb` or `.rpm` builder. The post-install hook must run only as the package manager's root transaction and must be tested on each declared distribution.
 - macOS: use `Distribution.xml`, `scripts/postinstall` and the three LaunchDaemon plists with pinned `pkgbuild`/`productbuild` inputs, then Developer ID sign and notarize each architecture package. The post-install script prepares the unclaimed setup state and starts only Host/Web; the brain remains stopped until claim and model configuration.

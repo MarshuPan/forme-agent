@@ -37,6 +37,8 @@
 | `InstallationManifest` | `install_id, target_os, target_arch, release_id, release_digest, install_root, config_root, data_root, service_ids, service_identity_refs, created_at`。受保护，路径不进公共 API。 |
 | `ReleaseManifest` | `release_id, target, binary_digests, ui_digest, managed_dependencies, config_read_range, schema_read_range, schema_write_range, minimum_upgrader, signature_ref`。签名覆盖完整规范化内容。 |
 | `HostStatus` | `install_id_safe_ref, product_state, core_health, active_release, active_config_revision, acknowledged_config_revision, issue_refs, allowed_operations`。ProductState 只用 architecture/10 §3。 |
+| `ServiceRecoveryPolicy` | `schema_version, restart_delays, reset_after`。规范目标是 OS 服务管理器最多按 5s、30s、120s 三次退避自动重启，之后停止自动重启并进入诊断/恢复要求；forme 不在进程内另起重启监管 loop。Windows 已有直接 SCM 适配；POSIX 模板当前仅保留有限安全边界，未完成规范目标前不能发布。 |
+| `ServiceRecoveryDecision` | 由连续失败次数和 `ServiceRecoveryPolicy` 纯计算 `RestartAfter(delay)` 或 `RequireDiagnosis`；它是可审计的策略结果，不是对未知副作用的重试许可。 |
 | `MaintenanceCommand` | `operation_id, idempotency_key, expected_revision, actor_proof, kind, normalized_payload, requested_deadline`。digest 由服务端计算。 |
 | `MaintenanceOperation` | `operation_id, command_digest, revision, stage, original_release_ref, target_release_ref, data_candidate_ref?, backup_ref?, receipts, failure_ref?`。stage 使用 architecture/10 §9。 |
 | `ProductManagementRecord` | architecture/10 §4 的共同字段；append intent/receipt，不能含 password hash、密钥/token/原始 SecretRef id。 |
@@ -220,7 +222,7 @@ Checking intent 先于重启。`ProductConfigAcknowledgement` 增加可选版本
 
 ### 5.2 常驻与停服
 
-OS 监管配置必须有延迟/退避/崩溃次数阈值，超过阈值进入需诊断状态，不无限高频重启。core crash 后先恢复 Unknown，再按既有 tick/route lease 规则恢复；不重放未确认工具副作用。
+OS 监管配置必须通过 `ServiceRecoveryPolicy` 表达延迟/退避/崩溃次数阈值。规范目标是连续失败最多执行 5s、30s、120s 三次 OS 级重启动作，随后停止自动重启并把服务留在可诊断/恢复状态；24 小时无新失败后由 OS 重置计数。forme 只提供策略校验与观察，不在进程内再造 supervisor。Windows SCM 已完成该策略的注册/核对；Linux 当前仅有有限 systemd 启动次数保护，macOS 当前不启用无限 `KeepAlive`，两者的精确原生适配和 IP 证据仍未完成，不能标为已支持。core crash 后先恢复 Unknown，再按既有 tick/route lease 规则恢复；不重放未确认工具副作用。
 
 正常 stop/upgrade：关闭新 admission 与后台 claim → cancel/drain 到已知结果或 Unknown → 一致性 checkpoint/backup → 释放 writer → OS 停止。Web 关闭、退出和连接超时都不触发此流程。OS shutdown 截止不足时保留可恢复 journal/未知态，不能写假 Complete。
 

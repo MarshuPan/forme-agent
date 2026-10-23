@@ -680,7 +680,8 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 ### 29.6 升级与维护
 
 - 更新包签名、兼容性、排空、一致性备份、版本切换、健康验证与恢复是一条持久可追溯事务；模型不能自行替换产品程序。
-- 每个长期服务只有一个生命周期 supervisor。未知副作用只取原 receipt/只读 probe/owner 裁决，不因重启/升级/回滚盲重放；代码回滚不撤销外部动作。
+- 每个长期服务只有一个生命周期 supervisor。服务恢复由 `ServiceRecoveryPolicy(schema_version, restart_delays, reset_after)` 表达：规范目标是连续失败后最多按 `5s -> 30s -> 120s` 执行三次 OS 级自动重启，随后停止自动重启并进入可诊断/恢复状态；连续 24 小时无新失败后由 OS 重置失败计数。forme 不在 Host、Web 或 Brain 进程内再造第二个重启 loop。Windows SCM 已有直接表达和核对该策略的适配；Linux/macOS 当前仅有有限安全边界或能力说明，未完成对应原生适配与 IP 证据前不得标为支持平台。
+- 未知副作用只取原 receipt/只读 probe/owner 裁决，不因重启/升级/回滚盲重放；代码回滚不撤销外部动作。
 - core 离线维护不提供任意 DB/shell/写入后门；对 store 的离线操作必须与在线 writer 互斥。
 
 ### 29.7 Web 事实与产品验收

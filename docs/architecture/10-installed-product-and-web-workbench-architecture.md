@@ -71,6 +71,14 @@ Windows `.exe` 采用 Inno Setup 构建并签名；macOS `.pkg` 使用签名和�
 
 broker 管理安装/config/lifecycle 的版本化事实；core health 从其就绪/心跳和 OS 状态派生。Web 不得仅凭端口可连接设置 Ready；必须验证 owner/store binding、composition、doctor 和预期 config revision。
 
+### 3.1 OS 服务监管契约
+
+长期服务只有一个 supervisor，并且它属于目标操作系统的服务管理器。forme 不在 Host、Web 或 Brain 进程内再创建崩溃重启 loop；Host 只验证、报告和消费 OS 已观察到的服务状态。规范目标是所有已支持平台都表达同一有限策略：失败后最多按 `5s -> 30s -> 120s` 执行三次自动重启，之后停止自动重启并进入 `Degraded`/`RecoveryRequired` 的可诊断状态；连续 24 小时无新失败时由 OS 重置失败计数。没有能力表达有限失败阈值的平台不能被标成已支持，不得用无限 `KeepAlive` 或无界重启替代。
+
+当前模板的实现边界必须保持诚实：Windows SCM 已直接表达并核对该序列；Linux 模板只有有限的 systemd 启动次数保护和固定 5 秒退避，macOS 模板故意不使用无限 `KeepAlive`，两者都不能据此宣称已支持规范目标。它们在取得目标平台的原生恢复适配和 IP 证据前保持 `release_ready: false`。
+
+该策略只控制服务进程的启动生命周期，不改变脑任务的恢复语义。服务崩溃后的启动扫描仍按既有恢复契约处理 `Unknown`、未决审批、worker receipt 和 lease；副作用不明时只能读取原 receipt、执行只读 probe 或等待 owner 裁决，不能因为 OS 重新启动进程就重放动作。Web 展示 OS 状态、失败计数/诊断引用和核心 readiness 的分离结果；进程处于 `Running` 不等于 `Ready`。
+
 初始化流程：安装创建 `InstallId` 与 256-bit 随机一次性证明（30 分钟、可经本机管理权限轮换）→ 只在受保护文件/本机终端交给安装者 → 浏览器 POST 证明并原子预留 claim → 获得 15 分钟的有限 setup session → 检查现有脑/可验证恢复候选或选择新脑 → 按已验证数据绑定 stable OwnerId 并创建 password hash → 提交 claim/消耗 setup session → 生成 owner 会话 → 保存/校验模型与 workspace 配置 → 启动 core → 核对 ready manifest。
 
 setup session 只允许检查本机已识别的安装数据、准备受限备份候选和完成认领，没有普通 task/维护权限。claim 完成前不写新 brain；已有数据/恢复候选的 OwnerId 由其完整性和解密验证得出，不能由浏览器填写。已认领 installation 不允许用恢复另一 owner 的备份暗换身份；需独立安装/明确重新接管流程，不提供 SetOwner API。
