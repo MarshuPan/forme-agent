@@ -118,4 +118,4 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 前置审计发现 Gateway 拆分后仍按旧 lib.rs 定位实现；已修正并新增反向测试。2026-10-21 在干净的 `afe7fdb` 上执行完整 `tools/verify-m5.ps1`，终线为 M5 FINAL ACCEPTANCE: PASS；S1–S99、显式 M3/M4/M5 goldens、workspace、Python、strict Clippy、合规及新回执 generate/verify/compare 全部通过。日志保留于本地 `target/verify-m5-product-ingress-final.log`，不包含个人配置读取或真实模型验收。
 
-当前回执为 `sha256:6e2be4451db0822a732a5c0389d24818c723021a5b21875c178e89ccc3384ca3`，位于 `m5-release-audit-artifacts/`；它绑定 Web 入口、宿主拆分和审计定位修复，不覆盖后续新增源码。上一份回执保留于 Git 历史和本地 target 备份。该永久回归不表示 IP01–IP24、原生安装、LAN TLS 或完整工作台已通过；后续产品增量仍需自己的组件与当前源码验收。
+2026-10-24 在当前干净树（含 `de3c7b1` 的来源材料正文组件与 `7be4016` 的验收/口径更新）上重新生成、独立验证并与仓库工件比较，M5 release audit 为 PASS（9/9 blocking checks）；当前回执为 `sha256:bfc78be6b66eabc195916c177b2990157c1c8f5db614e5649c5da801bfe1ada4`，位于 `m5-release-audit-artifacts/`。旧回执 `sha256:6e2be4451db0822a732a5c0389d24818c723021a5b21875c178e89ccc3384ca3` 保留于 Git 历史；它仍可独立验证，但不再代表当前树。该永久回归不表示 IP01–IP24、原生安装、LAN TLS 或完整工作台已通过；后续产品增量仍需自己的组件与当前源码验收。

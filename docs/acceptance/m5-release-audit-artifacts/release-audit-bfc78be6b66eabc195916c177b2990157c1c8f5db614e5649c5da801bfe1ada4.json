@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:3021c7bdedd312deabbf8f8819b1d134329ad54583af4fbceddf2fc91354fb32",
+        "input_digest": "sha256:40fa1c04fb75a563da038e3213e46af4c64d0daaf2817c4b059103366179e8d6",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -17,7 +17,7 @@
         "blocking": false,
         "check_id": "license_notice",
         "findings": [],
-        "input_digest": "sha256:ecba693f423b7b38b93d959e60d1381088f5f325f5ba416118f08497066c8a55",
+        "input_digest": "sha256:50e265c74cbea18aa80353aaf5091844a500eb497f74f369dad5a49e45b5ac2b",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-license-review",
@@ -27,7 +27,7 @@
         "blocking": false,
         "check_id": "direct_dependencies",
         "findings": [],
-        "input_digest": "sha256:51cdf45d4d2b6c447bdd26cd943434dccd30ca4e3b4288b43c348db1e9bbbd96",
+        "input_digest": "sha256:3cbcf5e7d4257d36a5c8560479dc17fab38890f968a8d7a813cae7e8babb45fb",
         "observations": [],
         "outcome": "pass",
         "tool": "cargo-metadata",
@@ -37,7 +37,7 @@
         "blocking": false,
         "check_id": "borrowing_records",
         "findings": [],
-        "input_digest": "sha256:57c3398ba84e0937ddcbe9ba75557ea98f8b577265233ee353a79bb958abf00d",
+        "input_digest": "sha256:bde89a4da8fbe4d7c3c4eab2645529555af07a248304b0c7ceadc4682e0e3442",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-borrowing-review",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:54e4ae490604a4cfe658efde93c746e0ceaed4af664c31a275d52b05fe26e6bc",
+        "input_digest": "sha256:2844c9e671839de27ee705fc5b45e7dfb748699885997f67486b7b7a97c7c177",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -67,7 +67,7 @@
         "blocking": false,
         "check_id": "vulnerability_audit",
         "findings": [],
-        "input_digest": "sha256:3531fee2a7dcaa216180f6c43714a650d4c0b764fb62ab67e89cd27139257f07",
+        "input_digest": "sha256:a59ad0efc7c8b760a181f6c39c57d051b8d80f8d550953396e800086f6755622",
         "observations": [
           {
             "code": "TARGET_UNREACHABLE_ADVISORY",
@@ -113,7 +113,7 @@
         "blocking": false,
         "check_id": "ecosystem_threat_profile",
         "findings": [],
-        "input_digest": "sha256:02c8f8f21490a108a17c7535d101f285328a89eb59188af46179f932ed603a72",
+        "input_digest": "sha256:4538f5ccc0c00b1a053c4e09ea7ecebf7798424c05e9f0a222ee461e7458d974",
         "observations": [
           {
             "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
@@ -157,10 +157,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:1d740377a7f1dec477387ee7c29bb99bd3af180fae6c88de9e310f36c2eec922",
+    "root_digest": "sha256:a5267ee02938616aa88d53f40b4f27f1c8ef6a2f53a8207a3905cf656e1074bd",
     "schema_version": 1,
     "tool_version": "forme-release-audit/5"
   },
-  "digest": "sha256:6e2be4451db0822a732a5c0389d24818c723021a5b21875c178e89ccc3384ca3",
+  "digest": "sha256:bfc78be6b66eabc195916c177b2990157c1c8f5db614e5649c5da801bfe1ada4",
   "schema_version": 1
 }
