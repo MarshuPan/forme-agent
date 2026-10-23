@@ -8,6 +8,8 @@
 
 2026-10-24 `a53557f` 完成项目监管与工作空间后续调整组件：[组件验收](installed-product-project-supervision-acceptance.md)。权威状态、监管 CAS、与后台 tick 的暂停串行、旧 ledger replay 兼容、工作空间控制与长期意图入口均已实现；统一源码门 Rust 851 passed / 0 failed / 5 默认 ignored，严格 Clippy/前端/合规门通过，8 个命名工作台集成场景通过。该组件不提升 IP19 或 IP24 状态；当前真实浏览器和原生服务仍未验收。
 
+2026-10-24 基于 `a53557f` 重新编译 [Windows x64 原生候选](installed-product-windows-candidate-20261024.md)：17-file development bundle 与 Inno 安装器编译通过，SHA-256/签名/安装状态均有独立记录。候选明确 unsigned、uninstalled、`release_ready=false`；IP01/IP02/IP03/IP10/IP24 仍未通过，本机当前非管理员且没有已注册的 forme 服务。
+
 2026-10-23 `507cccf` 增加普通主动建议处置的 durable recovery：identity schema v9、owner/target/binding 唯一约束、刷新只读原命令、Unknown 保留及显式原号核实；维护 session fence 同步兼容 v9。当前源码 Rust 844 passed / 0 failed / 5 默认 ignored、strict Clippy、40 项前端测试、完整合规和结构门通过；前端依赖占用后的恢复过程及证据边界见[普通建议恢复组件验收](installed-product-proposal-recovery-acceptance.md)。真实浏览器与 IP20/IP24 仍未关闭，继续整体里程碑。
 
 2026-10-23 的后续提交补齐了对话会话产物目录/历史（`29a1790`）、pending run 的 owner 裁决密文保存/原命令核实/重启恢复（`69ee763`），以及会话 workspace 关联到后续正式 run 的主脑上下文绑定（`56dbed1`）。绑定组件已通过 workspace 回归和 Web→core 正式 runtime 集成场景；仍不等于真实浏览器、多进程、系统服务或 IP01–IP24 联合验收。详见[会话 workspace 运行上下文绑定组件验收](installed-product-session-workspace-binding-acceptance.md)。
@@ -30,7 +32,7 @@
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
 | 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 已有受管 Host、三个 daemon 的 SCM host 与 typed 注册/移除；`29984a4` 增加新安装路径分权、固定 Windows ACL helper 和实际临时 NTFS 组件验证。真实服务账户 token/有效拒绝、job 强隔离/网络与会话 helper 仍未验收或完成，普通 worker 在生产继续 blocked。 |
-| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle、精确签名/验签和三平台原生编译入口；POSIX 权限、新配置发布、首次安装/卸载失败边界已实现。Windows Inno 已真实编译未签名开发候选，未运行安装；其他原生编译器/管理员安装、完整生命周期事务、签名可发布原生包与跨平台验收未完成。 |
+| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle、精确签名/验签和三平台原生编译入口；POSIX 权限、新配置发布、首次安装/卸载失败边界已实现。2026-10-24 基于 `a53557f` 的 Windows Inno 候选已编译但未签名、未安装；其他原生编译器/管理员安装、完整生命周期事务、签名可发布原生包与跨平台验收未完成，详见[本轮候选报告](installed-product-windows-candidate-20261024.md)。 |
 | 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、受管 core 文件配置、私有模型凭据 resolver、签名会话桥与持久 nonce/fence 之后，`01b77f9` 完成模型配置 journal/staging/CAS、不可变凭据、重启恢复、静态校验、口令绑定启停与 core acknowledgement。实际 host/web/core 进程验证认领、配置持久化、幂等和正式 Run；已认证浏览器验证设置页。旧脑/备份接管、OS 恢复、LAN TLS、完整能力/渠道配置和整机初始化仍待实施。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、会话创建/列表/重命名/归档、对话/事件续接/审批/取消、附件加密上传与授权产物历史、pending/Unknown 原命令核实、会话 workspace 到后续 `SessionBound` 正式 run 上下文绑定、项目登记/路线规划/执行/取消、Charter 读写、权威项目监管快照与暂停/恢复、后续项目分段调整及长期意图取消、认知投影与处置、typed 活动运行 pending Inbox 投影、模型设置和受限维护。仍未闭合：剩余设置/维护/API、建议 Unknown 刷新恢复、真实浏览器完整流程及 IP17–23/IP24 联合产品验收。组件门不替代原生服务和正式安装包证据。 |
 
