@@ -16,7 +16,7 @@ try {
     }
     & cargo build --locked -p forme-execution --bin forme-hostd -p forme-cli --bin forme-hostctl -p forme-gateway --bin forme-webd --bin forme-gatewayd
     if ($LASTEXITCODE -ne 0) { throw 'Managed product binaries failed to build' }
-    & node --test tools/tests/managed_configuration.test.mjs
+    & node --test tools/tests/managed_configuration.test.mjs tools/tests/local_authority.test.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Managed configuration process test failed' }
     Write-Host 'Managed product configuration: PASS (durable state, service contract, actual Web/host/core process bridge)'
     Write-Host 'Native service-manager installation, live provider and IP01-IP24: NOT_RUN by this component gate'

@@ -35,6 +35,13 @@ export interface RuntimeView {
   service_states: { schema_version: 1; name: string; status: string; reason: string | null }[];
   digest: string;
 }
+export type RuntimeCheckStatus = 'ready' | 'disabled' | 'unsupported' | 'blocking';
+export interface RuntimeCheck {
+  schema_version: 1; name: string; status: RuntimeCheckStatus; reason: string | null;
+}
+export interface RuntimeDoctorView {
+  schema_version: 1; checks: RuntimeCheck[]; blocking: boolean; digest: string;
+}
 export interface ProductModelProfile {
   schema_version: 1; id: string; provider: string; model: string; base_url: string;
   context_window: number; tool_use: boolean; strength: 'basic' | 'standard' | 'strong';

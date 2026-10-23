@@ -11,18 +11,20 @@ import { ConversationCommands } from '../conversation.ts';
 import { SessionArtifacts } from './SessionArtifacts.tsx';
 import { RunPendingControls } from './RunPendingControls.tsx';
 import { runStatusMessage } from '../run-status.ts';
+import { acceptedUserInput } from '../conversation-view.ts';
 
 interface Props {
   api: WorkbenchClient; runtime: RuntimeView | null; runs: RunSummary[];
   sessions: WorkbenchSessionRecord[]; selected: string | null; select: (run: string | null) => void;
   refresh: () => Promise<void>; refreshSessions: () => Promise<void>;
+  observed: (run: RunSummary) => void;
   workspaceRevision: number;
   onPendingChange: (pending: boolean) => void;
 }
 
 type WorkspaceChange = { session: string; expectedUpdatedAt: number; workspace: string | null; key: string };
 
-export function Conversation({ api, runtime, runs, sessions, selected, select, refresh, refreshSessions, workspaceRevision, onPendingChange }: Props) {
+export function Conversation({ api, runtime, runs, sessions, selected, select, refresh, refreshSessions, observed, workspaceRevision, onPendingChange }: Props) {
   const [draft, setDraft] = useState('');
   const [session, setSession] = useState(() => sessions[0]?.session ?? newKey('session'));
   const [sessionTitle, setSessionTitle] = useState('新对话');
@@ -37,6 +39,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   const [artifactRevision, setArtifactRevision] = useState(0);
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
+  const [userInput, setUserInput] = useState<string | null>(null);
   const [events, setEvents] = useState<EventState>(() => emptyEvents(''));
   const [approvals, setApprovals] = useState<PendingApproval[]>([]);
   const [pendingView, setPendingView] = useState<RunPendingView | null>(null);
@@ -73,10 +76,10 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   }, [api, runtime, workspaceRevision]);
 
   useEffect(() => {
-    if (!selected) { setSummary(null); setEvents(emptyEvents('')); setAnswer(null); setApprovals([]); setPendingView(null); return; }
+    if (!selected) { setSummary(null); setEvents(emptyEvents('')); setAnswer(null); setUserInput(null); setApprovals([]); setPendingView(null); return; }
     let closed = false, timer: ReturnType<typeof setTimeout> | undefined, attempt = 0;
     let snapshot = emptyEvents(selected);
-    setSummary(null); setAnswer(null); setEvents(snapshot); setApprovals([]); setPendingView(null); setError('');
+    setSummary(null); setAnswer(null); setUserInput(null); setEvents(snapshot); setApprovals([]); setPendingView(null); setError('');
     async function poll() {
       try {
         const current = await api.run(selected!);
@@ -84,10 +87,11 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
         let next = reduceEvents(snapshot, incoming);
         if (next.gap) next = reduceEvents(emptyEvents(selected!), parseEvents(await api.events(selected!, 0)));
         if (next.gap) throw new Error('事件暂不连续，正在等待重新同步。');
+        const input = acceptedUserInput(next, current.session);
         const [output, waiting, pendingState] = await Promise.all([api.answer(selected!), api.approvals(current.session), api.runPending(selected!)]);
         if (closed) return;
         snapshot = next; attempt = 0; setEvents(snapshot); setSummary(current); setSession(current.session);
-        setAnswer(output.answer); setApprovals(waiting.filter((item) => item.run === selected)); setPendingView(pendingState); setError('');
+        setAnswer(output.answer); setUserInput(input); observed(current); setApprovals(waiting.filter((item) => item.run === selected)); setPendingView(pendingState); setError('');
         if (!isFinished(current.status)) timer = setTimeout(() => void poll(), current.status === 'Waiting' ? 5000 : 1800);
       } catch (problem) {
         if (closed) return;
@@ -98,10 +102,10 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     }
     void poll();
     return () => { closed = true; if (timer) clearTimeout(timer); };
-  }, [api, selected, revision]);
+  }, [api, selected, revision, observed]);
 
   async function submit(event: FormEvent) {
-    event.preventDefault(); if (!runtime) return;
+    event.preventDefault(); if (!runtime || currentSession?.archived) return;
     const request = commands.submit(api, savedSession(), draft, runtime.agent_profile);
     if (!request) return;
     commandState(); setError('');
@@ -179,7 +183,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   }
   async function chooseSession(value: string) {
     if (!value || locked) return;
-    setSession(value); select(null);
+    setSession(value); select(runs.filter((run) => run.session === value).at(-1)?.run ?? null);
   }
   async function cancel() {
     if (!selected) return;
@@ -196,11 +200,13 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     </header>
     {currentSession && <div className="session-context-row"><label className="session-context-control">后续运行工作空间<select aria-label="后续运行工作空间" value={currentSession.workspace ?? ''} disabled={locked || workspaceOptions.length === 0} onChange={(event) => associateWorkspace(event.target.value)}><option value="">默认工作空间{runtime ? `（${runtime.workspace}）` : ''}</option>{selectableWorkspaces.map((workspace) => <option key={workspace} value={workspace}>{workspace === runtime?.workspace ? `${workspace}（默认）` : workspace}</option>)}</select></label>{workspaceChange?.session === session && <button className="secondary-button" disabled={workspaceBusy} onClick={verifyWorkspaceChange}>{workspaceBusy ? '正在核实…' : '核实原关联'}</button>}{workspaceOptionsError && <span className="muted small" role="status">{workspaceOptionsError}</span>}</div>}
     {!runtime && <p className="notice" role="status">主脑暂不可用。可以在设置中查看连接状态。</p>}
+    {currentSession?.archived && <p className="notice" role="status">当前会话已归档，可以查看历史记录；请新建对话以继续交流。</p>}
     {error && <p role="alert" className="form-error">{error}</p>}
     <div className="conversation-layout"><div className="conversation-main">
       {related.length > 1 && <nav className="run-tabs" aria-label="当前会话运行">{related.map((run, i) => <button disabled={locked} className={selected === run.run ? 'active' : ''} key={run.run} onClick={() => select(run.run)}>第 {i + 1} 次 · {statusLabel(run.status)}</button>)}</nav>}
       <div className="messages" aria-live="polite" aria-relevant="additions text">
         {!summary && !selected && <div className="empty-state"><h2>{sessionTitle}，想一起做点什么？</h2><p>从一个问题、一项任务，或一个长期项目开始。</p></div>}
+        {userInput !== null && <article className="answer user-message"><p className="message-label">你</p><div className="message-text">{userInput}</div></article>}
         {answer !== null && <article className="answer"><p className="message-label">forme</p><div className="message-text">{answer}</div></article>}
         {summary && answer === null && <p className="muted">{runStatusMessage(summary)}</p>}
         {approvals.map((item) => <Approval key={item.approval_id} api={api} item={item} changed={() => { setRevision((v) => v + 1); void refresh(); }} />)}
@@ -210,10 +216,10 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
       {pending === 'upload' && <p className="notice" role="status">正在核实附件：{commands.pendingFilename}<button type="button" className="secondary-button" disabled={busy || !runtime} onClick={() => void upload()}>核实原上传</button></p>}
       <form className="composer" onSubmit={submit}>
         <label className="sr-only" htmlFor="message">给 forme 的消息</label>
-        <textarea id="message" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} maxLength={6000} disabled={locked} placeholder="说说你的想法，或交给 forme 一件事…" required />
+        <textarea id="message" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} maxLength={6000} disabled={locked || currentSession?.archived} placeholder="说说你的想法，或交给 forme 一件事…" required />
         <div className="composer-footer"><span className="muted">{pending ? '保留原操作标识，核实后再开始下一项。' : '任务执行与审批始终由主脑管理。'}</span>
-          <label className="secondary-button attachment-button">{busy && pending === 'upload' ? '正在上传…' : '添加附件'}<input type="file" onChange={chooseFile} disabled={locked || !runtime} /></label>
-          <button className="primary-button" disabled={busy || pending === 'upload' || !runtime || (!pending && !draft.trim())}>{busy ? '正在提交…' : pending === 'turn' ? '核实原提交' : '发送'}</button></div>
+          <label className="secondary-button attachment-button">{busy && pending === 'upload' ? '正在上传…' : '添加附件'}<input type="file" onChange={chooseFile} disabled={locked || !runtime || currentSession?.archived} /></label>
+          <button className="primary-button" disabled={busy || pending === 'upload' || !runtime || currentSession?.archived || (!pending && !draft.trim())}>{busy ? '正在提交…' : pending === 'turn' ? '核实原提交' : '发送'}</button></div>
       </form>
     </div><aside className="details-panel" aria-label="任务详情">
       <h2>任务详情</h2><p className="status-pill">{summary ? statusLabel(summary.status) : '尚未选择运行'}</p>

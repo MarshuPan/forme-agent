@@ -365,6 +365,7 @@ fn allowlisted_core_path(
     let (core_path, methods) = match segments.as_slice() {
         ["profile"] => ("/v1/profile".to_owned(), RouteMethods::Get),
         ["runtime", "manifest"] => ("/v1/runtime/manifest".to_owned(), RouteMethods::Get),
+        ["runtime", "doctor"] => ("/v1/runtime/doctor".to_owned(), RouteMethods::Get),
         ["runs"] => ("/v1/runs".to_owned(), RouteMethods::GetPost),
         ["runs", run] => (format!("/v1/runs/{run}"), RouteMethods::Get),
         ["runs", run, "events"] => (format!("/v1/runs/{run}/events"), RouteMethods::Get),
@@ -430,6 +431,7 @@ fn allowlisted_core_path(
             "profile"
                 | "runtime"
                 | "manifest"
+                | "doctor"
                 | "runs"
                 | "events"
                 | "answer"
@@ -506,7 +508,10 @@ mod tests {
             allowlisted_core_path("GET", "runs/run:one/pending", None).unwrap(),
             "/v1/runs/run:one/pending"
         );
-        assert!(allowlisted_core_path("GET", "runtime/doctor", None).is_err());
+        assert_eq!(
+            allowlisted_core_path("GET", "runtime/doctor", None).unwrap(),
+            "/v1/runtime/doctor"
+        );
         assert!(allowlisted_core_path("GET", "runs/run:one/events", Some("before=7")).is_err());
         assert!(allowlisted_core_path("GET", "runs/../events", None).is_err());
     }
@@ -545,7 +550,10 @@ mod tests {
         assert!(
             allowlisted_core_path("GET", "artifacts/content:fixture", Some("scope=other")).is_err()
         );
-        assert!(allowlisted_core_path("GET", "runtime/doctor", None).is_err());
+        assert!(allowlisted_core_path("POST", "runtime/doctor", None).is_err());
+        assert!(allowlisted_core_path("GET", "runtime/doctor", Some("tick=1")).is_err());
+        assert!(allowlisted_core_path("POST", "runtime/tick", None).is_err());
+        assert!(allowlisted_core_path("POST", "runtime/reload", None).is_err());
         assert!(allowlisted_core_path("GET", "unknown", None).is_err());
         assert!(allowlisted_core_path("POST", "candidates/candidate:one/review", None).is_err());
         assert!(allowlisted_core_path("POST", "profile", None).is_err());

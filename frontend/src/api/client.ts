@@ -7,6 +7,7 @@ import { isWorkbenchProposal } from '../workbench.ts';
 import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
 import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
+import { parseRuntimeDoctor } from '../runtime-diagnostics.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -138,6 +139,7 @@ export class WorkbenchClient {
   maintenanceOperation(operation: string) { return this.json<ProductOperation>(`product/maintenance/operations/${id(operation)}`); }
   profile() { return this.json<ControlProfile>('brain/profile'); }
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }
+  async runtimeDoctor() { return parseRuntimeDoctor(await this.json<unknown>('brain/runtime/doctor')); }
   runs() { return this.json<RunSummary[]>('brain/runs'); }
   run(run: string) { return this.json<RunSummary>(`brain/runs/${id(run)}`); }
   runPending(run: string) { return this.json<RunPendingView>(`brain/runs/${id(run)}/pending`); }

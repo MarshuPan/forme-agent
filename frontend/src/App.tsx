@@ -6,6 +6,7 @@ import { Conversation, statusLabel } from './components/Conversation.tsx';
 import { Settings } from './components/Views.tsx';
 import { BrainInbox, CognitionView } from './components/BrainViews.tsx';
 import { WorkspaceView } from './components/Workspace.tsx';
+import { mergeObservedRun } from './conversation-view.ts';
 
 const tabs = [ ['conversation', '对话'], ['workspace', '工作空间'], ['inbox', '收件箱'], ['cognition', '记忆与认知'], ['settings', '设置'] ] as const;
 type Tab = typeof tabs[number][0];
@@ -24,7 +25,8 @@ export function App() {
   const [issue, setIssue] = useState('');
   const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setConversationPending(false); setEntry('login'); }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
-  const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns(items); }, [api]);
+  const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns((current) => items.map((run) => current.find((item) => item.run === run.run && item.last_stream_seq > run.last_stream_seq) ?? run)); }, [api]);
+  const observeRun = useCallback((run: RunSummary) => { setRuns((items) => mergeObservedRun(items, run)); }, []);
   const refreshSessions = useCallback(async () => { const view = await api.workbenchSessions(); setSessions(view.sessions); }, [api]);
   const refreshCore = useCallback(async () => {
     try { const [next] = await Promise.all([api.runtime(), refreshSessions()]); setRuntime(next); setIssue(''); await refreshRuns(); }
@@ -76,7 +78,7 @@ export function App() {
       <p className="section-label">最近运行</p><div className="recent-runs">{runs.slice(-12).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small>{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">还没有运行记录</p>}</div>
       <p className="sidebar-footnote">一个主脑，持续协同。</p>
     </aside><main id="main-content" className="main-content" key={session.account_ref}>
-      <div hidden={tab !== 'conversation'}><Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
+      <div hidden={tab !== 'conversation'}><Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} observed={observeRun} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
       <div hidden={tab !== 'workspace'}><WorkspaceView api={api} runtime={runtime} open={open} /></div>
       {tab === 'inbox' && <BrainInbox api={api} open={open} />}
       {tab === 'cognition' && <CognitionView api={api} open={open} />}

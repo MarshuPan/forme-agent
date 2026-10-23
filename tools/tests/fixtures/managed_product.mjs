@@ -10,7 +10,6 @@ import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('../../../', import.meta.url));
 const suffix = process.platform === 'win32' ? '.exe' : '';
-const executable = (name) => path.join(repo, 'target/debug', name + suffix);
 export const readJson = async (file) => JSON.parse(await fs.readFile(file, 'utf8'));
 export const writeJson = (file, value) => fs.writeFile(file, JSON.stringify(value), { mode: 0o600 });
 
@@ -25,7 +24,9 @@ async function allocatePorts(count) {
   } finally { await Promise.all(servers.map((server) => new Promise((resolve) => server.close(resolve)))); }
 }
 
-export async function createManagedProduct() {
+export async function createManagedProduct({ binaries = path.join(repo, 'target/debug') } = {}) {
+  assert.ok(path.isAbsolute(binaries), 'fixture binary directory must be absolute');
+  const executable = (name) => path.join(binaries, name + suffix);
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'forme-config-process-'));
   const processes = new Set();
   const environment = { TEMP: root, TMP: root };

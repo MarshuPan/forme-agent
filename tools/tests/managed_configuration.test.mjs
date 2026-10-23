@@ -124,9 +124,15 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   const projects = await exerciseWebProjects(product, runtime);
   assert.equal(modelRequests.length, beforeArtifacts, 'artifact operations must not call the model');
   const runKey = 'run:managed-configuration-fixture';
-  const run = await product.request('/api/v1/brain/runs', { method: 'POST', key: runKey, expected: 202, body: {
+  const unregistered = {
     schema_version: 1, source: 'UserTurn', session: 'session:configuration-process', agent_profile: product.template.agent_profile,
-    input: 'Verify the managed fixture configuration.', budget: null, idempotency_key: runKey } });
+    input: 'Verify the managed fixture configuration.', budget: null, idempotency_key: runKey };
+  await product.request('/api/v1/brain/runs', { method: 'POST', key: runKey, expected: 400, body: unregistered });
+  assert.equal(modelRequests.length, beforeArtifacts, 'unregistered sessions must not reach the model');
+  const conversation = await product.request('/api/v1/sessions', { method: 'POST', key: 'session:configuration-process', body: {
+    schema_version: 1, command: 'session:configuration-process', title: 'Managed process fixture', workspace: null } });
+  const run = await product.request('/api/v1/brain/runs', { method: 'POST', key: runKey, expected: 202,
+    body: { ...unregistered, session: conversation.session } });
   const terminal = new Set(['Complete', 'Failed', 'Aborted', 'Limited']);
   const deadline = Date.now() + 30000;
   let summary;

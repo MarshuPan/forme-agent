@@ -17,6 +17,8 @@ mod data_views;
 mod project_views;
 #[path = "web_workbench/proposal_views.rs"]
 mod proposal_views;
+#[path = "web_workbench/runtime_views.rs"]
+mod runtime_views;
 
 struct Reply {
     status: u16,
@@ -305,6 +307,7 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
         403
     );
     let (cookie, csrf) = login(web_address).await;
+    runtime_views::verify(web_address, &runtime, &fixture.calls, &cookie, &csrf).await;
     let created_session = request(
         web_address,
         "POST",

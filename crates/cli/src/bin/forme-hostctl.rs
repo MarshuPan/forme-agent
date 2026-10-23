@@ -132,26 +132,16 @@ fn recover_login(args: &[String]) -> Result<(), String> {
 fn require_local_administrator() -> Result<(), String> {
     #[cfg(windows)]
     {
-        let output = std::process::Command::new("whoami.exe")
-            .args(["/groups"])
-            .output()
-            .map_err(|_| "cannot verify Windows administrator authority".to_owned())?;
-        let text = String::from_utf8_lossy(&output.stdout);
-        if !output.status.success()
-            || !text.contains("S-1-5-32-544")
-            || !(text.contains("Enabled") || text.contains("已启用"))
-        {
+        // Inspect this process's OS token, not PATH-controlled commands or
+        // localized group text (a deny-only admin SID grants no authority).
+        if !is_elevated::is_elevated() {
             return Err("local administrator authority is required".into());
         }
         Ok(())
     }
     #[cfg(unix)]
     {
-        let output = std::process::Command::new("id")
-            .arg("-u")
-            .output()
-            .map_err(|_| "cannot verify local administrator authority".to_owned())?;
-        if !output.status.success() || String::from_utf8_lossy(&output.stdout).trim() != "0" {
+        if !rustix::process::geteuid().is_root() {
             return Err("local administrator authority is required".into());
         }
         Ok(())
