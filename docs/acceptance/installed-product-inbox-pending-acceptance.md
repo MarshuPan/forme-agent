@@ -19,6 +19,7 @@
 - `npm run verify`：TypeScript 检查通过，前端 35/35 测试通过，嵌入静态资源校验通过（7 个文件、70 个锁定依赖）。
 - `pwsh -NoProfile -ExecutionPolicy Bypass -File tools/verify-web-workbench.ps1`：8 个命名 Web 工作台集成场景通过；该门使用计数模型 fixture。
 - `py -3 tools/code-quality.py`：PASS（548 个文件，63 项历史规模债务未增长）；`bash tools/compliance-doctor.sh`：PASS（upstream/license/copy）；`git diff --check`：PASS。
+- `npm run dev -- --host 127.0.0.1` 已启动本地静态预览；独立 Vite 页面因没有运行受管 Web API 服务而显示 HTTP 404/暂时无法连接，不构成登录后工作台或浏览器验收。
 
 ## 未覆盖
 
