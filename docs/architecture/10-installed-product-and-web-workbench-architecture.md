@@ -188,6 +188,8 @@ Binary rollback 只在 schema/config 兼容时允许；不兼容进入新路径�
 
 SSE 重连使用权威 cursor；gap/retention 时重新取 snapshot + watermark，不能漏掉审批/终态。未确认提交用原幂等 key 查询/重试；不能以 UI timeout 推断 core 未执行。页面只展示模型公开输出、已记录 decision rationale、动作、证据和结果，不索取或伪造隐藏 CoT。
 
+项目状态来自主脑的固定事件视图，包含权威 project digest、checkpoint、活跃路线、长期监管开关/版本与有界 review 判定；Web 不推断主脑已经思考或生成新路线。监管开关以既有 DecisionTraceRecorded 的 typed orchestration 事实保存，历史默认启用、空新增投影不改变旧 digest；背景快照和最终 route append 都检查暂停状态。owner 暂停只阻止后续自动规划，当前运行取消仍走原 control。工作空间选择、charter/项目修订与 jobs 列表均使用正式 API，不构造项目私有脑或浏览器 scheduler。具体协议见 PRD26 §4.7。
+
 Markdown/HTML、附件、产物预览按不可信内容渲染。严格 CSP、无任意 script/raw HTML、链接协议校验、iframe sandbox/独立下载授权；artifact 只能通过授权 ref 访问。provider key/内部 bearer/数据 key 不进入 JS bundle、localStorage、诊断包或前端 telemetry。
 
 ## 11. 联合实施与不漂移约束

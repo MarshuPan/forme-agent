@@ -120,6 +120,16 @@ Web identity DB 是该恢复记录的唯一 owner；不把普通建议处置命�
 
 认证后 `GET /api/v1/workbench/proposals/pending` 返回 `{schema_version: 1, commands: WorkbenchProposalCommand[]}`，最多 256 条且只含当前 owner 未决记录。读回时逐条验证 owner、schema 与 binding digest；坏记录导致恢复错误，不跳过或部分显示。前端仅以内存将列表按 `(run, proposal)` 关联 Inbox；匹配不到当前 Suggestion 时仍展示安全的“原处置待核实”条目。恢复动作必须由 owner 显式触发，并原样重发列表中的命令。页面加载/刷新只读不发命令；终态后刷新正式 brain projection。此记录只用于找回命令，不替代主脑回执或主脑事件作为事实源。
 
+### 4.7 项目监管与工作空间权威视图
+
+`GET /api/v1/brain/projects/status` 经既有签名桥调用同一路径的 core 视图，返回 versioned `WorkspaceControlSnapshot { observed_at, revision, workspaces, projects, stream_heads }`。每个 `WorkspaceProjectControlView` 包含 project ref、core 计算的 project digest、`ProjectSupervisionState { schema_version, version, enabled }`、checkpoint、活跃 route refs、下次 cadence、监管判定与理由/证据引用。监管判定为 Paused/ActiveRoute/Due/NotDue/Unverifiable；达到既有一次最多 16 项 review 的上限时，不把未评估项谎报为 NotDue。视图只读，数据 fence 与 scope/owner 验证继续有效；快照中途变化返回 409。单次上限 256 个项目/工作空间，超限拒绝，不默默丢项。
+
+`POST /api/v1/brain/projects/supervision` 接受封闭 `ProjectSupervisionCommand { schema_version, command, project, expected_project_digest, expected_version, enabled }`；Idempotency-Key 必须一致。owner 暂停/恢复后续监管通过既有 `DecisionTraceRecorded.orchestration` 的 additive `ProjectSupervisionChanged` 事实提交；不新增 EventKind、crate 或依赖边。事件只含 project、expected digest/version 与 enabled。`OrchestrationLedger.supervision` 是可重放投影，历史缺失表示 version=0/enabled=true；空 map 在序列化中省略，保留旧 ledger digest。
+
+mutation 在单写者/CAS 内核对当前 project digest 与 supervision version；并发同版本最多一条成功。相同 command/相同语义返回原事件，异义复用拒绝；回执复用带 owner/command binding 的 `WorkbenchCommandReceipt`。暂停不取消在途 route、子代理或未知动作，也不影响 owner 显式规划；恢复仅重新允许下一个受治理背景 tick 规划，不立即执行。背景 snapshot 与最后 route append 都检查 enabled，晚到暂停必须在 route 提交前生效。暂停/恢复不能授予工具或扩大权限。
+
+工作空间页可在默认 workspace 与已登记项目/charter 的 workspace 之间切换；既有 charter API 继续服务各自 workspace。项目编辑使用视图的 authoritative project digest 和既有 ProjectRevised，保留固定 identity/workspace/goal/done；summary、cadence、signature、model/budget 等改变只影响下一 segment。表单未确认时保留原 body/key，409 明确要求重新读取，不能在 catch 后生成新 key 冒充成功。长期意图使用既有 jobs API，按 binding/envelope scope 归属 workspace；取消与暂停监管分开显示，不将 CancelRequested 等同于动作停止。
+
 ## 5. 页面、行为与状态
 
 ### 5.1 全局外壳与初始化
@@ -233,6 +243,8 @@ Web identity DB 是该恢复记录的唯一 owner；不把普通建议处置命�
 单元重点 reducer 重复/gap、snapshot merge、command key、审批过期/冲突与错误状态，不为静态布局镜像编写无意义测试。交互集成用自建 fixtures，覆盖表单、权限、附件、候选、长任务续接与真实服务错误。
 
 普通建议恢复至少覆盖：identity DB 写入先于 core dispatch；同 owner/同 binding 幂等读取；异 owner/异 binding 冲突零转发；Web 重启后读取到字节/字段等价的原命令；Unknown/断线/超时保留；明确终态回执后才删除；终态已在 core 但 Web 删除/响应中断时可安全核实；没有当前 inbox item 时仍可找到原操作；页面加载不触发 mutation；整个流程 driver/event 计数证明无新 command key、无重复建议副作用。
+
+项目监管覆盖：旧 ledger digest/重放兼容；非 owner/陈旧 project digest/version 零事件；同号重放与异义拒绝；双请求 CAS 仅一条改变；暂停重启后仍阻止背景规划；恢复不调用模型/driver；当前 route 不被暂停伪装成取消；背景 route 提交与晚到暂停串行。只读状态及浏览器切换 workspace 不调用模型、不生成 route；项目修订不热换原路线，未确认的规划/编辑保持原 key/body。
 
 浏览器端验证 IP17–23：两 tab 重复提交只一个 run；流中刷新后完整；logout 后无私有缓存；审批参数变化 driver=0；恶意 Markdown/HTML/SVG/路径不能执行/越权；core crash 时设置仍可用；读流与命令独立限流。验证 Windows/macOS/Linux 支持浏览器与窄屏，键盘完成登录/对话/审批。
 
