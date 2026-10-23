@@ -14,6 +14,14 @@ export interface ArtifactUploadReceipt {
   schema_version: 1; content_ref: string; content_digest: string; scope: string;
   bytes: number; file_name: string; media_type: string;
 }
+export interface ArtifactCatalogEntry {
+  schema_version: 1; content_ref: string; content_digest: string; scope: string;
+  bytes: number; file_name: string | null; media_type: string | null;
+}
+export interface ArtifactCatalogView {
+  schema_version: 1; session: string; digest: string; total: number;
+  next_offset: number | null; artifacts: ArtifactCatalogEntry[];
+}
 export type WorkbenchSessionMutation =
   | { operation: 'rename'; title: string }
   | { operation: 'archive'; archived: boolean }

@@ -8,6 +8,7 @@ import { createManagedProduct, readJson } from './fixtures/managed_product.mjs';
 import { exerciseOfflineData } from './fixtures/offline_data_process.mjs';
 import { exerciseRestoreWorker, setFixtureAdmission } from './fixtures/restore_worker_process.mjs';
 import { exerciseWebRestoreCandidate } from './fixtures/restore_web_process.mjs';
+import { exerciseWebArtifacts } from './fixtures/artifacts_web_process.mjs';
 
 const password = 'configuration process fixture 82';
 const credential = 'fixture-model-key-not-a-real-secret';
@@ -20,7 +21,7 @@ const save = (baseUrl, revision = 0, operation = 'config:process-first') => ({ s
     timeout_ms: 10000, fallback_group: null, default: true, tool_schema_versions: [1] }] });
 
 test('claim, Web config, restart recovery and real ProductionRuntime acknowledgement', {
-  timeout: process.env.FORME_CONFIG_BROWSER_PREVIEW === '1' ? 600000 : 180000,
+  timeout: process.env.FORME_CONFIG_BROWSER_PREVIEW === '1' ? 600000 : 300000,
 }, async (t) => {
   const product = await createManagedProduct();
   t.after(() => product.cleanup());
@@ -117,6 +118,9 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   const coreConfig = await readJson(product.template.core_config_path);
   assert.equal(coreConfig.brain.owner, session.session.owner);
   assert.equal(JSON.stringify(coreConfig).includes(credential), false);
+  const beforeArtifacts = modelRequests.length;
+  const artifacts = await exerciseWebArtifacts(product, coreConfig);
+  assert.equal(modelRequests.length, beforeArtifacts, 'artifact operations must not call the model');
   const runKey = 'run:managed-configuration-fixture';
   const run = await product.request('/api/v1/brain/runs', { method: 'POST', key: runKey, expected: 202, body: {
     schema_version: 1, source: 'UserTurn', session: 'session:configuration-process', agent_profile: product.template.agent_profile,
@@ -162,6 +166,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   await new Promise((resolve) => setTimeout(resolve, product.template.authority_lease + 200));
   core = await product.startCore();
   assert.equal((await product.request('/api/v1/product/config')).acknowledged_revision, 2);
+  await artifacts.verify();
   // Acknowledgement means loaded, not that the rotated provider credential works.
   assert.equal((await readJson(product.template.configuration_ack_path)).revision, 2);
   await product.stop(core);

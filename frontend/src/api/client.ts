@@ -1,4 +1,5 @@
 import { isRecord, versioned } from '../types.ts';
+import type { ArtifactCatalogView } from '../types.ts';
 import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
 import type { WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
@@ -20,15 +21,20 @@ const id = (value: string) => encodeURIComponent(value);
 /** Only same-origin, allowlisted endpoints. No provider URL or internal token. */
 export class WorkbenchClient {
   private csrf: string | null = null;
+  private generation = 0;
   private readonly transport: typeof fetch;
   private readonly expired: () => void;
   constructor(transport = fetch, expired = () => {}) {
     // Browser fetch checks its receiver. Keep it detached from this client.
     this.transport = (...args) => transport(...args); this.expired = expired;
   }
-  clear() { this.csrf = null; }
+  clear() { this.csrf = null; this.generation++; }
+  private current(generation: number) {
+    if (generation !== this.generation) throw new ApiError(401, 'SessionChanged', '登录状态已变化，请重新读取当前页面。');
+  }
 
   private async request(path: string, method = 'GET', body?: unknown, key?: string): Promise<Response> {
+    const generation = this.generation;
     const headers = new Headers({ Accept: 'application/json' });
     if (method !== 'GET') {
       if (!key) throw new Error('操作缺少稳定标识。');
@@ -46,6 +52,7 @@ export class WorkbenchClient {
       // Mutation outcomes are unknown. Never create a new key or retry here.
       throw new ApiError(0, 'ConnectionLost', '连接中断；操作结果尚未确认，请使用原操作继续核实。');
     }
+    this.current(generation);
     if (!response.ok) {
       const retry = response.headers.get('Retry-After');
       const seconds = retry !== null ? Number(retry) : NaN;
@@ -58,15 +65,18 @@ export class WorkbenchClient {
           if (typeof problem.safe_message === 'string') message = problem.safe_message;
         }
       } catch { /* Never display raw upstream error bodies. */ }
+      this.current(generation);
       if (response.status === 401) { this.clear(); this.expired(); }
       throw new ApiError(response.status, code, message, retryAfterMs);
     }
     return response;
   }
   private async json<T>(path: string, method = 'GET', body?: unknown, key?: string): Promise<T> {
+    const generation = this.generation;
     const response = await this.request(path, method, body, key);
     if (response.status === 204) return undefined as T;
     const value: unknown = await response.json();
+    this.current(generation);
     if (isRecord(value)) versioned(value);
     if (Array.isArray(value)) for (const item of value) if (isRecord(item)) versioned(item);
     return value as T;
@@ -135,14 +145,19 @@ export class WorkbenchClient {
     const bytes = new Uint8Array(await file.arrayBuffer());
     let bytesHex = '';
     for (const byte of bytes) bytesHex += byte.toString(16).padStart(2, '0');
-    return this.json<ArtifactUploadReceipt>('artifacts/upload', 'POST', {
+    return this.json<ArtifactUploadReceipt>('brain/artifacts/upload', 'POST', {
       schema_version: 1, command: operation, session, workspace,
       file_name: file.name, media_type: file.type || 'application/octet-stream', bytes_hex: bytesHex,
     }, operation);
   }
   async artifact(contentRef: string, session: string) {
-    const response = await this.request(`artifacts/${id(contentRef)}?session=${id(session)}`);
+    const response = await this.request(`brain/artifacts/${id(contentRef)}?session=${id(session)}`);
     return response.blob();
+  }
+  artifacts(session: string, offset = 0, snapshot: string | null = null) {
+    return this.json<ArtifactCatalogView>('brain/artifacts/query', 'POST', {
+      schema_version: 1, session, page: { schema_version: 1, offset, limit: 50, snapshot },
+    }, newKey('artifact-query'));
   }
   answer(run: string) { return this.json<{ schema_version: 1; run: string; answer: string | null }>(`brain/runs/${id(run)}/answer`); }
   approvals(session: string) { return this.json<PendingApproval[]>(`brain/sessions/${id(session)}/approvals`); }

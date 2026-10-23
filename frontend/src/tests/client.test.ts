@@ -89,13 +89,13 @@ test('artifact upload and download stay on same-origin scoped routes', async () 
   });
   const receipt = await api.uploadArtifact('session:one', null, new File(['hi'], 'a.txt', { type: 'text/plain' }), 'artifact:one');
   assert.equal(receipt.content_ref, 'content:fixture');
-  assert.equal(calls[0].path, '/api/v1/artifacts/upload');
+  assert.equal(calls[0].path, '/api/v1/brain/artifacts/upload');
   assert.equal(new Headers(calls[0].request.headers).get('Idempotency-Key'), 'artifact:one');
   const body = JSON.parse(String(calls[0].request.body));
   assert.equal(body.bytes_hex, '6869');
   const bytes = new Uint8Array(await (await api.artifact(receipt.content_ref, 'session:one')).arrayBuffer());
   assert.deepEqual([...bytes], [104, 105]);
-  assert.equal(calls[1].path, '/api/v1/artifacts/content%3Afixture?session=session%3Aone');
+  assert.equal(calls[1].path, '/api/v1/brain/artifacts/content%3Afixture?session=session%3Aone');
 });
 
 test('brain view pages retain their server digest and review controls retain the original binding', async () => {

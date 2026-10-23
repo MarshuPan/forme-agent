@@ -83,6 +83,12 @@ pub(super) fn bind_body(
         }
         return serde_json::to_vec(&command).map_err(|_| WebError::invalid());
     }
+    if path == "artifacts/query" {
+        let query: p::ArtifactCatalogQuery =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        query.validate().map_err(|_| WebError::invalid())?;
+        return serde_json::to_vec(&query).map_err(|_| WebError::invalid());
+    }
     if path == "artifacts/upload" {
         let command: p::ArtifactUploadCommand =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;

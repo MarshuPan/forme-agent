@@ -240,6 +240,12 @@ fn router(state: Arc<WebState>) -> Router {
             get(maintenance::operation),
         )
         .route(
+            "/api/v1/brain/artifacts/upload",
+            post(core_routes::upload).layer(DefaultBodyLimit::max(
+                p::ArtifactUploadCommand::MAX_REQUEST_BYTES,
+            )),
+        )
+        .route(
             "/api/v1/brain/{*path}",
             get(core_routes::read)
                 .post(core_routes::mutate)

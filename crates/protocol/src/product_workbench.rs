@@ -144,6 +144,48 @@ pub struct ArtifactUploadReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ArtifactCatalogQuery {
+    pub schema_version: SchemaVersion,
+    pub session: SessionId,
+    pub page: crate::DataPageQuery,
+}
+
+impl ArtifactCatalogQuery {
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.schema_version != SchemaVersion(1) || !valid_id(&self.session.0) {
+            return Err(crate::Error("artifact catalog query is invalid".into()));
+        }
+        self.page.validate()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactCatalogEntry {
+    pub schema_version: SchemaVersion,
+    pub content_ref: ContentRef,
+    pub content_digest: SchemaDigest,
+    pub scope: crate::Scope,
+    pub bytes: u64,
+    /// Older uploads have no retained filename or media type. Reading them
+    /// must not manufacture metadata or silently write a migration.
+    pub file_name: Option<String>,
+    pub media_type: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArtifactCatalogView {
+    pub schema_version: SchemaVersion,
+    pub session: SessionId,
+    pub digest: SchemaDigest,
+    pub total: usize,
+    pub next_offset: Option<usize>,
+    pub artifacts: Vec<ArtifactCatalogEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ArtifactUploadCommand {
     pub schema_version: SchemaVersion,
     pub command: IdempotencyKey,
@@ -158,6 +200,11 @@ pub struct ArtifactUploadCommand {
 }
 
 impl ArtifactUploadCommand {
+    pub const MAX_CONTENT_BYTES: usize = 4 * 1024 * 1024;
+    /// The dedicated upload transport accepts hex plus a bounded JSON envelope.
+    /// This ceiling must not increase limits on ordinary control requests.
+    pub const MAX_REQUEST_BYTES: usize = 2 * Self::MAX_CONTENT_BYTES + 8192;
+
     pub fn validate(&self) -> crate::Result<()> {
         if self.schema_version != SchemaVersion(1)
             || !valid_id(&self.command.0)
@@ -172,7 +219,7 @@ impl ArtifactUploadCommand {
                 .chars()
                 .any(|value| value.is_control() || value == '\n' || value == '\r')
             || self.bytes_hex.is_empty()
-            || self.bytes_hex.len() > 8 * 1024 * 1024
+            || self.bytes_hex.len() > 2 * Self::MAX_CONTENT_BYTES
             || !self.bytes_hex.len().is_multiple_of(2)
             || !self
                 .bytes_hex

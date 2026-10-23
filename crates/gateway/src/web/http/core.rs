@@ -12,6 +12,24 @@ use crate::web::identity::WebIdentityService;
 #[path = "core/commands.rs"]
 mod commands;
 
+pub(super) async fn upload(
+    State(state): State<Arc<WebState>>,
+    uri: Uri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, WebError> {
+    forward(
+        state,
+        Method::POST,
+        "artifacts/upload".into(),
+        uri.query(),
+        headers,
+        body,
+        true,
+    )
+    .await
+}
+
 pub(super) async fn read(
     State(state): State<Arc<WebState>>,
     uri: Uri,
@@ -202,6 +220,7 @@ fn allowlisted_core_path(
         ["learning", "answer"] => ("/v1/brain/learning/answer".to_owned(), RouteMethods::Post),
         ["learning", "resolve"] => ("/v1/brain/learning/resolve".to_owned(), RouteMethods::Post),
         ["artifacts", "upload"] => ("/v1/artifacts/upload".to_owned(), RouteMethods::Post),
+        ["artifacts", "query"] => ("/v1/artifacts/query".to_owned(), RouteMethods::Post),
         ["artifacts", artifact] => (format!("/v1/artifacts/{artifact}"), RouteMethods::Get),
         ["workspaces", workspace, "charter"] => (
             format!("/v1/workspaces/{workspace}/charter"),
@@ -277,7 +296,7 @@ fn allowlisted_core_path(
             let after = after.parse::<u64>().map_err(|_| WebError::invalid())?;
             Ok(format!("{core_path}?after={after}"))
         }
-        Some(value) if matches!(segments.as_slice(), ["artifacts", _]) => {
+        Some(value) if method == "GET" && matches!(segments.as_slice(), ["artifacts", _]) => {
             let session = value
                 .strip_prefix("session=")
                 .filter(|value| {

@@ -2,14 +2,46 @@
 
 use std::sync::Arc;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
+use axum::routing::{get, post};
+use axum::{Json, Router};
 use forme_protocol as p;
 use serde::Deserialize;
 
 use super::{ApiError, HttpState};
+
+pub(super) fn routes() -> Router<Arc<HttpState>> {
+    Router::new()
+        .route(
+            "/v1/artifacts/upload",
+            post(upload).layer(DefaultBodyLimit::max(
+                p::ArtifactUploadCommand::MAX_REQUEST_BYTES,
+            )),
+        )
+        .route("/v1/artifacts/query", post(query))
+        .route("/v1/artifacts/{id}", get(read))
+}
+
+async fn query(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(query): Json<p::ArtifactCatalogQuery>,
+) -> Result<Json<p::ArtifactCatalogView>, ApiError> {
+    state.authorize(&headers, false)?;
+    let (runtime, owner) = (state.runtime.clone(), state.owner.clone());
+    state
+        .blocking(move || runtime.query_workbench_artifacts(&owner, query))
+        .await
+        .map(Json)
+        .map_err(|mut error| {
+            if error.message == "artifact catalog snapshot conflict" {
+                error.status = StatusCode::CONFLICT;
+            }
+            error
+        })
+}
 
 pub(super) async fn upload(
     State(state): State<Arc<HttpState>>,

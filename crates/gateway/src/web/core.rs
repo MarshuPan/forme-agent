@@ -59,7 +59,12 @@ impl CoreBridgeClient {
         {
             return Err(p::Error("core bridge route is invalid".into()));
         }
-        if body.len() > MAX_RESPONSE_BYTES {
+        let limit = if method == "POST" && path == "/v1/artifacts/upload" {
+            p::ArtifactUploadCommand::MAX_REQUEST_BYTES
+        } else {
+            256 * 1024
+        };
+        if body.len() > limit {
             return Err(p::Error("core bridge request exceeds its bound".into()));
         }
         let request_target = path;

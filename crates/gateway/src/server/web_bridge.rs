@@ -204,9 +204,18 @@ async fn authenticate_web_request(
     request: Request,
 ) -> Result<Request, ApiError> {
     let (mut parts, body) = request.into_parts();
-    let body = to_bytes(body, state.max_body_bytes)
-        .await
-        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "core bridge body is invalid"))?;
+    let limit =
+        if parts.method == axum::http::Method::POST && parts.uri.path() == "/v1/artifacts/upload" {
+            p::ArtifactUploadCommand::MAX_REQUEST_BYTES
+        } else {
+            state.max_body_bytes
+        };
+    let body = to_bytes(body, limit).await.map_err(|_| {
+        ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "core bridge body is too large",
+        )
+    })?;
     let request_digest = p::canonical_digest(&(
         p::SchemaVersion(1),
         "forme-web-core-request-v1",

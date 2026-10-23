@@ -17,10 +17,11 @@ export function App() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [sessions, setSessions] = useState<WorkbenchSessionRecord[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [conversationPending, setConversationPending] = useState(false);
   const [tab, setTab] = useState<Tab>('conversation');
   const [menu, setMenu] = useState(false);
   const [issue, setIssue] = useState('');
-  const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setEntry('login'); }, []);
+  const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setConversationPending(false); setEntry('login'); }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns(items); }, [api]);
   const refreshSessions = useCallback(async () => { const view = await api.workbenchSessions(); setSessions(view.sessions); }, [api]);
@@ -60,7 +61,7 @@ export function App() {
   }, [api, clear, entry]);
 
   async function logout() { try { await api.logout(); clear(); } catch (problem) { setIssue(problem instanceof Error ? problem.message : '退出结果未确认。'); } }
-  function open(run: string) { setSelected(run); setTab('conversation'); setMenu(false); }
+  function open(run: string) { if (!conversationPending) setSelected(run); setTab('conversation'); setMenu(false); }
 
   return <><a href="#main-content" className="skip-link">跳到主要内容</a><header className="topbar"><a className="brand" href="/" aria-label="forme 首页">forme<span className="brand-dot">.</span></a>
     <span className="service-state"><i data-ready={Boolean(runtime)} />{entry === 'ready' ? runtime ? '主脑已连接' : '已登录 · 主脑离线' : entry === 'checking' ? '连接本机服务' : '个人 Agent 工作台'}</span>
@@ -74,7 +75,7 @@ export function App() {
       <p className="section-label">最近运行</p><div className="recent-runs">{runs.slice(-12).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small>{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">还没有运行记录</p>}</div>
       <p className="sidebar-footnote">一个主脑，持续协同。</p>
     </aside><main id="main-content" className="main-content" key={session.account_ref}>
-      {tab === 'conversation' && <Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} />}
+      <div hidden={tab !== 'conversation'}><Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} onPendingChange={setConversationPending} /></div>
       {tab === 'workspace' && <WorkspaceView api={api} runtime={runtime} />}
       {tab === 'inbox' && <BrainInbox api={api} runs={runs} open={open} />}
       {tab === 'cognition' && <CognitionView api={api} open={open} />}
