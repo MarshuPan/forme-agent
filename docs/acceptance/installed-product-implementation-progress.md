@@ -2,7 +2,7 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`，当前实现提交 `dd76f20`（改密码操作幂等绑定）；其前 `56dbed1` 将会话 workspace 绑定到后续正式 run 上下文，`69ee763` 增加 owner 对运行未知结果的持久裁决与恢复。对应文档契约提交 `7e199a7`。此前 `29a1790` 补齐会话产物历史，`e36b5b9` 补齐恢复候选工作台/发布重新认证；再前为 `5b99ac5`（恢复执行边界与 Host 提交准入）、`b16997c`（原生打包入口/POSIX 权限）、`92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）。验证日期 2026-10-23。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
+最新施工分支：`shu/installed-product`，当前实现提交 `95b9d71`（运行待决 Inbox 投影）；其前 `dd76f20` 补齐改密码操作幂等绑定，`56dbed1` 将会话 workspace 绑定到后续正式 run 上下文，`69ee763` 增加 owner 对运行未知结果的持久裁决与恢复。对应文档契约提交 `7e199a7`。此前 `29a1790` 补齐会话产物历史，`e36b5b9` 补齐恢复候选工作台/发布重新认证；再前为 `5b99ac5`（恢复执行边界与 Host 提交准入）、`b16997c`（原生打包入口/POSIX 权限）、`92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）。验证日期 2026-10-23。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
 
 ## 1. 实施顺序与当前范围
 
@@ -28,7 +28,7 @@
 | 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 已有受管 Host、三个 daemon 的 SCM host 与 typed 注册/移除；`29984a4` 增加新安装路径分权、固定 Windows ACL helper 和实际临时 NTFS 组件验证。真实服务账户 token/有效拒绝、job 强隔离/网络与会话 helper 仍未验收或完成，普通 worker 在生产继续 blocked。 |
 | 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle、精确签名/验签和三平台原生编译入口；POSIX 权限、新配置发布、首次安装/卸载失败边界已实现。Windows Inno 已真实编译未签名开发候选，未运行安装；其他原生编译器/管理员安装、完整生命周期事务、签名可发布原生包与跨平台验收未完成。 |
 | 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、受管 core 文件配置、私有模型凭据 resolver、签名会话桥与持久 nonce/fence 之后，`01b77f9` 完成模型配置 journal/staging/CAS、不可变凭据、重启恢复、静态校验、口令绑定启停与 core acknowledgement。实际 host/web/core 进程验证认领、配置持久化、幂等和正式 Run；已认证浏览器验证设置页。旧脑/备份接管、OS 恢复、LAN TLS、完整能力/渠道配置和整机初始化仍待实施。 |
-| 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、会话创建/列表/重命名/归档、对话/事件续接/审批/取消、附件加密上传与授权产物历史、pending/Unknown 原命令核实、会话 workspace 到后续 `SessionBound` 正式 run 上下文绑定、项目登记/路线规划/执行/取消、Charter 读写、认知投影与处置、模型设置和受限维护。仍未闭合：剩余设置/维护/API、真实浏览器完整流程及 IP17–23/IP24 联合产品验收。组件门不替代原生服务和正式安装包证据。 |
+| 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、会话创建/列表/重命名/归档、对话/事件续接/审批/取消、附件加密上传与授权产物历史、pending/Unknown 原命令核实、会话 workspace 到后续 `SessionBound` 正式 run 上下文绑定、项目登记/路线规划/执行/取消、Charter 读写、认知投影与处置、typed 活动运行 pending Inbox 投影、模型设置和受限维护。仍未闭合：剩余设置/维护/API、建议 Unknown 刷新恢复、真实浏览器完整流程及 IP17–23/IP24 联合产品验收。组件门不替代原生服务和正式安装包证据。 |
 
 24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
 
@@ -36,7 +36,11 @@
 
 ### 最新主脑工作台（2026-10-22，`477ef52`）
 
-工作台新增正式记忆/认知/收件箱投影、证据与血缘、受 governor 约束的候选处置及持久命令回执，AskToLearn 回答/拒绝/延后接回原学习路径。Unknown 不重复执行，同一候选刷新后换号也阻断；浏览器不能自填 evidence/actor/派生列表。全量源码质量门、5 条新增主脑测试和真实 Web→core HTTP 测试通过。完整 IP20、实际浏览器/原生产品验收尚未完成；完整收件箱、数据管理和其余整体义务继续实施。
+工作台新增正式记忆/认知/收件箱投影、证据与血缘、受 governor 约束的候选处置及持久命令回执，AskToLearn 回答/拒绝/延后接回原学习路径。Unknown 不重复执行，同一候选刷新后换号也阻断；浏览器不能自填 evidence/actor/派生列表。详细见[主脑投影与认知处置组件验收](installed-product-brain-views-acceptance.md)。完整 IP20、实际浏览器/原生产品验收尚未完成；建议 Unknown 刷新恢复和真正的运行待决收件箱此前未闭合。
+
+### 最新运行待决收件箱投影（2026-10-23）
+
+收件箱现在从现有 `RunPendingView` 投影活动运行的 ApprovalWait、ToolInterrupt、Handoff、ResolutionUnknown 检查点，以固定安全摘要显示并导航回原 run；终态 Failed/Limited 不再被当作待处理。没有新增 `EventKind`、protocol 对象、状态机或持久事实源。Rust、前端、全 workspace 和 Web 工作台命名门通过；完整 IP20、真实浏览器刷新/断线、多 Web 进程及安装产品联合验收仍开放。详见[运行待决收件箱组件验收](installed-product-inbox-pending-acceptance.md)。
 
 ### 最新权限分区（2026-10-22，`29984a4`）
 

@@ -4,7 +4,7 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P12–P16，主验 IP17–IP23，参与 IP04/IP06/IP08/IP18/IP24。依据 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §5–6/§10，以及 canonical §13–18/§28–29。
 
-**状态：基础工作台和工作空间命令层已实现，完整产品面仍在实施。** 当前已接入 React + TypeScript + Vite 静态构建、初始化/登录、对话、事件续接、审批/取消、项目登记/路线规划/执行/取消和 Charter 读写；由 forme-webd 提供。附件/产物、完整收件箱处置、记忆/认知操作面、完整设置/维护页、已认证浏览器全链路和 IP17–IP24 原生联合验收仍未完成。DeepSeek 的官方展示截图只是结构参考；无桌面壳、无独立 Node 后端。
+**状态：分阶段实施中，不代表 PRD26 或 IP17–IP24 已完成。** 当前分支已有 React + TypeScript + Vite 静态构建、初始化/登录、对话与事件续接、审批/取消及运行未知结果裁决、会话 workspace 到后续正式 run 的上下文绑定、项目/路线/Charter、加密附件与授权产物历史、记忆/认知投影与候选处置、AskToLearn 和普通主动建议处置、活动运行待决 Inbox 投影，以及部分模型配置/受限维护页面。上述均有不同范围的组件证据；完整工作台、授权原始内容与真实遗忘、跨刷新主动建议 Unknown 恢复、完整设置/维护、真实浏览器全链路及原生产品联合验收仍未闭合。状态以产品化进度记录和各组件报告为准。DeepSeek 的官方展示截图只是结构参考；无桌面壳、无独立 Node 后端。
 
 ## 1. 职责与边界
 
@@ -157,6 +157,10 @@ Web 在同一 identity DB 单写者事务中读取会话当前关联，并为首
 ### 5.5 收件箱
 
 统一显示主动建议、AskToLearn、审批、需要 owner 的失败/Unknown 和项目提醒，并标明来源、相关 workspace/run、为何此时需要响应及当前处置。
+
+运行待决项复用既有 `RunPendingView`，不在 Web/Inbox 新造状态机：认证查询投影当前非终态且 `pending != null` 的运行，使用既有 `WorkbenchItemKind::Waiting` 表示，`event/stream_seq` 指向该运行当前检查点，`state` 区分 `ApprovalWait`、`ToolInterrupt`、`Handoff`、`ResolutionUnknown`。摘要使用安全的固定说明，不把原始参数、外部内容或未授权文本复制进收件箱。打开条目只导航到原 run；详情再读取权威 pending/approval 并使用现有 typed control。收件箱本身不批准、不探测、不裁决，也不创建新 command。该组件已实现；真实浏览器刷新/断线恢复、多 Web 进程以及 IP20 全流程仍按 §9/§10 单独验收。
+
+终态 `Failed`/`Limited` 不等同于“待处理”；有 `FailureEvidenceRecorded` 时作为失败证据显示并链接原 run。模型调用在重启后结果未知的终态失败，仍须清楚标成回复/费用未知，不能生成自动重试入口。运行 pending 投影以 terminal event 和当前 `RunPendingView` 为准，不把历史 `RunWaiting` 当成仍待处理。
 
 按类型提供采纳、拒绝、延后、回答、探测/裁决等允许操作；点击/已读不等于采纳。采纳建议若涉及真实动作，会进入既有新计划/审批，不直接调用工具；拒绝抑制/延后 intention 由后端事件确认。过期项保留历史，不用前端删除隐藏失败。
 

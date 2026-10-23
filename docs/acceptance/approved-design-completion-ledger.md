@@ -8,7 +8,7 @@
 
 状态分为：已有基线、实现中、待实现、待验证、环境受阻。整体完成必须同时有实现和要求层级的证据；模拟、组件、真实进程、浏览器、真实 provider/backend、原生平台和发布证据分别登记。环境受阻保留缺项，不折算为 PASS。
 
-当前工作分支为 `shu/installed-product`，当前实现快照 `69ee763`；工作区干净，安装产品尚未合入 main。核心已有 main 基线，具体历史验收以 `core-brain-closure-acceptance-report.md` 为准，产品分支以 `installed-product-implementation-progress.md` 及其组件报告为准。`29a1790` 的会话产物历史与 `69ee763` 的运行裁决恢复已经实现，不能继续列为纯待实现；相应真实浏览器/多进程和整机联合验收仍未完成。
+当前施工分支为 `shu/installed-product`，安装产品尚未合入或推送到 `main`。提交与工作树状态以当前 Git 状态为准；核心 main 基线与历史验收见 `core-brain-closure-acceptance-report.md`，产品分支状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
 
 ## 2. 核心与跨切面覆盖
 
@@ -49,12 +49,12 @@
 
 | 设计/验收 | 已有实现 | 未闭合义务 |
 |---|---|---|
-| P12 / IP17：对话 | 登录、提交/历史、cursor 续接、公开事件、幂等；会话元数据 CRUD；加密附件上传、授权产物目录/下载；pending run 的 typed owner 裁决、密文伴随记录与重启后原命令核实（`29a1790`, `69ee763`） | 真实浏览器断线/双 tab 与 actual profile；会话 workspace 元数据尚未绑定正式 RunRequest 的执行上下文，语义待 owner 确认；完整 IP17 产品验收。 |
-| P12/P14 / IP18：审批与控制 | 最终审批 binding、取消、运行状态；approval/tool/handoff pending 投影、Unknown 核实与 owner 裁决实现 | 真实浏览器/多进程恢复和原生服务重启场景；不得将组件测试折算为 IP18/IP24 通过。 |
+| P12 / IP17：对话 | 登录、提交/历史、cursor 续接、公开事件、幂等；会话元数据 CRUD；加密附件上传、授权产物目录/下载；pending run 的 typed owner 裁决、密文伴随记录与重启后原命令核实；会话 workspace 绑定到后续正式 run 的 `SessionBound` 上下文（组件报告）。 | 真实浏览器断线/双 tab、多个 Web 进程争用和实际 provider；完整 IP17 产品验收。 |
+| P12/P14 / IP18：审批与控制 | 最终审批 binding、取消、运行状态；approval/tool/handoff pending 投影、Unknown 核实与 typed owner 裁决实现。 | 真实浏览器/多进程恢复和原生服务重启场景；不得将组件测试折算为 IP18/IP24 通过。 |
 | P13 / IP19：项目 | project/route register/plan/execute/cancel、charter | 意图/监管调整、历史/依赖/节点证据、刷新/恢复；不创建项目私有脑。 |
-| P14 / IP20：收件箱 | `477ef52` 正式主动提案/AskToLearn/失败投影、问询回应与 waiting/failed 运行入口 | 普通建议完整采纳/拒绝/延后、Unknown 探测/裁决及完整浏览器验收；查看不等于采纳。 |
+| P14 / IP20：收件箱 | `477ef52` 主动提案/AskToLearn/失败投影、AskToLearn 回答/拒绝/延后、普通建议采纳/拒绝/延后命令与现有 owner controls；活动运行 pending 按 `RunPendingView` 投影为 typed `Waiting` 条目并导航原 run，详情见 `installed-product-inbox-pending-acceptance.md`。 | 普通建议 Unknown 在刷新后的原操作找回/恢复路径未闭合；真实浏览器全链路与完整 IP20。等待/失败历史必须区分，查看不等于采纳。 |
 | P14 / IP20：记忆与认知 | `477ef52` 原始记忆引用、认知/候选/稳定/撤回/重评投影，证据/传递血缘及正式 review/撤回 | 授权原始正文、认知纠正/真正遗忘与完整 IP20；现有组件证据不等于产品通过。 |
-| P07/P15 / IP21：设置 | 模型、口令、主脑状态、启动/ack | 完整分区的正式命令与维护；无假开关/任意 shell/SQL。 |
+| P07/P15 / IP21：设置 | 模型配置、口令、主脑状态与受限启停/维护命令；另有配置、离线数据、恢复候选等组件报告。 | 模型角色路由、workspace、能力/MCP/plugin/package、消息渠道、LAN TLS 和全部系统维护面尚未闭合；无假开关/任意 shell/SQL，完整 IP21 仍待产品验收。 |
 | P08/P12 / IP22：浏览器安全 | CSP、无 raw HTML、独立限流、private cache 清理 | 附件/下载隔离、实际浏览器故障/恶意内容、键盘/窄屏与认证恢复验收。 |
 | P16 / IP23：前端来源 | 自有 React/TypeScript UI，白名单/依赖/NOTICE/资源构建门 | 新组件继续来源审查；无 upstream runtime、fixture 或 build/import。 |
 | P01–16 / IP24：完整产品 | 当前只有分层组件证据 | 正式包→认领→配置→真实对话/工具审批→项目/后台→重启→备份恢复→升级的联合验收。 |
