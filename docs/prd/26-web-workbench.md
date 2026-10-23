@@ -90,6 +90,16 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 
 提交后保留原 operation；结果不明只核实原回执，不换号重试、不重新发送口令。恢复撤销当前登录时重新登录后从维护记录核实，不能把 401 当恢复失败或自动重做。Host 在副作用前拒绝当前已经激活的同一候选；实际候选仍须由固定 worker 重新验证，浏览器投影不是授权依据。页面的已提交、待核实和恢复受阻状态与原生验收分开记录。
 
+### 4.4 会话提交与附件历史的实施约束
+
+新会话草稿独立于服务器列表刷新：没有服务端记录的草稿不能自动切回第一条旧会话。创建、上传和发送在第一次 await 前取得同一前端排他提交权；创建会话和提交 run 各自固定命令号与原始输入。丢失创建或运行响应后仅允许原命令的幂等核实，不能因双击、重渲染或换 tab 新建另一会话/运行。未决提交期间不能换会话或悄悄替换草稿。
+
+附件历史由正式 core 提供，Web 不用浏览器持久存储充当目录。`POST /v1/artifacts/query` 接受 closed `ArtifactCatalogQuery{schema_version,session,page:DataPageQuery}`，返回版本化 `ArtifactCatalogView{session,digest,total,next_offset,artifacts}`；条目含 content_ref、content_digest、scope、bytes 和可选 file_name/media_type。分页仍用实际快照摘要，无模型调用、无写入；未授权 owner、错误 session、陈旧快照和数据 fence 均拒绝。
+
+上传保留原始字节的现有加密记录，另存有界加密元数据 companion（同 session scope/subject，绑定原 content_ref、session/workspace、原始摘要/长度/名称/类型）。同号不同内容冲突；重复原上传可以补齐尚未写完的元数据，不重复创建原始对象。元数据对象不进入模型上下文、不作为下载对象；生命周期清理同 scope/subject 时一同清理。历史无 companion 的原始附件仍可读，列表明确名称/类型未知，不伪造原名，也不在查询时迁移。
+
+前端切换/刷新会话即从 core 重读目录，按 content_ref 去重，下载绑定当前 session。上传未确认保留原文件和原命令号在内存，仅显式核实相同上传；不自动重传或用新 key 重试。用户注销/会话失效清理这些内存状态。这里补齐 prd/26 §5.2 已批准的对话与附件义务，不新增脑事件、私有记忆或依赖边。
+
 ## 5. 页面、行为与状态
 
 ### 5.1 全局外壳与初始化

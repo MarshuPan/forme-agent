@@ -2,9 +2,11 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`。最新实现 `5b99ac5`（恢复执行边界与 Host 提交准入），前批 `b16997c`（原生打包入口/POSIX 权限）、`92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）；验证日期 2026-10-23。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
+最新施工分支：`shu/installed-product`。最新实现 `e36b5b9`（恢复候选工作台/发布重新认证），前批 `5b99ac5`（恢复执行边界与 Host 提交准入）、`b16997c`（原生打包入口/POSIX 权限）、`92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）；验证日期 2026-10-23。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
 
 ## 1. 实施顺序与当前范围
+
+2026-10-23 新增[恢复候选工作台与已暂存发布认证组件](installed-product-restore-workbench-acceptance.md)：恢复的最终 manifest 安全投影、独立切换确认/原操作核实及 Host 重复候选拒绝已实现；发布只读重新认证同时核对 journal、验签和实际文件。统一源码门 Rust 817 passed / 0 failed / 5 默认 ignored，strict Clippy/完整合规/宿主与配置进程门通过，真实浏览器已核对原生能力缺失时禁用切换。完整 Upgrade/Rollback 和原生产品验收仍开放，整体任务持续推进。
 
 2026-10-23 新增[恢复主脑的执行隔离与 Host 提交组件验收](installed-product-restored-brain-acceptance.md)：SQLite 恢复水位、旧 run/intention/route 权限隔离、原 vault/活动数据 CAS、固定离线 worker、完整 CommitRestore 阶段、Web 在线 session fencing 与 Committed 后工作准入已实现。全量 Rust 813 passed / 0 failed / 5 默认 ignored，strict Clippy/完整合规、宿主/配置统一门及实际进程恢复链路通过；服务阶段使用受控 adapter，未冒充原生 SCM。完整 Web 候选激活、签名 Upgrade/Rollback、隔离和其余整体义务继续实施。
 
