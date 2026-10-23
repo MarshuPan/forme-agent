@@ -67,6 +67,7 @@
 | `POST /product/config/validate` | 指定 revision → ValidationReport。 | 不把格式检查等同于模型实测。 |
 | `POST /product/commands` | typed MaintenanceCommand → OperationRef。 | 必需的 reauth + broker allowlist；不是 shell。 |
 | `GET /product/operations/{id}` | 安全进度/receipt。 | 按 product cursor 重连，不读取 brain journal。 |
+| `GET /brain/runtime/doctor` | 原 `/v1/runtime/doctor` 的版本化安全投影（checks、blocking、digest）。 | owner session 经签名 bridge 只读同一 ProductionRuntime；无参数、无模型/工具调用，不推进脑事件。仅此 GET 映射，禁止 tick、reload 或任意 runtime 代理。 |
 | `GET/POST /brain/runs`、`GET /brain/runs/{id}` | 正式 run list/submit/read。 | owner assertion；同一 ProductionRuntime。 |
 | `GET /brain/runs/{id}/events` | 正式事件 SSE。 | run scope + cursor，heartbeat/重连；无隐藏 CoT。 |
 | `POST /brain/runs/{id}/control` | 原有 typed cancel/resume/approval union。 | exact pending binding；不允许通用 retry unknown。 |
