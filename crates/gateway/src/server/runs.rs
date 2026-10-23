@@ -51,6 +51,19 @@ pub(super) async fn run_summary(
         .map(Json)
 }
 
+pub(super) async fn run_pending(
+    State(state): State<Arc<HttpState>>,
+    Path(run): Path<String>,
+    headers: HeaderMap,
+) -> Result<Json<p::RunPendingView>, ApiError> {
+    let auth = state.authorize(&headers, false)?;
+    let gateway = state.gateway.clone();
+    state
+        .blocking(move || gateway.run_pending_view(p::RunId(run), auth))
+        .await
+        .map(Json)
+}
+
 #[derive(Debug, Serialize)]
 pub(super) struct RunAnswerView {
     schema_version: p::SchemaVersion,

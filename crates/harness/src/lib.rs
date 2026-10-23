@@ -54,7 +54,9 @@ mod brain_models;
 mod brain_route_fitness;
 mod candidate_review;
 mod data_workbench;
+mod run_control;
 mod run_output;
+mod run_recovery;
 mod workbench;
 pub use brain_evolution::ProductionStrategySpec;
 pub use brain_evolution_seed::ProductionSeedSpec;
@@ -2397,174 +2399,6 @@ impl ReactiveHarness {
                 cognition::InterventionLevel::L5HighImpact => false,
                 _ => true,
             }
-    }
-
-    pub fn recover_unknown_outcomes(&self) -> p::Result<Vec<p::RunId>> {
-        let mut recovered = Vec::new();
-        for run in self.store.run_ids()? {
-            let events = self
-                .store
-                .read_run(run.clone())
-                .collect::<p::Result<Vec<_>>>()?;
-            if events.iter().any(|event| {
-                matches!(
-                    event.kind,
-                    p::EventKind::RunComplete
-                        | p::EventKind::RunAborted
-                        | p::EventKind::RunFailed
-                        | p::EventKind::RunLimited
-                )
-            }) {
-                continue;
-            }
-            let mut started = BTreeMap::new();
-            let mut terminal = BTreeSet::new();
-            let mut unknown = BTreeMap::new();
-            let mut accepted = None;
-            for event in &events {
-                match &event.payload {
-                    p::EventPayload::RunAccepted(payload) => accepted = Some(payload.clone()),
-                    p::EventPayload::ActionStarted(payload) => {
-                        started.insert(payload.intent_id.clone(), event.clone());
-                    }
-                    p::EventPayload::ActionCompleted(payload) => {
-                        terminal.insert(payload.intent_id.clone());
-                    }
-                    p::EventPayload::ActionFailed(payload) => {
-                        terminal.insert(payload.intent_id.clone());
-                    }
-                    p::EventPayload::ActionCancelled(payload) => {
-                        terminal.insert(payload.intent_id.clone());
-                    }
-                    p::EventPayload::ActionDenied(payload) => {
-                        terminal.insert(payload.intent_id.clone());
-                    }
-                    p::EventPayload::ActionOutcomeUnknown(payload) => {
-                        unknown.insert(payload.intent_id.clone(), event.event_id.clone());
-                    }
-                    _ => {}
-                }
-            }
-            let Some((intent, started_event)) = started
-                .into_iter()
-                .find(|(intent, _)| !terminal.contains(intent))
-            else {
-                continue;
-            };
-            if self
-                .runs
-                .lock()
-                .map_err(|_| p::Error("run registry is unavailable".into()))?
-                .contains_key(&run)
-            {
-                continue;
-            }
-            let accepted = accepted
-                .ok_or_else(|| p::Error("recoverable run has no RunAccepted event".into()))?;
-            let request = p::RunRequest {
-                schema_version: p::SchemaVersion(1),
-                source: accepted.source,
-                session: p::SessionRef(accepted.session_ref.0.clone()),
-                agent_profile: p::AgentProfileRef("agent:recovered".into()),
-                input: p::RunInput(accepted.input_ref.0),
-                budget: None,
-                idempotency_key: accepted.idempotency_key,
-            };
-            let workspace = events
-                .iter()
-                .find_map(|e| match &e.payload {
-                    p::EventPayload::SessionBound(bound) => Some(bound.workspace.clone()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| self.config.workspace.clone());
-            let mut config = self.config.clone();
-            config.workspace = workspace.clone();
-            let context = (self.context_factory)(&request, &run, &config)?;
-            let mut loop_ctx = forme_loop::RunCtx::new_with_input_provenance(
-                accepted.session_ref.clone(),
-                request.input.clone(),
-                context,
-                self.config.context_budget,
-                self.config.loop_budget.clone(),
-                request_provenance(&request),
-            )?;
-            let snapshot_ref = if let Some(snapshot) = unknown.get(&intent) {
-                snapshot.clone()
-            } else {
-                let unknown_event = self.append(
-                    run.clone(),
-                    started_event.turn_id.clone(),
-                    internal_provenance(p::Source::Internal),
-                    p::EventPayload::ActionOutcomeUnknown(p::ActionOutcomeUnknownPayload {
-                        intent_id: intent.clone(),
-                        probe_hint: p::ProbeHintRef(
-                            "manual adjudication required; action was not retried".into(),
-                        ),
-                        remote_lease: None,
-                    }),
-                )?;
-                self.append(
-                    run.clone(),
-                    started_event.turn_id.clone(),
-                    internal_provenance(p::Source::Internal),
-                    p::EventPayload::RunWaiting(p::RunWaitingPayload {
-                        wait_reason: p::WaitReason("unknown_action_outcome".into()),
-                        resume_ref: p::ResumeRef(format!("resume:{}", unknown_event.0)),
-                    }),
-                )?;
-                unknown_event
-            };
-            let pending = PendingKind::ToolInterrupt(intent.clone());
-            loop_ctx.suspend(pending.clone());
-            let record = RunRecord {
-                request,
-                workspace,
-                loop_ctx,
-                result: None,
-                final_output: None,
-                resume_state: Some(ResumeState {
-                    schema_version: p::SchemaVersion(1),
-                    run: run.clone(),
-                    at: LoopState::Suspended(pending.clone()),
-                    pending,
-                    snapshot_ref,
-                }),
-                pending_action: None,
-                recovered_unknown: Some(intent),
-                approval: InMemoryApprovalBroker::default(),
-                mode: RunMode::Loop,
-                direct_intent: None,
-                bound_envelope: None,
-                effect_mode: events.iter().find_map(|event| match &event.payload {
-                    p::EventPayload::SessionBound(payload) => payload.effect_mode,
-                    _ => None,
-                }),
-                evolution_snapshot: events.iter().find_map(|event| match &event.payload {
-                    p::EventPayload::SessionBound(payload) => payload.evolution_snapshot.clone(),
-                    _ => None,
-                }),
-                evolution_snapshot_full: None,
-                federation_snapshot: events.iter().find_map(|event| match &event.payload {
-                    p::EventPayload::SessionBound(payload) => payload.federation_snapshot.clone(),
-                    _ => None,
-                }),
-                m3_binding: None,
-                remaining_action_budget: None,
-                competence_inputs: self.competence_snapshot.clone(),
-                skills_prepared: false,
-                evolution_simulation: None,
-                long_horizon: None,
-                model_selection: None,
-                active_model: None,
-                fallback_index: 0,
-            };
-            self.runs
-                .lock()
-                .map_err(|_| p::Error("run registry is unavailable".into()))?
-                .insert(run.clone(), Arc::new(RunHandle::new(record)));
-            recovered.push(run);
-        }
-        Ok(recovered)
     }
 
     fn run_handle(&self, run: &p::RunId) -> p::Result<Arc<RunHandle>> {
@@ -5388,79 +5222,7 @@ impl AgentHarness for ReactiveHarness {
     }
 
     fn resume(&self, run: p::RunId, input: ResumeInput) -> p::Result<()> {
-        self.store.require_current_execution(&run)?;
-        if let Some(child) = self.child_executor(&run)? {
-            return child.resume(run, input);
-        }
-        if matches!(&input, ResumeInput::Approval(_)) && self.run_handle(&run).is_err() {
-            self.restore_default_formal_approval(&run)?;
-        }
-        let handle = self.run_handle(&run)?;
-        let session = {
-            let record = handle
-                .record
-                .lock()
-                .map_err(|_| p::Error("run state is unavailable".into()))?;
-            record.loop_ctx.session.clone()
-        };
-        let session_lock = self.session_lock(&session)?;
-        let _session_guard = session_lock
-            .lock()
-            .map_err(|_| p::Error("session queue is unavailable".into()))?;
-        let mut record = handle
-            .record
-            .lock()
-            .map_err(|_| p::Error("run state is unavailable".into()))?;
-        let resume = record
-            .resume_state
-            .clone()
-            .ok_or_else(|| p::Error("run is not suspended".into()))?;
-        match (&resume.pending, input) {
-            (PendingKind::ApprovalWait(expected), ResumeInput::Approval(grant))
-                if expected == &grant.approval_id =>
-            {
-                self.resume_approval(&run, &handle, &mut record, grant)?;
-                if !record.loop_ctx.state.is_terminal() && !record.loop_ctx.state.is_suspended() {
-                    drop(record);
-                    self.drive(&run, &handle)?;
-                }
-                Ok(())
-            }
-            (PendingKind::ToolInterrupt(expected), ResumeInput::ToolOutcome(action, outcome))
-                if expected == &action =>
-            {
-                self.resume_unknown(&run, &handle, &mut record, action, outcome)
-            }
-            (PendingKind::Handoff(expected), ResumeInput::Handoff(resolution))
-                if expected == &resolution.target =>
-            {
-                self.append(
-                    run.clone(),
-                    Some(current_turn(&run, record.loop_ctx.turn_index)),
-                    internal_provenance(record.request.source),
-                    p::EventPayload::HandoffResolved(p::HandoffResolvedPayload {
-                        target: resolution.target.clone(),
-                        reason: p::ReasonRef(if resolution.accepted {
-                            "handoff accepted".into()
-                        } else {
-                            "handoff rejected".into()
-                        }),
-                    }),
-                )?;
-                record.loop_ctx.continue_after_handoff(resolution)?;
-                record.resume_state = None;
-                self.persist_loop_events(&run, &mut record)?;
-                if record.loop_ctx.state.is_terminal() {
-                    self.finish_terminal(&run, &handle, &mut record)
-                } else {
-                    drop(record);
-                    self.drive(&run, &handle)
-                }
-            }
-            _ => Err(p::Error(
-                "ResumeInput does not match the persisted PendingKind".into(),
-            )),
-        }
+        self.resume_run(run, input, None)
     }
 
     fn drain(&self, session: p::SessionId) -> p::Result<()> {
@@ -5593,79 +5355,7 @@ impl GatewayControl for ReactiveHarness {
     }
 
     fn control(&self, run: p::RunId, control: p::RunControl) -> p::Result<()> {
-        match control {
-            p::RunControl::ResolveApproval(decision) => {
-                decision.validate()?;
-                AgentHarness::resume(
-                    self,
-                    run,
-                    ResumeInput::Approval(ApprovalGrant {
-                        schema_version: decision.schema_version,
-                        approval_id: decision.approval_id,
-                        outcome: decision.outcome,
-                        granted_scope: GrantScope::OneShot,
-                        approver: decision.approver,
-                        bound_plan_digest: decision.bound_plan_digest,
-                        normalized_action_digest: decision.normalized_action_digest,
-                        affected_resources: decision.affected_resources,
-                        policy_version: decision.policy_version,
-                        tool_schema_version: decision.tool_schema_version,
-                        nonce: decision.nonce,
-                        use_by: decision.use_by,
-                    }),
-                )
-            }
-            p::RunControl::Cancel(request) => {
-                request.validate()?;
-                AgentHarness::cancel(self, run)
-            }
-            p::RunControl::ResolveToolOutcome {
-                command: _,
-                resolution,
-            } => {
-                resolution.validate()?;
-                let outcome = match resolution.outcome {
-                    p::ToolOutcomeKind::Completed => ResolvedOutcome::Completed(
-                        resolution.result_ref.ok_or_else(|| {
-                            p::Error("completed outcome has no result ref".into())
-                        })?,
-                        resolution.summary,
-                    ),
-                    p::ToolOutcomeKind::Failed => ResolvedOutcome::Failed(
-                        resolution
-                            .failure_ref
-                            .ok_or_else(|| p::Error("failed outcome has no failure ref".into()))?,
-                        resolution.summary,
-                    ),
-                    p::ToolOutcomeKind::Cancelled => ResolvedOutcome::Cancelled(
-                        resolution
-                            .reason
-                            .ok_or_else(|| p::Error("cancelled outcome has no reason".into()))?,
-                    ),
-                };
-                AgentHarness::resume(
-                    self,
-                    run,
-                    ResumeInput::ToolOutcome(resolution.action, outcome),
-                )
-            }
-            p::RunControl::ResolveHandoff {
-                command: _,
-                resolution,
-            } => {
-                resolution.validate()?;
-                AgentHarness::resume(
-                    self,
-                    run,
-                    ResumeInput::Handoff(HandoffResolution {
-                        schema_version: resolution.schema_version,
-                        target: resolution.target,
-                        accepted: resolution.accepted,
-                        result: resolution.result,
-                    }),
-                )
-            }
-        }
+        self.apply_run_control(run, control)
     }
 
     fn trace_view(&self, run: p::RunId) -> p::Result<p::TraceView> {
@@ -6334,7 +6024,14 @@ fn run_summary_from_events(run: p::RunId, events: &[p::Event]) -> p::Result<p::R
                 status = p::RunStatus::Running;
             }
             p::EventPayload::RunWaiting(_) => status = p::RunStatus::Waiting,
-            p::EventPayload::RunResumed(_) => status = p::RunStatus::Running,
+            p::EventPayload::RunResumed(_) => {
+                status = if p::ControlResolutionBinding::from_event(event)?.is_some() {
+                    p::RunStatus::Waiting
+                } else {
+                    p::RunStatus::Running
+                };
+            }
+            p::EventPayload::HandoffResolved(_) => status = p::RunStatus::Running,
             p::EventPayload::RunComplete(payload) => {
                 status = p::RunStatus::Complete;
                 terminal = Some((status, payload.stop_reason.clone()));
@@ -6354,7 +6051,10 @@ fn run_summary_from_events(run: p::RunId, events: &[p::Event]) -> p::Result<p::R
             p::EventPayload::FailureEvidenceRecorded(_) => {
                 evidence_refs.push(event.event_id.clone());
             }
-            _ if terminal.is_none() && event.stream_seq > first.stream_seq => {
+            _ if terminal.is_none()
+                && status == p::RunStatus::Accepted
+                && event.stream_seq > first.stream_seq =>
+            {
                 status = p::RunStatus::Running;
             }
             _ => {}

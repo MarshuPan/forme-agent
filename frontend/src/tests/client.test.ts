@@ -153,3 +153,26 @@ test('proposal controls retain exact command binding when an outcome is unknown'
     assert.deepEqual(JSON.parse(String(call.request.body)), control);
   }
 });
+
+test('pending reads and owner resolutions use the authenticated run routes and retain one command body', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    return calls.length === 1
+      ? Response.json({ schema_version: 1, run: 'run:one', snapshot_upper_bound: 4, pending: { kind: 'ToolInterrupt', action: 'action:one', checkpoint: 'event:one', probe_hint: 'inspect the original effect' } })
+      : new Response(null, { status: 204 });
+  });
+  const view = await api.runPending('run:one');
+  assert.equal(view.pending?.kind, 'ToolInterrupt');
+  const command = 'owner-resolution:stable';
+  const body = { ResolveToolOutcome: { command, resolution: { schema_version: 1, action: 'action:one', outcome: 'Completed', result_ref: 'receipt:one', failure_ref: null, reason: null, summary: 'owner checked the result' } } };
+  await api.controlRun('run:one', body, command);
+  await api.controlRun('run:one', body, command);
+  assert.equal(calls[0].path, '/api/v1/brain/runs/run%3Aone/pending');
+  assert.equal(calls[1].path, '/api/v1/brain/runs/run%3Aone/control');
+  assert.equal(calls[2].path, calls[1].path);
+  for (const call of calls.slice(1)) {
+    assert.equal(new Headers(call.request.headers).get('Idempotency-Key'), command);
+    assert.deepEqual(JSON.parse(String(call.request.body)), body);
+  }
+});

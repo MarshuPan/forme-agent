@@ -9,6 +9,7 @@ mod checksum;
 mod content;
 mod cursor;
 mod data_catalog;
+mod domain_claim;
 mod file_keys;
 mod offline_access;
 mod offline_backup;

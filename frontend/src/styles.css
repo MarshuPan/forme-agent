@@ -28,6 +28,8 @@ label { display: grid; gap: .55rem; font-size: .9rem; }
 input, textarea { width: 100%; padding: .85rem 1rem; border: 1px solid #d8ded4; background: #fdfefb; color: inherit; border-radius: .55rem; }
 input:focus, textarea:focus { border-color: var(--accent); }
 select { width: 100%; padding: .85rem 1rem; border: 1px solid #d8ded4; background: #fdfefb; color: inherit; border-radius: .55rem; }
+.inline-check { display: flex; align-items: center; gap: .65rem; }
+.inline-check input { width: 1rem; height: 1rem; margin: 0; accent-color: var(--accent); }
 textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height: 1.7; }
 .primary-button, .secondary-button, .text-button { border-radius: .5rem; padding: .7rem 1.1rem; border: 1px solid transparent; font-weight: 500; }
 .primary-button { color: #fff; background: var(--accent); }

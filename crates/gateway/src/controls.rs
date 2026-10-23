@@ -40,6 +40,26 @@ where
         HarnessGatewayControl::run_summary(self.harness.as_ref(), run)
     }
 
+    pub fn run_pending_view(
+        &self,
+        run: p::RunId,
+        auth: AuthContext,
+    ) -> p::Result<p::RunPendingView> {
+        self.validate_owner_control(auth)?;
+        if let Some(runtime) = &self.production_runtime {
+            return runtime.run_pending_view(run);
+        }
+        let page = HarnessGatewayControl::stream_event_page(
+            self.harness.as_ref(),
+            p::EventCursor {
+                schema_version: p::SchemaVersion(1),
+                run: run.clone(),
+                after_stream_seq: 0,
+            },
+        )?;
+        p::project_run_pending(run, &page.events)
+    }
+
     pub fn pending_approvals(
         &self,
         session: p::SessionId,

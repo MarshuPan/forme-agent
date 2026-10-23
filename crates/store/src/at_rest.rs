@@ -20,7 +20,7 @@ pub struct StoreContentProtection {
 }
 
 impl StoreContentProtection {
-    pub(crate) fn owner_digest(&self) -> &p::SchemaDigest {
+    pub fn owner_digest(&self) -> &p::SchemaDigest {
         &self.owner
     }
     pub(crate) fn default_scope(&self) -> &p::Scope {
@@ -105,6 +105,15 @@ impl StoreContentProtection {
         };
         record.validate()?;
         Ok((bytes, record))
+    }
+
+    pub fn seal_record_in_default_scope(
+        &self,
+        bytes: &[u8],
+        object: &str,
+        subject: &p::SchemaDigest,
+    ) -> p::Result<(Vec<u8>, crate::ProtectedContentRecord)> {
+        self.seal_record(bytes, &self.scope, object, subject)
     }
 
     fn open_bound(&self, bytes: &[u8], object: &str) -> p::Result<Vec<u8>> {

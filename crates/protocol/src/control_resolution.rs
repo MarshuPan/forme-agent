@@ -88,7 +88,7 @@ impl RunControl {
                 command,
                 resolution,
             } => {
-                if command.0.trim().is_empty() {
+                if !valid_command(command) {
                     return Err(Error("tool outcome command is incomplete".into()));
                 }
                 resolution.validate()
@@ -97,11 +97,72 @@ impl RunControl {
                 command,
                 resolution,
             } => {
-                if command.0.trim().is_empty() {
+                if !valid_command(command) {
                     return Err(Error("handoff command is incomplete".into()));
                 }
                 resolution.validate()
             }
+        }
+    }
+}
+
+fn valid_command(command: &IdempotencyKey) -> bool {
+    !command.0.trim().is_empty()
+        && command.0.len() <= 256
+        && !command.0.chars().any(char::is_control)
+}
+
+/// Reserved, versioned RunResumed encoding. It claims a command, not an action
+/// outcome; a claim without its subsequent result must remain uncertain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControlResolutionBinding {
+    pub schema_version: SchemaVersion,
+    pub command_digest: crate::SchemaDigest,
+    pub resolution_digest: crate::SchemaDigest,
+    pub target_digest: crate::SchemaDigest,
+}
+
+impl ControlResolutionBinding {
+    pub fn from_ref(value: &crate::ResumeRef) -> Result<Option<Self>> {
+        let Some(encoded) = value.0.strip_prefix("control-resolution-v1|") else {
+            return Ok(None);
+        };
+        let mut fields = encoded.split('|');
+        let Some(command) = fields.next() else {
+            return Err(Error("control resolution binding is invalid".into()));
+        };
+        let Some(resolution) = fields.next() else {
+            return Err(Error("control resolution binding is invalid".into()));
+        };
+        let Some(target) = fields.next() else {
+            return Err(Error("control resolution binding is invalid".into()));
+        };
+        if fields.next().is_some() {
+            return Err(Error("control resolution binding is invalid".into()));
+        }
+        let digests = [command, resolution, target].map(|value| crate::SchemaDigest(value.into()));
+        for digest in &digests {
+            crate::sha256_digest_bytes(digest)?;
+        }
+        Ok(Some(Self {
+            schema_version: SchemaVersion(1),
+            command_digest: digests[0].clone(),
+            resolution_digest: digests[1].clone(),
+            target_digest: digests[2].clone(),
+        }))
+    }
+
+    pub fn as_ref(&self) -> crate::ResumeRef {
+        crate::ResumeRef(format!(
+            "control-resolution-v1|{}|{}|{}",
+            self.command_digest.0, self.resolution_digest.0, self.target_digest.0
+        ))
+    }
+
+    pub fn from_event(event: &crate::Event) -> Result<Option<Self>> {
+        match &event.payload {
+            crate::EventPayload::RunResumed(payload) => Self::from_ref(&payload.resume_ref),
+            _ => Ok(None),
         }
     }
 }

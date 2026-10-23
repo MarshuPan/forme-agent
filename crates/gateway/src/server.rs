@@ -245,6 +245,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/profile", get(control_profile))
         .route("/v1/runs", get(list_runs).post(submit_run))
         .route("/v1/runs/{run}", get(run_summary))
+        .route("/v1/runs/{run}/pending", get(run_pending))
         .route("/v1/runs/{run}/events", get(run_events))
         .route("/v1/runs/{run}/answer", get(run_answer))
         .route("/v1/sessions/{session}/approvals", get(approvals))

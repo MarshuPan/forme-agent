@@ -82,10 +82,15 @@ impl Projection for SessionStateProjection {
                 state.resume_ref = Some(payload.resume_ref.clone());
             }
             p::EventPayload::RunResumed(payload) => {
-                state.status = p::RunStatus::Running;
+                state.status = if payload.resume_ref.0.starts_with("control-resolution-v1|") {
+                    p::RunStatus::Waiting
+                } else {
+                    p::RunStatus::Running
+                };
                 state.wait_reason = Some(payload.wait_reason.clone());
                 state.resume_ref = Some(payload.resume_ref.clone());
             }
+            p::EventPayload::HandoffResolved(_) => state.status = p::RunStatus::Running,
             p::EventPayload::TurnStarted(_)
             | p::EventPayload::TurnComplete(_)
             | p::EventPayload::ContextBuildStarted(_)

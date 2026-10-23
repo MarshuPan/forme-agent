@@ -197,6 +197,7 @@ fn allowlisted_core_path(
         ["runs", run] => (format!("/v1/runs/{run}"), RouteMethods::Get),
         ["runs", run, "events"] => (format!("/v1/runs/{run}/events"), RouteMethods::Get),
         ["runs", run, "answer"] => (format!("/v1/runs/{run}/answer"), RouteMethods::Get),
+        ["runs", run, "pending"] => (format!("/v1/runs/{run}/pending"), RouteMethods::Get),
         ["runs", run, "control"] => (format!("/v1/runs/{run}/control"), RouteMethods::Post),
         ["runs", run, "trace"] => (format!("/v1/runs/{run}/trace"), RouteMethods::Get),
         ["sessions", session, "approvals"] => (
@@ -323,6 +324,10 @@ mod tests {
         assert_eq!(
             allowlisted_core_path("GET", "runs/run:one/events", Some("after=7")).unwrap(),
             "/v1/runs/run:one/events?after=7"
+        );
+        assert_eq!(
+            allowlisted_core_path("GET", "runs/run:one/pending", None).unwrap(),
+            "/v1/runs/run:one/pending"
         );
         assert!(allowlisted_core_path("GET", "runtime/doctor", None).is_err());
         assert!(allowlisted_core_path("GET", "runs/run:one/events", Some("before=7")).is_err());

@@ -75,6 +75,15 @@ export interface RunSummary {
   source: string; status: 'Accepted' | 'Running' | 'Waiting' | 'Complete' | 'Aborted' | 'Failed' | 'Limited';
   last_stream_seq: number; result: Json;
 }
+export type RunPendingKind =
+  | { kind: 'ApprovalWait'; approval: string; checkpoint: string }
+  | { kind: 'ToolInterrupt'; action: string; checkpoint: string; probe_hint: string }
+  | { kind: 'Handoff'; target: string; checkpoint: string; reason: string }
+  | { kind: 'ResolutionUnknown'; checkpoint: string; command_digest: string | null; reason: 'ClaimWithoutResult' | 'ActionWithoutRunTerminal' | 'HandoffContinuation' | 'ReusedHandoffTarget'; replay_command: RunControlResolutionCommand | null };
+export interface RunPendingView { schema_version: 1; run: string; snapshot_upper_bound: number; pending: RunPendingKind | null }
+export type RunControlResolutionCommand =
+  | { ResolveToolOutcome: { command: string; resolution: { schema_version: 1; action: string; outcome: 'Completed' | 'Failed' | 'Cancelled'; result_ref: string | null; failure_ref: string | null; reason: string | null; summary: string } } }
+  | { ResolveHandoff: { command: string; resolution: { schema_version: 1; target: string; accepted: boolean; result: string | null } } };
 export interface BrainEvent {
   schema_version: 1; event_id: string; run_id: string; stream_seq: number; kind: string; payload: Json;
 }

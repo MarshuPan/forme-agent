@@ -1,7 +1,7 @@
 import { isRecord, versioned } from '../types.ts';
 import type { ArtifactCatalogView } from '../types.ts';
 import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
-import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation } from '../types.ts';
+import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
 import type { WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
 import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
@@ -138,6 +138,10 @@ export class WorkbenchClient {
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }
   runs() { return this.json<RunSummary[]>('brain/runs'); }
   run(run: string) { return this.json<RunSummary>(`brain/runs/${id(run)}`); }
+  runPending(run: string) { return this.json<RunPendingView>(`brain/runs/${id(run)}/pending`); }
+  async controlRun(run: string, body: unknown, operation: string) {
+    await this.request(`brain/runs/${id(run)}/control`, 'POST', body, operation);
+  }
   submit(command: RunCommand) { return this.json<string>('brain/runs', 'POST', command, command.idempotency_key); }
   async events(run: string, after: number) { return (await this.request(`brain/runs/${id(run)}/events?after=${after}`)).text(); }
   async uploadArtifact(session: string, workspace: string | null, file: File, operation = newKey('artifact')) {

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "4edc414ee65a1b447664c3a278a206b0bf9a393c15240baa11b8d66bf412b142",
+  "source_digest": "8ac40c7fcc4a2ac83460b5c8a36627bc96de8de0a005b7b019cde27940ac4986",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "1f94533f616effac4b8f3907f6fedbcb215f00a36f735e97da1405f1feb7c772"
+      "sha256": "a1c5d820c10c0d1418fafdbb3a5810a8dcf14755df0fd666549f3753deabb29d"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -44,7 +44,7 @@
     },
     {
       "path": "frontend/src/components/Conversation.tsx",
-      "sha256": "b277fd2192cfbe098f15d9ede634fba96726f0befa2e612393b1235bd76390b7"
+      "sha256": "9f86e4b3bdc7c28ef7514e00fe21d46cf33d14f15cd00e5211ced95e96eab4ba"
     },
     {
       "path": "frontend/src/components/DataManagement.tsx",
@@ -61,6 +61,10 @@
     {
       "path": "frontend/src/components/RestoreActivation.tsx",
       "sha256": "98c37bbf798a450a5e077c8f0a576a8d81357625dcc61e10fdf198851f4b82a5"
+    },
+    {
+      "path": "frontend/src/components/RunPendingControls.tsx",
+      "sha256": "0d946391cb0f19e08f487890eb4c8c9e3d0745b6dfe90c4d080927b1cfa91b31"
     },
     {
       "path": "frontend/src/components/SessionArtifacts.tsx",
@@ -99,8 +103,12 @@
       "sha256": "a463f760c1f84271041894f6c64fc6cd5e97fbd0ed9859bedf75a6cfe181e7b2"
     },
     {
+      "path": "frontend/src/run-status.ts",
+      "sha256": "e3c1ca5584e004e11a3ecd5908352661f55b35ecc7cbb1dcc5e864cef49be16c"
+    },
+    {
       "path": "frontend/src/styles.css",
-      "sha256": "2c96e6b999273cd05f0e34c809fc5f7d10fc494d9bbd8323a5c43535bc73e277"
+      "sha256": "c7d1bb3a0749029281c4dbde1842775422b4ff90f42d2361562a20eafebaa36b"
     },
     {
       "path": "frontend/src/styles/layout.css",
@@ -108,7 +116,7 @@
     },
     {
       "path": "frontend/src/tests/client.test.ts",
-      "sha256": "a01ada2e7ec6e1def467efbf0ae9ceecda20a37dd6221aeb8b6ce09c7b616b22"
+      "sha256": "b7e059a5f864250bd7e425e21739f1d45f54ab269dacf638d3bf28ea6a51934d"
     },
     {
       "path": "frontend/src/tests/configuration.test.ts",
@@ -127,8 +135,12 @@
       "sha256": "fdce8eb0c6bfeb9db1cc216918960cb0571c6eea19ab36a37ae4fa8f03768019"
     },
     {
+      "path": "frontend/src/tests/run-status.test.ts",
+      "sha256": "9fca02f06efec52e85410ba77500d579fca5abb867ee226195a08fa9ab06e48c"
+    },
+    {
       "path": "frontend/src/types.ts",
-      "sha256": "f4b492af9b3af33f1399d969395aa843a8903c18a05070e4de9993cbafccc9d7"
+      "sha256": "047491c7d73ac9c37bfbd7f04c28632e2bb505088bede22f69cfec09d58ac763"
     },
     {
       "path": "frontend/src/workbench.ts",
@@ -149,14 +161,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-B58Z_ehU.css",
-      "sha256": "fa06041821a5daf9e46a1a9c8efb068d90c25c75ab402600a91274a25294dd34",
-      "bytes": 12868
+      "path": "assets/index-B_bXDZVV.css",
+      "sha256": "ce23f627ac7a5f7b2d70a8b279a730823eba410abf760a8cc0462301781b91a9",
+      "bytes": 13004
     },
     {
-      "path": "assets/index-TJf8kitY.js",
-      "sha256": "af54e5b1eee2de474e1032761cbc14b3ac8863190f3ad92e76403519a0b2254a",
-      "bytes": 307763
+      "path": "assets/index-B3POwjRg.js",
+      "sha256": "da6131eb8929f8af241c1cd228f1f9b2796f5368be05287b0ea985b65e0f44b7",
+      "bytes": 313674
     },
     {
       "path": "dependencies.json",
@@ -170,7 +182,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "ac5b92e9cab32d566f921f773ade223badcb04dce7da5e063f6e4eb5fe200d3b",
+      "sha256": "600f07c9477274fa34e6a1caf9a1dde741dfac041f08d911d1fb38f5f4c7511c",
       "bytes": 595
     },
     {

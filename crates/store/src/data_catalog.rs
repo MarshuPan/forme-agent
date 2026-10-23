@@ -1,10 +1,57 @@
 //! Owner-only metadata projections over the existing protected-content catalog.
 use crate::{BrainAuthorityStore, SqliteEventStore};
 use forme_protocol as p;
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 use std::collections::{BTreeMap, BTreeSet};
 
 impl SqliteEventStore {
+    /// Reads an encrypted companion for the owner configured on this store.
+    /// The returned record remains ciphertext; callers must enforce the
+    /// authenticated owner boundary before attempting decryption.
+    pub fn protected_content_for_current_owner(
+        &self,
+        id: &p::ContentRef,
+    ) -> p::Result<Option<crate::ProtectedContentRecord>> {
+        let protection = self
+            .content_protection()?
+            .ok_or_else(|| p::Error("content protection unavailable".into()))?;
+        let connection = self
+            .core_connection()
+            .map_err(|_| p::Error("protected content unavailable".into()))?;
+        let row: Option<(Vec<u8>, String)> = connection
+            .query_row(
+                "SELECT record,digest FROM protected_content
+                 WHERE content_ref=?1 AND owner_digest=?2
+                   AND NOT EXISTS (
+                       SELECT 1 FROM data_lifecycle_subjects s
+                       WHERE s.scope=protected_content.scope
+                         AND s.subject_digest=protected_content.subject_digest
+                         AND s.state IN ('pending','deleted')
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM data_lifecycle_deleted_objects d
+                       WHERE d.object_ref=protected_content.content_ref
+                   )",
+                params![id.0, protection.owner_digest().0],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()
+            .map_err(|_| p::Error("protected content unavailable".into()))?;
+        row.map(|(encoded, digest)| {
+            let record: crate::ProtectedContentRecord = serde_json::from_slice(&encoded)
+                .map_err(|_| p::Error("protected content corrupt".into()))?;
+            record.validate()?;
+            if record.owner_digest != *protection.owner_digest()
+                || record.content_ref != *id
+                || p::canonical_digest(&record)?.0 != digest
+            {
+                return Err(p::Error("protected content binding invalid".into()));
+            }
+            Ok(record)
+        })
+        .transpose()
+    }
+
     pub fn data_catalog(
         &self,
         owner: &p::VerifiedPrincipal,
