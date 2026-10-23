@@ -21,7 +21,7 @@ try {
         $python = 'python3'
         $pythonArguments = @()
     }
-    Invoke-QualityStep 'structure checker regressions' $python ($pythonArguments + @('-m', 'unittest', 'tools.tests.test_code_quality'))
+    Invoke-QualityStep 'structure and exact-byte checkout regressions' $python ($pythonArguments + @('-m', 'unittest', 'tools.tests.test_code_quality', 'tools.tests.test_web_asset_checkout'))
     Invoke-QualityStep 'crate boundaries and size ratchet' $python ($pythonArguments + @('tools/code-quality.py'))
     Invoke-QualityStep 'Rust formatting' 'cargo' @('fmt', '--all', '--', '--check')
     Invoke-QualityStep 'all Rust targets' 'cargo' @('check', '--locked', '--workspace', '--all-targets')

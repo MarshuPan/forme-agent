@@ -3,3 +3,8 @@ packaging/** text eol=lf
 # Evidence manifests bind exact bytes, including README/report line endings.
 docs/acceptance/core-brain-*-artifacts/* -text
 docs/archive/acceptance/core-brain-c24-*/* -text
+# Vite copies HTML and public files verbatim; build inputs must also stay LF.
+frontend/** text eol=lf
+# Generated Web resources and the Rust route table are bound by exact bytes.
+# A Windows checkout must not convert their line endings after hashing.
+crates/gateway/assets/product/** -text

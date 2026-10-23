@@ -167,7 +167,10 @@ try {
         try { $output = @(& $shell @arguments 2>&1); $code = $LASTEXITCODE }
         finally { $ErrorActionPreference = $previous }
         Assert-That ($code -ne 0) 'Arbitrary-root provisioning unexpectedly succeeded'
-        Assert-That (($output -join ' ') -match 'forme installation stopped') 'Refusal was not an installer refusal'
+        # Windows PowerShell wraps native error text inside words at long paths.
+        # Match the refusal after removing presentation-only whitespace.
+        $refusal = ($output -join ' ') -replace '\s', ''
+        Assert-That ($refusal.Contains('formeinstallationstopped')) 'Refusal was not an installer refusal'
         $after = @(Get-ChildItem -LiteralPath $scratch -Recurse -Force | ForEach-Object FullName)
         Assert-That (($before -join '|') -ceq ($after -join '|')) 'Refused operation changed files'
         Assert-That ([IO.File]::ReadAllText($marker) -eq 'owner-fixture') 'Existing fixture changed'
