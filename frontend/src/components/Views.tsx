@@ -12,9 +12,10 @@ import { Maintenance } from './Maintenance.tsx';
 
 export function Settings({ api, runtime, issue, refresh, signedOut }: { api: WorkbenchClient; runtime: RuntimeView | null; issue: string; refresh: () => void; signedOut: () => void }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [passwordUnknown, setPasswordUnknown] = useState(false);
+  const passwordOperation = useRef<string | null>(null);
   const [config, setConfig] = useState<ProductConfigView | null>(null), [configError, setConfigError] = useState('');
   const [configLoading, setConfigLoading] = useState(true), [configBusy, setConfigBusy] = useState(false);
-  const operation = useState(() => newKey('password'))[0];
   async function loadConfig() {
     setConfigLoading(true); setConfigError('');
     try { setConfig(await api.productConfig()); }
@@ -28,8 +29,15 @@ export function Settings({ api, runtime, issue, refresh, signedOut }: { api: Wor
     setBusy(true); setError('');
     try {
       if (data.get('next') !== data.get('confirm')) throw new Error('两次输入的新密码不一致。');
-      await api.password(String(data.get('current')), String(data.get('next')), operation); form.reset(); signedOut();
-    } catch (problem) { setError(problem instanceof Error ? problem.message : '密码修改尚未确认。'); }
+      const operation = passwordOperation.current ?? newKey('password');
+      passwordOperation.current = operation;
+      await api.password(String(data.get('current')), String(data.get('next')), operation);
+      passwordOperation.current = null; setPasswordUnknown(false); form.reset(); signedOut();
+    } catch (problem) {
+      if (problem instanceof ApiError && problem.status === 0) setPasswordUnknown(true);
+      else { passwordOperation.current = null; setPasswordUnknown(false); }
+      setError(problem instanceof Error ? problem.message : '密码修改尚未确认。');
+    }
     finally { setBusy(false); }
   }
   return <section className="view"><header className="view-header"><div><p className="eyebrow">这台 forme 的运行情况</p><h1>设置与维护</h1></div><button className="secondary-button" onClick={refresh}>重新检查连接</button></header>
@@ -40,10 +48,10 @@ export function Settings({ api, runtime, issue, refresh, signedOut }: { api: Wor
       <ProductConfigEditor api={api} config={config} loading={configLoading} error={configError} busy={configBusy} onReload={() => void loadConfig()} onBusy={setConfigBusy} onError={setConfigError} onSaved={setConfig} />
       <ConfigurationActivation api={api} config={config} coreConnected={Boolean(runtime)} onSaved={setConfig} refresh={refresh} />
     </article><article className="surface"><h2>修改登录密码</h2><p className="muted">成功后撤销已有登录会话，脑数据与所有者身份保持不变。</p><form onSubmit={changePassword} aria-busy={busy}>
-      <label>当前密码<input name="current" type="password" autoComplete="current-password" required maxLength={128} /></label>
-      <label>新密码<input name="next" type="password" autoComplete="new-password" required minLength={12} maxLength={128} /></label>
-      <label>确认新密码<input name="confirm" type="password" autoComplete="new-password" required minLength={12} maxLength={128} /></label>
-      {error && <p role="alert" className="form-error">{error}</p>}<button className="primary-button" disabled={busy}>{busy ? '正在确认…' : '更新密码并重新登录'}</button>
+      <label>当前密码<input name="current" type="password" autoComplete="current-password" required maxLength={128} readOnly={busy || passwordUnknown} /></label>
+      <label>新密码<input name="next" type="password" autoComplete="new-password" required minLength={12} maxLength={128} readOnly={busy || passwordUnknown} /></label>
+      <label>确认新密码<input name="confirm" type="password" autoComplete="new-password" required minLength={12} maxLength={128} readOnly={busy || passwordUnknown} /></label>
+      {error && <p role="alert" className="form-error">{error}</p>}<button className="primary-button" disabled={busy}>{busy ? '正在确认…' : passwordUnknown ? '使用原操作继续核实' : '更新密码并重新登录'}</button>
     </form></article><Maintenance api={api} refresh={refresh} /></div><DataManagement api={api} connected={Boolean(runtime)} />
   </section>;
 }

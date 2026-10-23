@@ -442,6 +442,7 @@ fn identity_password_change_binds_new_hash_and_preserves_owner_across_restart() 
     let prepared = store
         .prepare_password_change_at(
             &authenticated,
+            "password:change-restart",
             SensitivePassword::new(replacement.into()),
             NOW + 2,
         )
@@ -468,6 +469,18 @@ fn identity_password_change_binds_new_hash_and_preserves_owner_across_restart() 
         .unwrap();
     assert_eq!(revision.credential_revision, 2);
     assert_eq!(revision.auth_epoch, 2);
+    let candidate_cleared: i64 = store
+        .database()
+        .unwrap()
+        .connection
+        .query_row(
+            "SELECT candidate IS NULL FROM password_change_commands
+             WHERE operation='password:change-restart'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(candidate_cleared, 1);
     assert!(store
         .authenticate_at(
             &first.cookie,
@@ -643,6 +656,7 @@ fn identity_change_password_rejects_a_proof_for_another_prepared_hash() {
     let first = store
         .prepare_password_change_at(
             &authenticated,
+            "password:first-candidate",
             SensitivePassword::new("first replacement fixture 21".into()),
             NOW + 2,
         )
@@ -650,6 +664,7 @@ fn identity_change_password_rejects_a_proof_for_another_prepared_hash() {
     let second = store
         .prepare_password_change_at(
             &authenticated,
+            "password:second-candidate",
             SensitivePassword::new("second replacement fixture 34".into()),
             NOW + 2,
         )
@@ -691,6 +706,60 @@ fn identity_change_password_rejects_a_proof_for_another_prepared_hash() {
             .auth_epoch,
         2
     );
+}
+
+#[test]
+fn identity_password_change_key_reuses_only_its_bound_candidate() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let session = login(&store, NOW);
+    let authenticated = owner(&store, &session, NOW + 1);
+    let operation_id = "password:stable-attempt";
+    let replacement = "stable replacement password 63";
+    let first = store
+        .prepare_password_change_at(
+            &authenticated,
+            operation_id,
+            SensitivePassword::new(replacement.into()),
+            NOW + 2,
+        )
+        .unwrap();
+    let retry = store
+        .prepare_password_change_at(
+            &authenticated,
+            operation_id,
+            SensitivePassword::new(replacement.into()),
+            NOW + 3,
+        )
+        .unwrap();
+    assert_eq!(first.operation_digest(), retry.operation_digest());
+    assert!(matches!(
+        store.prepare_password_change_at(
+            &authenticated,
+            operation_id,
+            SensitivePassword::new("different replacement password 84".into()),
+            NOW + 4,
+        ),
+        Err(AuthError::Conflict)
+    ));
+    store
+        .database()
+        .unwrap()
+        .connection
+        .execute(
+            "UPDATE sessions SET idle=?1, absolute=?1",
+            [NOW + 86_400_100],
+        )
+        .unwrap();
+    assert!(matches!(
+        store.prepare_password_change_at(
+            &authenticated,
+            operation_id,
+            SensitivePassword::new(replacement.into()),
+            NOW + 86_400_002,
+        ),
+        Err(AuthError::Conflict)
+    ));
 }
 
 #[test]
@@ -836,7 +905,7 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 8);
     let workbench_commands: i64 = store
         .database()
         .unwrap()
@@ -848,6 +917,17 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         )
         .unwrap();
     assert_eq!(workbench_commands, 1);
+    let password_commands: i64 = store
+        .database()
+        .unwrap()
+        .connection
+        .query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='password_change_commands'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(password_commands, 1);
     store.login_challenge_at(NOW + 2).unwrap();
 }
 

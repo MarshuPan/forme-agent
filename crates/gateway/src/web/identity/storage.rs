@@ -94,7 +94,7 @@ impl Database {
             let version: i64 = reader
                 .pragma_query_value(None, "user_version", |r| r.get(0))
                 .map_err(|_| AuthError::RecoveryRequired)?;
-            if application != APPLICATION_ID || !matches!(version, 1..=7) {
+            if application != APPLICATION_ID || !matches!(version, 1..=8) {
                 return Err(AuthError::RecoveryRequired);
             }
         } else {
@@ -244,11 +244,39 @@ impl Database {
             .map_err(storage_error)?;
             tx.commit().map_err(storage_error)?;
         }
+        if version <= 7 {
+            let tx = connection.transaction().map_err(storage_error)?;
+            tx.execute_batch(
+                "CREATE TABLE IF NOT EXISTS password_change_commands (
+                    operation TEXT PRIMARY KEY,
+                    owner TEXT NOT NULL,
+                    session TEXT NOT NULL,
+                    account_ref TEXT NOT NULL,
+                    credential_revision INTEGER NOT NULL,
+                    auth_epoch INTEGER NOT NULL,
+                    candidate TEXT,
+                    operation_digest TEXT NOT NULL,
+                    created INTEGER NOT NULL
+                 );
+                 CREATE INDEX IF NOT EXISTS password_change_commands_owner_created
+                    ON password_change_commands(owner, created);
+                 PRAGMA user_version=8;",
+            )
+            .map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
+        }
         connection
             .execute_batch(
                 "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;
             PRAGMA secure_delete=ON; PRAGMA max_page_count=8192;
             PRAGMA trusted_schema=OFF;",
+            )
+            .map_err(storage_error)?;
+        connection
+            .execute(
+                "UPDATE password_change_commands SET candidate=NULL
+                 WHERE candidate IS NOT NULL AND created<=?1",
+                [super::now().saturating_sub(account::PASSWORD_CANDIDATE_TTL)],
             )
             .map_err(storage_error)?;
         if let Some(owner) = account(&connection)? {

@@ -273,6 +273,7 @@ pub(super) async fn password(
     let body = json(body)?;
     version(body.schema_version)?;
     let cookie = session_cookie(&headers)?;
+    let operation_id = key(&headers)?.to_owned();
     let binding = mutation(&headers)?;
     let PasswordBody {
         old_password,
@@ -287,7 +288,7 @@ pub(super) async fn password(
     let prepared = state
         .blocking(true, {
             let owner = owner.clone();
-            move |identity| identity.prepare_password_change(&owner, new_password)
+            move |identity| identity.prepare_password_change(&owner, &operation_id, new_password)
         })
         .await?;
     let operation_digest = prepared.operation_digest().clone();

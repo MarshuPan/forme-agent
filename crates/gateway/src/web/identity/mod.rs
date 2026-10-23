@@ -235,6 +235,7 @@ impl<'de> serde::Deserialize<'de> for SensitivePassword {
 /// In-flight password replacement with an immutable salted-hash commitment.
 /// This object is never a wire DTO and cannot be constructed from client JSON.
 pub struct PreparedPasswordChange {
+    operation_id: String,
     password: PasswordRecord,
     operation: p::SchemaDigest,
     account_ref: String,

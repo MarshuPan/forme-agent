@@ -411,6 +411,42 @@ fn web_password_change_revokes_old_cookies_without_changing_owner() {
 }
 
 #[test]
+fn web_password_change_rejects_reusing_an_operation_key_for_another_password() {
+    let fixture = Fixture::new(true);
+    let (cookie, csrf) = fixture.login();
+    let headers = [
+        ("Origin", fixture.origin()),
+        ("Cookie", cookie.clone()),
+        ("X-Forme-Csrf", csrf),
+        ("Idempotency-Key", "password:stable-fixture".into()),
+    ];
+    let original = "first HTTP replacement password 35";
+    let rejected = fixture.request(
+        "PUT",
+        "/api/v1/auth/password",
+        &headers,
+        &json!({"schema_version":1,"old_password":"wrong fixture password 46","new_password":original}).to_string(),
+    );
+    assert_eq!(rejected.status, 401);
+
+    let different = fixture.request(
+        "PUT",
+        "/api/v1/auth/password",
+        &headers,
+        &json!({"schema_version":1,"old_password":PASSWORD,"new_password":"different HTTP replacement 82"}).to_string(),
+    );
+    assert_eq!(different.status, 409);
+
+    let retry = fixture.request(
+        "PUT",
+        "/api/v1/auth/password",
+        &headers,
+        &json!({"schema_version":1,"old_password":PASSWORD,"new_password":original}).to_string(),
+    );
+    assert_eq!(retry.status, 202);
+}
+
+#[test]
 fn web_read_quota_is_separate_and_rate_rejections_have_retry_after() {
     let fixture = Fixture::new(true);
     for _ in 0..40 {
