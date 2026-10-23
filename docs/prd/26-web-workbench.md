@@ -112,6 +112,14 @@ Web 在同一 identity DB 单写者事务中读取会话当前关联，并为首
 
 会话 workspace 关联只决定默认项目上下文，不授予该 workspace 的任意工具、文件系统或外部动作权限；Workspace 注册/charter 也不替代 Permission/Trust/AutonomyEnvelope。run 已接纳后不热切换；解除关联影响之后的 run，不改写历史 `SessionBound` 或历史 run workspace。
 
+### 4.6 普通建议处置的刷新恢复
+
+Web identity DB 是该恢复记录的唯一 owner；不把普通建议处置命令写入前端持久存储、brain DB 或新增 EventKind。提交 `/api/v1/brain/workbench/proposal` 前，Web 先在 identity DB 单写者事务中插入恢复记录，字段为 `schema_version, owner_digest, command, binding_digest, run, proposal, payload, created_at`；`payload` 是已校验的封闭 `WorkbenchProposalCommand` JSON，不含自由文本、秘密或浏览器提供的 actor。owner 摘要与命令规范化绑定必须可校验，数据库 ACL 保持 Web 服务专属。identity DB 最多保留 256 条 owner 未决记录，超限时在转发主脑前 fail closed。`command` 全局唯一；`(owner, run, proposal)` 同时唯一，阻止同一目标并发生成第二个恢复命令。
+
+同 owner、同 command、同 binding 的预登记是幂等读取；异 owner 或异 binding 重用 command 一律冲突。记录成功后才经现有签名 Web→core bridge 转发原命令。只有解析到版本/command/binding 一致且状态为 `Confirmed` 或 `Rejected` 的正式 `WorkbenchCommandReceipt`，或收到 core 对该原命令的 HTTP 409（该状态只由 command 开始前的确定性冲突返回），才按 owner+command+binding 条件删除记录。Unknown、其他 HTTP/transport 错误、超时、进程中断或删除回执失败均保留记录；不得因刷新、重登、重启或换浏览器生成新 key。
+
+认证后 `GET /api/v1/workbench/proposals/pending` 返回 `{schema_version: 1, commands: WorkbenchProposalCommand[]}`，最多 256 条且只含当前 owner 未决记录。读回时逐条验证 owner、schema 与 binding digest；坏记录导致恢复错误，不跳过或部分显示。前端仅以内存将列表按 `(run, proposal)` 关联 Inbox；匹配不到当前 Suggestion 时仍展示安全的“原处置待核实”条目。恢复动作必须由 owner 显式触发，并原样重发列表中的命令。页面加载/刷新只读不发命令；终态后刷新正式 brain projection。此记录只用于找回命令，不替代主脑回执或主脑事件作为事实源。
+
 ## 5. 页面、行为与状态
 
 ### 5.1 全局外壳与初始化
@@ -165,6 +173,8 @@ Web 在同一 identity DB 单写者事务中读取会话当前关联，并为首
 按类型提供采纳、拒绝、延后、回答、探测/裁决等允许操作；点击/已读不等于采纳。采纳建议若涉及真实动作，会进入既有新计划/审批，不直接调用工具；拒绝抑制/延后 intention 由后端事件确认。过期项保留历史，不用前端删除隐藏失败。
 
 普通主动建议通过 closed `WorkbenchProposalCommand`（`schema_version, command, run, proposal, outcome, defer_until`）处置；key 与 command 必须一致，run/proposal 必须指向已发出的普通建议，不能用该入口回答 AskToLearn。延后必须指定未来时间并生成既有 DeferredProposal intention；采纳/拒绝不得夹带时间或替换 actor。回执复用 `MemoryMaintenanceApplied` 的 `workbench-proposal-v1|key_digest|binding_digest|started/confirmed/rejected|target_digest`，target 锁覆盖不同 key 的并发。started 无终态返回 Unknown，原命令可查询但换 key 不得绕过未决 target；已有同义终态先返回，不能因延后时间已过去而破坏历史核实。采纳只确认 owner outcome，不创建 Run、审批或动作，后续执行仍走主脑正式计划与权限路径。
+
+普通建议处置在 Web 转发前先写 owner-scoped identity 恢复记录，终态主脑回执确认后才删除；认证后的未决命令查询供刷新/重启后人工找回原 key 与原 payload。Unknown/断线只显示并核实同一命令，不自动提交、不生成新 key。若原建议已从活动 Inbox 消失，恢复记录仍以安全待核实项呈现，直到取得明确终态；身份库中的恢复元数据不是脑事实，主脑事件/回执仍为最终依据。
 
 ### 5.6 记忆与认知
 
@@ -221,6 +231,8 @@ Web 在同一 identity DB 单写者事务中读取会话当前关联，并为首
 ## 9. 测试
 
 单元重点 reducer 重复/gap、snapshot merge、command key、审批过期/冲突与错误状态，不为静态布局镜像编写无意义测试。交互集成用自建 fixtures，覆盖表单、权限、附件、候选、长任务续接与真实服务错误。
+
+普通建议恢复至少覆盖：identity DB 写入先于 core dispatch；同 owner/同 binding 幂等读取；异 owner/异 binding 冲突零转发；Web 重启后读取到字节/字段等价的原命令；Unknown/断线/超时保留；明确终态回执后才删除；终态已在 core 但 Web 删除/响应中断时可安全核实；没有当前 inbox item 时仍可找到原操作；页面加载不触发 mutation；整个流程 driver/event 计数证明无新 command key、无重复建议副作用。
 
 浏览器端验证 IP17–23：两 tab 重复提交只一个 run；流中刷新后完整；logout 后无私有缓存；审批参数变化 driver=0；恶意 Markdown/HTML/SVG/路径不能执行/越权；core crash 时设置仍可用；读流与命令独立限流。验证 Windows/macOS/Linux 支持浏览器与窄屏，键盘完成登录/对话/审批。
 

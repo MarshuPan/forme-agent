@@ -667,6 +667,7 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 
 - 稳定脑事实只经既有 forme-store 单写者/EventKind/stream_seq。安装、认证、config/release revision 与服务生命周期使用独立版本化产品管理/认证记录，其写者和事务边界固定。
 - 产品 journal/session DB 不属于第二脑/第二 writer，不能写 brain 表、生成认知事实或直接推进 run；仅使用安全 operation/run refs 关联。产品 cursor 与脑 cursor 不互换。
+- Web 已提交但结果未知的封闭命令，可在 owner-scoped identity DB 保存最小恢复记录（原命令、绑定摘要、owner digest、创建时间）；这只是找回原操作的产品恢复元数据，不是脑事实或授权。记录只能由认证 owner 读取，并在主脑返回明确终态后删除；未知/超时/服务不可用时保留，禁止生成替代 key 或自动提交。
 - 所有新增 DTO 带 SchemaVersion。新 bin/产品 DTO 不意味着获准改冻结 trait、crate 依赖图或新增 EventKind；需要这些变化时必须先有明确兼容设计。
 
 ### 29.5 配置、数据与恢复
