@@ -44,3 +44,13 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 `29984a4` 将旧布局验证从 prepare 入口独立为一个小模块，Windows 安装入口、ACL/路径/布局规则和测试分别落文件；不在 host/lib 中新增通用 shell 或另一套策略 owner。三个源文件和测试都低于新增文件阈值。结构检查新增 `packaging/`、`.psm1` 与 `.iss`，不再让安装权限代码游离于规模检查之外；对应检查器反向测试已同步。
 
 最终 438 个源文件、**63 处历史规模债务**，没有刷新基线。统一门将原生 NTFS descriptor/继承/原子替换/拒绝及真实 hostctl 布局联合测试纳入 Windows 源码回归，原生安装/真实服务 token 与产品 IP 验收仍独立。Rust 752 passed / 0 failed / 5 默认 ignored、前端 14/14、bundle 9/9 和完整合规通过；详细执行与中间传输失败说明见 [权限分区验收](installed-product-service-access-acceptance.md)。
+
+## 7. Harness 控制与装配拆分、Windows checkout（2026-10-24）
+
+`3dc30bc` 集成维护 worktree 的 `b74f9c4`，两者 Git tree 均为 `966f45fa508b2c4b34bdb2e5f8e5ce3b676fe299`。Harness 构造/装配、owner 控制与审批只读投影、项目 AppAPI、模型/上下文准备分别移至 253/204/131/263 行的职责模块；原 `lib.rs` 从 6977 行降至 **6159 行**。未改公开 API、事件、执行顺序、事务或恢复行为。新增正式 ProductionRuntime 审批边界测试，证明反复读取/跨 session/重启不调用模型、不写事件、不生成工具副作用。
+
+维护 worktree 完整 Rust 回归为 **159 suites、853 passed / 0 failed / 5 默认 ignored**，fmt/check/strict Clippy 通过。原统一门随后因 Windows autocrlf 改写生成 CSS 而失败；补验中发现未固定 LF 的 HTML/public 输入也会改变 bundle。`63ecc43` 固定输入 LF 与生成资源 exact bytes，并用真实临时 Git 仓库的 add/commit/restore 验证正向保护和未保护反例。Windows PowerShell 在长路径内折行拒绝提示造成的测试误判也已修正，仍检查非零退出、明确拒绝和零写入，不放宽安装边界。
+
+`63ecc43` 的完整统一源码门通过（158 suites、852 Rust tests、49 前端 tests、打包/签名/NTFS/完整合规）；维护分支补验的前端可重复 build、8 项 Python 结构/checkout tests、7 项真实 NTFS/hostctl 场景、打包/签名、最终 check/结构/合规/diff 门通过。原失败日志保留，不把拆分前的源码门冒充拆分后的单次总门。当前结构门 **578 文件、63 处历史规模债务**；没有刷新基线，也不声称大文件债务清零。
+
+日志分别为主工作区 `target/installed-product-quality-20261024-checkout.log`，维护 worktree 的 `target/harness-refactor-quality-final-20261024.log`、`harness-refactor-frontend-lf-20261024.log`、`harness-refactor-*-final-20261024.log`。完整 M5 已走到 S99：当前临时回执生成/验证通过，但仓库旧回执 compare 失败，**当前完整 M5 尚不记 PASS**，须在最终干净源码上更新回执并重验。原生安装、worker 隔离、跨平台和 IP01–IP24 仍按产品记录开放。

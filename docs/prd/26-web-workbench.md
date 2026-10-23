@@ -194,6 +194,18 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 删除/遗忘展示精确范围与不可逆性、本地完成和远端 Requested/Unknown。隐藏/归档聊天与真正删除分开；不能以删除页面卡片冒充原文/FTS/keys 已清理。证据受权限/保留限制时显示原因，不扩大披露。
 
+#### 5.6.1 只读材料正文
+
+新增 additive 产品适配 DTO `WorkbenchMaterialQuery { schema_version: 1, node, run, event, scope?, snapshot }` 与 `WorkbenchMaterialView { schema_version: 1, node, run, event, scope, content_ref, state, bytes?, content_digest?, text? }`。`snapshot` 是同一 Memory 列表及 scope 的权威摘要；node/run/event 必须共同指向当前投影中的一项，不能把任意 ContentRef、路径或 URL 作为读取入口。既有 WorkbenchQuery/Item/Snapshot、脑事件与冻结 trait 均不变。
+
+认证后的 `POST /api/v1/brain/workbench/material` 经原签名桥到 core `/v1/brain/workbench/material`。Harness 在数据读取 fence 和 owner 校验内重建当前 Memory 投影、核对 snapshot/节点/源事件，再读取服务端选出的内容；结束前复核 stream heads。陈旧列表返回 409，跨 owner/不存在的节点拒绝。查询不调模型、工具或后台 tick，不创建 run、脑事件、内容记录或新的解密 key。
+
+只有实际产物 writer 登记的正文可读。执行产物与 owner 上传正文在创建时附加加密、版本化的 `runtime-artifact-material-v1:{content_ref}` companion，绑定确切 ref、scope、subject、正文摘要及字节数；companion 自身的地址由该命名空间计算，不能由正文 JSON 自报身份。companion 和正文受同一数据生命周期主体控制，正文读取通过当前 owner 的 catalog 校验及原加密 binding；不开放通用 protected-content 解密接口，不把控制裁决、data-operation、strategy 或其他内部 companion 当作可下载原文。
+
+结果状态为 `Available / ReferenceOnly / MissingOrErased / TooLarge / NonText`。最多返回 65,536 字节的完整 UTF-8 纯文本；不截断、不执行 Markdown/HTML/SVG，不将原文字段解释成 prompt。缺少可信 companion 的历史/外部/内联引用保持 ReferenceOnly，不猜测其原文；正文缺失或被生命周期阻断、二进制和超限分别明确显示。既有只读引用与来源追踪继续可用。
+
+页面由 owner 显式点击后查询，正文仅存在当前条目的内存状态；关闭/切换视图或登录失效时清除。请求完成后必须核对 node/run/event/scope/ref、schema、状态与 text/bytes/digest 一致性；刷新列表不会自动读取所有正文。测试覆盖已登记正文、刷新/重启后的同一内容、陈旧快照/跨 scope/跨 owner/伪造节点、内部 companion 冒充、真实生命周期删除、超限/非 UTF-8、安全文本渲染和零模型/零事件/零 key 创建。
+
 ### 5.7 设置与维护
 
 | 设置分区 | 必须展示/允许的动作 |
