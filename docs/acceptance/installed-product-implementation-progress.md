@@ -2,11 +2,13 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`，当前实现提交 `56dbed1`（会话 workspace 关联后续正式 run 上下文）；前一实现提交 `69ee763`（owner 对运行未知结果的持久裁决与恢复）。此前 `29a1790` 补齐会话产物历史，`e36b5b9` 补齐恢复候选工作台/发布重新认证；再前为 `5b99ac5`（恢复执行边界与 Host 提交准入）、`b16997c`（原生打包入口/POSIX 权限）、`92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）。验证日期 2026-10-23。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
+最新施工分支：`shu/installed-product`，当前实现提交 `dd76f20`（改密码操作幂等绑定）；其前 `56dbed1` 将会话 workspace 绑定到后续正式 run 上下文，`69ee763` 增加 owner 对运行未知结果的持久裁决与恢复。对应文档契约提交 `7e199a7`。此前 `29a1790` 补齐会话产物历史，`e36b5b9` 补齐恢复候选工作台/发布重新认证；再前为 `5b99ac5`（恢复执行边界与 Host 提交准入）、`b16997c`（原生打包入口/POSIX 权限）、`92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）。验证日期 2026-10-23。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`，没有读取真实 owner/model secret 或注册本机系统服务。
 
 ## 1. 实施顺序与当前范围
 
 2026-10-23 的后续提交补齐了对话会话产物目录/历史（`29a1790`）、pending run 的 owner 裁决密文保存/原命令核实/重启恢复（`69ee763`），以及会话 workspace 关联到后续正式 run 的主脑上下文绑定（`56dbed1`）。绑定组件已通过 workspace 回归和 Web→core 正式 runtime 集成场景；仍不等于真实浏览器、多进程、系统服务或 IP01–IP24 联合验收。详见[会话 workspace 运行上下文绑定组件验收](installed-product-session-workspace-binding-acceptance.md)。
+
+2026-10-23 提交改密码 mutation 的 key 绑定（`dd76f20`）：独立认证库 schema v8 绑定 operation key、owner/session、account revision/epoch 与 Argon2id 候选；异义复用在 reauth/状态更新前拒绝，候选到期/成功后清除。前端未知结果锁定字段并保留原 key；静态 bundle 已重新生成。最终源码通过 Gateway all-targets check/strict Clippy、前端 verify 33/33、代码质量与 compliance doctor。完整 workspace Rust test 在 C 盘/Windows pagefile 资源不足时无法链接；重构后的最终源码未获得 runtime test 证据，本组件验收仍待该门重跑。详见[改密码操作幂等绑定组件验收](installed-product-password-change-idempotency-acceptance.md)。
 
 2026-10-23 新增[运行挂起恢复与裁决工作台组件验收](installed-product-run-recovery-acceptance.md)：pending 状态只读投影、owner 裁决密文 companion 与事件 claim 原子提交、模型调用未知终止、重启后原 command 显式核实，以及 Web 侧待决/未知说明均已实现。当前源码完整 workspace 回归与统一代码质量门通过；该组件不改变 IP01–IP24 状态，也不关闭整个产品化里程碑。
 
