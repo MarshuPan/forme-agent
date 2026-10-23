@@ -69,7 +69,9 @@ forme 的项目许可证为 MIT，以根 `LICENSE` 和 `Cargo.toml` 为准。下
 | sha2 | 0.10.9 | [crates.io](https://crates.io/crates/sha2) | [RustCrypto/hashes](https://github.com/RustCrypto/hashes) | MIT OR Apache-2.0 | Low | Public digest API only | No copied code or fixtures | Review LICENSE/NOTICE before release |
 | chacha20poly1305 | 0.11.0 | [crates.io](https://crates.io/crates/chacha20poly1305) | [RustCrypto/AEADs](https://github.com/RustCrypto/AEADs) | Apache-2.0 OR MIT | Low | Public AEAD API only behind the project-owned protected-content envelope; key material stays outside events and artifacts | No copied code, examples, fixtures, or naming | Review LICENSE/NOTICE and reachable advisories before release |
 | axum | 0.8.9 | [crates.io](https://crates.io/crates/axum) | [tokio-rs/axum](https://github.com/tokio-rs/axum) | MIT | Low | Public routing/extractor/response APIs only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
-| tokio | 1.52.3 | [crates.io](https://crates.io/crates/tokio) | [tokio-rs/tokio](https://github.com/tokio-rs/tokio) | MIT | Low | Public runtime, listener, task, and signal APIs only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
+| tokio | 1.53.3 | [crates.io](https://crates.io/crates/tokio) | [tokio-rs/tokio](https://github.com/tokio-rs/tokio) | MIT | Low | Public runtime, listener, task, and signal APIs only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
+| is_elevated | 0.1.2 | [crates.io](https://crates.io/crates/is_elevated) | [yandexx/is_elevated](https://github.com/yandexx/is_elevated) | MIT | Low | Windows-only safe public process-token query for local administrator recovery | No copied source, examples, fixture or layout | Review MIT license and transitive Windows bindings before release |
+| rustix | 1.1.4 | [crates.io](https://crates.io/crates/rustix) | [bytecodealliance/rustix](https://github.com/bytecodealliance/rustix) | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | Low | Unix-only safe effective-UID query with std/process features; no command execution | No copied source, examples, fixture or layout | Review enabled features and license before release |
 | tokio-rustls | 0.26.6 | [crates.io](https://crates.io/crates/tokio-rustls) | [rustls/tokio-rustls](https://github.com/rustls/tokio-rustls) | MIT OR Apache-2.0 | Low | Public async server TLS API only; defaults disabled, ring/tls12 enabled | No copied source, examples, certificate material, fixtures, or naming | Exact pin; review locked licenses and reachable advisories before release |
 | tower-http | 0.7.0 | [crates.io](https://crates.io/crates/tower-http) | [tower-rs/tower-http](https://github.com/tower-rs/tower-http) | MIT | Low | Public timeout middleware API only | No copied code, examples, fixtures, errors, or naming | Review LICENSE before release |
 | getrandom | 0.4.3 | [crates.io](https://crates.io/crates/getrandom) | [rust-random/getrandom](https://github.com/rust-random/getrandom) | MIT OR Apache-2.0 | Low | Public operating-system entropy API only | No copied code, examples, fixtures, errors, or naming | Review LICENSE/NOTICE before release |
@@ -169,3 +171,24 @@ by explicit canonical path and SHA-256 pin; their version labels are operator
 metadata, not detected provenance. No native compiler, signing identity or
 notarization credential is bundled or silently installed. Actual tool license,
 provenance, code signing and native execution remain release obligations.
+
+Installed-product security update (2026-10-24): the clean-tree M5 audit
+blocked on `RUSTSEC-2026-0386` for Tokio 1.52.3. The RustSec advisory lists
+`>=1.53.3` as patched (and a separate 1.51 maintenance range). The direct
+exact pin moves to 1.53.3 without changing runtime features, public transport
+traits or the internal crate graph. The reported constructors are Unix I/O
+APIs; the release gate remains conservative for the reachable package on
+Windows, with no advisory exemption. Compile, runtime, browser/bridge and
+current-tree supply-chain gates must pass again. No implementation is copied.
+
+Local recovery authority (2026-10-24): `forme-cli` uses exact-pinned
+`is_elevated 0.1.2` on Windows and the already locked `rustix 1.1.4` on Unix.
+Only safe public process-token/effective-UID APIs are used, before reading
+configuration, password input or the identity database. This replaces
+PATH-dependent `whoami`/`id` and localized group-text parsing. The crate
+graph and frozen brain protocols remain unchanged; all authored crates
+retain `forbid(unsafe_code)`. Dependency manifests, public documentation
+and licenses were reviewed without copying implementation or fixtures.
+Negative process tests use a repository-authored spoof executable. They
+do not reset a real account or establish privileged/native installation
+acceptance; that requires its own administrator environment and evidence.

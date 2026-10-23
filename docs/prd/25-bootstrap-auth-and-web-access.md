@@ -132,6 +132,8 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 
 密码规则、Argon2id 和 TTL 统一引用 architecture/10 §5.1。改密码/本地恢复先写新 credential revision 与 revoke epoch，再提交最终状态；崩溃后不得重新激活旧口令。忘记口令通过本机管理员 `hostctl` 发起有限 reset 操作，记录事实、撤销会话，不建立匿名远程找回或重置 OwnerId。
 
+本机恢复在读取配置、stdin 口令或认证库前核验当前进程的操作系统权限：Windows 读取真实进程提升 token，Unix 读取 effective UID。不得运行 PATH 中的 whoami/id、解析本地化组文案，或因 deny-only 管理组 SID 而认定已提权。检查失败即拒绝；此权限只允许有限恢复，不提升 Agent 的行动授权。
+
 改密码的 Idempotency-Key 按 §4.1 绑定目标和当前认证版本。未知结果只允许原操作重试；提交后旧 session 必须失效，用户以新口令重新登录确认，不通过旧 cookie 查询或重复设置第二个目标口令。候选哈希在事务提交时清除；过期候选只能得到 Conflict，不能以相同 key 创建新的目标。
 
 ### 5.2 配置与启动
