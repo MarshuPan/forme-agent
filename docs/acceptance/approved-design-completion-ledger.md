@@ -8,7 +8,7 @@
 
 状态分为：已有基线、实现中、待实现、待验证、环境受阻。整体完成必须同时有实现和要求层级的证据；模拟、组件、真实进程、浏览器、真实 provider/backend、原生平台和发布证据分别登记。环境受阻保留缺项，不折算为 PASS。
 
-当前工作分支为 `shu/installed-product`，起点 `4367df7`；安装产品尚未合入 main。核心已有 main 基线，具体历史验收以 `core-brain-closure-acceptance-report.md` 为准，产品分支以 `installed-product-implementation-progress.md` 及其组件报告为准。
+当前工作分支为 `shu/installed-product`，当前实现快照 `69ee763`；工作区干净，安装产品尚未合入 main。核心已有 main 基线，具体历史验收以 `core-brain-closure-acceptance-report.md` 为准，产品分支以 `installed-product-implementation-progress.md` 及其组件报告为准。`29a1790` 的会话产物历史与 `69ee763` 的运行裁决恢复已经实现，不能继续列为纯待实现；相应真实浏览器/多进程和整机联合验收仍未完成。
 
 ## 2. 核心与跨切面覆盖
 
@@ -49,8 +49,8 @@
 
 | 设计/验收 | 已有实现 | 未闭合义务 |
 |---|---|---|
-| P12 / IP17：对话 | 登录、提交/历史、cursor 续接、公开事件、幂等 | 会话创建/重命名/归档/项目关联，授权附件/产物；断线/双 tab 与 actual profile。 |
-| P12/P14 / IP18：审批与控制 | 最终审批 binding、取消、运行状态 | 其他 PendingKind 的 typed 恢复、Unknown probe/裁决及真正终态确认。 |
+| P12 / IP17：对话 | 登录、提交/历史、cursor 续接、公开事件、幂等；会话元数据 CRUD；加密附件上传、授权产物目录/下载；pending run 的 typed owner 裁决、密文伴随记录与重启后原命令核实（`29a1790`, `69ee763`） | 真实浏览器断线/双 tab 与 actual profile；会话 workspace 元数据尚未绑定正式 RunRequest 的执行上下文，语义待 owner 确认；完整 IP17 产品验收。 |
+| P12/P14 / IP18：审批与控制 | 最终审批 binding、取消、运行状态；approval/tool/handoff pending 投影、Unknown 核实与 owner 裁决实现 | 真实浏览器/多进程恢复和原生服务重启场景；不得将组件测试折算为 IP18/IP24 通过。 |
 | P13 / IP19：项目 | project/route register/plan/execute/cancel、charter | 意图/监管调整、历史/依赖/节点证据、刷新/恢复；不创建项目私有脑。 |
 | P14 / IP20：收件箱 | `477ef52` 正式主动提案/AskToLearn/失败投影、问询回应与 waiting/failed 运行入口 | 普通建议完整采纳/拒绝/延后、Unknown 探测/裁决及完整浏览器验收；查看不等于采纳。 |
 | P14 / IP20：记忆与认知 | `477ef52` 原始记忆引用、认知/候选/稳定/撤回/重评投影，证据/传递血缘及正式 review/撤回 | 授权原始正文、认知纠正/真正遗忘与完整 IP20；现有组件证据不等于产品通过。 |
