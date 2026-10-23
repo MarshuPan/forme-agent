@@ -135,6 +135,7 @@ try {
     foreach ($name in @(
         "hostd_dispatches_registered_worker_and_keeps_maintenance_domain_out",
         "hostd_cancels_the_original_worker_job_without_a_second_dispatch",
+        "hostd_accepts_delayed_fragmented_worker_requests_without_redispatch",
         "hostd_default_config_cannot_enable_an_unsandboxed_worker",
         "concurrent_http_dispatches_run_the_original_worker_once",
         "invalid_worker_requests_and_routes_have_no_admission_or_side_effect"

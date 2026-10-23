@@ -18,8 +18,12 @@ pub(super) fn handle_connection(
     bootstrap: Option<Arc<forme_execution::installed::bootstrap::BootstrapAuthority>>,
     domain: EndpointDomain,
 ) -> p::Result<()> {
+    // Windows accepts inherit the listener's nonblocking mode. Each admitted
+    // handler owns a blocking connection with bounded IO; otherwise a delayed
+    // header/body produces WouldBlock and can abort a valid request.
     stream
-        .set_read_timeout(Some(Duration::from_secs(10)))
+        .set_nonblocking(false)
+        .and_then(|_| stream.set_read_timeout(Some(Duration::from_secs(10))))
         .and_then(|_| stream.set_write_timeout(Some(Duration::from_secs(10))))
         .map_err(|_| p::Error("host broker socket limits could not be applied".into()))?;
     let request = match read_request(&mut stream) {

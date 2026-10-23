@@ -376,6 +376,47 @@ fn hostd_default_config_cannot_enable_an_unsandboxed_worker() {
 }
 
 #[test]
+fn hostd_accepts_delayed_fragmented_worker_requests_without_redispatch() {
+    let daemon = Daemon::start(Vec::new());
+    let request = job("job-http-fragmented", now_ms() + 30_000);
+    let body = serde_json::to_vec(&request).unwrap();
+    let mut stream = std::net::TcpStream::connect(&daemon.agent_address).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .unwrap();
+    // A blocking handler must wait for data after accept, including when the
+    // Windows socket inherited the listener's nonblocking mode.
+    std::thread::sleep(Duration::from_millis(100));
+    stream
+        .write_all(b"POST /v1/agent/workers/dispatch HTTP/1.1\r\n")
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    write!(
+        stream,
+        "Host: {}\r\nAuthorization: Bearer {AGENT_TOKEN}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        daemon.agent_address,
+        body.len(),
+    )
+    .unwrap();
+    let middle = body.len() / 2;
+    stream.write_all(&body[..middle]).unwrap();
+    std::thread::sleep(Duration::from_millis(100));
+    stream.write_all(&body[middle..]).unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    let (head, body) = response.split_once("\r\n\r\n").unwrap();
+    assert!(head.starts_with("HTTP/1.1 200 "), "{head}");
+    let observation: p::WorkerObservation = serde_json::from_str(body).unwrap();
+    observation.validate().unwrap();
+    assert_eq!(
+        observe_until_terminal(&daemon, &request.job.job_id).state,
+        p::WorkerState::Completed
+    );
+    let marker = std::fs::read_to_string(daemon.root.join("workspace/worker-fixture-ran")).unwrap();
+    assert_eq!(marker.lines().count(), 1);
+}
+
+#[test]
 fn concurrent_http_dispatches_run_the_original_worker_once() {
     let daemon = Daemon::start(vec!["--sleep-ms=100".into()]);
     let request = job("job-http-concurrent", now_ms() + 30_000);
