@@ -646,6 +646,9 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - 原生安装包部署完整产品，OS 系统服务负责长期运行，用户只需浏览器。关闭网页/网页登录退出/OS 用户注销不停止非交互任务；主机休眠或关机时本机计算停止。
 - Web、系统管理、核心与执行辅助职责分开；只有现有 ProductionRuntime/authority EventStore 拥有主脑。Web 和 core 可独立故障/恢复，core 未配置或离线时仍能受认证初始化/维护。
 - 服务模式 CLI、Web、scheduler 复用同一 owner/store/writer；不为每设备、浏览器、workspace 或 child agent 新建大脑。始终保留 18-crate 图、99 EventKinds 与现有治理。
+- Web 会话关联的 workspace 是后续对话 run 的可信上下文绑定，不只是列表标签。Web 服务须从已认证 owner 的持久会话记录解析，不接受 run payload 自报 workspace；正式 core ingress 将解析结果传给既有 `ProductionRuntime::submit_workspace_run`，由其校验 workspace 注册、charter 和 scope，并在既有 `SessionBound` 固定该 run 的 workspace。
+- Web identity DB 与 brain DB 之间不做分布式事务。发送前，在 identity DB 单写者事务中以 owner、session、command/idempotency key 和规范化 request digest 原子固定 workspace 绑定；同 key 同请求始终沿用原绑定并核实原 core receipt，同 key 不同请求冲突。结果未知时保留绑定，禁止换 workspace 或新 key 自动重试；已接纳 run 的绑定不可被后续会话关联修改热切换。
+- Workspace 关联更新与 run 绑定以 identity DB 事务形成线性化顺序：并发发生时 run 使用事务中观察到的完整旧值或新值。归档会话拒绝新的 command；相同 key 的既有命令只允许核实原回执。解除关联后的新 run 使用默认 workspace，既有 run 仍保留 `SessionBound` 的原 workspace。
 
 ### 29.2 身份与认领
 

@@ -133,6 +133,8 @@ assertion 至少绑定 InstallId、OwnerId、session 摘要、auth epoch、audie
 
 brain 路由的 command/control/approval 都保留既有 idempotency/CAS/final-plan 语义。公共 API 新增的是 transport adapter，不能修改冻结 Harness/Store trait。具体 API DTO、错误及 stream cursor 见 prd/25。
 
+`POST /api/v1/brain/runs` 是产品化 Web 对话的唯一正式提交通道：Web 使用已认证 owner/session 从 identity DB 读取 session→workspace 关联，并在该 DB 以 command key/request digest 原子固定首次绑定；随后通过现有已签名 bridge 调用专用 `/v1/workbench/runs`。core 只接受有效 bridge assertion，将 versioned envelope 中的 request/session/workspace 一致性校验后交给现有 `ProductionRuntime::submit_workspace_run`。该路径不接受浏览器给出的 workspace，不由 Web 打开 brain DB，也不增加 EventKind、公开 RunRequest 字段或冻结 trait。Web/core 响应不明时以原 binding 和原幂等 key 核实；workspace 关联只对后续新 command 生效。
+
 限流分为 login、mutation、read/event、artifact 四类；SSE 使用每会话/连接数和背压，不按每个读取 chunk 算一次 mutation。客户端尊重 Retry-After，指数退避带抖动，停止盲轮询。高频状态读取不能耗尽正常对话/审批额度。
 
 ## 7. 执行、特权与桌面会话

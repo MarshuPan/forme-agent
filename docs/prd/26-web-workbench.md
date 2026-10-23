@@ -102,6 +102,16 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 
 前端切换/刷新会话即从 core 重读目录，按 content_ref 去重，下载绑定当前 session。上传未确认保留原文件和原命令号在内存，仅显式核实相同上传；不自动重传或用新 key 重试。用户注销/会话失效清理这些内存状态。这里补齐 prd/26 §5.2 已批准的对话与附件义务，不新增脑事件、私有记忆或依赖边。
 
+### 4.5 会话 workspace 与正式运行上下文绑定
+
+会话记录的 `workspace` 关联必须影响此会话后续提交的每个用户 run，而非仅用于 Web 分类。Web 在 owner 身份认证后，从独立 identity DB 的该 owner 会话记录解析 workspace；浏览器不得在 `RunRequest` 或其他请求字段中指定/覆盖 workspace。会话不存在、属于其他 owner 或已归档时拒绝创建新 run；未关联 workspace 使用当前正式 runtime 的默认 workspace。
+
+Web 在同一 identity DB 单写者事务中读取会话当前关联，并为首次提交的 `(owner, session, idempotency_key)` 持久固定 workspace、规范化请求 digest 和操作状态。操作 key 重用但 digest 不同必须冲突；会话关联变更与 run 首次绑定由该事务线性化，后续改关联只影响之后的新 command。创建请求的响应丢失、Web/core 任一方重启或 core 接纳结果未知时，保留原 binding，重发/核实只能使用同 key、同 digest、同 workspace；不得按新会话关联换 workspace，也不得自动换 key。core receipt 确认已有 run 后保存 run ref；unknown 保持可核实，不盲目重提副作用。
+
+产品化 Web adapter 将服务端解析并固定的上下文经现有签名 Web→core bridge 发至专用受认证 run ingress。该 ingress 校验 `RunRequest.session` 与 envelope session 一致、owner 来自当前 AuthContext，并调用现有 `ProductionRuntime::submit_workspace_run`；core 再校验 workspace 已注册及 scope/charter 边界，使用既有 `SessionBound` 事件固定实际上下文。该适配不得扩充脑 `EventKind`、改冻结 `RunRequest`/Harness trait、直接写 brain DB 或绕开既有 gateway/harness、policy、context、competence 和 execution 治理。内部 envelope 必须版本化且被 bridge request digest 完整绑定。
+
+会话 workspace 关联只决定默认项目上下文，不授予该 workspace 的任意工具、文件系统或外部动作权限；Workspace 注册/charter 也不替代 Permission/Trust/AutonomyEnvelope。run 已接纳后不热切换；解除关联影响之后的 run，不改写历史 `SessionBound` 或历史 run workspace。
+
 ## 5. 页面、行为与状态
 
 ### 5.1 全局外壳与初始化
@@ -115,6 +125,7 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 ### 5.2 对话
 
 - 会话列表支持创建、查看历史、重命名/归档和 workspace 关联；这些是同一脑的对话，不是新增 Agent。
+- 关联 workspace 后，该会话后续 run 必须进入对应 workspace 的正式主脑上下文；UI 标签/本地状态不是绑定证据，详情与历史按 run 的 `SessionBound` 显示实际 workspace。
 - composer 支持文本、授权附件、停止生成/任务控制；模型选择只提交被允许的 profile hint，实际 profile 由 core 决定并显示。
 - 提交即锁定 idempotency key，返回 receipt 后绑定 run；双击/刷新/网络超时都复用或查询原命令。
 - 流式显示公开回答、动作名称/资源/状态、等待审批、产物与失败。展示模型明确公开的 reasoning 摘要须符合内容/保留策略；不制造“脑内独白”。
