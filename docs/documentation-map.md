@@ -122,16 +122,16 @@
 | `acceptance/core-brain-closure-artifacts/manifest.json` | 同一源码输入下四波封闭清单的唯一证据汇总入口。 | 各波 runtime、A 入口/B tick、B/C typed 工件与 D 真实试验。 | 独立离线复核、Final 与 current-tree release audit。 | 绑定文件/源码/场景摘要、事件范围、快照与隐私扫描；不包含发布 receipt，避免循环摘要。 |
 | `acceptance/core-brain-c-artifacts/` | 八模式、冲突、未知恢复、文件隔离、监管、经验回流六份 typed artifacts。 | 正式 runtime、受控 HTTP 模型、真实 SQLite/文件/进程与完整 stream hash 见证。 | 离线 ledger/预算/终态/候选校验和 C 波永久门。 | 生成源码与范围绑定在当前 manifest，校验不需凭证；不证明线上模型质量或编排优于直接模型。 |
 
-## 产品化文档链（待实施）
+## 产品化文档链（分阶段实施中）
 
 | 文档 | 角色 | 上游 | 下游/状态 |
 |---|---|---|---|
 | [requirements/17](requirements/17-installed-product-scope-decisions.md) | 产品范围 P01–P16。 | 已实现单脑基线、owner 安装/UI 决策。 | requirements/18、canonical §29、architecture/10；设计已确认。 |
-| [requirements/18](requirements/18-installed-product-verification-strategy.md) | IP01–IP24 原生验收。 | requirements/17、永久 S/C 门。 | prd/24–26、产品验收；尚未执行。 |
-| [architecture/10](architecture/10-installed-product-and-web-workbench-architecture.md) | 系统服务、认领/身份/网络、分权、数据、升级、Web。 | requirements/17–18、canonical §29、architecture/03/09。 | prd/24–26；待实施，18-crate/99-kind 不变。 |
-| [prd/24](prd/24-installer-and-service-lifecycle.md) | 安装与系统服务生命周期。 | architecture/10、requirements/17–18。 | 原生包/宿主/隔离与 IP 验收；待实施。 |
-| [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 独立账号/session 基础已提交实施分支；配置/API/SSE 与完整 IP 验收待接入。 |
-| [prd/26](prd/26-web-workbench.md) | 五面 Web 工作台。 | architecture/10、prd/25 API。 | 静态 UI/IP17–24；待实施。 |
+| [requirements/18](requirements/18-installed-product-verification-strategy.md) | IP01–IP24 原生验收。 | requirements/17、永久 S/C 门。 | 已有组件门和实施记录；完整原生 IP01–IP24 仍未执行。 |
+| [architecture/10](architecture/10-installed-product-and-web-workbench-architecture.md) | 系统服务、认领/身份/网络、分权、数据、升级、Web。 | requirements/17–18、canonical §29、architecture/03/09。 | 宿主、worker、认证和工作台已分阶段落地；原生服务/强隔离/完整产品仍开放，18-crate/99-kind 不变。 |
+| [prd/24](prd/24-installer-and-service-lifecycle.md) | 安装与系统服务生命周期。 | architecture/10、requirements/17–18。 | 宿主协议、worker admission/控制面和打包基础已有组件实现；原生账户/逐 job 强隔离、安装事务、升级回滚与 IP 仍待完成。 |
+| [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 独立账号/session、配置事务、loopback API 和 core bridge 已有组件实现；旧脑接管、恢复材料、LAN/完整渠道能力与 IP 仍待完成。 |
+| [prd/26](prd/26-web-workbench.md) | 五面 Web 工作台。 | architecture/10、prd/25 API。 | 静态 UI、会话/项目/认知/收件箱和来源材料组件已分阶段实现；真实浏览器完整流程、剩余设置和 IP17–24 仍待完成。 |
 | [frontend-reuse-policy](compliance/frontend-reuse-policy.md) | owner 指定的前端许可/来源边界。 | canonical §12/§29.8、DeepSeek 公开来源。 | prd/17/26、导入前 gate；当前未导入源码/依赖。 |
 
 ## 依赖图
