@@ -47,6 +47,8 @@
 
 路径以 `/api/v1` 为根。所有 mutation 带稳定 `Idempotency-Key`，涉及版本对象带 expected revision；服务端用规范化完整语义核对，异义 key 冲突且零推进。请求 body 大小和上传能力按配置限制，不无限缓存。
 
+`PUT /auth/password` 的 key 绑定已认证 owner/session、account ref、credential revision/auth epoch 与目标口令候选。独立认证库只暂存 Argon2id salted hash 和 operation digest，不持久化明文；有效窗口内，同 key、同绑定、同目标沿用同一候选和 digest，同 key 异义或绑定变化返回 Conflict，且不签发 reauth proof、不改口令/epoch。候选 hash 最长保留 24 小时，过期后启动或下一次口令变更会清除；最多允许 64 个未完成候选。成功提交在同一事务中更新 credential、递增 epoch、撤销会话并清除该 owner 的所有候选 hash。操作 key 保留为 tombstone，不能被后续新意图复用；浏览器遇到结果未知时锁定表单并使用原 key/原字段继续核实；收到明确失败后，用户可以发起带新 key 的独立尝试，服务端不改绑旧 key。
+
 | 路由 | 请求与结果 | 身份/语义 |
 |---|---|---|
 | `GET /bootstrap/status` | 仅 claimed/setup_needed/protocol_version。 | 公开最小信息；不返回 owner/path/model。 |
@@ -128,6 +130,8 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 已有脑/备份的 owner 来自解密与完整性验证，不能先随机创建 owner 再修改它适配旧数据。认领完成或本机撤销/轮换证明使 setup session 无效。已认领账号恢复不能导入另一个 owner 的脑；owner 不匹配应拒绝，而不是改写账户/数据身份。
 
 密码规则、Argon2id 和 TTL 统一引用 architecture/10 §5.1。改密码/本地恢复先写新 credential revision 与 revoke epoch，再提交最终状态；崩溃后不得重新激活旧口令。忘记口令通过本机管理员 `hostctl` 发起有限 reset 操作，记录事实、撤销会话，不建立匿名远程找回或重置 OwnerId。
+
+改密码的 Idempotency-Key 按 §4.1 绑定目标和当前认证版本。未知结果只允许原操作重试；提交后旧 session 必须失效，用户以新口令重新登录确认，不通过旧 cookie 查询或重复设置第二个目标口令。候选哈希在事务提交时清除；过期候选只能得到 Conflict，不能以相同 key 创建新的目标。
 
 ### 5.2 配置与启动
 
