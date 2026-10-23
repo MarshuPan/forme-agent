@@ -4,6 +4,7 @@ import { newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
 import { isRecord } from '../types.ts';
 import type { OrchestrationLedger, ProjectCommand, RuntimeView, TaskSignature, WorkspaceCharterRecord, WorkspaceProject } from '../types.ts';
+import { nodeStatusLabel, projectRouteView, routeStatusLabel, verificationLabel } from '../project-routes.ts';
 
 const defaultSignature: TaskSignature = {
   schema_version: 1,
@@ -179,9 +180,23 @@ function ProjectCard({ api, project, routes, onChanged }: { api: WorkbenchClient
       const declaration = isRecord(route.declaration) ? route.declaration : {};
       const status = typeof route.status === 'string' ? route.status : 'Unknown';
       const routeRef = typeof declaration.route === 'string' ? declaration.route : routeKey;
+      const detail = projectRouteView(routeKey, raw);
       const executeKey = `route-execute:${routeRef}`;
       const cancelKey = `route-cancel:${routeRef}`;
-      return <div className="route-row" key={routeKey}><div><strong>{routeRef}</strong><span className="muted small">{status}</span></div><div className="button-row"><button className="secondary-button" disabled={busy || status !== 'Running'} onClick={() => void send({ operation: 'execute', route: routeRef }, executeKey)}>执行路线</button><button className="text-button" disabled={busy || status !== 'Running'} onClick={() => void send({ operation: 'cancel', command: cancelKey, route: routeRef }, cancelKey)}>取消路线</button></div></div>;
+      return <div className="route-entry" key={routeKey}><div className="route-row"><div><strong>{routeRef}</strong><span className="muted small">{routeStatusLabel(status)}</span></div><div className="button-row"><button className="secondary-button" disabled={busy || status !== 'Running'} onClick={() => void send({ operation: 'execute', route: routeRef }, executeKey)}>执行路线</button><button className="text-button" disabled={busy || status !== 'Running'} onClick={() => void send({ operation: 'cancel', command: cancelKey, route: routeRef }, cancelKey)}>取消路线</button></div></div>
+        {detail && <details className="route-details"><summary>路线详情 · {detail.nodes.length} 个节点 · 预算 {detail.budget ?? '未知'} · 已用 {detail.spent ?? '未知'} · 剩余 {detail.remaining ?? '未知'}</summary>
+          <p className="muted small">模式：{detail.pattern ?? '未指定'} · 置信度：{detail.confidence === null ? '未记录' : `${(detail.confidence / 10).toFixed(1)}%`} · 检查点：{detail.checkpointed ? '已记录' : '未记录'} · 路线：{detail.closed ? '已关闭' : '开放'}</p>
+          <ol className="route-node-list">{detail.nodes.map((node) => <li className="route-node" key={node.id}><div className="route-node-heading"><strong>{node.id}</strong><span>{nodeStatusLabel(node.status)}</span></div>
+            <p className="muted small">角色：{node.role}{node.attempts === null ? '' : ` · 尝试 ${node.attempts}`}{node.budget === null ? '' : ` · 预算 ${node.budget}`}{node.consumed === null || node.reserved === null ? '' : ` · 已用 ${node.consumed} / 预留 ${node.reserved}`}</p>
+            {node.blockedBy.length > 0 && <p className="notice">等待前置节点：{node.blockedBy.join('、')}</p>}
+            {node.summary && <p>{node.summary}</p>}
+            <p className="small">{verificationLabel(node.verification)}</p>
+            {node.evidence.length > 0 && <p className="muted small">证据：{node.evidence.join('、')}</p>}
+          </li>)}</ol>
+          {detail.dependencies.length > 0 && <section className="route-subsection"><h3>依赖关系</h3><ul>{detail.dependencies.map((edge, index) => <li key={`${edge.from}:${edge.to}:${index}`}>{edge.from} → {edge.to} · 失败时：{edge.onFailure}</li>)}</ul></section>}
+          {detail.conflicts.length > 0 && <section className="route-subsection"><h3>冲突</h3><ul>{detail.conflicts.map((conflict, index) => <li key={`${conflict.kind}:${index}`}>{conflict.kind}：{conflict.reason} · 节点 {conflict.nodes.join('、') || '未指定'}{conflict.evidence.length ? ` · 证据 ${conflict.evidence.join('、')}` : ''}</li>)}</ul></section>}
+        </details>}
+      </div>;
     })}
     {error && <p className="form-error" role="alert">{error}</p>}
   </article>;

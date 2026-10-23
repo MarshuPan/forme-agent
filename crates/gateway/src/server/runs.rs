@@ -26,6 +26,69 @@ pub(super) async fn submit_run(
     Ok((StatusCode::ACCEPTED, Json(run)))
 }
 
+pub(super) async fn submit_workbench_run(
+    State(state): State<Arc<HttpState>>,
+    assertion: Option<Extension<web_bridge::WebBridgeAssertion>>,
+    headers: HeaderMap,
+    Json(submission): Json<p::WorkbenchRunSubmission>,
+) -> Result<(StatusCode, Json<p::RunId>), ApiError> {
+    let Some(Extension(assertion)) = assertion else {
+        return Err(ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "workbench runs require the authenticated Web bridge",
+        ));
+    };
+    submission
+        .validate()
+        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "workbench run binding is invalid"))?;
+    let auth = state.authorize(&headers, true)?;
+    let owner = match auth.principal {
+        forme_communication::AuthPrincipal::Owner(owner)
+            if owner == state.owner && owner.0 == assertion.0.owner.0 =>
+        {
+            owner
+        }
+        _ => {
+            return Err(ApiError::new(
+                StatusCode::UNAUTHORIZED,
+                "workbench run owner does not match the bridge assertion",
+            ));
+        }
+    };
+    let encoded = serde_json::to_vec(&submission).map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "workbench run could not be encoded",
+        )
+    })?;
+    if assertion.0.request_digest
+        != p::canonical_digest(&(
+            p::SchemaVersion(1),
+            "forme-web-core-request-v1",
+            "POST",
+            "/v1/workbench/runs",
+            encoded,
+        ))
+        .map_err(ApiError::from)?
+    {
+        return Err(ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "workbench run does not match the bridge assertion",
+        ));
+    }
+    let runtime = state.runtime.clone();
+    let run = state
+        .blocking(move || {
+            runtime.submit_workspace_run(
+                &p::VerifiedPrincipal(owner.0),
+                &submission.workspace,
+                submission.request,
+            )
+        })
+        .await?;
+    Ok((StatusCode::ACCEPTED, Json(run)))
+}
+
 pub(super) async fn list_runs(
     State(state): State<Arc<HttpState>>,
     headers: HeaderMap,

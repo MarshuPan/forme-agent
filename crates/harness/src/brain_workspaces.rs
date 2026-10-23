@@ -44,7 +44,26 @@ impl ProductionRuntime {
                 handle,
                 session,
             } => {
-                h.drive_prepared_run(&run, &handle, &session)?;
+                let worker = h.clone();
+                let worker_run = run.clone();
+                let worker_handle = handle.clone();
+                let worker_session = session.clone();
+                if let Err(error) = std::thread::Builder::new()
+                    .name("forme-workspace-run".into())
+                    .spawn(move || {
+                        if let Err(drive_error) =
+                            worker.drive_prepared_run(&worker_run, &worker_handle, &worker_session)
+                        {
+                            let _ =
+                                worker.fail_prepared_run(&worker_run, &worker_handle, &drive_error);
+                        }
+                    })
+                {
+                    let spawn_error =
+                        p::Error(format!("failed to start accepted workspace run: {error}"));
+                    h.fail_prepared_run(&run, &handle, &spawn_error)?;
+                    return Err(spawn_error);
+                }
                 Ok(run)
             }
         }

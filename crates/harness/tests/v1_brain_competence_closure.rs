@@ -420,7 +420,16 @@ fn registering_an_independent_workspace_does_not_grant_tools_or_cross_scope_acti
         .lock()
         .unwrap()
         .push_back(call(&path.to_string_lossy(), p::FileOperation::Write));
-    let _ = runtime.submit_workspace_run(&f.owner(), &workspace, request("foreign-invalid-tool"));
+    let run = runtime
+        .submit_workspace_run(&f.owner(), &workspace, request("foreign-invalid-tool"))
+        .unwrap();
+    assert!(matches!(
+        runtime.harness().wait(run).unwrap().status,
+        p::RunStatus::Complete
+            | p::RunStatus::Aborted
+            | p::RunStatus::Failed
+            | p::RunStatus::Limited
+    ));
     assert!(!path.exists());
     assert!(!events(&runtime)
         .iter()

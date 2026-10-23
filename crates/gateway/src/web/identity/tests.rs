@@ -836,7 +836,18 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 6);
+    assert_eq!(version, 7);
+    let workbench_commands: i64 = store
+        .database()
+        .unwrap()
+        .connection
+        .query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='workbench_run_commands'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(workbench_commands, 1);
     store.login_challenge_at(NOW + 2).unwrap();
 }
 

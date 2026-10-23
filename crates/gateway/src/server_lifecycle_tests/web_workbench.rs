@@ -185,6 +185,32 @@ fn claim(fixture: &Fixture, key: &SigningKey, directory: &std::path::Path) {
 async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs() {
     let fixture = Fixture::new();
     let runtime = fixture.build();
+    let associated_workspace = p::WorkspaceRef("workspace:web-associated".into());
+    let charter = runtime
+        .prepare_workspace_charter(
+            &p::VerifiedPrincipal(fixture.config.owner.0.clone()),
+            p::WorkspaceCharterRecord {
+                schema_version: p::SchemaVersion(1),
+                workspace: associated_workspace.clone(),
+                version: 1,
+                goals: vec![],
+                constraints: vec![p::Constraint("max-nodes:8".into())],
+                prohibitions: vec![],
+                done_contract: None,
+                review_cadence: Some(p::DurationMs(60_000)),
+                actor: p::Actor::Owner,
+                digest: p::SchemaDigest(String::new()),
+            },
+            0,
+        )
+        .unwrap();
+    runtime
+        .apply_workspace_charter(
+            &p::VerifiedPrincipal(fixture.config.owner.0.clone()),
+            p::IdempotencyKey("charter:web-associated".into()),
+            charter,
+        )
+        .unwrap();
     let key = SigningKey::from_bytes(&[107; 32]);
     let identity_path = fixture.root.join("web-auth");
     claim(&fixture, &key, &identity_path);
@@ -251,16 +277,16 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
     ));
     assert_eq!(address.await.unwrap(), web_address);
 
-    let run_request = p::RunRequest {
+    let unauthenticated_request = p::RunRequest {
         schema_version: p::SchemaVersion(1),
         source: p::Source::UserTurn,
-        session: p::SessionRef("session:workbench".into()),
+        session: p::SessionRef("session:unregistered".into()),
         agent_profile: fixture.config.agent_profile.clone(),
         input: p::RunInput("Return the fixture result".into()),
         budget: None,
-        idempotency_key: Some(p::IdempotencyKey("command:workbench-one".into())),
+        idempotency_key: Some(p::IdempotencyKey("command:unauthenticated".into())),
     };
-    let body = serde_json::to_string(&run_request).unwrap();
+    let unauthenticated_body = serde_json::to_string(&unauthenticated_request).unwrap();
     assert_eq!(
         request(
             web_address,
@@ -270,13 +296,60 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
                 ("Origin", format!("http://{web_address}")),
                 ("Idempotency-Key", "command:workbench-one".into())
             ],
-            body.clone()
+            unauthenticated_body
         )
         .await
         .status,
         403
     );
     let (cookie, csrf) = login(web_address).await;
+    let created_session = request(
+        web_address,
+        "POST",
+        "/api/v1/sessions",
+        mutation_headers(web_address, &cookie, &csrf, "command:session-create"),
+        json!({
+            "schema_version": 1,
+            "command": "command:session-create",
+            "title": "项目对话",
+            "workspace": null
+        })
+        .to_string(),
+    )
+    .await;
+    assert_eq!(created_session.status, 200, "{}", created_session.body);
+    let session: p::SessionId =
+        serde_json::from_value(created_session.json()["session"].clone()).unwrap();
+    let associated_session = request(
+        web_address,
+        "PUT",
+        &format!("/api/v1/sessions/{}", session.0),
+        mutation_headers(web_address, &cookie, &csrf, "command:session-associate"),
+        json!({
+            "schema_version": 1,
+            "command": "command:session-associate",
+            "session": session.0,
+            "expected_updated_at": created_session.json()["updated_at"],
+            "mutation": {"operation": "associate_workspace", "workspace": associated_workspace.0}
+        })
+        .to_string(),
+    )
+    .await;
+    assert_eq!(
+        associated_session.status, 200,
+        "{}",
+        associated_session.body
+    );
+    let run_request = p::RunRequest {
+        schema_version: p::SchemaVersion(1),
+        source: p::Source::UserTurn,
+        session: p::SessionRef(session.0.clone()),
+        agent_profile: fixture.config.agent_profile.clone(),
+        input: p::RunInput("Return the fixture result".into()),
+        budget: None,
+        idempotency_key: Some(p::IdempotencyKey("command:workbench-one".into())),
+    };
+    let body = serde_json::to_string(&run_request).unwrap();
     brain_views::verify(web_address, &runtime, &cookie, &csrf).await;
     proposal_views::verify(web_address, &runtime, &cookie, &csrf).await;
     data_views::verify(web_address, &cookie, &csrf).await;
@@ -322,6 +395,55 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
     .await;
     assert_eq!(accepted.status, 202, "{}", accepted.body);
     let run: p::RunId = serde_json::from_value(accepted.json()).unwrap();
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            if events(&runtime, &run)
+                .iter()
+                .any(|event| matches!(&event.payload, p::EventPayload::SessionBound(_)))
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(events(&runtime, &run).iter().any(|event| matches!(
+        &event.payload,
+        p::EventPayload::SessionBound(bound) if bound.workspace == associated_workspace
+    )));
+    let defaulted_session = request(
+        web_address,
+        "PUT",
+        &format!("/api/v1/sessions/{}", session.0),
+        mutation_headers(web_address, &cookie, &csrf, "command:session-default"),
+        json!({
+            "schema_version": 1,
+            "command": "command:session-default",
+            "session": session.0,
+            "expected_updated_at": associated_session.json()["updated_at"],
+            "mutation": {"operation": "associate_workspace", "workspace": null}
+        })
+        .to_string(),
+    )
+    .await;
+    assert_eq!(defaulted_session.status, 200, "{}", defaulted_session.body);
+    let archived_session = request(
+        web_address,
+        "PUT",
+        &format!("/api/v1/sessions/{}", session.0),
+        mutation_headers(web_address, &cookie, &csrf, "command:session-archive"),
+        json!({
+            "schema_version": 1,
+            "command": "command:session-archive",
+            "session": session.0,
+            "expected_updated_at": defaulted_session.json()["updated_at"],
+            "mutation": {"operation": "archive", "archived": true}
+        })
+        .to_string(),
+    )
+    .await;
+    assert_eq!(archived_session.status, 200, "{}", archived_session.body);
     let repeated = request(
         web_address,
         "POST",
@@ -332,6 +454,28 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
     .await;
     assert_eq!(repeated.status, 202, "{}", repeated.body);
     assert_eq!(repeated.json(), accepted.json());
+    let mut changed_request = run_request.clone();
+    changed_request.input = p::RunInput("A different request with the same key".into());
+    let conflicting = request(
+        web_address,
+        "POST",
+        "/api/v1/brain/runs",
+        mutation_headers(web_address, &cookie, &csrf, "command:workbench-one"),
+        serde_json::to_string(&changed_request).unwrap(),
+    )
+    .await;
+    assert_eq!(conflicting.status, 409, "{}", conflicting.body);
+    let mut archived_request = run_request.clone();
+    archived_request.idempotency_key = Some(p::IdempotencyKey("command:archived-session".into()));
+    let archived = request(
+        web_address,
+        "POST",
+        "/api/v1/brain/runs",
+        mutation_headers(web_address, &cookie, &csrf, "command:archived-session"),
+        serde_json::to_string(&archived_request).unwrap(),
+    )
+    .await;
+    assert_eq!(archived.status, 409, "{}", archived.body);
     fixture.wait_for_model().await;
     assert_eq!(fixture.calls.load(Ordering::SeqCst), 1);
     let old_cookie = cookie.clone();

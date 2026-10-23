@@ -1,13 +1,21 @@
 //! Web session to core gateway adapter.
+use serde::Deserialize;
 use std::sync::Arc;
 
 use axum::body::Bytes;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+use forme_protocol as p;
 
 use super::{auth, security, WebError, WebState};
 use crate::web::identity::WebIdentityService;
+
+#[derive(Deserialize)]
+struct RuntimeWorkspaceSnapshot {
+    schema_version: p::SchemaVersion,
+    workspace: p::WorkspaceRef,
+}
 
 #[path = "core/commands.rs"]
 mod commands;
@@ -97,14 +105,96 @@ async fn forward(
         })
         .await?;
     let _fence_gate = state.core_access().await?;
-    let core_path = allowlisted_core_path(method.as_str(), &path, query)?;
-    let body = commands::bind_body(
-        method.as_str(),
-        &path,
-        &body,
-        owner.view(),
-        command_key.as_deref(),
-    )?;
+    let requested_core_path = allowlisted_core_path(method.as_str(), &path, query)?;
+    let mut workbench_receipt = None;
+    let (core_path, body) = if method == Method::POST && path == "runs" {
+        let bound = commands::bind_body(
+            method.as_str(),
+            &path,
+            &body,
+            owner.view(),
+            command_key.as_deref(),
+        )?;
+        let request: p::RunRequest =
+            serde_json::from_slice(&bound).map_err(|_| WebError::invalid())?;
+        let client_for_default = client.clone();
+        let owner_binding = owner.core_binding();
+        let lease = state
+            .admission
+            .acquire()
+            .map_err(|_| crate::web::identity::AuthError::Unavailable)?;
+        let permit = state
+            .reads
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| crate::web::identity::AuthError::Busy)?;
+        let manifest = tokio::task::spawn_blocking(move || {
+            let (_lease, _permit) = (lease, permit);
+            client_for_default.request(&owner_binding, "GET", "/v1/runtime/manifest", &[])
+        })
+        .await
+        .map_err(|_| {
+            WebError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "CoreUnavailable",
+                "主脑服务不可用",
+            )
+        })?
+        .map_err(|_| {
+            WebError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "CoreUnavailable",
+                "主脑服务不可用",
+            )
+        })?;
+        if manifest.status != StatusCode::OK.as_u16() {
+            return Err(WebError::new(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "CoreUnavailable",
+                "无法确认主脑当前工作空间",
+            ));
+        }
+        let runtime: RuntimeWorkspaceSnapshot =
+            serde_json::from_slice(&manifest.body).map_err(|_| WebError::invalid())?;
+        if runtime.schema_version != p::SchemaVersion(1) || runtime.workspace.0.trim().is_empty() {
+            return Err(WebError::invalid());
+        }
+        let owner_for_binding = owner.clone();
+        let request_for_binding = request.clone();
+        let default_workspace = runtime.workspace;
+        let stored = state
+            .blocking(false, move |identity| {
+                identity.bind_workbench_run(
+                    &owner_for_binding,
+                    &request_for_binding,
+                    &default_workspace,
+                )
+            })
+            .await?;
+        let submission = p::WorkbenchRunSubmission {
+            schema_version: p::SchemaVersion(1),
+            session: p::SessionId(request.session.0.clone()),
+            workspace: stored.workspace,
+            request: request.clone(),
+        };
+        submission.validate().map_err(|_| WebError::invalid())?;
+        workbench_receipt = Some((owner.clone(), request, stored.run));
+        (
+            "/v1/workbench/runs".to_owned(),
+            serde_json::to_vec(&submission).map_err(|_| WebError::invalid())?,
+        )
+    } else {
+        (
+            requested_core_path,
+            commands::bind_body(
+                method.as_str(),
+                &path,
+                &body,
+                owner.view(),
+                command_key.as_deref(),
+            )?,
+        )
+    };
     let method_name = method.as_str().to_owned();
     let owner_binding = owner.core_binding();
     let lease = state
@@ -152,6 +242,30 @@ async fn forward(
             },
             "主脑未接受该请求，请刷新当前状态并检查权限或操作绑定",
         ));
+    }
+    if let Some((receipt_owner, receipt_request, expected_run)) = workbench_receipt {
+        let run: p::RunId = serde_json::from_slice(&response.body).map_err(|_| {
+            WebError::new(
+                StatusCode::BAD_GATEWAY,
+                "CoreProtocolError",
+                "主脑运行回执无效",
+            )
+        })?;
+        if expected_run
+            .as_ref()
+            .is_some_and(|expected| expected != &run)
+        {
+            return Err(WebError::new(
+                StatusCode::BAD_GATEWAY,
+                "CoreProtocolError",
+                "主脑返回的原运行回执不一致",
+            ));
+        }
+        state
+            .blocking(false, move |identity| {
+                identity.record_workbench_run(&receipt_owner, &receipt_request, &run)
+            })
+            .await?;
     }
     let mut output = (status, response.body).into_response();
     if let Some(content_type) = response.content_type {

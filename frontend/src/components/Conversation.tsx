@@ -16,17 +16,24 @@ interface Props {
   api: WorkbenchClient; runtime: RuntimeView | null; runs: RunSummary[];
   sessions: WorkbenchSessionRecord[]; selected: string | null; select: (run: string | null) => void;
   refresh: () => Promise<void>; refreshSessions: () => Promise<void>;
+  workspaceRevision: number;
   onPendingChange: (pending: boolean) => void;
 }
 
-export function Conversation({ api, runtime, runs, sessions, selected, select, refresh, refreshSessions, onPendingChange }: Props) {
+type WorkspaceChange = { session: string; expectedUpdatedAt: number; workspace: string | null; key: string };
+
+export function Conversation({ api, runtime, runs, sessions, selected, select, refresh, refreshSessions, workspaceRevision, onPendingChange }: Props) {
   const [draft, setDraft] = useState('');
   const [session, setSession] = useState(() => sessions[0]?.session ?? newKey('session'));
   const [sessionTitle, setSessionTitle] = useState('新对话');
   const [commands] = useState(() => new ConversationCommands());
   const [, redraw] = useState(0);
   const pending = commands.pending, busy = commands.busy;
-  const locked = pending !== null || busy;
+  const [workspaceOptions, setWorkspaceOptions] = useState<string[]>([]);
+  const [workspaceOptionsError, setWorkspaceOptionsError] = useState('');
+  const [workspaceChange, setWorkspaceChange] = useState<WorkspaceChange | null>(null);
+  const [workspaceBusy, setWorkspaceBusy] = useState(false);
+  const locked = pending !== null || busy || workspaceBusy || workspaceChange !== null;
   const [artifactRevision, setArtifactRevision] = useState(0);
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
@@ -45,6 +52,25 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     const current = sessions.find((item) => item.session === session);
     setSessionTitle(current?.title ?? '新对话');
   }, [sessions, session]);
+
+  useEffect(() => {
+    let active = true;
+    if (!runtime) {
+      setWorkspaceOptions([]);
+      setWorkspaceOptionsError('');
+      return () => { active = false; };
+    }
+    setWorkspaceOptions([runtime.workspace]);
+    setWorkspaceOptionsError('');
+    void api.projects().then((ledger) => {
+      if (!active) return;
+      const values = new Set([runtime.workspace, ...Object.values(ledger.projects).map((project) => project.workspace)]);
+      setWorkspaceOptions([...values].sort((left, right) => left === runtime.workspace ? -1 : right === runtime.workspace ? 1 : left.localeCompare(right)));
+    }).catch(() => {
+      if (active) setWorkspaceOptionsError('项目工作空间暂不可读；当前只提供默认工作空间。');
+    });
+    return () => { active = false; };
+  }, [api, runtime, workspaceRevision]);
 
   useEffect(() => {
     if (!selected) { setSummary(null); setEvents(emptyEvents('')); setAnswer(null); setApprovals([]); setPendingView(null); return; }
@@ -112,6 +138,39 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     try { const updated = await api.updateWorkbenchSession(current.session, current.updated_at, { operation: 'rename', title }); setSessionTitle(updated.title); await refreshSessions(); }
     catch (problem) { setError(problem instanceof Error ? problem.message : '会话名称修改尚未确认。'); }
   }
+  async function persistWorkspaceChange(command: WorkspaceChange) {
+    setWorkspaceBusy(true); setError('');
+    try {
+      await api.updateWorkbenchSession(command.session, command.expectedUpdatedAt, {
+        operation: 'associate_workspace', workspace: command.workspace,
+      }, command.key);
+      setWorkspaceChange((current) => current?.key === command.key ? null : current);
+      await refreshSessions();
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : '工作空间关联结果尚未确认。');
+      if (problem instanceof ApiError && problem.status >= 400 && problem.status < 500) {
+        setWorkspaceChange((current) => current?.key === command.key ? null : current);
+        void refreshSessions();
+      }
+    } finally { setWorkspaceBusy(false); }
+  }
+  function associateWorkspace(value: string) {
+    const current = sessions.find((item) => item.session === session);
+    if (!current || locked) return;
+    const workspace = value || null;
+    if (current.workspace === workspace) return;
+    const command = {
+      session: current.session,
+      expectedUpdatedAt: current.updated_at,
+      workspace,
+      key: newKey('session-workspace'),
+    };
+    setWorkspaceChange(command);
+    void persistWorkspaceChange(command);
+  }
+  function verifyWorkspaceChange() {
+    if (workspaceChange && !workspaceBusy) void persistWorkspaceChange(workspaceChange);
+  }
   async function archiveSession() {
     const current = sessions.find((item) => item.session === session);
     if (!current || locked || !window.confirm('归档当前会话？归档不会删除运行记录。')) return;
@@ -128,11 +187,14 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     catch (problem) { setError(problem instanceof Error ? problem.message : '停止请求尚未确认。'); }
   }
   const related = runs.filter((run) => run.session === session);
+  const currentSession = sessions.find((item) => item.session === session) ?? null;
+  const selectableWorkspaces = [...new Set([...workspaceOptions, ...(currentSession?.workspace ? [currentSession.workspace] : [])])];
   return <section className="conversation" aria-labelledby="conversation-title">
     <header className="view-header"><div><p className="eyebrow">与你一起推进</p><h1 id="conversation-title">对话</h1></div>
       <div className="button-row"><select aria-label="当前会话" disabled={locked} value={savedSession() ?? ''} onChange={(event) => void chooseSession(event.target.value)}><option value="">新会话（发送时创建）</option>{sessions.filter((item) => !item.archived).map((item) => <option value={item.session} key={item.session}>{item.title}</option>)}</select><button className="secondary-button" disabled={locked} onClick={() => { select(null); setSession(newKey('session')); setSessionTitle('新对话'); setSummary(null); setAnswer(null); setEvents(emptyEvents('')); }}>新对话</button>{savedSession() && <><button className="text-button" disabled={locked} onClick={() => void renameSession()}>重命名</button><button className="text-button" disabled={locked} onClick={() => void archiveSession()}>归档</button></>}
       </div>
     </header>
+    {currentSession && <div className="session-context-row"><label className="session-context-control">后续运行工作空间<select aria-label="后续运行工作空间" value={currentSession.workspace ?? ''} disabled={locked || workspaceOptions.length === 0} onChange={(event) => associateWorkspace(event.target.value)}><option value="">默认工作空间{runtime ? `（${runtime.workspace}）` : ''}</option>{selectableWorkspaces.map((workspace) => <option key={workspace} value={workspace}>{workspace === runtime?.workspace ? `${workspace}（默认）` : workspace}</option>)}</select></label>{workspaceChange?.session === session && <button className="secondary-button" disabled={workspaceBusy} onClick={verifyWorkspaceChange}>{workspaceBusy ? '正在核实…' : '核实原关联'}</button>}{workspaceOptionsError && <span className="muted small" role="status">{workspaceOptionsError}</span>}</div>}
     {!runtime && <p className="notice" role="status">主脑暂不可用。可以在设置中查看连接状态。</p>}
     {error && <p role="alert" className="form-error">{error}</p>}
     <div className="conversation-layout"><div className="conversation-main">
@@ -155,7 +217,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
       </form>
     </div><aside className="details-panel" aria-label="任务详情">
       <h2>任务详情</h2><p className="status-pill">{summary ? statusLabel(summary.status) : '尚未选择运行'}</p>
-      <dl><div><dt>事件进度</dt><dd>{events.watermark}</dd></div><div><dt>验证与结果</dt><dd>{summary?.result ? '已记录运行结果，请查看详情' : '尚未确认'}</dd></div></dl>
+      <dl><div><dt>实际运行工作空间</dt><dd>{summary?.workspace ?? '尚无可显示的运行绑定'}</dd></div><div><dt>事件进度</dt><dd>{events.watermark}</dd></div><div><dt>验证与结果</dt><dd>{summary?.result ? '已记录运行结果，请查看详情' : '尚未确认'}</dd></div></dl>
       {summary && !isFinished(summary.status) && <button className="secondary-button" onClick={() => void cancel()}>请求停止任务</button>}
       <p className="muted small">停止请求不代表动作已经停止；以服务器终态为准。</p>
       {events.events.map((event) => <details className="event-row" key={event.event_id}><summary>#{event.stream_seq} · {event.kind}</summary><pre>{JSON.stringify(event.payload, null, 2)}</pre></details>)}

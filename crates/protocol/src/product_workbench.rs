@@ -2,7 +2,8 @@
 #![forbid(unsafe_code)]
 
 use crate::{
-    ContentRef, IdempotencyKey, SchemaDigest, SchemaVersion, SessionId, Timestamp, WorkspaceRef,
+    ContentRef, IdempotencyKey, RunRequest, SchemaDigest, SchemaVersion, SessionId, Timestamp,
+    WorkspaceRef,
 };
 use serde::{Deserialize, Serialize};
 
@@ -128,6 +129,35 @@ impl WorkbenchSessionUpdate {
 pub struct WorkbenchSessionList {
     pub schema_version: SchemaVersion,
     pub sessions: Vec<WorkbenchSessionRecord>,
+}
+
+/// Signed Web-to-core envelope for a user run whose workspace was resolved
+/// from the authenticated Web session record.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkbenchRunSubmission {
+    pub schema_version: SchemaVersion,
+    pub session: SessionId,
+    pub workspace: WorkspaceRef,
+    pub request: RunRequest,
+}
+
+impl WorkbenchRunSubmission {
+    pub fn validate(&self) -> crate::Result<()> {
+        if self.schema_version != SchemaVersion(1)
+            || self.session.0.trim().is_empty()
+            || self.workspace.0.trim().is_empty()
+            || self.request.source != crate::Source::UserTurn
+            || self.request.session.0 != self.session.0
+            || self.request.agent_profile.0.trim().is_empty()
+            || self.request.idempotency_key.as_ref().is_none_or(|key| {
+                key.0.trim().is_empty() || key.0.len() > 256 || key.0.chars().any(char::is_control)
+            })
+        {
+            return Err(crate::Error("workbench run submission is invalid".into()));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

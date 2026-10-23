@@ -6,7 +6,183 @@ use super::{
 };
 use forme_protocol as p;
 
+pub(crate) struct WorkbenchRunBinding {
+    pub(crate) workspace: p::WorkspaceRef,
+    pub(crate) run: Option<p::RunId>,
+}
+
 impl WebIdentityStore {
+    pub(crate) fn bind_workbench_run(
+        &self,
+        owner: &AuthenticatedWebOwner,
+        request: &p::RunRequest,
+        default_workspace: &p::WorkspaceRef,
+    ) -> AuthResult<WorkbenchRunBinding> {
+        let command = request
+            .idempotency_key
+            .as_ref()
+            .ok_or(AuthError::InvalidInput)?;
+        if request.source != p::Source::UserTurn
+            || request.session.0.trim().is_empty()
+            || command.0.trim().is_empty()
+            || command.0.len() > 256
+            || command.0.chars().any(char::is_control)
+            || default_workspace.0.trim().is_empty()
+        {
+            return Err(AuthError::InvalidInput);
+        }
+        let request_digest =
+            p::canonical_digest(&(p::SchemaVersion(1), "forme-web-workbench-run-v1", request))
+                .map_err(|_| AuthError::Unavailable)?;
+        let mut db = self.database()?;
+        storage::check_owner(&db.connection, owner, now())?;
+        let owner_digest = p::sha256_content_digest(owner.owner().0.as_bytes()).0;
+        let tx = db.connection.transaction().map_err(storage_error)?;
+        if let Some((stored_owner, session, stored_request, workspace, run)) = tx
+            .query_row(
+                "SELECT owner,session,request_digest,workspace,run
+                 FROM workbench_run_commands WHERE command=?1",
+                [&command.0],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage_error)?
+        {
+            if stored_owner != owner_digest
+                || session != request.session.0
+                || stored_request != request_digest.0
+            {
+                return Err(AuthError::Conflict);
+            }
+            let workspace = p::WorkspaceRef(workspace);
+            let submission = p::WorkbenchRunSubmission {
+                schema_version: p::SchemaVersion(1),
+                session: p::SessionId(request.session.0.clone()),
+                workspace: workspace.clone(),
+                request: request.clone(),
+            };
+            submission
+                .validate()
+                .map_err(|_| AuthError::RecoveryRequired)?;
+            tx.commit().map_err(storage_error)?;
+            return Ok(WorkbenchRunBinding {
+                workspace,
+                run: run.map(p::RunId),
+            });
+        }
+
+        let (archived, associated_workspace) = tx
+            .query_row(
+                "SELECT archived,workspace FROM workbench_sessions
+                 WHERE owner=?1 AND session=?2",
+                rusqlite::params![owner_digest, request.session.0],
+                |row| Ok((row.get::<_, i64>(0)? != 0, row.get::<_, Option<String>>(1)?)),
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or(AuthError::InvalidInput)?;
+        if archived {
+            return Err(AuthError::Conflict);
+        }
+        let workspace = associated_workspace
+            .map(p::WorkspaceRef)
+            .unwrap_or_else(|| default_workspace.clone());
+        p::WorkbenchRunSubmission {
+            schema_version: p::SchemaVersion(1),
+            session: p::SessionId(request.session.0.clone()),
+            workspace: workspace.clone(),
+            request: request.clone(),
+        }
+        .validate()
+        .map_err(|_| AuthError::RecoveryRequired)?;
+        tx.execute(
+            "INSERT INTO workbench_run_commands
+             (command,owner,session,request_digest,workspace,run,created)
+             VALUES(?1,?2,?3,?4,?5,NULL,?6)",
+            rusqlite::params![
+                command.0,
+                owner_digest,
+                request.session.0,
+                request_digest.0,
+                workspace.0,
+                now(),
+            ],
+        )
+        .map_err(storage_error)?;
+        tx.commit().map_err(storage_error)?;
+        Ok(WorkbenchRunBinding {
+            workspace,
+            run: None,
+        })
+    }
+
+    pub(crate) fn record_workbench_run(
+        &self,
+        owner: &AuthenticatedWebOwner,
+        request: &p::RunRequest,
+        run: &p::RunId,
+    ) -> AuthResult<()> {
+        let command = request
+            .idempotency_key
+            .as_ref()
+            .ok_or(AuthError::InvalidInput)?;
+        if run.0.trim().is_empty() {
+            return Err(AuthError::InvalidInput);
+        }
+        let request_digest =
+            p::canonical_digest(&(p::SchemaVersion(1), "forme-web-workbench-run-v1", request))
+                .map_err(|_| AuthError::Unavailable)?;
+        let mut db = self.database()?;
+        storage::check_owner(&db.connection, owner, now())?;
+        let owner_digest = p::sha256_content_digest(owner.owner().0.as_bytes()).0;
+        let tx = db.connection.transaction().map_err(storage_error)?;
+        let stored = tx
+            .query_row(
+                "SELECT owner,session,request_digest,run FROM workbench_run_commands
+                 WHERE command=?1",
+                [&command.0],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(storage_error)?
+            .ok_or(AuthError::RecoveryRequired)?;
+        if stored.0 != owner_digest
+            || stored.1 != request.session.0
+            || stored.2 != request_digest.0
+            || stored.3.as_ref().is_some_and(|existing| existing != &run.0)
+        {
+            return Err(AuthError::Conflict);
+        }
+        tx.execute(
+            "UPDATE workbench_run_commands SET run=?1 WHERE command=?2 AND owner=?3
+             AND session=?4 AND request_digest=?5 AND run IS NULL",
+            rusqlite::params![
+                run.0,
+                command.0,
+                owner_digest,
+                request.session.0,
+                request_digest.0
+            ],
+        )
+        .map_err(storage_error)?;
+        tx.commit().map_err(storage_error)
+    }
+
     pub(crate) fn list_workbench_sessions(
         &self,
         owner: &AuthenticatedWebOwner,
@@ -193,7 +369,12 @@ impl WebIdentityStore {
                 record.workspace = workspace
             }
         }
-        record.updated_at = now();
+        record.updated_at = now().max(
+            record
+                .updated_at
+                .checked_add(1)
+                .ok_or(AuthError::Unavailable)?,
+        );
         record.validate().map_err(|_| AuthError::RecoveryRequired)?;
         let response = serde_json::to_string(&record).map_err(|_| AuthError::Unavailable)?;
         tx.execute(

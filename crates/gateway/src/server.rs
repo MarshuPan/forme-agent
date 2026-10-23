@@ -40,7 +40,7 @@ use web_bridge::{
     validate_configuration as validate_web_bridge_configuration, WebBridgeState,
 };
 
-use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Extension, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Response};
@@ -243,6 +243,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/brain/learning/resolve", post(resolve_learning))
         .merge(artifacts::routes())
         .route("/v1/profile", get(control_profile))
+        .route("/v1/workbench/runs", post(submit_workbench_run))
         .route("/v1/runs", get(list_runs).post(submit_run))
         .route("/v1/runs/{run}", get(run_summary))
         .route("/v1/runs/{run}/pending", get(run_pending))
