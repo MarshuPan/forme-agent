@@ -1,5 +1,5 @@
 //! Protocol-boundary tests, with synthetic credentials and local sockets only.
-use std::net::TcpListener;
+use std::net::{Shutdown, TcpListener};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -133,6 +133,7 @@ fn setup_transport_preserves_typed_errors_and_rejects_unknown_reply_versions() {
             let mut request = [0; 8192];
             assert!(stream.read(&mut request).unwrap() > 0);
             write!(stream, "HTTP/1.1 {status} Fixture\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            stream.shutdown(Shutdown::Write).unwrap();
         });
         assert_eq!(
             client.issue_proof("proof:fixture").err().unwrap().0,
