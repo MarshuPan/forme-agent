@@ -247,28 +247,26 @@ fn command_variants(executable: &str, config: &str) -> Vec<String> {
 }
 
 fn recovery() -> ServiceFailureActions {
+    let policy = p::ServiceRecoveryPolicy::product_default();
+    debug_assert!(policy.validate().is_ok());
     ServiceFailureActions {
-        reset_period: ServiceFailureResetPeriod::After(Duration::from_secs(24 * 3600)),
+        reset_period: ServiceFailureResetPeriod::After(Duration::from_millis(policy.reset_after.0)),
         reboot_msg: Some(OsString::new()),
         command: Some(OsString::new()),
-        actions: Some(vec![
-            ServiceAction {
-                action_type: ServiceActionType::Restart,
-                delay: Duration::from_secs(5),
-            },
-            ServiceAction {
-                action_type: ServiceActionType::Restart,
-                delay: Duration::from_secs(30),
-            },
-            ServiceAction {
-                action_type: ServiceActionType::Restart,
-                delay: Duration::from_secs(120),
-            },
-            ServiceAction {
-                action_type: ServiceActionType::None,
-                delay: Duration::ZERO,
-            },
-        ]),
+        actions: Some(
+            policy
+                .restart_delays
+                .into_iter()
+                .map(|delay| ServiceAction {
+                    action_type: ServiceActionType::Restart,
+                    delay: Duration::from_millis(delay.0),
+                })
+                .chain([ServiceAction {
+                    action_type: ServiceActionType::None,
+                    delay: Duration::ZERO,
+                }])
+                .collect(),
+        ),
     }
 }
 

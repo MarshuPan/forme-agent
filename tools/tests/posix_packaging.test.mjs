@@ -70,3 +70,19 @@ test('service mounts keep configuration publication in Host and global keys out 
     assert.match(service, /^SupplementaryGroups=forme-bridge$/m);
   }
 });
+
+test('POSIX service templates never declare an unbounded recovery loop', async () => {
+  for (const name of ['forme-brain.service', 'forme-host.service', 'forme-web.service']) {
+    const service = await readFile(join(root, 'packaging/linux', name), 'utf8');
+    assert.match(service, /^Restart=on-failure$/m);
+    assert.match(service, /^RestartSec=5s$/m);
+    assert.match(service, /^StartLimitIntervalSec=86400$/m);
+    assert.match(service, /^StartLimitBurst=4$/m);
+    assert.doesNotMatch(service, /^Restart=always$/m);
+  }
+  for (const name of ['com.forme.brain.plist', 'com.forme.host.plist', 'com.forme.web.plist']) {
+    const plist = await readFile(join(root, 'packaging/macos', name), 'utf8');
+    assert.doesNotMatch(plist, /<key>KeepAlive<\/key>\s*<true\/>/);
+    assert.match(plist, /launchd has no finite failure-count\/escalating-delay primitive/);
+  }
+});

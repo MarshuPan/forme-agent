@@ -2,8 +2,12 @@
 Description=forme web workbench
 After=forme-host.service
 Requires=forme-host.service
-StartLimitIntervalSec=600
-StartLimitBurst=3
+# systemd counts the initial start plus at most three automatic restarts in
+# this window. The fixed delay is a bounded POSIX fallback, not proof of the
+# Windows 5s -> 30s -> 120s schedule; native package acceptance remains open
+# until the target systemd version can express the canonical schedule.
+StartLimitIntervalSec=86400
+StartLimitBurst=4
 
 [Service]
 Type=exec

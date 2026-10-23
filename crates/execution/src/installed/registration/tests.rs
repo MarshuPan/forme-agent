@@ -54,6 +54,21 @@ fn native_registration_rejects_foreign_command_account_or_startup() {
 
 #[test]
 fn native_registration_has_fixed_identity_and_finite_recovery() {
+    let policy = p::ServiceRecoveryPolicy::product_default();
+    policy.validate().unwrap();
+    assert!(policy.is_product_default());
+    assert_eq!(
+        policy.decide(0).unwrap(),
+        p::ServiceRecoveryDecision::RestartAfter(p::DurationMs(5_000))
+    );
+    assert_eq!(
+        policy.decide(2).unwrap(),
+        p::ServiceRecoveryDecision::RestartAfter(p::DurationMs(120_000))
+    );
+    assert_eq!(
+        policy.decide(3).unwrap(),
+        p::ServiceRecoveryDecision::RequireDiagnosis
+    );
     let web = info();
     assert_eq!(
         web.account_name.unwrap(),
@@ -77,10 +92,34 @@ fn native_registration_has_fixed_identity_and_finite_recovery() {
     let actions = recovery().actions.unwrap();
     assert_eq!(actions.len(), 4);
     assert_eq!(actions.last().unwrap().action_type, ServiceActionType::None);
+    assert_eq!(
+        actions[..3]
+            .iter()
+            .map(|action| action.delay)
+            .collect::<Vec<_>>(),
+        [
+            Duration::from_secs(5),
+            Duration::from_secs(30),
+            Duration::from_secs(120)
+        ]
+    );
     for path in [
         Path::new("relative.json"),
         Path::new("C:\\forme\\bad\".json"),
     ] {
         assert!(validate_path(path).is_err());
     }
+}
+
+#[test]
+fn recovery_policy_rejects_unbounded_or_non_monotonic_schedules() {
+    let mut policy = p::ServiceRecoveryPolicy::product_default();
+    policy.restart_delays[1] = policy.restart_delays[0];
+    assert!(policy.validate().is_err());
+    policy = p::ServiceRecoveryPolicy::product_default();
+    policy.restart_delays.push(p::DurationMs(600_001));
+    assert!(policy.validate().is_err());
+    policy = p::ServiceRecoveryPolicy::product_default();
+    policy.reset_after = p::DurationMs(7 * 24 * 60 * 60 * 1_000 + 1);
+    assert!(policy.validate().is_err());
 }

@@ -4,5 +4,8 @@
   <key>Label</key><string>com.forme.web</string>
   <key>UserName</key><string>_formeweb</string><key>GroupName</key><string>_formeweb</string>
   <key>ProgramArguments</key><array><string>/Library/ForMe/bin/forme-webd</string><string>--config</string><string>/Library/Application Support/ForMe/config/web.json</string></array>
-  <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+  <key>RunAtLoad</key><true/>
+  <!-- launchd has no finite failure-count/escalating-delay primitive.
+       KeepAlive is intentionally omitted; this input is not release-ready
+       until a native bounded recovery adapter is verified. -->
 </dict></plist>

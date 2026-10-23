@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{canonical_digest, Error, Result, SchemaDigest, SchemaVersion, Timestamp};
+use crate::{canonical_digest, DurationMs, Error, Result, SchemaDigest, SchemaVersion, Timestamp};
 mod worker;
 pub use worker::*;
 mod restore;
@@ -726,6 +726,69 @@ pub enum NativeServiceState {
     Stopping,
     Failed,
     Unknown,
+}
+
+/// The bounded failure policy installed in the native service manager. forme
+/// observes this policy and its result; it never runs a second restart loop.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ServiceRecoveryPolicy {
+    pub schema_version: SchemaVersion,
+    pub restart_delays: Vec<DurationMs>,
+    pub reset_after: DurationMs,
+}
+
+impl ServiceRecoveryPolicy {
+    pub fn product_default() -> Self {
+        Self {
+            schema_version: SchemaVersion(1),
+            restart_delays: vec![DurationMs(5_000), DurationMs(30_000), DurationMs(120_000)],
+            reset_after: DurationMs(24 * 60 * 60 * 1_000),
+        }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != SchemaVersion(1)
+            || self.restart_delays.is_empty()
+            || self.restart_delays.len() > 8
+            || self.reset_after.0 < 60_000
+            || self.reset_after.0 > 7 * 24 * 60 * 60 * 1_000
+            || self
+                .restart_delays
+                .iter()
+                .any(|delay| delay.0 == 0 || delay.0 > 10 * 60 * 1_000)
+            || self
+                .restart_delays
+                .windows(2)
+                .any(|delays| delays[0].0 >= delays[1].0)
+        {
+            return Err(Error("service recovery policy is invalid".into()));
+        }
+        Ok(())
+    }
+
+    pub fn is_product_default(&self) -> bool {
+        self == &Self::product_default()
+    }
+
+    /// `consecutive_failures` is zero-based: zero means the first failure.
+    pub fn decide(&self, consecutive_failures: u32) -> Result<ServiceRecoveryDecision> {
+        self.validate()?;
+        Ok(self
+            .restart_delays
+            .get(consecutive_failures as usize)
+            .copied()
+            .map_or(ServiceRecoveryDecision::RequireDiagnosis, |delay| {
+                ServiceRecoveryDecision::RestartAfter(delay)
+            }))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServiceRecoveryDecision {
+    RestartAfter(DurationMs),
+    RequireDiagnosis,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
