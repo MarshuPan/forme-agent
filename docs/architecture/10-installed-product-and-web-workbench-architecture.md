@@ -184,7 +184,7 @@ Binary rollback 只在 schema/config 兼容时允许；不兼容进入新路径�
 
 前端状态区分 optimistic/pending 与 server-acknowledged。只允许本地保存无秘密草稿和 UI 偏好；脑数据不作为可继续执行的离线私有副本。event reducer 按 run 内 `stream_seq` 与 event_id 去重，跨 run 列表使用服务端 opaque page cursor，不能把 ULID 或 ts 当全局顺序。
 
-浏览器提交普通主动建议处置后，Web 身份库在转发主脑前持久化 owner-scoped 的封闭原命令恢复记录，绑定原 command key 与规范化命令摘要。登录后的收件箱可读取当前 owner 的未决命令并与 inbox item 按 run/proposal 关联；若对应建议已不在当前投影中，仍显示安全的待核实条目。用户必须显式选择“核实原处置”，按原命令原 key 重发；页面加载不自动执行。只有主脑返回明确终态才删除记录，Unknown、超时、断线和服务不可用均保留。记录不含自由文本或凭据，不写脑事件/脑表；脑事件仍是建议处置结果的唯一事实源，浏览器不持久化该恢复队列。
+浏览器提交普通主动建议处置后，Web 身份库在转发主脑前持久化 owner-scoped 的封闭原命令恢复记录，绑定原 command key 与规范化命令摘要。登录后的收件箱可读取当前 owner 的未决命令并与 inbox item 按 run/proposal 关联；若对应建议已不在当前投影中，仍显示安全的待核实条目。用户必须显式选择“核实原处置”，按原命令原 key 重发；页面加载不自动执行。只有主脑返回绑定一致的明确终态，或原命令收到该建议入口确定的执行前冲突（HTTP 409），才条件删除记录；Unknown、其他 HTTP 错误、超时、断线和服务不可用均保留。此 409 例外不能扩展到其他业务动作。记录不含自由文本或凭据，不写脑事件/脑表；脑事件仍是建议处置结果的唯一事实源，浏览器不持久化该恢复队列。
 
 SSE 重连使用权威 cursor；gap/retention 时重新取 snapshot + watermark，不能漏掉审批/终态。未确认提交用原幂等 key 查询/重试；不能以 UI timeout 推断 core 未执行。页面只展示模型公开输出、已记录 decision rationale、动作、证据和结果，不索取或伪造隐藏 CoT。
 
