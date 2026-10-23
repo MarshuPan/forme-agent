@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::production_artifact_store::ProtectedRuntimeArtifacts;
 use forme_capabilities::{
     AppApiConnectorRegistry, Capability, CapabilityDescriptor, CapabilityRegistry,
     CapabilitySource, InMemoryCapabilityRegistry, InMemorySkillRegistry, LocalPluginRegistry,
@@ -460,48 +461,6 @@ struct CompositeCapabilityRechecker {
 }
 
 const BUILTIN_CAPABILITY_SOURCE: &str = "builtin:forme-runtime";
-
-struct ProtectedRuntimeArtifacts {
-    inner: FileArtifactStore,
-    protection: forme_store::StoreContentProtection,
-    store: SqliteEventStore,
-    owner: p::VerifiedPrincipal,
-}
-
-impl forme_execution::ArtifactStore for ProtectedRuntimeArtifacts {
-    fn write(
-        &self,
-        scope: &p::Scope,
-        extension: &str,
-        bytes: &[u8],
-    ) -> p::Result<forme_execution::ArtifactRecord> {
-        let digest = p::sha256_content_digest(bytes);
-        let safe_scope = p::Scope(format!(
-            "artifact:{}",
-            p::sha256_content_digest(scope.0.as_bytes()).0
-        ));
-        static ARTIFACT_NONCE: AtomicU64 = AtomicU64::new(1);
-        let (sealed, record) = self.protection.seal_record(
-            bytes,
-            scope,
-            &format!(
-                "artifact:{}:{extension}:{}:{}",
-                digest.0,
-                now_ms(),
-                ARTIFACT_NONCE.fetch_add(1, Ordering::Relaxed)
-            ),
-            &p::sha256_content_digest(scope.0.as_bytes()),
-        )?;
-        let file = self.inner.write(&safe_scope, "sealed", &sealed)?;
-        self.protection
-            .lifecycle_service(self.store.clone())
-            .put_protected_content(&self.owner, record.clone())?;
-        Ok(forme_execution::ArtifactRecord {
-            content_ref: record.content_ref,
-            ..file
-        })
-    }
-}
 
 fn assemble_capabilities(
     config: &ProductionRuntimeConfig,
@@ -3321,6 +3280,14 @@ mod protected_artifact_tests {
         };
         let private = b"self-authored-sensitive-screen-bytes-957da";
         let record = sink.write(&scope, "png", private).unwrap();
+        let material =
+            crate::production_artifact_store::read_material(&store, &record.content_ref, &scope)
+                .unwrap();
+        assert_eq!(material.state, p::WorkbenchMaterialState::Available);
+        assert_eq!(
+            material.text.as_deref(),
+            Some(std::str::from_utf8(private).unwrap())
+        );
         let service = protection.lifecycle_service(store.clone());
         let stored = service
             .protected_content(&owner, &record.content_ref)

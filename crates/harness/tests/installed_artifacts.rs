@@ -41,6 +41,12 @@ fn companion(id: &p::ContentRef) -> p::ContentRef {
         p::sha256_content_digest(format!("workbench-artifact-metadata-v1:{}", id.0).as_bytes()).0
     ))
 }
+fn material_companion(id: &p::ContentRef) -> p::ContentRef {
+    p::ContentRef(format!(
+        "content:{}",
+        p::sha256_content_digest(format!("runtime-artifact-material-v1:{}", id.0).as_bytes()).0
+    ))
+}
 fn write_raw(
     runtime: &ProductionRuntime,
     f: &Fixture,
@@ -108,9 +114,13 @@ fn encrypted_catalog_survives_restart_and_reads_preserve_brain_events() {
         .protected_content_refs(&f.owner(), &receipt.scope)
         .unwrap();
     assert_eq!(
-        refs.len(),
-        2,
-        "one raw object and one companion, even after repeat upload"
+        refs.into_iter().collect::<std::collections::BTreeSet<_>>(),
+        std::collections::BTreeSet::from([
+            receipt.content_ref.clone(),
+            companion(&receipt.content_ref),
+            material_companion(&receipt.content_ref),
+        ]),
+        "only the original, upload metadata and material receipt survive repeat upload"
     );
     drop(runtime);
     let runtime = f.build();
@@ -329,7 +339,7 @@ fn deletion_removes_original_and_companion_and_blocks_resurrection_after_restart
         },
     );
     let plan = prepared.plan.unwrap();
-    assert_eq!(plan.objects, 2);
+    assert_eq!(plan.objects, 3);
     let applied = execute(
         "erase:apply",
         p::DataWorkbenchAction::Apply {
@@ -339,7 +349,11 @@ fn deletion_removes_original_and_companion_and_blocks_resurrection_after_restart
     );
     assert_eq!(applied.state, p::DataCommandState::Confirmed);
     assert_eq!(view(&runtime, &f).total, 0);
-    for id in [&receipt.content_ref, &companion(&receipt.content_ref)] {
+    for id in [
+        &receipt.content_ref,
+        &companion(&receipt.content_ref),
+        &material_companion(&receipt.content_ref),
+    ] {
         assert!(lifecycle
             .protected_content(&f.owner(), id)
             .unwrap()

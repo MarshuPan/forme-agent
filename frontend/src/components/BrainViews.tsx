@@ -4,6 +4,7 @@ import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
 import type { PendingWorkbenchProposals, ReviewDecision, ReviewState, WorkbenchItem, WorkbenchProposal, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import { inboxItemStatus, pendingProposalFor, reviewLabels, stateLabels } from '../workbench.ts';
+import { MemoryMaterial } from './MemoryMaterial.tsx';
 
 function useBrainView(api: WorkbenchClient, section: WorkbenchSection) {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
@@ -76,6 +77,7 @@ export function CognitionView({ api, open }: { api: WorkbenchClient; open: (run:
     {view.busy && <p role="status">正在读取主脑投影…</p>}
     <div className="content-grid">{view.snapshot?.items.map((item) => <article className="surface" key={`${item.run}:${item.kind}:${item.id}`}><p className="eyebrow">{item.kind} · {stateLabels[item.state] ?? item.state}</p><h2>{item.summary}</h2>
       {item.content && <p className="muted">材料引用：{item.content}</p>}
+      {item.kind === 'Memory' && view.snapshot && <MemoryMaterial key={`${item.run}:${item.id}:${item.event}:${view.snapshot.digest}`} api={api} item={item} snapshot={view.snapshot.digest} />}
       <Evidence item={item} open={open} />
       {item.reviews.length > 0 && <CandidateControl key={`${item.id}:${item.state}`} api={api} item={item} changed={view.refresh} />}
     </article>)}</div>

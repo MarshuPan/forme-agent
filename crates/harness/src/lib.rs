@@ -82,6 +82,7 @@ pub mod offline_data;
 pub use forme_execution::installed::{register_windows_service, unregister_windows_service};
 pub use managed_config::ManagedBrainConfig;
 mod production;
+mod production_artifact_store;
 mod production_artifacts;
 mod production_config;
 mod production_data;

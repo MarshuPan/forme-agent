@@ -8,6 +8,8 @@ import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, Wo
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
 import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 import { parseRuntimeDoctor } from '../runtime-diagnostics.ts';
+import { parseMemoryMaterial } from '../memory-material.ts';
+import type { WorkbenchItem } from '../workbench.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -194,6 +196,15 @@ export class WorkbenchClient {
   }
   reviewWorkbench(command: WorkbenchReview) {
     return this.json<WorkbenchReceipt>('brain/workbench/review', 'POST', command, command.command);
+  }
+  async memoryMaterial(item: WorkbenchItem, snapshot: string, scope: string | null = null) {
+    const generation = this.generation;
+    const value = await this.json<unknown>('brain/workbench/material', 'POST', {
+      schema_version: 1, node: item.id, run: item.run, event: item.event, scope, snapshot,
+    }, newKey('material-view'));
+    const material = await parseMemoryMaterial(value, item);
+    this.current(generation);
+    return material;
   }
   resolveWorkbenchProposal(command: WorkbenchProposal) {
     return this.json<WorkbenchReceipt>('brain/workbench/proposal', 'POST', command, command.command);

@@ -4,6 +4,7 @@ use forme_protocol as p;
 use forme_store::EventStore;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+mod material;
 mod projections;
 mod projects;
 mod proposal;
@@ -17,6 +18,30 @@ impl ProductionRuntime {
     ) -> p::Result<p::WorkbenchSnapshot> {
         let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
+        let (items, digest) = self.workbench_items(&query)?;
+        let total = items.len();
+        let end = query.offset.saturating_add(query.limit).min(total);
+        Ok(p::WorkbenchSnapshot {
+            schema_version: p::SchemaVersion(1),
+            section: query.section,
+            digest,
+            total,
+            offset: query.offset,
+            next_offset: (end < total).then_some(end),
+            items: items
+                .into_iter()
+                .skip(query.offset)
+                .take(query.limit)
+                .collect(),
+        })
+    }
+
+    // Callers own the data fence and authenticated owner boundary. Keep a
+    // single projection/digest implementation for list and material queries.
+    fn workbench_items(
+        &self,
+        query: &p::WorkbenchQuery,
+    ) -> p::Result<(Vec<p::WorkbenchItem>, p::SchemaDigest)> {
         query.validate()?;
         let services = self.services();
         let heads = services.store.run_heads()?;
@@ -50,21 +75,7 @@ impl ProductionRuntime {
                 "workbench snapshot changed; restart pagination".into(),
             ));
         }
-        let total = items.len();
-        let end = query.offset.saturating_add(query.limit).min(total);
-        Ok(p::WorkbenchSnapshot {
-            schema_version: p::SchemaVersion(1),
-            section: query.section,
-            digest,
-            total,
-            offset: query.offset,
-            next_offset: (end < total).then_some(end),
-            items: items
-                .into_iter()
-                .skip(query.offset)
-                .take(query.limit)
-                .collect(),
-        })
+        Ok((items, digest))
     }
 }
 

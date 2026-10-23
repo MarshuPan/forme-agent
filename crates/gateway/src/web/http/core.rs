@@ -384,6 +384,10 @@ fn allowlisted_core_path(
         ["workspace"] => ("/v1/brain/workspace".to_owned(), RouteMethods::Get),
         ["dashboard"] => ("/v1/brain/dashboard".to_owned(), RouteMethods::Get),
         ["workbench", "query"] => ("/v1/brain/workbench/query".to_owned(), RouteMethods::Post),
+        ["workbench", "material"] => (
+            "/v1/brain/workbench/material".to_owned(),
+            RouteMethods::Post,
+        ),
         ["workbench", "review"] => ("/v1/brain/workbench/review".to_owned(), RouteMethods::Post),
         ["workbench", "proposal"] => (
             "/v1/brain/workbench/proposal".to_owned(),

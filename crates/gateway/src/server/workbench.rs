@@ -1,6 +1,32 @@
 //! Installed workbench uses the same runtime and owner controls as every entry.
 use super::*;
 
+pub(super) fn routes() -> Router<Arc<HttpState>> {
+    Router::new()
+        .route("/v1/brain/workbench/query", post(query_workbench))
+        .route("/v1/brain/workbench/material", post(read_material))
+        .route("/v1/brain/workbench/review", post(review_workbench))
+        .route(
+            "/v1/brain/workbench/proposal",
+            post(resolve_workbench_proposal),
+        )
+}
+
+async fn read_material(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(query): Json<p::WorkbenchMaterialQuery>,
+) -> Result<Json<p::WorkbenchMaterialView>, ApiError> {
+    state.authorize(&headers, false)?;
+    let runtime = state.runtime.clone();
+    let owner = state.owner.clone();
+    state
+        .blocking(move || runtime.workbench_material(&owner, query))
+        .await
+        .map(Json)
+        .map_err(classify)
+}
+
 pub(super) async fn query_workbench(
     State(state): State<Arc<HttpState>>,
     headers: HeaderMap,

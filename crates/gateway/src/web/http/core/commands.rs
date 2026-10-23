@@ -74,6 +74,12 @@ pub(super) fn bind_body(
         query.validate().map_err(|_| WebError::invalid())?;
         return serde_json::to_vec(&query).map_err(|_| WebError::invalid());
     }
+    if path == "workbench/material" {
+        let query: p::WorkbenchMaterialQuery =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        query.validate().map_err(|_| WebError::invalid())?;
+        return serde_json::to_vec(&query).map_err(|_| WebError::invalid());
+    }
     if path == "workbench/review" {
         let command: p::WorkbenchReviewCommand =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;

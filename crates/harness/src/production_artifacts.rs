@@ -122,7 +122,9 @@ fn check_original(
     record: &ProtectedContentRecord,
     bytes: &[u8],
 ) -> p::Result<bool> {
-    if metadata(record, bytes)?.is_some() {
+    if metadata(record, bytes)?.is_some()
+        || crate::production_artifact_store::is_material_receipt(record, bytes)?
+    {
         return Ok(false);
     }
     if let Some(value) = companion(store, protection, owner, &record.content_ref)? {
@@ -217,6 +219,18 @@ impl ProductionRuntime {
                 protection.seal_record(&encoded, &scope, &metadata_object(&id), &subject)?;
             lifecycle.put_protected_content(owner, record)?;
         }
+        let record = self
+            .services()
+            .store
+            .protected_content_for_current_owner(&id)?
+            .ok_or_else(|| p::Error("uploaded material is absent or erased".into()))?;
+        crate::production_artifact_store::register_material(
+            self.services().store.as_ref(),
+            &protection,
+            owner,
+            &record,
+            &bytes,
+        )?;
         Ok(value.receipt)
     }
 
@@ -283,7 +297,12 @@ impl ProductionRuntime {
         let ids: BTreeSet<_> = refs.iter().map(|id| &id.0).collect();
         let metadata_ids: BTreeSet<_> = refs
             .iter()
-            .map(metadata_ref)
+            .flat_map(|id| {
+                [
+                    metadata_ref(id),
+                    crate::production_artifact_store::receipt_ref(id),
+                ]
+            })
             .filter(|id| ids.contains(&id.0))
             .map(|id| id.0)
             .collect();
