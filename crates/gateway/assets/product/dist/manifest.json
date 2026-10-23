@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "350ab64d01d75324ac59b17a8cb641d0f7e5a8cc045c787dc77178931b1b2db4",
+  "source_digest": "d5020637adc65cb76337ae6b1f8f56e12ec7e8ff16f732b4e288f258fbf3ee83",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,7 +20,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "651de86c3fdbfdd21ddb94fea5b53a1bfc2e4a682fc04435bb0027c57f3de8f9"
+      "sha256": "86f76c4b75fc783385968af9827351446357a8bd7dbc40a791b08682e86e4fee"
     },
     {
       "path": "frontend/src/api/client.ts",
@@ -36,7 +36,7 @@
     },
     {
       "path": "frontend/src/components/BrainViews.tsx",
-      "sha256": "e35bd05b1e7fce1f5b1604ba7f726f9f97e451e15680948bd068a0a5f7df3fd8"
+      "sha256": "8ff1ac7c3d5de27233951deffd30d8ff1ed5673b7d46447b0a6076ad6526dcb1"
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
@@ -135,6 +135,10 @@
       "sha256": "9c3bfcf3cf1377c7d2406d2b7deef485aadab31481fb8a9d70e41537dd52fbdf"
     },
     {
+      "path": "frontend/src/tests/inbox.test.ts",
+      "sha256": "2621b32b914b45abdd665fc29f86d72b03571fd7474d194390d590ab868bd7c1"
+    },
+    {
       "path": "frontend/src/tests/maintenance.test.ts",
       "sha256": "fdce8eb0c6bfeb9db1cc216918960cb0571c6eea19ab36a37ae4fa8f03768019"
     },
@@ -152,7 +156,7 @@
     },
     {
       "path": "frontend/src/workbench.ts",
-      "sha256": "9d92208827dc71b757a57d262e4e1ed157b909716dfb02936f026b57909e5ea1"
+      "sha256": "607fc9f0ca8f080d96465bc4f91c682a726491fbcbc8a03ac296b82ce5acfb28"
     },
     {
       "path": "frontend/tsconfig.json",
@@ -169,14 +173,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-64TJ6qtD.js",
-      "sha256": "b4082c4d08a2fe39cdfe8b63be9e1f9069ac61eb070ba49409ff991092047a3a",
-      "bytes": 320761
-    },
-    {
       "path": "assets/index-BGGtjW6Z.css",
       "sha256": "861b0287639def79bc99fd6479bef2a6ee382b4b6e6f0357c8b1421477e32809",
       "bytes": 13654
+    },
+    {
+      "path": "assets/index-kvzkBrdA.js",
+      "sha256": "c85dd26d3ea6a8badd1191ab3fb13dfb412c84cec1987bb3c33a3261412d867f",
+      "bytes": 320742
     },
     {
       "path": "dependencies.json",
@@ -190,7 +194,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "d3b5ebe67f2f78f389093a48734d9abe6f514ef5f373ab60483700c0ae58109e",
+      "sha256": "830ebf4ae007226920812fe4fc5f69cf3c05e711b15baad13beb70dd5f5a3967",
       "bytes": 595
     },
     {

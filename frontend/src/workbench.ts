@@ -31,3 +31,15 @@ export const stateLabels: Record<string, string> = {
   Answered: '已回答，等待认知审查', Reject: '已拒绝', Adopt: '已采纳', Defer: '已延后',
   ReviewUnknown: '处置结果待核实，已阻止重复操作',
 };
+
+const pendingRunLabels: Record<string, string> = {
+  ApprovalWait: '等待 owner 处理审批',
+  ToolInterrupt: '工具执行结果需要核实',
+  Handoff: '等待协作结果',
+  ResolutionUnknown: '运行结果待核实',
+};
+
+export function inboxItemStatus(item: Pick<WorkbenchItem, 'kind' | 'state'>): string {
+  if (item.kind === 'Waiting') return pendingRunLabels[item.state] ?? '运行待决状态待核实';
+  return stateLabels[item.state] ?? item.state;
+}

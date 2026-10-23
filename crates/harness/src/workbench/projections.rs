@@ -10,7 +10,7 @@ pub(super) fn project(
     match section {
         p::WorkbenchSection::Memory => Ok(memory(runtime, events)),
         p::WorkbenchSection::Cognition => cognition(runtime, events),
-        p::WorkbenchSection::Inbox => Ok(inbox(events)),
+        p::WorkbenchSection::Inbox => inbox(events),
     }
 }
 
@@ -187,7 +187,7 @@ fn allowed(state: p::CandidateReviewState) -> Vec<p::CandidateReviewDecision> {
     }
 }
 
-fn inbox(events: &[p::Event]) -> Vec<p::WorkbenchItem> {
+fn inbox(events: &[p::Event]) -> p::Result<Vec<p::WorkbenchItem>> {
     let learning = forme_cognition::LearningSnapshot::rebuild(events);
     let resolved: BTreeMap<_, _> = events
         .iter()
@@ -199,6 +199,51 @@ fn inbox(events: &[p::Event]) -> Vec<p::WorkbenchItem> {
         })
         .collect();
     let mut rows = Vec::new();
+    let mut runs = BTreeMap::<&p::RunId, Vec<p::Event>>::new();
+    for event in events {
+        runs.entry(&event.run_id).or_default().push(event.clone());
+    }
+    for (run, run_events) in &runs {
+        if !run_events
+            .iter()
+            .any(|event| event.kind == p::EventKind::RunAccepted)
+        {
+            continue;
+        }
+        let view = p::project_run_pending((*run).clone(), run_events)?;
+        let Some(pending) = view.pending else {
+            continue;
+        };
+        let (state, summary, checkpoint) = match pending {
+            p::RunPendingKind::ApprovalWait { checkpoint, .. } => {
+                ("ApprovalWait", "运行等待 owner 处理审批", checkpoint)
+            }
+            p::RunPendingKind::ToolInterrupt { checkpoint, .. } => {
+                ("ToolInterrupt", "工具执行结果需要核实", checkpoint)
+            }
+            p::RunPendingKind::Handoff { checkpoint, .. } => {
+                ("Handoff", "运行等待协作结果", checkpoint)
+            }
+            p::RunPendingKind::ResolutionUnknown { checkpoint, .. } => {
+                ("ResolutionUnknown", "运行结果待核实", checkpoint)
+            }
+        };
+        let source = run_events
+            .iter()
+            .find(|event| event.event_id == checkpoint)
+            .ok_or_else(|| {
+                p::Error("pending checkpoint is unavailable; verify the run trace".into())
+            })?;
+        let mut row = item(
+            source,
+            format!("pending:{}", run.0),
+            p::WorkbenchItemKind::Waiting,
+        );
+        row.state = state.into();
+        row.summary = summary.into();
+        references(&mut row, vec![p::EvidenceRef(checkpoint.0)], Vec::new());
+        rows.push(row);
+    }
     for event in events {
         match &event.payload {
             p::EventPayload::ProactiveProposalEmitted(payload) => {
@@ -245,5 +290,86 @@ fn inbox(events: &[p::Event]) -> Vec<p::WorkbenchItem> {
             _ => {}
         }
     }
-    rows
+    Ok(rows)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(run: &p::RunId, sequence: u64, payload: p::EventPayload) -> p::Event {
+        let mut value = p::Event::new(
+            p::EventId(format!("event:{}:{sequence}", run.0)),
+            run.clone(),
+            None,
+            payload,
+            p::SchemaVersion(1),
+            sequence as i64,
+            p::Provenance {
+                source: p::Source::Internal,
+                actor: p::Actor::System,
+                trust_tier: p::TrustTier::VerifiedProcess,
+                caused_by: None,
+            },
+        );
+        value.stream_seq = sequence;
+        value
+    }
+
+    fn accepted(run: &p::RunId) -> p::Event {
+        event(
+            run,
+            1,
+            p::EventPayload::RunAccepted(p::RunAcceptedPayload {
+                source: p::Source::UserTurn,
+                session_ref: p::SessionId("session:inbox-test".into()),
+                input_ref: p::InputRef("input:inbox-test".into()),
+                idempotency_key: None,
+            }),
+        )
+    }
+
+    #[test]
+    fn inbox_projects_only_active_pending_checkpoints_with_fixed_safe_summaries() {
+        let waiting = p::RunId("run:waiting".into());
+        let terminal = p::RunId("run:terminal".into());
+        let events = vec![
+            accepted(&waiting),
+            event(
+                &waiting,
+                2,
+                p::EventPayload::ActionOutcomeUnknown(p::ActionOutcomeUnknownPayload {
+                    intent_id: p::ActionId("action:waiting".into()),
+                    probe_hint: p::ProbeHintRef("untrusted raw details must not escape".into()),
+                    remote_lease: None,
+                }),
+            ),
+            accepted(&terminal),
+            event(
+                &terminal,
+                2,
+                p::EventPayload::RunFailed(p::RunFailedPayload {
+                    stop_reason: p::StopReason("fixture failure".into()),
+                    result_ref: None,
+                }),
+            ),
+        ];
+
+        let rows = inbox(&events).unwrap();
+        let waiting_row = rows
+            .iter()
+            .find(|row| row.kind == p::WorkbenchItemKind::Waiting)
+            .unwrap();
+        assert_eq!(waiting_row.run, waiting);
+        assert_eq!(waiting_row.state, "ToolInterrupt");
+        assert_eq!(waiting_row.event, events[1].event_id);
+        assert_eq!(waiting_row.stream_seq, 2);
+        assert_eq!(waiting_row.summary, "工具执行结果需要核实");
+        assert_eq!(
+            waiting_row.evidence,
+            vec![p::EvidenceRef(events[1].event_id.0.clone())]
+        );
+        assert!(!rows.iter().any(|row| row.run == terminal));
+        assert!(!waiting_row.summary.contains("untrusted raw details"));
+    }
 }

@@ -78,7 +78,7 @@ export function App() {
     </aside><main id="main-content" className="main-content" key={session.account_ref}>
       <div hidden={tab !== 'conversation'}><Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
       {tab === 'workspace' && <WorkspaceView api={api} runtime={runtime} />}
-      {tab === 'inbox' && <BrainInbox api={api} runs={runs} open={open} />}
+      {tab === 'inbox' && <BrainInbox api={api} open={open} />}
       {tab === 'cognition' && <CognitionView api={api} open={open} />}
       {tab === 'settings' && <Settings api={api} runtime={runtime} issue={issue} refresh={() => void refreshCore()} signedOut={clear} />}
     </main></div>}

@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
-import type { RunSummary } from '../types.ts';
 import type { ReviewDecision, ReviewState, WorkbenchItem, WorkbenchProposal, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
-import { reviewLabels, stateLabels } from '../workbench.ts';
-import { statusLabel } from './Conversation.tsx';
+import { inboxItemStatus, reviewLabels, stateLabels } from '../workbench.ts';
 
 function useBrainView(api: WorkbenchClient, section: WorkbenchSection) {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
@@ -143,20 +141,19 @@ function ProposalControl({ api, item, changed }: { api: WorkbenchClient; item: W
   </fieldset>{message && <p role="status">{message}</p>}<button className="secondary-button" disabled={busy}>{pending.current ? '核实原处置' : '提交处置'}</button><p className="muted small">采纳不会绕过权限、审批或执行计划。</p></form>;
 }
 
-export function BrainInbox({ api, runs, open }: { api: WorkbenchClient; runs: RunSummary[]; open: (run: string) => void }) {
+export function BrainInbox({ api, open }: { api: WorkbenchClient; open: (run: string) => void }) {
   const view = useBrainView(api, 'Inbox');
-  const pending = runs.filter((run) => ['Waiting', 'Failed', 'Limited'].includes(run.status));
   return <section className="view"><header className="view-header"><div><p className="eyebrow">需要你参与的事情</p><h1>收件箱</h1></div><button className="secondary-button" onClick={view.refresh}>刷新</button></header>
-    <p className="muted">查看不等于采纳或批准。未知结果保留在原运行中，不能通过再次执行来猜测。</p>
+    <p className="muted">查看不等于采纳或批准。运行待决项会打开原运行，不能通过再次执行来猜测结果。</p>
     {view.error && <p role="alert" className="form-error">{view.error}</p>}{view.busy && <p role="status">正在读取收件箱…</p>}
-    <div className="inbox-list">{pending.map((run) => <button className="inbox-item" key={run.run} onClick={() => open(run.run)}><span><strong>{statusLabel(run.status)}</strong><small>{run.session}</small></span><span>查看审批、等待与恢复 →</span></button>)}</div>
-    <div className="content-grid">{view.snapshot?.items.map((item) => <article className="surface" key={`${item.run}:${item.id}`}><p className="eyebrow">{item.kind} · {stateLabels[item.state] ?? item.state}</p><h2>{item.summary}</h2>
+    <div className="content-grid">{view.snapshot?.items.map((item) => <article className="surface" key={`${item.run}:${item.id}`}><p className="eyebrow">{item.kind} · {inboxItemStatus(item)}</p><h2>{item.summary}</h2>
       {item.learning && <p>为目标 {item.learning.goal} 确认：{JSON.stringify(item.learning.target)}</p>}
       <Evidence item={item} open={open} />
+      {item.kind === 'Waiting' && <button className="secondary-button" onClick={() => open(item.run)}>打开原运行 →</button>}
       {item.kind === 'AskToLearn' && item.state === 'Pending' && <LearningResponse api={api} item={item} changed={view.refresh} />}
       {item.kind === 'Suggestion' && item.state === 'Pending' && <ProposalControl api={api} item={item} changed={view.refresh} />}
     </article>)}</div>
-    {view.snapshot?.total === 0 && !pending.length && <div className="empty-state"><h2>目前没有待处理的事情</h2></div>}
+    {view.snapshot?.total === 0 && <div className="empty-state"><h2>目前没有待处理的事情</h2></div>}
     {view.snapshot?.next_offset !== null && view.snapshot && <button className="secondary-button" disabled={view.busy} onClick={() => void view.more()}>读取下一页</button>}
   </section>;
 }
