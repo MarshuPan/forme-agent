@@ -10,6 +10,8 @@ use serde_json::{json, Value};
 use super::*;
 use crate::web::identity::{SensitivePassword, WebIdentityStore};
 
+mod proposals;
+
 const PASSWORD: &str = "web HTTP fixture password 15";
 
 struct Fixture {
@@ -28,6 +30,10 @@ fn now() -> i64 {
 
 impl Fixture {
     fn new(claimed: bool) -> Self {
+        Self::with_core(claimed, None)
+    }
+
+    fn with_core(claimed: bool, core: Option<Arc<crate::web::core::CoreBridgeClient>>) -> Self {
         let mut bytes = [0; 16];
         getrandom::fill(&mut bytes).unwrap();
         let root = std::env::temp_dir()
@@ -75,9 +81,12 @@ impl Fixture {
                 .unwrap();
             runtime.block_on(async move {
                 let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-                serve_identity_until(
-                    listener,
+                serve_identity_with_setup_until(
+                    connections::BoundedListener::new(listener),
                     Arc::new(identity),
+                    None,
+                    None,
+                    core,
                     |address| {
                         send.send(address).unwrap();
                         Ok(())

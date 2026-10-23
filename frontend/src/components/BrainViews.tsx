@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
-import type { ReviewDecision, ReviewState, WorkbenchItem, WorkbenchProposal, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
-import { inboxItemStatus, reviewLabels, stateLabels } from '../workbench.ts';
+import type { PendingWorkbenchProposals, ReviewDecision, ReviewState, WorkbenchItem, WorkbenchProposal, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
+import { inboxItemStatus, pendingProposalFor, reviewLabels, stateLabels } from '../workbench.ts';
 
 function useBrainView(api: WorkbenchClient, section: WorkbenchSection) {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
@@ -115,11 +115,25 @@ function LearningResponse({ api, item, changed }: { api: WorkbenchClient; item: 
   </fieldset>{error && <p className="form-error" role="alert">{error}</p>}<button className="secondary-button" disabled={busy}>{pending.current ? '核实原反馈' : '提交反馈'}</button><p className="muted small">回答只会产生受治理候选。</p></form>;
 }
 
-function ProposalControl({ api, item, changed }: { api: WorkbenchClient; item: WorkbenchItem; changed: () => void }) {
-  const [outcome, setOutcome] = useState<WorkbenchProposal['outcome']>('Adopt');
-  const [at, setAt] = useState('');
+function localInputTime(timestamp: number): string {
+  const local = new Date(timestamp - new Date(timestamp).getTimezoneOffset() * 60_000);
+  return Number.isFinite(local.getTime()) ? local.toISOString().slice(0, 16) : '';
+}
+
+function ProposalControl({ api, run, proposal, restored, changed }: {
+  api: WorkbenchClient; run: string; proposal: string; restored?: WorkbenchProposal; changed: () => void;
+}) {
+  const [outcome, setOutcome] = useState<WorkbenchProposal['outcome']>(restored?.outcome ?? 'Adopt');
+  const [at, setAt] = useState(restored?.defer_until ? localInputTime(restored.defer_until) : '');
   const [busy, setBusy] = useState(false), [message, setMessage] = useState('');
-  const pending = useRef<WorkbenchProposal | null>(null);
+  const pending = useRef<WorkbenchProposal | null>(restored ?? null);
+  useEffect(() => {
+    if (restored && pending.current === null) {
+      pending.current = restored;
+      setOutcome(restored.outcome);
+      setAt(restored.defer_until ? localInputTime(restored.defer_until) : '');
+    }
+  }, [restored]);
   async function submit(event: FormEvent) {
     event.preventDefault(); if (busy) return;
     setBusy(true); setMessage('');
@@ -127,12 +141,17 @@ function ProposalControl({ api, item, changed }: { api: WorkbenchClient; item: W
       if (!pending.current) {
         const until = at ? new Date(at).getTime() : null;
         if (outcome === 'Defer' && (!until || until <= Date.now())) throw new Error('请选择未来的提醒时间。');
-        pending.current = { schema_version: 1, command: newKey('proposal'), run: item.run, proposal: item.id, outcome, defer_until: outcome === 'Defer' ? until : null };
+        pending.current = { schema_version: 1, command: newKey('proposal'), run, proposal, outcome, defer_until: outcome === 'Defer' ? until : null };
       }
-      const receipt = await api.resolveWorkbenchProposal(pending.current);
+      const operation = pending.current;
+      if (!operation) throw new Error('原处置命令不可用，请刷新收件箱。');
+      const receipt = await api.resolveWorkbenchProposal(operation);
       setMessage(receipt.status === 'Confirmed' ? '主脑已记录提议处置。' : receipt.status === 'Rejected' ? '主脑拒绝了本次处置。' : '原处置未确认，已阻止重复执行。请刷新并核实原回执。');
       if (receipt.status !== 'Unknown') { pending.current = null; changed(); }
-    } catch (problem) { setMessage(problem instanceof Error ? problem.message : '处置尚未确认。'); }
+    } catch (problem) {
+      setMessage(problem instanceof Error ? problem.message : '处置尚未确认。');
+      if (problem instanceof ApiError && problem.status === 409) { pending.current = null; changed(); }
+    }
     finally { setBusy(false); }
   }
   return <form onSubmit={submit} aria-busy={busy}><fieldset disabled={busy || pending.current !== null}><legend>处理主动提议</legend>
@@ -143,17 +162,43 @@ function ProposalControl({ api, item, changed }: { api: WorkbenchClient; item: W
 
 export function BrainInbox({ api, open }: { api: WorkbenchClient; open: (run: string) => void }) {
   const view = useBrainView(api, 'Inbox');
-  return <section className="view"><header className="view-header"><div><p className="eyebrow">需要你参与的事情</p><h1>收件箱</h1></div><button className="secondary-button" onClick={view.refresh}>刷新</button></header>
+  const [recovery, setRecovery] = useState<PendingWorkbenchProposals | null>(null);
+  const [recoveryError, setRecoveryError] = useState('');
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryRevision, setRecoveryRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setRecoveryReady(false); setRecoveryError('');
+    void api.pendingWorkbenchProposals().then((value) => { if (active) setRecovery(value); })
+      .catch((problem: unknown) => { if (active) setRecoveryError(problem instanceof Error ? problem.message : '未决处置记录无法验证。'); })
+      .finally(() => { if (active) setRecoveryReady(true); });
+    return () => { active = false; };
+  }, [api, recoveryRevision]);
+  const refresh = () => { view.refresh(); setRecoveryRevision((value) => value + 1); };
+  const pendingCommands = recovery?.commands ?? [];
+  const represented = new Set((view.snapshot?.items ?? [])
+    .filter((item) => item.kind === 'Suggestion')
+    .map((item) => JSON.stringify([item.run, item.id])));
+  const orphaned = pendingCommands.filter((command) => !represented.has(JSON.stringify([command.run, command.proposal])));
+  return <section className="view"><header className="view-header"><div><p className="eyebrow">需要你参与的事情</p><h1>收件箱</h1></div><button className="secondary-button" onClick={refresh}>刷新</button></header>
     <p className="muted">查看不等于采纳或批准。运行待决项会打开原运行，不能通过再次执行来猜测结果。</p>
     {view.error && <p role="alert" className="form-error">{view.error}</p>}{view.busy && <p role="status">正在读取收件箱…</p>}
+    {!recoveryReady && <p role="status">正在核对未决处置…</p>}{recoveryError && <p role="alert" className="form-error">{recoveryError}</p>}
     <div className="content-grid">{view.snapshot?.items.map((item) => <article className="surface" key={`${item.run}:${item.id}`}><p className="eyebrow">{item.kind} · {inboxItemStatus(item)}</p><h2>{item.summary}</h2>
       {item.learning && <p>为目标 {item.learning.goal} 确认：{JSON.stringify(item.learning.target)}</p>}
       <Evidence item={item} open={open} />
       {item.kind === 'Waiting' && <button className="secondary-button" onClick={() => open(item.run)}>打开原运行 →</button>}
       {item.kind === 'AskToLearn' && item.state === 'Pending' && <LearningResponse api={api} item={item} changed={view.refresh} />}
-      {item.kind === 'Suggestion' && item.state === 'Pending' && <ProposalControl api={api} item={item} changed={view.refresh} />}
+      {item.kind === 'Suggestion' && (item.state === 'Pending' || pendingProposalFor(item, pendingCommands)) && recoveryReady && !recoveryError
+        && <ProposalControl key={`${item.run}:${item.id}:${pendingProposalFor(item, pendingCommands)?.command ?? 'new'}`} api={api} run={item.run} proposal={item.id} restored={pendingProposalFor(item, pendingCommands)} changed={refresh} />}
+      {item.kind === 'Suggestion' && item.state === 'Pending' && !recoveryReady && <p role="status">核对未决处置前暂不可提交。</p>}
     </article>)}</div>
-    {view.snapshot?.total === 0 && <div className="empty-state"><h2>目前没有待处理的事情</h2></div>}
+    {recoveryReady && !recoveryError && orphaned.map((command) => <article className="surface" key={`proposal-recovery:${command.command}`}>
+      <p className="eyebrow">Suggestion · 原处置待核实</p><h2>主动建议处置尚未取得终态回执</h2>
+      <p>来源运行：{command.run} · 建议：{command.proposal}</p>
+      <ProposalControl key={command.command} api={api} run={command.run} proposal={command.proposal} restored={command} changed={refresh} />
+    </article>)}
+    {view.snapshot?.total === 0 && recoveryReady && !recoveryError && orphaned.length === 0 && <div className="empty-state"><h2>目前没有待处理的事情</h2></div>}
     {view.snapshot?.next_offset !== null && view.snapshot && <button className="secondary-button" disabled={view.busy} onClick={() => void view.more()}>读取下一页</button>}
   </section>;
 }

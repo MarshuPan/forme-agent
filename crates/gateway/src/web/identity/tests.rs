@@ -4,6 +4,9 @@ use ed25519_dalek::{Signer, SigningKey};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 
+#[path = "tests/proposals.rs"]
+mod proposal_cases;
+
 const PASSWORD: &str = "fixture owner password 92";
 const NOW: i64 = 1_000_000;
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -104,6 +107,126 @@ fn owner(store: &WebIdentityStore, login: &SessionCookie, now: i64) -> Authentic
             now,
         )
         .unwrap()
+}
+
+fn proposal_command(command: &str, proposal: &str) -> p::WorkbenchProposalCommand {
+    p::WorkbenchProposalCommand {
+        schema_version: p::SchemaVersion(1),
+        command: p::IdempotencyKey(command.into()),
+        run: p::RunId("run:proposal-recovery".into()),
+        proposal: p::ProposalRef(proposal.into()),
+        outcome: p::ProposalOutcome::Defer,
+        defer_until: Some(super::now() + 60_000),
+    }
+}
+
+#[test]
+fn proposal_recovery_is_exact_owner_bound_and_survives_identity_restart() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let clock = super::now();
+    let session = login(&store, clock);
+    let authenticated = owner(&store, &session, clock);
+    let command = proposal_command("proposal:recover", "proposal:target");
+    store
+        .prepare_workbench_proposal(&authenticated, &command)
+        .unwrap();
+    store
+        .prepare_workbench_proposal(&authenticated, &command)
+        .unwrap();
+    assert_eq!(
+        store.pending_workbench_proposals(&authenticated).unwrap(),
+        vec![command.clone()]
+    );
+
+    let mut changed_binding = command.clone();
+    changed_binding.defer_until = Some(command.defer_until.unwrap() + 60_000);
+    assert!(matches!(
+        store.prepare_workbench_proposal(&authenticated, &changed_binding),
+        Err(AuthError::Conflict)
+    ));
+    let mut competing = command.clone();
+    competing.command = p::IdempotencyKey("proposal:second-command".into());
+    assert!(matches!(
+        store.prepare_workbench_proposal(&authenticated, &competing),
+        Err(AuthError::Conflict)
+    ));
+
+    let mut foreign = authenticated.clone();
+    foreign.view.owner = p::OwnerPrincipalRef("owner:other".into());
+    assert!(store.pending_workbench_proposals(&foreign).is_err());
+    drop(store);
+
+    let store = open(&directory);
+    let authenticated = owner(&store, &session, super::now());
+    assert_eq!(
+        store.pending_workbench_proposals(&authenticated).unwrap(),
+        vec![command.clone()]
+    );
+
+    let binding = p::canonical_digest(&(
+        p::VerifiedPrincipal(authenticated.view().owner.0.clone()),
+        &command,
+    ))
+    .unwrap();
+    let unknown = p::WorkbenchCommandReceipt {
+        schema_version: p::SchemaVersion(1),
+        command: command.command.clone(),
+        binding: binding.clone(),
+        status: p::WorkbenchCommandStatus::Unknown,
+        event: p::EventId("receipt:unknown".into()),
+    };
+    assert!(matches!(
+        store.finish_workbench_proposal(&authenticated, &command, &unknown),
+        Err(AuthError::RecoveryRequired)
+    ));
+    assert_eq!(
+        store.pending_workbench_proposals(&authenticated).unwrap(),
+        vec![command.clone()]
+    );
+
+    let terminal = p::WorkbenchCommandReceipt {
+        status: p::WorkbenchCommandStatus::Confirmed,
+        event: p::EventId("receipt:confirmed".into()),
+        ..unknown
+    };
+    store
+        .finish_workbench_proposal(&authenticated, &command, &terminal)
+        .unwrap();
+    assert!(store
+        .pending_workbench_proposals(&authenticated)
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn proposal_recovery_capacity_fails_before_accepting_a_257th_operation() {
+    let directory = Directory::new();
+    let store = claimed(&directory);
+    let clock = super::now();
+    let session = login(&store, clock);
+    let authenticated = owner(&store, &session, clock);
+    for index in 0..256 {
+        let command = proposal_command(
+            &format!("proposal:capacity-command-{index}"),
+            &format!("proposal:capacity-target-{index}"),
+        );
+        store
+            .prepare_workbench_proposal(&authenticated, &command)
+            .unwrap();
+    }
+    let overflow = proposal_command("proposal:capacity-overflow", "proposal:capacity-last");
+    assert!(matches!(
+        store.prepare_workbench_proposal(&authenticated, &overflow),
+        Err(AuthError::Busy)
+    ));
+    assert_eq!(
+        store
+            .pending_workbench_proposals(&authenticated)
+            .unwrap()
+            .len(),
+        256
+    );
 }
 
 #[test]
@@ -905,7 +1028,7 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 8);
+    assert_eq!(version, 9);
     let workbench_commands: i64 = store
         .database()
         .unwrap()
@@ -928,6 +1051,17 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         )
         .unwrap();
     assert_eq!(password_commands, 1);
+    let proposal_commands: i64 = store
+        .database()
+        .unwrap()
+        .connection
+        .query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='workbench_proposal_commands'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(proposal_commands, 1);
     store.login_challenge_at(NOW + 2).unwrap();
 }
 

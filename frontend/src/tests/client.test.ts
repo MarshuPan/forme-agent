@@ -154,6 +154,35 @@ test('proposal controls retain exact command binding when an outcome is unknown'
   }
 });
 
+test('pending proposal recovery is a read-only authenticated query with closed commands', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    return Response.json({ schema_version: 1, commands: [
+      { schema_version: 1, command: 'proposal:original', run: 'run:one', proposal: 'proposal:one', outcome: 'Adopt', defer_until: null },
+    ] });
+  });
+  const result = await api.pendingWorkbenchProposals();
+  assert.equal(result.commands[0]?.command, 'proposal:original');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/v1/workbench/proposals/pending');
+  assert.equal(calls[0].request.method, 'GET');
+  assert.equal(calls[0].request.body, undefined);
+});
+
+test('malformed pending proposal recovery fails closed', async () => {
+  const api = new WorkbenchClient(async () => Response.json({ schema_version: 1, commands: [{ command: 'unbound' }] }));
+  await assert.rejects(() => api.pendingWorkbenchProposals(), /未决建议处置记录无法验证/);
+});
+
+test('ambiguous or excessive recovery lists cannot unlock suggestion controls', async () => {
+  const command = { schema_version: 1, command: 'proposal:original', run: 'run:one', proposal: 'proposal:one', outcome: 'Adopt', defer_until: null };
+  for (const commands of [[command, command], [command, { ...command, command: 'proposal:second' }], Array.from({ length: 257 }, (_, i) => ({ ...command, command: `key:${i}`, proposal: `target:${i}` }))]) {
+    const api = new WorkbenchClient(async () => Response.json({ schema_version: 1, commands }));
+    await assert.rejects(() => api.pendingWorkbenchProposals(), /未决建议处置记录无法验证/);
+  }
+});
+
 test('pending reads and owner resolutions use the authenticated run routes and retain one command body', async () => {
   const calls: { path: string; request: RequestInit }[] = [];
   const api = new WorkbenchClient(async (input, request) => {

@@ -1,6 +1,5 @@
 //! Real owner authentication and the signed bridge for proposal outcomes.
 use super::*;
-
 pub(super) async fn verify(
     address: SocketAddr,
     runtime: &ProductionRuntime,
@@ -49,6 +48,26 @@ pub(super) async fn verify(
     )
     .await;
     assert_eq!(reply.status, 409, "{}", reply.body);
+    let pending = request(
+        address,
+        "GET",
+        "/api/v1/workbench/proposals/pending",
+        vec![("Cookie", cookie.into())],
+        String::new(),
+    )
+    .await;
+    assert_eq!(pending.status, 200, "{}", pending.body);
+    assert_eq!(pending.json()["schema_version"], 1);
+    assert_eq!(pending.json()["commands"].as_array().unwrap().len(), 0);
+    let unauthenticated = request(
+        address,
+        "GET",
+        "/api/v1/workbench/proposals/pending",
+        vec![],
+        String::new(),
+    )
+    .await;
+    assert_eq!(unauthenticated.status, 401, "{}", unauthenticated.body);
     assert_eq!(runtime.services().store.run_head(&run).unwrap(), before);
     assert!(!events(runtime, &run).iter().any(|e| matches!(
         e.kind,

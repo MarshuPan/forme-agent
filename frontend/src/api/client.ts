@@ -2,7 +2,8 @@ import { isRecord, versioned } from '../types.ts';
 import type { ArtifactCatalogView } from '../types.ts';
 import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
-import type { WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
+import { isWorkbenchProposal } from '../workbench.ts';
+import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
 import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 
@@ -193,6 +194,16 @@ export class WorkbenchClient {
   }
   resolveWorkbenchProposal(command: WorkbenchProposal) {
     return this.json<WorkbenchReceipt>('brain/workbench/proposal', 'POST', command, command.command);
+  }
+  async pendingWorkbenchProposals(): Promise<PendingWorkbenchProposals> {
+    const value = await this.json<unknown>('workbench/proposals/pending');
+    if (!isRecord(value) || value.schema_version !== 1 || !Array.isArray(value.commands)
+        || value.commands.length > 256 || !value.commands.every(isWorkbenchProposal)
+        || new Set(value.commands.map((command) => command.command)).size !== value.commands.length
+        || new Set(value.commands.map((command) => JSON.stringify([command.run, command.proposal]))).size !== value.commands.length) {
+      throw new ApiError(502, 'InvalidRecoveryState', '未决建议处置记录无法验证，已停止操作。');
+    }
+    return { schema_version: 1, commands: value.commands as WorkbenchProposal[] };
   }
   projects() { return this.json<OrchestrationLedger>('brain/projects'); }
   project(command: ProjectCommand, key = newKey('project')) {

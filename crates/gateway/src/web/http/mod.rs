@@ -9,6 +9,7 @@ mod core_routes;
 mod data;
 mod error;
 mod maintenance;
+mod proposal_controls;
 mod security;
 mod sessions;
 
@@ -210,6 +211,10 @@ fn router(state: Arc<WebState>) -> Router {
             "/api/v1/sessions",
             get(sessions::list).post(sessions::create),
         )
+        .route(
+            "/api/v1/workbench/proposals/pending",
+            get(proposal_controls::pending),
+        )
         .route("/api/v1/sessions/{session}", put(sessions::update))
         .route("/api/v1/data/query", post(data::query))
         .route("/api/v1/data/command", post(data::command))
@@ -351,29 +356,6 @@ where
         bootstrap,
         configuration,
         core,
-        on_bound,
-        shutdown,
-    )
-    .await
-}
-
-#[cfg(test)]
-async fn serve_identity_until<F, S>(
-    listener: tokio::net::TcpListener,
-    identity: Arc<WebIdentityStore>,
-    on_bound: F,
-    shutdown: S,
-) -> p::Result<()>
-where
-    F: FnOnce(SocketAddr) -> p::Result<()>,
-    S: Future<Output = p::Result<()>>,
-{
-    serve_identity_with_setup_until(
-        connections::BoundedListener::new(listener),
-        identity,
-        None,
-        None,
-        None,
         on_bound,
         shutdown,
     )

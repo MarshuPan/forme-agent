@@ -5,6 +5,7 @@ mod local_fence;
 pub(crate) use local_fence::fence_installed_sessions;
 mod maintenance;
 mod password;
+mod proposals;
 mod recovery;
 mod sessions;
 mod setup;

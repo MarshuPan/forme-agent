@@ -21,6 +21,9 @@ export interface WorkbenchProposal {
   schema_version: 1; command: string; run: string; proposal: string;
   outcome: 'Adopt' | 'Reject' | 'Defer'; defer_until: number | null;
 }
+export interface PendingWorkbenchProposals {
+  schema_version: 1; commands: WorkbenchProposal[];
+}
 export interface WorkbenchReceipt {
   schema_version: 1; command: string; binding: string; status: 'Confirmed' | 'Rejected' | 'Unknown'; event: string;
 }
@@ -42,4 +45,25 @@ const pendingRunLabels: Record<string, string> = {
 export function inboxItemStatus(item: Pick<WorkbenchItem, 'kind' | 'state'>): string {
   if (item.kind === 'Waiting') return pendingRunLabels[item.state] ?? '运行待决状态待核实';
   return stateLabels[item.state] ?? item.state;
+}
+
+export function isWorkbenchProposal(value: unknown): value is WorkbenchProposal {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const command = value as Record<string, unknown>;
+  const fields = ['schema_version', 'command', 'run', 'proposal', 'outcome', 'defer_until'];
+  const validId = (id: unknown) => typeof id === 'string' && id.trim().length > 0
+    && new TextEncoder().encode(id).length <= 256 && !/\p{Cc}/u.test(id);
+  return Object.keys(command).length === fields.length && fields.every((field) => Object.hasOwn(command, field))
+    && command.schema_version === 1 && validId(command.command) && validId(command.run) && validId(command.proposal)
+    && (command.outcome === 'Defer'
+      ? typeof command.defer_until === 'number' && Number.isSafeInteger(command.defer_until) && Number.isFinite(new Date(command.defer_until).getTime())
+      : (command.outcome === 'Adopt' || command.outcome === 'Reject') && command.defer_until === null);
+}
+
+export function pendingProposalFor(
+  item: Pick<WorkbenchItem, 'kind' | 'run' | 'id'>,
+  commands: WorkbenchProposal[],
+): WorkbenchProposal | undefined {
+  if (item.kind !== 'Suggestion') return undefined;
+  return commands.find((command) => command.run === item.run && command.proposal === item.id);
 }

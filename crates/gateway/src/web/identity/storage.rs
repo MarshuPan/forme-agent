@@ -94,7 +94,7 @@ impl Database {
             let version: i64 = reader
                 .pragma_query_value(None, "user_version", |r| r.get(0))
                 .map_err(|_| AuthError::RecoveryRequired)?;
-            if application != APPLICATION_ID || !matches!(version, 1..=8) {
+            if application != APPLICATION_ID || !matches!(version, 1..=9) {
                 return Err(AuthError::RecoveryRequired);
             }
         } else {
@@ -261,6 +261,26 @@ impl Database {
                  CREATE INDEX IF NOT EXISTS password_change_commands_owner_created
                     ON password_change_commands(owner, created);
                  PRAGMA user_version=8;",
+            )
+            .map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
+        }
+        if version <= 8 {
+            let tx = connection.transaction().map_err(storage_error)?;
+            tx.execute_batch(
+                "CREATE TABLE IF NOT EXISTS workbench_proposal_commands (
+                    command TEXT PRIMARY KEY,
+                    owner TEXT NOT NULL,
+                    binding TEXT NOT NULL,
+                    run TEXT NOT NULL,
+                    proposal TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created INTEGER NOT NULL,
+                    UNIQUE(owner, run, proposal)
+                 );
+                 CREATE INDEX IF NOT EXISTS workbench_proposal_owner_created
+                    ON workbench_proposal_commands(owner, created, command);
+                 PRAGMA user_version=9;",
             )
             .map_err(storage_error)?;
             tx.commit().map_err(storage_error)?;

@@ -107,6 +107,7 @@ async fn forward(
     let _fence_gate = state.core_access().await?;
     let requested_core_path = allowlisted_core_path(method.as_str(), &path, query)?;
     let mut workbench_receipt = None;
+    let mut proposal_recovery = None;
     let (core_path, body) = if method == Method::POST && path == "runs" {
         let bound = commands::bind_body(
             method.as_str(),
@@ -184,16 +185,26 @@ async fn forward(
             serde_json::to_vec(&submission).map_err(|_| WebError::invalid())?,
         )
     } else {
-        (
-            requested_core_path,
-            commands::bind_body(
-                method.as_str(),
-                &path,
-                &body,
-                owner.view(),
-                command_key.as_deref(),
-            )?,
-        )
+        let bound = commands::bind_body(
+            method.as_str(),
+            &path,
+            &body,
+            owner.view(),
+            command_key.as_deref(),
+        )?;
+        if method == Method::POST && path == "workbench/proposal" {
+            let command: p::WorkbenchProposalCommand =
+                serde_json::from_slice(&bound).map_err(|_| WebError::invalid())?;
+            let record_owner = owner.clone();
+            let record_command = command.clone();
+            state
+                .blocking(false, move |identity| {
+                    identity.prepare_workbench_proposal(&record_owner, &record_command)
+                })
+                .await?;
+            proposal_recovery = Some((owner.clone(), command));
+        }
+        (requested_core_path, bound)
     };
     let method_name = method.as_str().to_owned();
     let owner_binding = owner.core_binding();
@@ -233,6 +244,15 @@ async fn forward(
         )
     })?;
     if !status.is_success() {
+        if status == StatusCode::CONFLICT {
+            if let Some((recovery_owner, command)) = proposal_recovery.take() {
+                state
+                    .blocking(false, move |identity| {
+                        identity.reject_workbench_proposal_conflict(&recovery_owner, &command)
+                    })
+                    .await?;
+            }
+        }
         return Err(WebError::new(
             status,
             if status == StatusCode::CONFLICT {
@@ -266,6 +286,44 @@ async fn forward(
                 identity.record_workbench_run(&receipt_owner, &receipt_request, &run)
             })
             .await?;
+    }
+    if let Some((recovery_owner, command)) = proposal_recovery {
+        let receipt: p::WorkbenchCommandReceipt =
+            serde_json::from_slice(&response.body).map_err(|_| {
+                WebError::new(
+                    StatusCode::BAD_GATEWAY,
+                    "CoreProtocolError",
+                    "主脑提议处置回执无效",
+                )
+            })?;
+        let binding = p::canonical_digest(&(
+            p::VerifiedPrincipal(recovery_owner.view().owner.0.clone()),
+            &command,
+        ))
+        .map_err(|_| {
+            WebError::new(
+                StatusCode::BAD_GATEWAY,
+                "CoreProtocolError",
+                "主脑提议处置回执无效",
+            )
+        })?;
+        if receipt.schema_version != p::SchemaVersion(1)
+            || receipt.command != command.command
+            || receipt.binding != binding
+        {
+            return Err(WebError::new(
+                StatusCode::BAD_GATEWAY,
+                "CoreProtocolError",
+                "主脑提议处置回执与原操作不匹配",
+            ));
+        }
+        if receipt.status != p::WorkbenchCommandStatus::Unknown {
+            state
+                .blocking(false, move |identity| {
+                    identity.finish_workbench_proposal(&recovery_owner, &command, &receipt)
+                })
+                .await?;
+        }
     }
     let mut output = (status, response.body).into_response();
     if let Some(content_type) = response.content_type {

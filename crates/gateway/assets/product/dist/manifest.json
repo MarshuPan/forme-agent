@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "d5020637adc65cb76337ae6b1f8f56e12ec7e8ff16f732b4e288f258fbf3ee83",
+  "source_digest": "7db7bbaf5b6f8de709d70bc3b15a96d391f70af2e40cc55080af8233ec447288",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "a1c5d820c10c0d1418fafdbb3a5810a8dcf14755df0fd666549f3753deabb29d"
+      "sha256": "4bdb826a1be687f2267b86db571c1f45c2fb62bc3f98229551b965e0a4b28131"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -36,7 +36,7 @@
     },
     {
       "path": "frontend/src/components/BrainViews.tsx",
-      "sha256": "8ff1ac7c3d5de27233951deffd30d8ff1ed5673b7d46447b0a6076ad6526dcb1"
+      "sha256": "2e1b42550ff440153dd9bf867e2520dec8cf98409f340288c9dd53f0d0916327"
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
@@ -120,7 +120,7 @@
     },
     {
       "path": "frontend/src/tests/client.test.ts",
-      "sha256": "b7e059a5f864250bd7e425e21739f1d45f54ab269dacf638d3bf28ea6a51934d"
+      "sha256": "b3c3b9f38f9f33d2f599c0d82e7fa31bd77bd7b8dc8d13d9b385ed14edd1a5a8"
     },
     {
       "path": "frontend/src/tests/configuration.test.ts",
@@ -136,7 +136,7 @@
     },
     {
       "path": "frontend/src/tests/inbox.test.ts",
-      "sha256": "2621b32b914b45abdd665fc29f86d72b03571fd7474d194390d590ab868bd7c1"
+      "sha256": "0f86dec1017aa8cb5b3d0899e1154111c62ae4f98ae041588aaac7e95cc10671"
     },
     {
       "path": "frontend/src/tests/maintenance.test.ts",
@@ -156,7 +156,7 @@
     },
     {
       "path": "frontend/src/workbench.ts",
-      "sha256": "607fc9f0ca8f080d96465bc4f91c682a726491fbcbc8a03ac296b82ce5acfb28"
+      "sha256": "366850ff00b2ac7c6a6656cd4796f87c1a2d3ce993f5b6d3e86d6192360f1b24"
     },
     {
       "path": "frontend/tsconfig.json",
@@ -178,9 +178,9 @@
       "bytes": 13654
     },
     {
-      "path": "assets/index-kvzkBrdA.js",
-      "sha256": "c85dd26d3ea6a8badd1191ab3fb13dfb412c84cec1987bb3c33a3261412d867f",
-      "bytes": 320742
+      "path": "assets/index-oJ16OEie.js",
+      "sha256": "a444368e74d57aaa0168addb734d3288164f54f66b34a00b1cd91518bc6b4a2c",
+      "bytes": 323678
     },
     {
       "path": "dependencies.json",
@@ -194,7 +194,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "830ebf4ae007226920812fe4fc5f69cf3c05e711b15baad13beb70dd5f5a3967",
+      "sha256": "822490d31a705170252838e26e563f46c1fc5b9b6e20e53cb3bf1d603d6fd2aa",
       "bytes": 595
     },
     {
