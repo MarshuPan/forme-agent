@@ -5,6 +5,7 @@ use forme_store::EventStore;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 mod projections;
+mod projects;
 mod proposal;
 mod review;
 

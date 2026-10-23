@@ -70,6 +70,7 @@ pub(crate) fn validate(tx: &Transaction<'_>, event: &p::Event) -> p::Result<()> 
         fact.operation,
         p::OrchestrationOperation::ProjectDeclared(_)
             | p::OrchestrationOperation::ProjectRevised { .. }
+            | p::OrchestrationOperation::ProjectSupervisionChanged { .. }
     ) && (event.provenance.actor != p::Actor::Owner
         || event.provenance.trust_tier != p::TrustTier::OwnerInput)
     {

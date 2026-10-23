@@ -77,7 +77,7 @@ export function App() {
       <p className="sidebar-footnote">一个主脑，持续协同。</p>
     </aside><main id="main-content" className="main-content" key={session.account_ref}>
       <div hidden={tab !== 'conversation'}><Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
-      {tab === 'workspace' && <WorkspaceView api={api} runtime={runtime} />}
+      <div hidden={tab !== 'workspace'}><WorkspaceView api={api} runtime={runtime} open={open} /></div>
       {tab === 'inbox' && <BrainInbox api={api} open={open} />}
       {tab === 'cognition' && <CognitionView api={api} open={open} />}
       {tab === 'settings' && <Settings api={api} runtime={runtime} issue={issue} refresh={() => void refreshCore()} signedOut={clear} />}

@@ -82,6 +82,8 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .session-context-row { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; padding: .75rem 0; border-bottom: 1px solid var(--line); }
 .session-context-control { display: grid; gap: .35rem; width: min(100%, 28rem); color: var(--muted); font-size: .82rem; }
 .session-context-control select { min-width: 0; }
+.workspace-body, .workspace-body fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
+.project-controls { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: .8rem 0; margin: .8rem 0; }
 .privacy-hidden .app-shell { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
 @media (max-width: 640px) { .model-form-grid { grid-template-columns: minmax(0, 1fr); } .wide-field { grid-column: auto; } }

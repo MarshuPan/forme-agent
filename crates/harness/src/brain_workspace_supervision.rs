@@ -79,14 +79,16 @@ impl ProductionRuntime {
                 let current = self.orchestration_snapshot()?;
                 // Late foreground project changes and in-flight segments are left
                 // to the next snapshot; the tick cannot overwrite either.
-                if current.projects.get(&review.project) != snapshot.projects.get(&review.project)
+                if !current.project_supervision(&review.project).enabled
+                    || current.projects.get(&review.project)
+                        != snapshot.projects.get(&review.project)
                     || current.routes.values().any(|r| {
                         r.declaration.project == review.project && (!r.closed || r.has_inflight())
                     })
                 {
                     continue;
                 }
-                self.plan_project_segment(
+                let result = self.plan_project_segment(
                     p::IdempotencyKey(format!(
                         "workspace-review:{}:{}:{}",
                         claim.window, review.project, review.input_digest.0
@@ -96,7 +98,12 @@ impl ProductionRuntime {
                     review.input_digest.clone(),
                     Some(review.input_digest),
                     claim.window,
-                )?;
+                );
+                if let Err(error) = result {
+                    if error.0 != "project background planning became stale" {
+                        return Err(error);
+                    }
+                }
             }
         }
         self.services()

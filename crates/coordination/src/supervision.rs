@@ -61,6 +61,9 @@ impl WorkspaceSupervisor {
             .values()
             .filter(|p| p.workspace == charter.workspace)
         {
+            if !state.project_supervision(&project.reference).enabled {
+                continue;
+            }
             let latest = state
                 .routes
                 .values()

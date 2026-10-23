@@ -138,7 +138,8 @@ pub(super) async fn project_command(
                 .cancel_project_route(command, route, auth)
                 .map(|_| serde_json::json!({"cancelled":true})),
         })
-        .await?;
+        .await
+        .map_err(project_conflict)?;
     Ok(Json(value))
 }
 
@@ -173,8 +174,23 @@ pub(super) async fn write_workspace_charter(
     let gateway = state.gateway.clone();
     let event = state
         .blocking(move || gateway.apply_workspace_charter(request.command, request.change, auth))
-        .await?;
+        .await
+        .map_err(project_conflict)?;
     Ok(Json(serde_json::json!({"schema_version":1,"event":event})))
+}
+
+fn project_conflict(mut error: ApiError) -> ApiError {
+    if matches!(
+        error.message.as_str(),
+        "project revision changes identity or has a stale digest"
+            | "orchestration expected revision conflict"
+            | "orchestration command identity conflict"
+            | "charter expected version conflict"
+            | "charter command identity conflict"
+    ) {
+        error.status = StatusCode::CONFLICT;
+    }
+    error
 }
 
 pub(super) async fn prepare_workspace_charter(

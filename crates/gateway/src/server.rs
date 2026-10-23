@@ -11,6 +11,7 @@ mod artifacts;
 mod data;
 mod data_workbench;
 use data::*;
+mod project_controls;
 mod projects;
 use projects::*;
 mod runs;
@@ -228,6 +229,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/data/restore", post(data_restore))
         .route("/v1/data/lifecycle", post(data_lifecycle))
         .merge(data_workbench::routes())
+        .merge(project_controls::routes())
         .route(
             "/v1/brain/projects",
             get(project_ledger).post(project_command),

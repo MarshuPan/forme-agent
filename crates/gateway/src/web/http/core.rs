@@ -389,6 +389,11 @@ fn allowlisted_core_path(
             RouteMethods::Post,
         ),
         ["projects"] => ("/v1/brain/projects".to_owned(), RouteMethods::GetPost),
+        ["projects", "status"] => ("/v1/brain/projects/status".to_owned(), RouteMethods::Get),
+        ["projects", "supervision"] => (
+            "/v1/brain/projects/supervision".to_owned(),
+            RouteMethods::Post,
+        ),
         ["learning", "goals"] => ("/v1/brain/learning/goals".to_owned(), RouteMethods::Post),
         ["learning", "answer"] => ("/v1/brain/learning/answer".to_owned(), RouteMethods::Post),
         ["learning", "resolve"] => ("/v1/brain/learning/resolve".to_owned(), RouteMethods::Post),

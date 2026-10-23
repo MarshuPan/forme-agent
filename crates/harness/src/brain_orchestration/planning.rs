@@ -164,6 +164,10 @@ impl ProductionRuntime {
                 )
             })
             .collect::<Vec<_>>();
+        let background_digest = review_snapshot
+            .as_ref()
+            .map(|_| p::canonical_digest(spec))
+            .transpose()?;
         let declaration = p::RouteDeclaration {
             schema_version: p::SchemaVersion(1),
             route: route.reference.clone(),
@@ -223,11 +227,12 @@ impl ProductionRuntime {
             },
             created_at: now,
         };
-        self.append_orchestration(
+        self.append_orchestration_guarded(
             command,
             p::OrchestrationOperation::RouteDeclared(Box::new(declaration.clone())),
             false,
             now,
+            background_digest.as_ref().map(|digest| (project, digest)),
         )?;
         self.ensure_route_markers(&declaration)?;
         Ok(declaration)

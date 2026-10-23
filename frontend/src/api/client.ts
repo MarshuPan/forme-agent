@@ -1,5 +1,6 @@
 import { isRecord, versioned } from '../types.ts';
 import type { ArtifactCatalogView } from '../types.ts';
+import type { ProjectSupervisionCommand, WorkspaceControlSnapshot } from '../types.ts';
 import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
 import { isWorkbenchProposal } from '../workbench.ts';
@@ -206,6 +207,10 @@ export class WorkbenchClient {
     return { schema_version: 1, commands: value.commands as WorkbenchProposal[] };
   }
   projects() { return this.json<OrchestrationLedger>('brain/projects'); }
+  projectStatus() { return this.json<WorkspaceControlSnapshot>('brain/projects/status'); }
+  projectSupervision(command: ProjectSupervisionCommand) {
+    return this.json<WorkbenchReceipt>('brain/projects/supervision', 'POST', command, command.command);
+  }
   project(command: ProjectCommand, key = newKey('project')) {
     return this.json<Record<string, unknown>>('brain/projects', 'POST', { schema_version: 1, request: command }, key);
   }

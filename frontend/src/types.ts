@@ -135,6 +135,21 @@ export interface OrchestrationLedger {
   routes: Record<string, Json>;
   checkpoints: Record<string, Json>;
   commands: Record<string, string>;
+  supervision?: Record<string, ProjectSupervisionState>;
+}
+export interface ProjectSupervisionState { schema_version: 1; version: number; enabled: boolean }
+export interface ProjectSupervisionCommand {
+  schema_version: 1; command: string; project: string; expected_project_digest: string; expected_version: number; enabled: boolean;
+}
+export interface WorkspaceProjectControlView {
+  schema_version: 1; project: string; workspace: string; project_digest: string; supervision: ProjectSupervisionState;
+  checkpoint: { schema_version: 1; route: string; input_digest: string; at: number } | null;
+  active_routes: string[]; next_cadence: number | null;
+  review: 'Paused' | 'ActiveRoute' | 'Due' | 'NotDue' | 'Unverifiable'; reasons: string[]; evidence: string[];
+}
+export interface WorkspaceControlSnapshot {
+  schema_version: 1; observed_at: number; revision: number; workspaces: string[];
+  projects: WorkspaceProjectControlView[]; stream_heads: Record<string, number>;
 }
 export type ProjectCommand =
   | { operation: 'register'; command: string; project: WorkspaceProject }

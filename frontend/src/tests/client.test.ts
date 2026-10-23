@@ -80,6 +80,24 @@ test('project and charter mutations keep one server command key and use allowlis
   assert.deepEqual(JSON.parse(String(calls[0].request.body)), { schema_version: 1, request: { operation: 'execute', route: { route: 'route:fixture' } } });
 });
 
+test('project status is read-only and supervision binds one exact owner command', async () => {
+  const calls: { path: string; request: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (input, request) => {
+    calls.push({ path: String(input), request: request! });
+    if (request!.method === 'GET') return Response.json({ schema_version: 1, observed_at: 1, revision: 1, workspaces: [], projects: [], stream_heads: {} });
+    return Response.json({ schema_version: 1, command: 'supervision:one', status: 'Confirmed', binding: 'sha256:fixture', event: 'event:one' });
+  });
+  const command = { schema_version: 1 as const, command: 'supervision:one', project: 'project:one', expected_project_digest: 'sha256:project', expected_version: 4, enabled: false };
+  await api.projectStatus();
+  await api.projectSupervision(command);
+  assert.equal(calls[0].path, '/api/v1/brain/projects/status');
+  assert.equal(calls[0].request.method, 'GET');
+  assert.equal(calls[0].request.body, undefined);
+  assert.equal(calls[1].path, '/api/v1/brain/projects/supervision');
+  assert.equal(new Headers(calls[1].request.headers).get('Idempotency-Key'), command.command);
+  assert.deepEqual(JSON.parse(String(calls[1].request.body)), command);
+});
+
 test('artifact upload and download stay on same-origin scoped routes', async () => {
   const calls: { path: string; request: RequestInit }[] = [];
   const api = new WorkbenchClient(async (input, request) => {

@@ -73,6 +73,17 @@ impl ProductionRuntime {
         owner: bool,
         now: p::Timestamp,
     ) -> p::Result<p::EventId> {
+        self.append_orchestration_guarded(command, operation, owner, now, None)
+    }
+
+    pub(super) fn append_orchestration_guarded(
+        &self,
+        command: p::IdempotencyKey,
+        operation: p::OrchestrationOperation,
+        owner: bool,
+        now: p::Timestamp,
+        background_project: Option<(&str, &p::SchemaDigest)>,
+    ) -> p::Result<p::EventId> {
         let _serial = self
             .orchestration_commands
             .lock()
@@ -100,6 +111,21 @@ impl ProductionRuntime {
             }
         }
         let snapshot = self.orchestration_snapshot()?;
+        // Pause and automatic route admission share this lock. A review taken
+        // before an owner pause cannot publish a new route afterwards.
+        if let Some((project, digest)) = background_project {
+            if !snapshot.project_supervision(project).enabled
+                || snapshot
+                    .projects
+                    .get(project)
+                    .map(p::canonical_digest)
+                    .transpose()?
+                    .as_ref()
+                    != Some(digest)
+            {
+                return Err(p::Error("project background planning became stale".into()));
+            }
+        }
         let workspace = match &operation {
             p::OrchestrationOperation::ProjectDeclared(project)
             | p::OrchestrationOperation::ProjectRevised { project, .. } => {
@@ -109,6 +135,9 @@ impl ProductionRuntime {
                 .projects
                 .get(&route.project)
                 .map(|p| p.workspace.clone()),
+            p::OrchestrationOperation::ProjectSupervisionChanged { project, .. } => {
+                snapshot.projects.get(project).map(|p| p.workspace.clone())
+            }
             p::OrchestrationOperation::NodeStarted { route, .. }
             | p::OrchestrationOperation::NodeFinished { route, .. }
             | p::OrchestrationOperation::NodeRetried { route, .. }

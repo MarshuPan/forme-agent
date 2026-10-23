@@ -99,6 +99,12 @@ impl CoreBridgeClient {
                 body.len()
             ));
         }
+        if method == "POST" && path == "/v1/brain/projects/supervision" {
+            let command: p::ProjectSupervisionCommand = serde_json::from_slice(body)
+                .map_err(|_| p::Error("project supervision command is invalid".into()))?;
+            command.validate()?;
+            head.push_str(&format!("Idempotency-Key: {}\r\n", command.command.0));
+        }
         head.push_str("\r\n");
         stream
             .write_all(head.as_bytes())

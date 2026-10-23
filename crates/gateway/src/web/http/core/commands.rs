@@ -59,6 +59,15 @@ pub(super) fn bind_body(
         return serde_json::to_vec(&request).map_err(|_| WebError::invalid());
     }
     let segments: Vec<_> = path.split('/').collect();
+    if path == "projects/supervision" {
+        let command: p::ProjectSupervisionCommand =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        command.validate().map_err(|_| WebError::invalid())?;
+        if Some(command.command.0.as_str()) != key {
+            return Err(WebError::invalid());
+        }
+        return serde_json::to_vec(&command).map_err(|_| WebError::invalid());
+    }
     if path == "workbench/query" {
         let query: p::WorkbenchQuery =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
