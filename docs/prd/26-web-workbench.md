@@ -4,7 +4,7 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P12–P16，主验 IP17–IP23，参与 IP04/IP06/IP08/IP18/IP24。依据 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §5–6/§10，以及 canonical §13–18/§28–29。
 
-**状态：分阶段实施中，不代表 PRD26 或 IP17–IP24 已完成。** 当前分支已有 React + TypeScript + Vite 静态构建、初始化/登录、对话与事件续接、审批/取消及运行未知结果裁决、会话 workspace 到后续正式 run 的上下文绑定、项目/路线/Charter、加密附件与授权产物历史、记忆/认知投影与候选处置、AskToLearn 和普通主动建议处置、活动运行待决 Inbox 投影，以及部分模型配置/受限维护页面。上述均有不同范围的组件证据；完整工作台、授权原始内容与真实遗忘、跨刷新主动建议 Unknown 恢复、完整设置/维护、真实浏览器全链路及原生产品联合验收仍未闭合。状态以产品化进度记录和各组件报告为准。DeepSeek 的官方展示截图只是结构参考；无桌面壳、无独立 Node 后端。
+**状态：分阶段实施中，不代表 PRD26 或 IP17–IP24 已完成。** 当前分支已有 React + TypeScript + Vite 静态构建、初始化/登录、对话与事件续接、审批/取消及运行未知结果裁决、会话 workspace 到后续正式 run 的上下文绑定、项目/路线/Charter、加密附件与授权产物历史、记忆/认知投影与候选处置、AskToLearn 和普通主动建议处置、活动运行待决 Inbox 投影、普通建议跨刷新原命令恢复，以及部分模型配置/受限维护页面。上述均有不同范围的组件证据；完整工作台、授权原始内容与真实遗忘、完整设置/维护、真实浏览器全链路及原生产品联合验收仍未闭合。恢复组件见 `installed-product-proposal-recovery-acceptance.md`，真实浏览器证据仍单列。状态以产品化进度记录和各组件报告为准。DeepSeek 的官方展示截图只是结构参考；无桌面壳、无独立 Node 后端。
 
 ## 1. 职责与边界
 

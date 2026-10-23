@@ -6,6 +6,8 @@
 
 ## 1. 实施顺序与当前范围
 
+2026-10-23 `507cccf` 增加普通主动建议处置的 durable recovery：identity schema v9、owner/target/binding 唯一约束、刷新只读原命令、Unknown 保留及显式原号核实；维护 session fence 同步兼容 v9。当前源码 Rust 844 passed / 0 failed / 5 默认 ignored、strict Clippy、40 项前端测试、完整合规和结构门通过；前端依赖占用后的恢复过程及证据边界见[普通建议恢复组件验收](installed-product-proposal-recovery-acceptance.md)。真实浏览器与 IP20/IP24 仍未关闭，继续整体里程碑。
+
 2026-10-23 的后续提交补齐了对话会话产物目录/历史（`29a1790`）、pending run 的 owner 裁决密文保存/原命令核实/重启恢复（`69ee763`），以及会话 workspace 关联到后续正式 run 的主脑上下文绑定（`56dbed1`）。绑定组件已通过 workspace 回归和 Web→core 正式 runtime 集成场景；仍不等于真实浏览器、多进程、系统服务或 IP01–IP24 联合验收。详见[会话 workspace 运行上下文绑定组件验收](installed-product-session-workspace-binding-acceptance.md)。
 
 2026-10-23 提交改密码 mutation 的 key 绑定（`dd76f20`）：独立认证库 schema v8 绑定 operation key、owner/session、account revision/epoch 与 Argon2id 候选；异义复用在 reauth/状态更新前拒绝，候选到期/成功后清除。前端未知结果锁定字段并保留原 key；静态 bundle 已重新生成。最终源码通过 Gateway all-targets check/strict Clippy、前端 verify 33/33、代码质量与 compliance doctor。完整 workspace Rust test 在 C 盘/Windows pagefile 资源不足时无法链接；重构后的最终源码未获得 runtime test 证据，本组件验收仍待该门重跑。详见[改密码操作幂等绑定组件验收](installed-product-password-change-idempotency-acceptance.md)。

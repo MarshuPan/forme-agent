@@ -52,7 +52,7 @@
 | P12 / IP17：对话 | 登录、提交/历史、cursor 续接、公开事件、幂等；会话元数据 CRUD；加密附件上传、授权产物目录/下载；pending run 的 typed owner 裁决、密文伴随记录与重启后原命令核实；会话 workspace 绑定到后续正式 run 的 `SessionBound` 上下文（组件报告）。 | 真实浏览器断线/双 tab、多个 Web 进程争用和实际 provider；完整 IP17 产品验收。 |
 | P12/P14 / IP18：审批与控制 | 最终审批 binding、取消、运行状态；approval/tool/handoff pending 投影、Unknown 核实与 typed owner 裁决实现。 | 真实浏览器/多进程恢复和原生服务重启场景；不得将组件测试折算为 IP18/IP24 通过。 |
 | P13 / IP19：项目 | project/route register/plan/execute/cancel、charter | 意图/监管调整、历史/依赖/节点证据、刷新/恢复；不创建项目私有脑。 |
-| P14 / IP20：收件箱 | `477ef52` 主动提案/AskToLearn/失败投影、AskToLearn 回答/拒绝/延后、普通建议采纳/拒绝/延后命令与现有 owner controls；活动运行 pending 按 `RunPendingView` 投影为 typed `Waiting` 条目并导航原 run，详情见 `installed-product-inbox-pending-acceptance.md`。 | 普通建议 Unknown 在刷新后的原操作找回/恢复路径未闭合；真实浏览器全链路与完整 IP20。等待/失败历史必须区分，查看不等于采纳。 |
+| P14 / IP20：收件箱 | `477ef52` 主动提案/AskToLearn/失败投影和处置；运行 pending 按 `RunPendingView` 投影为 typed `Waiting` 并导航原 run；`507cccf` 将普通建议未决原命令保存到独立身份库，支持重启读回和显式原号核实，组件见 `installed-product-proposal-recovery-acceptance.md`。 | 真实浏览器刷新/双 tab、多 Web 进程、服务重启全链路与完整 IP20。等待/失败历史必须区分，查看不等于采纳。 |
 | P14 / IP20：记忆与认知 | `477ef52` 原始记忆引用、认知/候选/稳定/撤回/重评投影，证据/传递血缘及正式 review/撤回 | 授权原始正文、认知纠正/真正遗忘与完整 IP20；现有组件证据不等于产品通过。 |
 | P07/P15 / IP21：设置 | 模型配置、口令、主脑状态与受限启停/维护命令；另有配置、离线数据、恢复候选等组件报告。 | 模型角色路由、workspace、能力/MCP/plugin/package、消息渠道、LAN TLS 和全部系统维护面尚未闭合；无假开关/任意 shell/SQL，完整 IP21 仍待产品验收。 |
 | P08/P12 / IP22：浏览器安全 | CSP、无 raw HTML、独立限流、private cache 清理 | 附件/下载隔离、实际浏览器故障/恶意内容、键盘/窄屏与认证恢复验收。 |
