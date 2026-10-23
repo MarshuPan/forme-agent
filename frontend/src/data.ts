@@ -9,7 +9,14 @@ export type DataRead = { Catalog: { page: DataPage } } | { Operations: { page: D
 export interface DataSubject { schema_version: 1; scope: string; subject: string; objects: number; deleted_objects: number; projections: string[]; state: string }
 export interface DataCatalog { schema_version: 1; kind: 'Catalog'; version: number; pending_cleanup: boolean; digest: string; total: number; next_offset: number | null; subjects: DataSubject[] }
 export interface DataPlan { schema_version: 1; digest: string; expires_at: number; operation: string; scope: string | null; subject: string | null; objects: number; source: string | null; target: string | null; irreversible: boolean }
-export interface DataBackup { schema_version: 1; object: string; digest: string; events: number; created_at: number; verified: boolean }
+export interface RestoreCandidate {
+  schema_version: 1; candidate_ref: string; candidate_digest: string;
+  owner_digest: string; store_identity: string; execution_fence_digest: string;
+}
+export interface DataBackup {
+  schema_version: 1; object: string; digest: string; events: number; created_at: number; verified: boolean;
+  restoration?: RestoreCandidate;
+}
 export interface DataReceipt {
   schema_version: 1; command: string; binding: string; action: string; prepared_by: string | null; state: 'Prepared' | 'Confirmed' | 'Unknown';
   plan: DataPlan | null; backup: DataBackup | null;

@@ -1,5 +1,7 @@
 //! Typed, offline release staging. Publication never changes the running image.
 mod storage;
+mod verified;
+pub use verified::VerifiedStagedRelease;
 
 use std::collections::BTreeMap;
 use std::fs;

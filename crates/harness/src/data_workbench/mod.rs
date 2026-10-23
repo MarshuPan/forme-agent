@@ -185,11 +185,30 @@ impl ProductionRuntime {
                 };
                 match self.apply_data_operation(owner, plan, confirmation)? {
                     DataOperationResult::Restored(report) => {
-                        record.receipt.backup = Some(backup_view(
+                        let mut view = backup_view(
                             target.as_deref().unwrap_or(""),
                             &report.manifest,
                             report.verification.is_valid(),
-                        ));
+                        );
+                        if let (Some(owner), Some(store), Some(fence)) = (
+                            report.manifest.owner_digest.as_ref(),
+                            report.store_identity.as_ref(),
+                            report.execution_fence_digest.as_ref(),
+                        ) {
+                            if view.verified {
+                                let candidate = p::DataRestoreCandidateView {
+                                    schema_version: p::SchemaVersion(1),
+                                    candidate_ref: view.object.clone(),
+                                    candidate_digest: p::canonical_digest(&report.manifest)?,
+                                    owner_digest: owner.clone(),
+                                    store_identity: store.clone(),
+                                    execution_fence_digest: fence.clone(),
+                                };
+                                candidate.validate()?;
+                                view.restoration = Some(candidate);
+                            }
+                        }
+                        record.receipt.backup = Some(view);
                     }
                     DataOperationResult::Lifecycle(receipt) => {
                         record.receipt.lifecycle = Some(p::DataLifecycleView {
@@ -276,6 +295,7 @@ fn backup_view(name: &str, manifest: &BackupManifest, verified: bool) -> p::Data
         events: manifest.event_count,
         created_at: manifest.created_at,
         verified,
+        restoration: None,
     }
 }
 fn preview(plan: &DataOperationPlan) -> p::DataPlanPreview {

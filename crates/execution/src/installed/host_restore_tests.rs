@@ -326,6 +326,19 @@ fn restore_stages_precede_effects_and_commit_releases_work_only_after_exact_read
         serde_json::from_slice(&fs::read(&f.effects.admission).unwrap()).unwrap();
     assert!(admission.released);
     assert_eq!(f.effects.calls.lock().unwrap().len(), 6);
+    // A new operation must not stop the service to restore its current file
+    // onto itself after a lost client response or a second browser tab.
+    let mut duplicate = f.request.clone();
+    duplicate.operation_id = "restore:already-active".into();
+    duplicate.expected_revision = f.host.journal.revision().unwrap();
+    if let p::ProductMaintenanceAction::CommitRestore {
+        config_revision, ..
+    } = &mut duplicate.action
+    {
+        *config_revision = 2;
+    }
+    assert!(f.host.owner_maintenance(&auth, duplicate, now()).is_err());
+    assert_eq!(f.effects.calls.lock().unwrap().len(), 6);
     let core = f.directory.path().join("config/core.json");
     let before: serde_json::Value = serde_json::from_slice(&fs::read(&core).unwrap()).unwrap();
     f.config

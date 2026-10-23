@@ -7,6 +7,7 @@ import { once } from 'node:events';
 import { createManagedProduct, readJson } from './fixtures/managed_product.mjs';
 import { exerciseOfflineData } from './fixtures/offline_data_process.mjs';
 import { exerciseRestoreWorker, setFixtureAdmission } from './fixtures/restore_worker_process.mjs';
+import { exerciseWebRestoreCandidate } from './fixtures/restore_web_process.mjs';
 
 const password = 'configuration process fixture 82';
 const credential = 'fixture-model-key-not-a-real-secret';
@@ -137,6 +138,9 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   for (const kind of ['RunAccepted', 'SessionBound', 'ContextBuildFinished', 'ModelCallStarted', 'ModelCallFinished', 'RunComplete']) {
     assert.ok(stream.includes(kind), `runtime trace is missing ${kind}`);
   }
+  const callsBeforeWebRestore = modelRequests.length;
+  await exerciseWebRestoreCandidate(product, password, coreConfig);
+  assert.equal(modelRequests.length, callsBeforeWebRestore, 'preparing a restore must not call the model');
   if (process.env.FORME_CONFIG_BROWSER_PREVIEW === '1') {
     // Explicit local inspection only; CI never pauses. Fixture login is above.
     console.log(`FORME_FIXTURE_BROWSER_URL=${product.origin}`);

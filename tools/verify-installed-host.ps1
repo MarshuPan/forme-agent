@@ -63,7 +63,11 @@ try {
         "uninstall_scope_retains_every_data_domain_and_never_uninstalls",
         "wrong_installation_worker_cannot_attach",
         "interrupted_stage_directory_is_preserved_and_cannot_be_reused",
-        "restart_rejects_misbound_stop_receipt_before_attempting_start"
+        "restart_rejects_misbound_stop_receipt_before_attempting_start",
+        "verified_staged_release_uses_committed_facts_without_inbox_or_mutation",
+        "verified_staged_release_refuses_uncommitted_or_misbound_installation",
+        "verified_staged_release_rechecks_receipt_and_exact_content_before_switch",
+        "staged_compatibility_requires_observed_database_schema_and_real_migrator"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") $name }
 
     Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "tests::ordinary_http11_is_parsed_and_ambiguous_or_browser_requests_are_rejected"

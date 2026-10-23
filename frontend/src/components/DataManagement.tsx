@@ -3,9 +3,10 @@ import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
 import { dataPage, dataState } from '../data.ts';
-import type { DataAction, DataCatalog, DataCommand, DataOperations, DataReceipt, DataSubject } from '../data.ts';
+import type { DataAction, DataCatalog, DataCommand, DataOperations, DataReceipt, DataSubject, RestoreCandidate } from '../data.ts';
+import { RestoreActivation } from './RestoreActivation.tsx';
 
-function Receipt({ item, applicable, confirm, probe }: { item: DataReceipt; applicable: boolean; confirm: (item: DataReceipt) => void; probe: (key: string) => void }) {
+function Receipt({ item, applicable, confirm, probe, activate, locked }: { item: DataReceipt; applicable: boolean; confirm: (item: DataReceipt) => void; probe: (key: string) => void; activate: (candidate: RestoreCandidate) => void; locked: boolean }) {
   return <article className="surface"><p className="eyebrow">{item.action} · {dataState[item.state]}</p>
     <p className="small muted">原操作：{item.command}</p>
     {item.state === 'Unknown' && <p className="notice">操作可能已经发生。这里只查询原回执，不重复执行。</p>}
@@ -14,6 +15,7 @@ function Receipt({ item, applicable, confirm, probe }: { item: DataReceipt; appl
       <p className={item.plan.irreversible ? 'notice' : 'muted'}>{item.plan.irreversible ? '永久清理可能不可逆，原始内容及其派生项会受影响。' : item.plan.operation === 'Retain' ? '该计划保留材料。' : '只恢复到新数据对象，当前主脑与外部动作保持原状。'}</p>
       <button type="button" className="secondary-button" disabled={!applicable || item.plan.expires_at <= Date.now()} onClick={() => confirm(item)}>{applicable ? '审阅并确认这个计划' : '该计划已有关联执行，请核实原回执'}</button></>}
     {item.lifecycle && <p>本地操作已确认：清理 {item.lifecycle.cleaned_projections} 类投影、销毁 {item.lifecycle.destroyed_keys} 个数据密钥。远端删除状态：{item.lifecycle.remote}。</p>}
+    {item.state === 'Confirmed' && item.backup?.verified && item.backup.restoration && <button type="button" className="secondary-button" disabled={locked} onClick={() => activate(item.backup!.restoration!)}>查看主脑切换确认</button>}
     <button type="button" className="text-button" onClick={() => probe(item.command)}>查询原操作</button>
   </article>;
 }
@@ -26,6 +28,7 @@ export function DataManagement({ api, connected }: { api: WorkbenchClient; conne
   const [selected, setSelected] = useState<DataSubject | null>(null), [operation, setOperation] = useState<'Retain' | 'Delete' | 'CryptoShred'>('Delete');
   const [prepared, setPrepared] = useState<DataReceipt | null>(null), [confirmed, setConfirmed] = useState(false);
   const [current, setCurrent] = useState<DataReceipt | null>(null);
+  const [restoration, setRestoration] = useState<RestoreCandidate | null>(null), [restoreLocked, setRestoreLocked] = useState(false);
   const pending = useRef<DataCommand | null>(null);
 
   async function refresh() {
@@ -117,8 +120,9 @@ export function DataManagement({ api, connected }: { api: WorkbenchClient; conne
       <button className="primary-button" disabled={busy}>{mode === 'Apply' ? '批准并执行原计划' : mode === 'Backup' ? '创建备份' : '生成安全预览'}</button>
     </fieldset>{pending.current && <p className="notice">原操作 {pending.current.command} 尚未确认。<button type="button" className="text-button" disabled={busy} onClick={() => void probe(pending.current!.command)}>只查询原回执</button></p>}</form>
     <div className="surface"><h3>只读验证已有备份</h3><label>备份名称<input value={source} maxLength={96} onChange={(event) => setSource(event.target.value)} /></label><button type="button" className="secondary-button" disabled={busy || !source || !connected} onClick={() => void verify()}>验证完整性与重放</button></div>
-    {current && <Receipt item={current} applicable={applicable(current)} confirm={selectPlan} probe={(key) => void probe(key)} />}
-    <h3>原操作与回执</h3><div className="content-grid">{operations?.operations.map((item) => <Receipt key={item.command} item={item} applicable={applicable(item)} confirm={selectPlan} probe={(key) => void probe(key)} />)}</div>
+    {restoration && <RestoreActivation api={api} candidate={restoration} lock={setRestoreLocked} />}
+    {current && <Receipt item={current} applicable={applicable(current)} confirm={selectPlan} probe={(key) => void probe(key)} activate={setRestoration} locked={restoreLocked} />}
+    <h3>原操作与回执</h3><div className="content-grid">{operations?.operations.map((item) => <Receipt key={item.command} item={item} applicable={applicable(item)} confirm={selectPlan} probe={(key) => void probe(key)} activate={setRestoration} locked={restoreLocked} />)}</div>
     {operations?.next_offset !== null && operations && <button className="secondary-button" disabled={busy} onClick={() => void more('Operations')}>读取更多操作</button>}
   </section>;
 }

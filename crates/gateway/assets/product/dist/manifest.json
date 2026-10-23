@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "a23bdde1adc902a306386fc100a1a43449cf514fd120a19f2d6798a100933388",
+  "source_digest": "28fb95059ed0421066ee8dff97607c279865e40f0a71c7c2615dc45dd8358032",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -44,7 +44,7 @@
     },
     {
       "path": "frontend/src/components/DataManagement.tsx",
-      "sha256": "2f8eb0981f83cf1b1659657ea97416dd12f1116fe1a0e5f3927855eab31def80"
+      "sha256": "61ddb453c129891d253449d55435d1f0bafd0f8d8f7ded1746ff8d5436d76bc6"
     },
     {
       "path": "frontend/src/components/Entry.tsx",
@@ -52,7 +52,11 @@
     },
     {
       "path": "frontend/src/components/Maintenance.tsx",
-      "sha256": "23a4c2b04f5d53b08712f79fa9ff93601c201a616d6d4d5643975395d1299d10"
+      "sha256": "96f51a3b92c04ecff1ba6441fad4eab3460640b9f19a3d46031c0e21e324b960"
+    },
+    {
+      "path": "frontend/src/components/RestoreActivation.tsx",
+      "sha256": "98c37bbf798a450a5e077c8f0a576a8d81357625dcc61e10fdf198851f4b82a5"
     },
     {
       "path": "frontend/src/components/Views.tsx",
@@ -68,7 +72,7 @@
     },
     {
       "path": "frontend/src/data.ts",
-      "sha256": "3677c4df23d246010f530f9c3c42570b5320023aa5aa9f0aca638328bed44727"
+      "sha256": "3f72a4b2fa92e4d3f047f80405d44cabe40b6426ac5437f3176d79aa5a1a8bb1"
     },
     {
       "path": "frontend/src/events.ts",
@@ -80,7 +84,7 @@
     },
     {
       "path": "frontend/src/maintenance.ts",
-      "sha256": "1c2273b2f0e8dce3bac076fddf259465f65e6e27989838939e4b1731dcb59bf9"
+      "sha256": "a463f760c1f84271041894f6c64fc6cd5e97fbd0ed9859bedf75a6cfe181e7b2"
     },
     {
       "path": "frontend/src/styles.css",
@@ -104,7 +108,7 @@
     },
     {
       "path": "frontend/src/tests/maintenance.test.ts",
-      "sha256": "a2c11ed58646e0ed89a792fe3fd9d16074a68d28ba64b323fa289328cfc4e853"
+      "sha256": "fdce8eb0c6bfeb9db1cc216918960cb0571c6eea19ab36a37ae4fa8f03768019"
     },
     {
       "path": "frontend/src/types.ts",
@@ -134,9 +138,9 @@
       "bytes": 12868
     },
     {
-      "path": "assets/index-CVfxPdTL.js",
-      "sha256": "77fa5d4519eda121dce4fe9ecffe8f57035879d4c959a739a63230f3fe2294be",
-      "bytes": 297796
+      "path": "assets/index-Dz-LrZWi.js",
+      "sha256": "9d1d1e7975643dc926f2ce427218084e04f4212f844c2deaefbc9d825c6f7fa2",
+      "bytes": 303295
     },
     {
       "path": "dependencies.json",
@@ -150,7 +154,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "34b4e15a93a4791315d020c2ebbb51afc60e63ce3b5c21c31162a63e78f0e3aa",
+      "sha256": "05cac7954024b243d7ef706daff830457f367c279ea8e1460141f20998657673",
       "bytes": 595
     },
     {

@@ -225,6 +225,135 @@ impl Fixture {
     fn destination(&self) -> PathBuf {
         self.installation.paths.releases.join(RELEASE)
     }
+    fn stager(&self) -> ReleaseStager {
+        ReleaseStager::open(self.installation.clone(), self.config.clone()).unwrap()
+    }
+    fn stage(&self) -> ProductJournal {
+        let broker = self.broker();
+        let auth = broker.authenticate(TOKEN).unwrap();
+        broker.plan(&auth, self.stage_request(), 1).unwrap();
+        assert_eq!(
+            broker.execute(&auth, OP, 2).unwrap().stage,
+            p::MaintenanceStage::Committed
+        );
+        drop(broker);
+        ProductJournal::open(&self.journal(), &self.installation.install_id).unwrap()
+    }
+    fn record(&self) -> PathBuf {
+        let name = p::canonical_digest(&OP).unwrap();
+        self.installation
+            .paths
+            .host_state
+            .join("release-records")
+            .join(format!("{}.json", &name.0[7..]))
+    }
+}
+
+#[test]
+fn verified_staged_release_uses_committed_facts_without_inbox_or_mutation() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    fs::rename(fixture.source(), fixture.root.path().join("retained-inbox")).unwrap();
+    let before = fs::metadata(fixture.journal()).unwrap().len();
+    let revision = journal.revision().unwrap();
+    let handle = fixture
+        .stager()
+        .verified_staged(&journal, RELEASE, &fixture.release.digest().unwrap())
+        .unwrap();
+    assert_eq!(handle.manifest(), &fixture.release);
+    assert_eq!(handle.digest(), &fixture.release.digest().unwrap());
+    assert_eq!(handle.content_root(), fixture.destination());
+    assert_eq!(handle.staging_operation(), OP);
+    handle.recheck().unwrap();
+    assert_eq!(journal.revision().unwrap(), revision);
+    assert_eq!(fs::metadata(fixture.journal()).unwrap().len(), before);
+}
+
+#[test]
+fn verified_staged_release_refuses_uncommitted_or_misbound_installation() {
+    let fixture = Fixture::new();
+    let broker = fixture.broker();
+    let auth = broker.authenticate(TOKEN).unwrap();
+    broker.plan(&auth, fixture.stage_request(), 1).unwrap();
+    drop(broker);
+    let journal =
+        ProductJournal::open(&fixture.journal(), &fixture.installation.install_id).unwrap();
+    assert!(fixture
+        .stager()
+        .verified_staged(&journal, RELEASE, &fixture.release.digest().unwrap())
+        .is_err());
+    drop(journal);
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    assert!(fixture
+        .stager()
+        .verified_staged(
+            &journal,
+            RELEASE,
+            &p::canonical_digest(&"foreign-release").unwrap()
+        )
+        .is_err());
+    let mut installation = fixture.installation.clone();
+    installation.created_at += 1;
+    let stager = ReleaseStager::open(installation, fixture.config.clone()).unwrap();
+    assert!(stager
+        .verified_staged(&journal, RELEASE, &fixture.release.digest().unwrap())
+        .is_err());
+}
+
+#[test]
+fn verified_staged_release_rechecks_receipt_and_exact_content_before_switch() {
+    for case in 0..3 {
+        let fixture = Fixture::new();
+        let journal = fixture.stage();
+        let handle = fixture
+            .stager()
+            .verified_staged(&journal, RELEASE, &fixture.release.digest().unwrap())
+            .unwrap();
+        let before = fs::metadata(fixture.journal()).unwrap().len();
+        let revision = journal.revision().unwrap();
+        match case {
+            0 => {
+                let mut record: serde_json::Value =
+                    serde_json::from_slice(&fs::read(fixture.record()).unwrap()).unwrap();
+                record["operation_id"] = serde_json::json!("another-operation");
+                fs::write(fixture.record(), serde_json::to_vec(&record).unwrap()).unwrap();
+            }
+            1 => fs::write(
+                fixture.destination().join("web/index.html"),
+                b"replaced after authentication",
+            )
+            .unwrap(),
+            _ => fs::write(
+                fixture.destination().join("unsigned-file"),
+                b"not in the manifest",
+            )
+            .unwrap(),
+        }
+        assert!(handle.recheck().is_err());
+        assert!(fixture
+            .stager()
+            .verified_staged(&journal, RELEASE, &fixture.release.digest().unwrap())
+            .is_err());
+        assert_eq!(journal.revision().unwrap(), revision);
+        assert_eq!(fs::metadata(fixture.journal()).unwrap().len(), before);
+    }
+}
+
+#[test]
+fn staged_compatibility_requires_observed_database_schema_and_real_migrator() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let handle = fixture
+        .stager()
+        .verified_staged(&journal, RELEASE, &fixture.release.digest().unwrap())
+        .unwrap();
+    handle.check_runtime_compatibility(1, 1, 1).unwrap();
+    for (config, data, upgrader) in [(0, 1, 1), (1, 0, 1), (1, 1, 0), (2, 1, 1), (1, 10, 1)] {
+        assert!(handle
+            .check_runtime_compatibility(config, data, upgrader)
+            .is_err());
+    }
 }
 
 #[test]

@@ -194,6 +194,38 @@ pub struct DataBackupView {
     pub events: u64,
     pub created_at: Timestamp,
     pub verified: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restoration: Option<DataRestoreCandidateView>,
+}
+
+/// Safe output from an actually verified restore, never filesystem/key paths.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DataRestoreCandidateView {
+    pub schema_version: SchemaVersion,
+    pub candidate_ref: String,
+    pub candidate_digest: SchemaDigest,
+    pub owner_digest: SchemaDigest,
+    pub store_identity: SchemaDigest,
+    pub execution_fence_digest: SchemaDigest,
+}
+
+impl DataRestoreCandidateView {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != SchemaVersion(1) {
+            return Err(Error("unsupported restore candidate view".into()));
+        }
+        validate_data_object_name(&self.candidate_ref)?;
+        for digest in [
+            &self.candidate_digest,
+            &self.owner_digest,
+            &self.store_identity,
+            &self.execution_fence_digest,
+        ] {
+            sha256_digest_bytes(digest)?;
+        }
+        Ok(())
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DataLifecycleView {

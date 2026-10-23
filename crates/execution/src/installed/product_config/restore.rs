@@ -116,6 +116,16 @@ impl ProductConfigStore {
         self.verify_published()?;
         let owner = self.state.owner.clone().ok_or_else(invalid)?;
         self.check_revision(*config_revision, &owner, true)?;
+        if self
+            .state
+            .active_data
+            .as_ref()
+            .is_some_and(|binding| binding.candidate_ref == *candidate_ref)
+        {
+            return Err(p::Error(
+                "restore candidate is already the active brain".into(),
+            ));
+        }
         if p::sha256_content_digest(owner.0.as_bytes()) != *owner_digest || *config_revision == 0 {
             return Err(invalid());
         }

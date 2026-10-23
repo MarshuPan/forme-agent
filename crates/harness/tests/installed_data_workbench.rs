@@ -138,6 +138,7 @@ fn backup_commands_are_immutable_durable_and_verification_is_readonly() {
     let receipt = execute(&runtime, &f, request.clone());
     assert_eq!(receipt.state, p::DataCommandState::Confirmed);
     assert!(!receipt.backup.as_ref().unwrap().verified);
+    assert!(receipt.backup.as_ref().unwrap().restoration.is_none());
     let before = events(&runtime);
     assert_eq!(execute(&runtime, &f, request.clone()), receipt);
     let p::DataWorkbenchView::Verification(verified) = query(
@@ -150,6 +151,7 @@ fn backup_commands_are_immutable_durable_and_verification_is_readonly() {
         panic!("verification")
     };
     assert!(verified.verified);
+    assert!(verified.restoration.is_none());
     assert_eq!(verified.digest, receipt.backup.as_ref().unwrap().digest);
     assert_eq!(events(&runtime), before);
     assert!(runtime
@@ -238,6 +240,46 @@ fn restore_uses_the_private_original_plan_once_and_never_switches_the_brain() {
     let receipt = execute(&runtime, &f, request.clone());
     assert_eq!(receipt.state, p::DataCommandState::Confirmed);
     assert!(receipt.backup.as_ref().unwrap().verified);
+    let restored = receipt
+        .backup
+        .as_ref()
+        .unwrap()
+        .restoration
+        .as_ref()
+        .unwrap();
+    let candidate = f
+        .config
+        .store_path
+        .parent()
+        .unwrap()
+        .join("data-operations/new-restored.sqlite");
+    let manifest: forme_store::BackupManifest = serde_json::from_slice(
+        &std::fs::read(format!("{}.manifest.json", candidate.display())).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(restored.candidate_ref, "new-restored.sqlite");
+    assert_eq!(
+        restored.candidate_digest,
+        p::canonical_digest(&manifest).unwrap()
+    );
+    assert_ne!(restored.candidate_digest, manifest.database_digest);
+    assert_eq!(Some(restored.owner_digest.clone()), manifest.owner_digest);
+    let inspected = forme_store::OfflineBrainSource::open(
+        &candidate,
+        &f.owner(),
+        p::Scope(f.config.workspace.0.clone()),
+        &f.config.store_path.with_extension("content-keys"),
+    )
+    .unwrap();
+    assert_eq!(restored.store_identity, inspected.identity().store_identity);
+    assert_eq!(
+        restored.execution_fence_digest,
+        inspected.restored_candidate_fence_digest().unwrap()
+    );
+    drop(inspected);
+    let encoded = serde_json::to_string(restored).unwrap();
+    assert!(!encoded.contains(&f.config.store_path.to_string_lossy().to_string()));
+    assert!(!encoded.contains("content_key_directory"));
     assert_eq!(
         runtime.services().authority.owner_digest,
         authority.owner_digest

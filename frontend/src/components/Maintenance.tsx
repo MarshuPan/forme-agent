@@ -11,6 +11,7 @@ export function Maintenance({ api, refresh }: { api: WorkbenchClient; refresh: (
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [choice, setChoice] = useState('stop_core'), [release, setRelease] = useState(''), [digest, setDigest] = useState('');
   const [operation, setOperation] = useState<ProductOperation | null>(null), [uncertain, setUncertain] = useState(false);
+  const [history, setHistory] = useState<ProductOperation | null>(null);
   const pending = useRef<MaintenanceCommand | null>(null);
   async function load() {
     try { setView(await api.maintenance()); }
@@ -45,6 +46,13 @@ export function Maintenance({ api, refresh }: { api: WorkbenchClient; refresh: (
     catch (problem) { setError(problem instanceof Error ? problem.message : '原操作尚未核实。'); }
     finally { setBusy(false); }
   }
+  async function inspectHistory(id: string) {
+    if (busy) return;
+    setBusy(true); setError('');
+    try { setHistory(await api.maintenanceOperation(id)); }
+    catch (problem) { setError(problem instanceof Error ? problem.message : '历史操作暂不可读。'); }
+    finally { setBusy(false); }
+  }
   return <article className="surface"><h2>设备维护</h2>
     <p className="muted">关闭网页后服务继续运行。停止主脑后仍可登录并维护。</p>
     {view && <><dl><div><dt>当前版本</dt><dd>{view.host.active_release}</dd></div><div><dt>服务状态</dt><dd>{view.host.core_health}</dd></div></dl>
@@ -62,7 +70,8 @@ export function Maintenance({ api, refresh }: { api: WorkbenchClient; refresh: (
     <button className="secondary-button" disabled={busy} onClick={() => { setError(''); void load(); }}>刷新维护状态</button>
     {uncertain && <div className="notice"><p>保留原操作以核实结果，不会自动再次执行。</p><code>{pending.current?.operation_id}</code><button className="secondary-button" disabled={busy} onClick={() => void probe()}>核实原操作</button></div>}
     {operation && <p role="status">操作 {operation.operation_id}：{operation.stage}{operation.pending_stage ? ' · 待核实' : ''}</p>}
-    {view && <details><summary>近期维护记录</summary><ul className="service-list">{view.operations.map((item) => <li key={item.operation_id}><span>{item.operation_id}</span><span>{item.stage}</span></li>)}</ul></details>}
+    {view && <details><summary>近期维护记录</summary><ul className="service-list">{view.operations.map((item) => <li key={item.operation_id}><span>{item.operation_id}</span><span>{item.stage}</span><button type="button" className="text-button" disabled={busy} onClick={() => void inspectHistory(item.operation_id)}>核实此记录</button></li>)}</ul></details>}
+    {history && <p role="status">历史操作 {history.operation_id}：{history.stage}{history.pending_stage ? ` · 待核实 ${history.pending_stage}` : ''}。此查询不会执行操作或解除其他待核实命令。</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
   </article>;
 }

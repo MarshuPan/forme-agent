@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, WorkbenchClient } from '../api/client.ts';
-import { maintenanceComplete } from '../maintenance.ts';
-import type { MaintenanceCommand } from '../maintenance.ts';
+import { maintenanceComplete, restoreCommand } from '../maintenance.ts';
+import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
+import type { RestoreCandidate } from '../data.ts';
+import type { ProductConfigView } from '../types.ts';
 
 test('owner maintenance lost response only probes the original operation, without repeating credentials', async () => {
   const calls: { path: string; init: RequestInit }[] = [];
@@ -28,4 +30,55 @@ test('owner maintenance lost response only probes the original operation, withou
   assert.equal(maintenanceComplete(result), true);
   assert.equal(maintenanceComplete({ ...result, pending_stage: 'checking' }), false);
   assert.equal(maintenanceComplete({ ...result, stage: 'recovery_required' }), false);
+});
+
+const digest = (digit: string) => `sha256:${digit.repeat(64)}`;
+const candidate: RestoreCandidate = { schema_version: 1, candidate_ref: 'restored.sqlite',
+  candidate_digest: digest('a'), owner_digest: digest('b'), store_identity: digest('c'), execution_fence_digest: digest('d') };
+const config: ProductConfigView = { schema_version: 1, configured: true, install_ref: 'installation:fixture',
+  active_revision: 7, acknowledged_revision: 7, owner: 'owner:fixture', pending_restart: false, models: [], issue_refs: [] };
+const snapshot: MaintenanceSnapshot = { schema_version: 1, product_revision: 31, owner: 'owner:fixture',
+  host: { schema_version: 1, product_state: 'ready', core_health: 'ready', active_release: '0.0.1', allowed_operations: ['commit_restore'] }, operations: [] };
+
+test('restore activation binds final manifest, owner and both revisions without storage paths or client authority', () => {
+  const command = restoreCommand(candidate, config, snapshot, 'restore:fixture', 1_000);
+  assert.deepEqual(command, { schema_version: 1, operation_id: 'restore:fixture', expected_revision: 31,
+    requested_deadline: 121_000, action: { kind: 'commit_restore', candidate_ref: 'restored.sqlite',
+      candidate_digest: digest('a'), owner_digest: digest('b'), config_revision: 7 } });
+  const encoded = JSON.stringify(command);
+  for (const field of ['store_identity', 'execution_fence_digest', 'path', 'verified', 'principal', 'owner:fixture']) {
+    assert.equal(encoded.includes(field), false);
+  }
+});
+
+test('restore activation refuses unavailable authority, stale owner and malformed candidate before submission', () => {
+  for (const changed of [ { ...candidate, candidate_ref: '../foreign.sqlite' },
+    { ...candidate, candidate_digest: 'database-digest' }, { ...candidate, execution_fence_digest: '' } ]) {
+    assert.throws(() => restoreCommand(changed, config, snapshot, 'restore:fixture', 1_000));
+  }
+  for (const changed of [ { ...config, configured: false }, { ...config, owner: 'owner:foreign' },
+    { ...config, active_revision: 0 }, { ...config, active_revision: NaN } ]) {
+    assert.throws(() => restoreCommand(candidate, changed, snapshot, 'restore:fixture', 1_000));
+  }
+  assert.throws(() => restoreCommand(candidate, config, { ...snapshot, host: { ...snapshot.host, allowed_operations: [] } }, 'restore:fixture', 1_000));
+  assert.throws(() => restoreCommand(candidate, config, { ...snapshot, product_revision: 1.5 }, 'restore:fixture', 1_000));
+  assert.throws(() => restoreCommand(candidate, config, snapshot, '../operation', 1_000));
+});
+
+test('lost restore response is only inspected with the original operation even after a new login', async () => {
+  const requests: { path: string; init: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (path, init) => {
+    requests.push({ path: String(path), init: init! });
+    if (init?.method === 'POST') throw new TypeError('session fenced after restore dispatch');
+    return Response.json({ schema_version: 1, operation_id: 'restore:fixture', stage: 'recovery_required', pending_stage: 'checking' });
+  });
+  const command = restoreCommand(candidate, config, snapshot, 'restore:fixture', 1_000);
+  await assert.rejects(api.maintain(command, 'fixture-restore-password'));
+  const operation = await api.maintenanceOperation(command.operation_id);
+  assert.equal(maintenanceComplete(operation), false);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].path, '/api/v1/product/maintenance/operations/restore%3Afixture');
+  assert.equal(requests[1].init.method, 'GET');
+  assert.equal(requests[1].init.body, undefined);
+  assert.equal(new Headers(requests[1].init.headers).has('Idempotency-Key'), false);
 });
