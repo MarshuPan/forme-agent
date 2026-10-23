@@ -119,6 +119,7 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 - 提交即锁定 idempotency key，返回 receipt 后绑定 run；双击/刷新/网络超时都复用或查询原命令。
 - 流式显示公开回答、动作名称/资源/状态、等待审批、产物与失败。展示模型明确公开的 reasoning 摘要须符合内容/保留策略；不制造“脑内独白”。
 - 重启/恢复后读取原 run 时，Harness 从其受保护事件流只读重建已提交最终回答：匹配同一 model call/profile 的 delta 与 finished、Final classification，且 RunComplete 的停止原因必须为 final_output；未完成、工具/handoff、失败/中止/限额运行和后续内部思考不成为回答。读取不调模型、不创建 run、不写新事件；有界文本或存储错误明确失败，不静默截断。Web 不另存回答作为第二事实源。
+- 若 run 因重启时缺少 `ModelCallFinished` 而以 `model_call_outcome_unknown_after_restart` 失败，界面明确说明回复和费用未知、没有自动重试，并提示 owner 只能核对原事件或另起新 run；不得显示为处理中、成功或“可恢复续跑”。
 - 子代理/DAG 是任务详情，可查看节点、依赖、当前阻断和验证结果，不能向 child 私发越权命令。
 - RunWaiting/PendingKind 显示用户需要做什么；Unknown 显示“结果待核实”及 probe/裁决入口；没有“重新执行以试试看”的默认按钮。
 - 工具终态、验证与最终回答分开：模型说完成但 verifier 未通过时显示验证失败/未验证，不使用绿色成功覆盖。
@@ -131,6 +132,8 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 拒绝、过期、参数变化/陈旧 revision 显示明确结果并重新获取 pending；不能代用户重新审批。L5 是这一次操作，不提供默许全部。取消的 requested/acknowledged/completed 各有实际状态；取消命令不是 backend 已停止的证据。
 
 需对 unknown 裁决时首先展示原 receipt/只读探测和风险；owner 新动作仍须新 intent/plan/审批与既有恢复规则。维护重启与取消任务也分开，不用刷新页面触发服务重启。
+
+待决状态由服务端事件的强类型投影给出（ApprovalWait、ToolInterrupt、Handoff、ResolutionUnknown），不改变冻结的 RunSummary。页面从原检查点和公开事件读取 target/原结果引用，裁决表单只提交既有 closed RunControl。待确认时锁定原 command 和表单参数；重连查询事件，必要时以同 command 核实原裁决，不生成新 command。若 claim 已落盘而浏览器刷新，认证后的 pending 投影可附带经密文记录核验的原 `RunControl`；页面只恢复原表单并等待 owner 显式核实，不自动提交，也不把新表单覆盖旧命令。密文缺失/无效时只展示 Unknown 和安全处置说明，不允许换号重裁。未知 action 明确区分 owner 确认完成/失败/取消与真正 backend 探测；不能把人工确认称为独立验证。已解决 handoff 但后续中断只可核实或取消，不显示再次交接按钮。
 
 ### 5.4 工作空间
 

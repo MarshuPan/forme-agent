@@ -147,6 +147,20 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
 
 任一恢复校验失败都必须零 driver call、零稳定状态推进，并记录可审计的 failure/blocked 原因。`ActionOutcomeUnknown` 不是失败的同义词，也不是成功的同义词；它是“副作用可能已发生、当前不能证明结果”的独立状态。
 
+#### 5.2.1 Owner 结果裁决的持久命令绑定
+
+`RunControl::ResolveToolOutcome` / `ResolveHandoff` 的完整 command（含幂等键和 resolution 正文）不得丢弃。保持既有 trait、payload 字段和 99-kind taxonomy，通过 `RunResumed.resume_ref` 的保留编码 `control-resolution-v1|command_digest|resolution_digest|target_digest` 记录一次性裁决 claim；三个摘要分别绑定命令号、owner/run/完整裁决语义，以及原待决对象/检查点。来源必须是 OwnerControl/Owner/OwnerInput。store 在同一 append 事务中将 command digest 纳入领域幂等账本，跨 run 异义复用同样冲突。
+
+claim 正文存入现有应用层加密 `protected_content`：使用专属 object namespace 和与原 run 受保护事件相同的 scope/subject；object 由 owner 与 command digest 确定。记录内含 schema version、owner/run、完整 `RunControl` 和上述三个绑定摘要。密文记录插入与 claim event 必须由 `forme-store` 单写者放在同一 SQLite `IMMEDIATE` transaction；两者全成或全不成。相同内容可幂等复用，不同 run/target/resolution 复用同一 command 必须冲突且不留下孤儿记录。该数据不是第二事实源，也不扩大 EventKind；裁决结果仍以既有事件为唯一事实。
+
+同 session 串行锁内先验证真实 PendingKind，再原子提交密文 command 与 claim，最后只提交原 action 的结果事实或当前 handoff resolution。重复同号同义读取原 claim 后的 Action 终态/HandoffResolved；异义拒绝。claim 后尚无结果时保持 Unknown，换号也不能重新裁决该检查点，更不能调用 driver。直接 ResumeInput 同样不能绕过已经持久化的 claim。原引用、结果摘要或 command 不进入事件、日志或错误文本。
+
+认证后的 pending 查询在 `ClaimWithoutResult` 时从密文伴随记录核对绑定后附带原 `RunControl`，供 owner 刷新页面后显式“核实原裁决”；查询不变更状态，页面不自动提交。密文缺失、解密失败或任一绑定不符时仍返回 Unknown 且不提供替代命令；同一 command 不能被新裁决号替代。伴随记录的 scope/subject 与原 run 相同，按该 run 的数据生命周期一起删除。
+
+启动扫描额外闭合“已裁决 Action 终态落盘、Run 终态尚未落盘”的窗口，只补对应 Run 终态，不执行工具或模型。未解决的 handoff 只在原默认 context/policy/model/toolset/workspace/composition 可复现时重建；专用 evolution/federation/child 上下文不得升级成默认主脑。已解决 handoff 的续推中断保留待核实状态，不因重启重新调用模型或重做动作。无关事件不得把 Waiting 投影成 Running。
+
+若恢复扫描发现 `ModelCallStarted` 没有同一 `call_id` 的后续 `ModelCallFinished`，应追加 `RunFailed{stop_reason: model_call_outcome_unknown_after_restart, result_ref: None}` 并停止该 run；不补造模型完成/用量/回答，不重试该请求，也不启用 fallback。用户可在确认原请求结果无法核实后另起新 run。此规则只处理模型调用回执未知，不把它伪装成 `ActionOutcomeUnknown`。
+
 ### 5.3 最终计划与执行前双重重查
 
 工具 proposal 到 driver 之间至少经过两次计划相关检查：

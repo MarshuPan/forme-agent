@@ -428,7 +428,11 @@ pub struct DataLifecycleAppliedPayload {
 
 `ResumeInput` 必须与 `PendingKind` 一一匹配：审批等待只能接受绑定当前 plan 的 `ApprovalGrant`，工具中断只能接受原 `intent_id` 的可信 receipt/probe 结果或 owner 裁决，handoff 只能接受当前 checkpoint 的 resolution。恢复前重新校验 owner、scope、policy、grant、envelope、plan digest 和 schema snapshot；校验失败时零动作、零状态推进。
 
+`ResolveToolOutcome` / `ResolveHandoff` 的完整 owner command 是恢复同一裁决所必需的输入，不得只持久化其摘要。command 及其 resolution 以现有 protected-content envelope 加密，绑定 owner、run、command digest、resolution digest、target digest；该伴随记录与 `RunResumed` claim 通过 store 单写者在同一 SQLite 事务提交，并使用与原 run 一致的 scope/subject，避免任一半单独落盘。明文不进入 event、索引、日志或错误文本。owner 认证后的 pending 投影只在 claim 仍未决且绑定校验通过时附带原 command；刷新后由 owner 明确选择核实，服务不自动重放。读取缺失、损坏或绑定不符时 fail closed，保留 Unknown，不生成新 command，也不允许换号裁决。
+
 启动恢复扫描不是“把未完成 run 重新执行一遍”，而是：扫描已持久化的中间事实，补记未知结果或恢复记录，重建挂起状态，随后等待明确裁决。只有已证明没有副作用、且符合 retry policy 的 attempt 才能建立新 attempt；同一 `intent_id` 不得盲重放。
+
+若某个 `ModelCallStarted` 没有其后同 `call_id` 的 `ModelCallFinished`，扫描不得重发该请求或切换 fallback；必须用现有 `RunFailed` 明确终止恢复，stop reason 标记模型调用结果未知，不生成 `ModelCallFinished`、token/cost 估算或最终回答。owner 可另起新 run；原 run 保留可审计的未完成模型调用事实。
 
 ### 12.2 事件写入与状态投影契约
 
