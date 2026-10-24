@@ -96,9 +96,24 @@ Host 将已校验 spec 写入本 job 的受保护运行目录，按注册 launch
 
 Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，绑定固定 loopback endpoint、独立 credential、请求/响应大小和超时；它不能调用 OwnerMaintenance，也不能让 Web 直接取得该 credential。该 transport 只负责 admission/probe/cancel 和 receipt 投影，不在 transport 内产生 permission、重算 plan 或执行模型。正式 ProductionRuntime 在没有真实平台隔离 adapter 时继续将对应 capability 标为 unavailable/blocked；开发 process worker 仅用于 transport/协议验证。
 
-Windows 的 `WindowsJobWorkerIsolation` 已提供平台 adapter：Job Object 在进程首次执行前接管 worker，并启用 kill-on-close；取消和宿主退出会终止同一 Job Object 下的进程树，observe 只读取受管 process handle 的退出码。该 adapter 的真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等。它只证明进程树生命周期 custody，不证明低权限服务账户、ACL、网络/credential scope、桌面会话或完整 sandbox；因此 managed service 尚不自动选择它，直到其余原生隔离门也有独立证据。
+Windows 的 `WindowsJobWorkerIsolation` 已提供 Job Object 平台 adapter：进程在首次执行前加入启用 kill-on-close 的 Job Object；取消和宿主退出会终止受管进程树，observe 只读取受管 process handle 的退出码。该 adapter 的真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等。它只证明进程树生命周期 custody，不证明低权限 token、文件 ACL、网络/credential scope、桌面会话或完整 sandbox。
 
-默认配置加载**不启用普通进程 adapter**。即使 Windows Job Object adapter 已存在，只要服务账户、ACL、网络/credential scope、会话 helper 等平台门未全部通过，服务仍提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，Job Object 或开发进程证据都不得单独登记为完整安全沙箱或 IP10 PASS。
+#### 4.1.2 Windows 每 job AppContainer 隔离契约
+
+正式 Windows worker adapter 必须在受管 service identity 下，为每个 `WorkerJob` 创建唯一、可由原 job 确定性恢复的 AppContainer identity，并在进程首次执行前同时施加 AppContainer 限制与 kill-on-close Job Object。不同 job 即使属于同一个 workspace，也不共享 package identity；身份名由规范化后的专属 `runtime_root` identity 与已验证的 job/plan binding 经固定域分隔摘要派生，不使用 owner 输入或模型生成字符串。不能创建、核对或清理身份时，adapter 返回不可用并 fail closed。
+
+路径授权只来自 Host 已验证的配置和 Worker DTO：
+
+- 精确 `workspace_scope` 的已解析目录允许读写，但不允许从该可写目录启动可执行文件；其他 workspace、brain/event 数据、model credentials、Web auth、管理 journal、发布目录和备份不得授予 worker。
+- 本 job 的 job/permit/execution 描述只读；注册的 worker 程序与确需的固定运行时只读/执行。任意环境变量、PATH 搜索、请求提供的程序路径、handle 继承与 Secret 值均拒绝。
+- Windows AppContainer 不授予 `internetClient`、`privateNetworkClientServer` 或 loopback exemption；当前冻结的 Worker DTO 没有网络/credential grant，因此 worker 的直接网络和 credential 能力保持拒绝。不得从宿主环境或共享代理变量继承网络权限。未来增加某类能力必须先变更协议/PRD并形成独立的 exact-scope grant，不能由 launch profile 暗中放行。
+- 临时目录必须位于受保护的 runtime 根下且按 job 分离；worker 不能修改 Host 的授权材料。关闭网页/桌面会话不改变隔离身份或 worker 生命周期。
+
+OS ACL 变更必须有独立于脑事件的、单写者、有界、可恢复的隔离 lease journal，固定在 `runtime_root/sandbox-leases.jsonl`，使用 append-only、record-size limit、OS writer lock、顺序与每步 flush。对每个 ACL mutation，先持久化包含 `SchemaVersion`、job id、plan digest、AppContainer identity、规范化目标路径及其文件 identity、目标 access 和恢复阶段的 intent，再执行并回读有效访问；回收需按记录精确撤权并核验。正常终态先终止并确认进程树，再撤权/删除 identity 和 job 临时目录，最后持久化 cleanup receipt。服务重启先恢复 worker journal 与所有未清理 lease：未知记录、身份冲突、路径 identity 变化、撤权失败或回读不一致都会阻止 worker admission；不得因旧 job 已经是 Unknown 就跳过 ACL 回收。恢复只清理原 lease，不重放 worker 副作用。不得扫描并修改 lease 根以外的 ACL，也不得用整棵目录重置权限掩盖证据。
+
+AppContainer 证据不代替 service identity 证据。adapter 必须核对当前进程确为安装清单绑定的 AgentExecution service identity、非管理员/非 SYSTEM，并拒绝交互用户或 OwnerMaintenance 域。服务身份/peer authentication、安装 ACL、会话 helper 和 OS 生命周期各自单独验收；全部生产门未通过前，SCM managed service 继续拒绝 dispatch，保留维护与状态查询。AppContainer、Job Object、development process worker 或受控测试均不能单独登记为完整 sandbox 或 IP10 PASS。
+
+默认配置加载**不启用普通进程 adapter**。即使 Windows AppContainer/Job Object adapter 已存在，只要实际 service identity、有效 ACL 正反断言、重启撤权恢复、无网络/无凭据、会话 helper 等平台门未全部通过，服务仍提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，Job Object、AppContainer 单项或开发进程证据都不得单独登记为完整安全沙箱或 IP10 PASS。
 
 ### 4.2 Core 停服接缝（24.2 增量）
 
@@ -288,7 +303,7 @@ OS 监管配置必须通过 `ServiceRecoveryPolicy` 表达延迟/退避/崩溃�
 
 ### 5.3 工具与会话隔离
 
-worker 使用独立低权限身份启动；最小 env/handles，仅装载本 plan 的 workspace、临时目录、网络/credential scope。同一执行账户的不同 job 也须互相隔离，不能读写兄弟 workspace/credential。Windows `WindowsJobWorkerIsolation` 已证明 Job Object 的进程树接管与 kill-on-close 生命周期，但账户/ACL、网络/credential scope、桌面会话仍必须单独验证；Linux systemd sandbox/cgroup/账户、macOS 可用的账户/文件与进程限制也必须逐平台验证。进程组或 Job Object 本身不证明文件/网络隔离。不可满足强制限制则该 backend blocked，不能回退到 brain 用户执行。
+worker 使用独立低权限身份启动；最小 env/handles，仅装载本 plan 的 workspace、临时目录与已单独授权的能力。同一执行账户的不同 job 也须互相隔离，不能读写兄弟 workspace/credential。Windows 要满足 §4.1.2 的 per-job AppContainer、ACL 与 lease recovery 契约；Linux systemd sandbox/cgroup/账户、macOS 可用的账户/文件与进程限制也必须逐平台验证。进程组或 Job Object 本身不证明文件/网络隔离。不可满足强制限制则该 backend blocked，不能回退到 brain 用户执行。
 
 会话 helper 仅在 owner 指定的 OS 会话启动，受 grant/TTL/会话 liveness 约束。OS 注销后撤销桌面执行能力，broker/core 仍常驻。会话 helper 不能获得私有 keys、brain DB 或安装管理 API。
 
@@ -339,7 +354,7 @@ Web/broker 自更新也由同一安装事务和 OS 管理；升级器先保留�
 
 单元覆盖 manifest 校验、path identity、release compatibility、journal fold、命令异义幂等冲突、nonce replay、崩溃恢复阶段。集成用自建有限副作用 fixture，独立文件/计数器证明一次且仅一次，并检查原 Action 事件与 Unknown 状态。
 
-IP01–03、IP10–16 的 fixture/正反断言以 requirements/18 为准。每个原生目标至少验证：未登录冷启动、杀 core/杀 Web、双启动、升级中断、损坏备份/key 缺失、默认卸载保留数据。检查服务和 worker 的实际账户与文件访问拒绝；仅在配置文件写低权限名称不算隔离通过。
+IP01–03、IP10–16 的 fixture/正反断言以 requirements/18 为准。每个原生目标至少验证：未登录冷启动、杀 core/杀 Web、双启动、升级中断、损坏备份/key 缺失、默认卸载保留数据。Windows worker 专项必须在真实 AppContainer token 下验证：获准 workspace 可读写、兄弟 workspace 与 brain/key/web-auth/host 管理路径读写均拒绝、可写文件不可执行、loopback 与外部 TCP 网络均拒绝、worker 与后代处于同一受管 Job、取消后有终态；正常退出和强制终止/宿主崩溃后的 ACL/identity lease 均能精确清理。还须在真实 SCM service identity 下复验服务账户和 peer binding；仅在配置文件写低权限名称、只读 DACL、或受控 fixture 通过都不算 IP10 通过。
 
 不以 mock service manager 代替 SCM/LaunchDaemon/systemd；mock 只验证算法。Windows/macOS/Linux 与每个 CPU 的 evidence 分开登记。变化涉及 backend/store/runtime 时复跑 S1–S99、相关 C 门、strict clippy 与 release/compliance gates。
 
