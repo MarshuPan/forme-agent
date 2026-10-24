@@ -20,6 +20,67 @@ impl ModelRegistry {
         self.routing.cognition.as_ref().unwrap_or(&self.default)
     }
 
+    /// Fingerprints explicit roles and registered selection semantics for the
+    /// production composition binding. Credential values, credential refs and
+    /// resolver paths never participate. No roles preserves legacy digests.
+    pub fn role_routing_digest(&self) -> p::Result<Option<p::SchemaDigest>> {
+        if self.routing.foreground.is_none() && self.routing.cognition.is_none() {
+            return Ok(None);
+        }
+        // The registry's BTreeMap and normalized compatibility entries provide
+        // deterministic order, independent of input order and process lifetime.
+        let profiles: Vec<_> = self
+            .models
+            .values()
+            .map(|registered| {
+                let profile = registered.profile();
+                let compatibility: Vec<_> = registered
+                    .tool_compatibility
+                    .iter()
+                    .map(|entry| {
+                        (
+                            entry.schema_version,
+                            entry.tool_schema_version,
+                            entry.compatible,
+                        )
+                    })
+                    .collect();
+                serde_json::json!({
+                    "schema_version": profile.schema_version,
+                    "reference": registered.reference(),
+                    "provider": profile.provider,
+                    "model": profile.model,
+                    "endpoint": profile.base_url.as_str(),
+                    "capability": (
+                        profile.capability.schema_version,
+                        profile.capability.context_window,
+                        profile.capability.tool_use,
+                        strength_rank(profile.capability.strength),
+                    ),
+                    "cost": (
+                        profile.cost.schema_version,
+                        profile.cost.input_microunits_per_million,
+                        profile.cost.output_microunits_per_million,
+                    ),
+                    "rate_limit": (
+                        profile.rate_limit.schema_version,
+                        profile.rate_limit.requests_per_minute,
+                        profile.rate_limit.tokens_per_minute,
+                    ),
+                    "fallback_group": registered.fallback_group(),
+                    "tool_compatibility": compatibility,
+                })
+            })
+            .collect();
+        p::canonical_digest(&(
+            "forme-model-role-routing-v1",
+            &self.routing,
+            &self.default,
+            profiles,
+        ))
+        .map(Some)
+    }
+
     pub(super) fn select_foreground(
         &self,
         request: &ModelSelectionRequest,
@@ -171,5 +232,91 @@ mod tests {
                 cognition: Some(p::ModelProfileRef("missing".into())),
             })
             .is_err());
+    }
+
+    #[test]
+    fn role_binding_is_order_independent_ignores_credentials_and_detects_selection_changes() {
+        let legacy = registry();
+        assert_eq!(legacy.role_routing_digest().unwrap(), None);
+        let routing = p::ProductModelRouting {
+            schema_version: p::SchemaVersion(1),
+            foreground: Some(p::ModelProfileRef("strong".into())),
+            cognition: None,
+        };
+        let configured = legacy.with_role_routing(routing.clone()).unwrap();
+        let expected = configured.role_routing_digest().unwrap().unwrap();
+        let mut reordered = ModelRegistry::new(p::ModelProfileRef("standard".into())).unwrap();
+        for name in ["text", "strong", "standard"] {
+            let mut registered = configured
+                .get(&p::ModelProfileRef(name.into()))
+                .unwrap()
+                .clone();
+            let mut changed_profile = registered.profile.clone();
+            changed_profile.credential_ref = p::CredentialRef("file:rotated-fixture-key".into());
+            registered.provider = Arc::new(
+                crate::ScriptedModelProvider::new(changed_profile.clone(), vec![]).unwrap(),
+            );
+            registered.profile = changed_profile;
+            reordered.register(registered).unwrap();
+        }
+        let reordered = reordered.with_role_routing(routing.clone()).unwrap();
+        assert_eq!(
+            reordered.role_routing_digest().unwrap(),
+            Some(expected.clone())
+        );
+
+        let mut background = routing;
+        background.cognition = Some(p::ModelProfileRef("text".into()));
+        assert_ne!(
+            configured
+                .clone()
+                .with_role_routing(background)
+                .unwrap()
+                .role_routing_digest()
+                .unwrap(),
+            Some(expected.clone())
+        );
+        // Same profile IDs do not hide a different provider model, endpoint,
+        // compatibility, capability, fallback relation or selection cost.
+        for field in [
+            "model", "provider", "endpoint", "context", "tools", "strength", "cost", "rate",
+            "fallback", "schema",
+        ] {
+            let mut changed = configured.clone();
+            let registered = changed
+                .models
+                .get_mut(&p::ModelProfileRef("strong".into()))
+                .unwrap();
+            match field {
+                "model" => registered.profile.model = "another-model".into(),
+                "provider" => {
+                    registered.profile.provider = p::ProviderId("another-provider".into())
+                }
+                "endpoint" => {
+                    registered.profile.base_url = Url::parse("https://changed.invalid/v1").unwrap()
+                }
+                "context" => registered.profile.capability.context_window += 1,
+                "tools" => registered.profile.capability.tool_use = false,
+                "strength" => registered.profile.capability.strength = ModelStrength::Standard,
+                "cost" => registered.profile.cost.output_microunits_per_million += 1,
+                "rate" => registered.profile.rate_limit.requests_per_minute += 1,
+                "fallback" => registered.fallback_group = None,
+                "schema" => registered.tool_compatibility[0].compatible = false,
+                _ => unreachable!(),
+            }
+            assert_ne!(
+                changed.role_routing_digest().unwrap(),
+                Some(expected.clone()),
+                "{field}"
+            );
+        }
+        assert_eq!(
+            configured
+                .with_role_routing(p::ProductModelRouting::default())
+                .unwrap()
+                .role_routing_digest()
+                .unwrap(),
+            None
+        );
     }
 }

@@ -263,3 +263,140 @@ fn managed_store_entry_shares_composition_and_cannot_create_a_second_or_foreign_
     turn(&runtime, "managed-store-restart");
     assert_eq!(provider_model(&f, calls as usize), "foreground");
 }
+
+#[test]
+fn changing_only_model_roles_rebinds_composition_without_rewriting_history_or_calling_on_load() {
+    let f = Fixture::new();
+    *f.answer.lock().unwrap() = "A model-role composition answer".into();
+    let mut config = managed(&f);
+    config.model_routing = p::ProductModelRouting::default();
+    // Make the legacy compatible choice unambiguous, without any role hint.
+    config.models[1].profile.input_microunits_per_million = 2;
+    config.models[2].profile.input_microunits_per_million = 2;
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    let legacy = runtime.manifest().clone();
+    assert_eq!(f.calls.load(Ordering::SeqCst), 0);
+    let original_run = turn(&runtime, "roles-legacy");
+    assert_eq!(provider_model(&f, 0), "default");
+    let original_events = runtime
+        .services()
+        .store
+        .read_run(original_run.clone())
+        .collect::<p::Result<Vec<_>>>()
+        .unwrap();
+    drop(runtime);
+
+    config.model_routing.foreground = Some(p::ModelProfileRef("model:foreground".into()));
+    let calls = f.calls.load(Ordering::SeqCst);
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    let foreground = runtime.manifest().clone();
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    assert_ne!(foreground.digest, legacy.digest);
+    assert_eq!(foreground.model_profiles, legacy.model_profiles);
+    assert_eq!(foreground.service_states, legacy.service_states);
+    assert_eq!(foreground.aggregate_refs, legacy.aggregate_refs);
+    assert_eq!(foreground.store_identity, legacy.store_identity);
+    let run = turn(&runtime, "roles-foreground");
+    assert_eq!(provider_model(&f, calls as usize), "foreground");
+    assert!(runtime
+        .services()
+        .store
+        .read_run(run)
+        .map(Result::unwrap)
+        .any(
+            |event| matches!(&event.payload, p::EventPayload::SessionBound(binding)
+            if binding.composition_manifest.as_ref() == Some(&foreground.digest))
+        ));
+    drop(runtime);
+
+    // Rotating both the credential file path and its value is not a change in
+    // routing semantics. The actual provider must nevertheless consume it.
+    let rotated = config.store_path.with_file_name("rotated-model.key");
+    fs::write(&rotated, "rotated-managed-fixture-key").unwrap();
+    for model in &mut config.models {
+        model.credential_path = rotated.clone();
+        model.profile.credential_env = "ROTATED_UNREAD_ENV".into();
+    }
+    let calls = f.calls.load(Ordering::SeqCst);
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(runtime.manifest().digest, foreground.digest);
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    turn(&runtime, "roles-rotated");
+    assert_eq!(provider_model(&f, calls as usize), "foreground");
+    assert!(f.requests.lock().unwrap()[calls as usize].contains("rotated-managed-fixture-key"));
+    drop(runtime);
+
+    config.model_routing.cognition = Some(p::ModelProfileRef("model:background".into()));
+    let calls = f.calls.load(Ordering::SeqCst);
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    let background = runtime.manifest().clone();
+    assert_ne!(background.digest, foreground.digest);
+    assert_eq!(background.model_profiles, foreground.model_profiles);
+    assert_eq!(background.service_states, foreground.service_states);
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    assert_eq!(
+        runtime.services().model_registry.cognition_ref().0,
+        "model:background"
+    );
+    assert_eq!(
+        runtime
+            .services()
+            .store
+            .read_run(original_run.clone())
+            .collect::<p::Result<Vec<_>>>()
+            .unwrap(),
+        original_events
+    );
+    drop(runtime);
+
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(runtime.manifest().digest, background.digest);
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    drop(runtime);
+
+    config.models[1].profile.model = "foreground-v2".into();
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_ne!(runtime.manifest().digest, background.digest);
+    assert_eq!(runtime.manifest().model_profiles, background.model_profiles);
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    turn(&runtime, "roles-actual-model-change");
+    assert_eq!(provider_model(&f, calls as usize), "foreground-v2");
+    drop(runtime);
+
+    config.models[1].profile.model = "foreground".into();
+    config.model_routing = p::ProductModelRouting::default();
+    let calls = f.calls.load(Ordering::SeqCst);
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config)
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(runtime.manifest().digest, legacy.digest);
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    assert_eq!(
+        runtime
+            .services()
+            .store
+            .read_run(original_run)
+            .collect::<p::Result<Vec<_>>>()
+            .unwrap(),
+        original_events
+    );
+}

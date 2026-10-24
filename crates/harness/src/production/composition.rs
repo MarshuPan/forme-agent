@@ -217,6 +217,14 @@ pub(super) fn compose(
     let doctor = ConfigDoctorSnapshot::from_states(&service_states);
     append_doctor_event(&store, &aggregates, &doctor)?;
     let capability_snapshot = capability_snapshot_digest(&capability_assembly, &service_states);
+    let capability_snapshot = match model_registry.role_routing_digest()? {
+        Some(roles) => p::canonical_digest(&(
+            "forme-capabilities-with-model-roles-v1",
+            capability_snapshot,
+            roles,
+        ))?,
+        None => capability_snapshot,
+    };
     let manifest = CompositionManifest::new(CompositionManifestParts {
         owner_digest,
         store_identity: authority.store_identity.clone(),
