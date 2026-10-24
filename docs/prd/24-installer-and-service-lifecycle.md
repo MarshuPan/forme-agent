@@ -266,6 +266,8 @@ updater 写 Switching receipt 与原 journal active release 变更，再写 Chec
 
 Checking 失败由持有唯一 writer 的新 Host 写 RecoveryRequired；新 Host 未能启动时，updater 只有在确认 Host 已 Stopped 并重新取得唯一 writer后才可写失败。未知结果不自动反向切换、不重启整条流程。Committed 与开放之间崩溃只可核实同一原操作并补开放，不重跑生命周期动作。普通 Start/Restart、配置应用和 worker admission 不得绕过未决升级；只读状态和认证维护仍可用。以上运行协议须有组件、真实子进程和独立原生证据，不能互相替代。
 
+持久 readiness 文件只是配置加载证据，不能独自证明当前进程仍已就绪。Checking/补开放还须向固定 core listener 发送 closed `ProductReleaseReadinessProbe` v1（install、每次新 nonce、signature），取得 `ProductReleaseReadinessProof` v1（同 nonce、当前内存 readiness、signature）。两方向签名分别绑定 domain；Ed25519 seed 由既有高熵 core-owner credential 按固定 SHA-256 domain 派生，验证公钥由两端同源计算，绝不把 bearer/seed 发到 listener。双方核对签名、installation、nonce、exact binding/config/data/image；伪造 listener、旧文件、重放响应不能通过。该内部只读端点仅在受管 release runtime 存在时提供，不开放新脑命令，不消费工作准入，使用独立限流与有界 IO；同时继续核对实际 SCM 服务目标与状态。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
