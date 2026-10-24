@@ -4,7 +4,7 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P03–P08、P10、P15，主验 IP04–IP09、IP13、IP21–IP22，参与 IP12/IP18/IP24。架构以 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §3–6、§8 为准，canonical §10/15/24/28/29 不可回退。
 
-**状态：正在实施；独立账号/session、loopback Web、本机证明/有限新脑 claim、正式 core bridge 与工作台已有组件实现；`01b77f9` 增加持久模型配置/凭据、CAS/journal、静态校验、口令绑定启停和 core ack，`29984a4` 增加新安装权限分区。** 当前页面可在自建临时安装中完成认领、登录、设置和正式 Run，但尚未取得 IP 整体验收。旧脑/备份接管、OS 口令恢复、LAN TLS、完整能力/渠道配置、附件/候选处置、原生安装和完整工作台仍待实施或验收。具体分支及证据以 `../acceptance/installed-product-implementation-progress.md` 为准，不能由固定 bearer 或组件通过推导完整产品就绪。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
+**状态：正在实施；独立账号/session、loopback Web、本机证明/有限新脑 claim、正式 core bridge、模型/brain/skills 设置与 managed Web 网络事务已有组件实现。** 当前页面可在自建临时安装中完成认领、登录、设置和正式 Run，但尚未取得 IP 整体验收。旧脑/备份接管、OS 口令恢复、其他能力消费者、真实外部 provider、原生安装和完整工作台仍待实施或验收。具体分支及证据以 `../acceptance/installed-product-implementation-progress.md` 为准，不能由固定 bearer 或组件通过推导完整产品就绪。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
 
 ## 1. 职责与边界
 
@@ -162,7 +162,7 @@ run SSE 依 `stream_seq` 恢复；收件箱/多 run 列表使用服务端 opaque
 
 默认 loopback:8765；LAN 变更先预检绑定地址、Host allowlist、证书私钥、HTTPS、firewall 范围，再写操作 intent，切换并自检。原连接失效时提供已验证新地址和恢复说明；失败回到可达的 loopback 修复状态，不能全接口裸 HTTP 兜底。
 
-Web 传输配置使用可缺省的受管 `tls` 对象（`schema_version, material_ref, material_configured`）。浏览器只提交固定的 `material_ref=managed:web`，只读取 `material_configured` 状态，绝不上传、读取或指定证书/私钥路径；Host/安装管理域负责解析受保护材料并拒绝链接、超限文件、无效 PEM 和不匹配的密钥。未配置时只接受 loopback HTTP；配置后整个 listener 使用 TLS 1.2/1.3，不在同一端口嗅探/降级明文。Host 白名单为有限、去重、含实际端口的精确 authority，拒绝通配、userinfo、模糊别名和代理头；mutation Origin 必须与实际 Host 的 HTTPS origin 一致。TLS 下所有认证 cookie 加 Secure，仍保持 HttpOnly、SameSite=Strict、host-only；不因 TLS 取消 CSRF 检查。握手并发、握手时间、已接受连接总数和连接存活时间均有界；慢握手不阻塞其他连接。成功加载证书不等于客户端信任、网络可达或防火墙配置成功；配置事务和 IP12 仍须分别验收。
+Web 传输配置使用可缺省的受管 `tls` 对象（`schema_version, material_ref, material_configured`）。公共设置 v2 只允许浏览器提交固定的 `material_ref=managed:web`，只读取 `material_configured` 状态，绝不上传、读取或指定证书/私钥路径；Host/安装管理域负责解析受保护材料并拒绝链接、超限文件、无效 PEM 和不匹配的密钥。未配置时只接受 loopback HTTP；配置后整个 listener 使用 TLS 1.2/1.3，不在同一端口嗅探/降级明文。Host 白名单为有限、去重、含实际端口的精确 authority，拒绝通配、userinfo、模糊别名和代理头；mutation Origin 必须与实际 Host 的 HTTPS origin 一致。TLS 下所有认证 cookie 加 Secure，仍保持 HttpOnly、SameSite=Strict、host-only；不因 TLS 取消 CSRF 检查。握手并发、握手时间、已接受连接总数和连接存活时间均有界；慢握手不阻塞其他连接。成功加载证书不等于客户端信任、网络可达或防火墙配置成功；配置事务和 IP12 仍须分别验收。
 
 管理 RPC 必须验证 OS peer/服务身份。core 不可达时，Web 可以显示状态、改配置、检查指定备份并请求受控恢复；不能在 Web 进程自己打开脑数据库补读。离线完整性/恢复委托获得 exclusive lock 的既有维护路径。
 

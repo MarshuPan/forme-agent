@@ -8,7 +8,7 @@
 
 状态分为：已有基线、实现中、待实现、待验证、环境受阻。整体完成必须同时有实现和要求层级的证据；模拟、组件、真实进程、浏览器、真实 provider/backend、原生平台和发布证据分别登记。环境受阻保留缺项，不折算为 PASS。
 
-产品主施工分支为 `shu/installed-product`；当前隔离增量在 `shu/managed-skill-config`（skills `b50a7d7`、网络 `3de4f58`），尚未合回产品分支或 main，也未发布。提交与工作树状态以当前 Git 状态为准；核心 main 基线与历史验收见 `core-brain-closure-acceptance-report.md`，产品分支状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
+产品主施工分支为 `shu/installed-product`；受管 skills、公共设置 v2、网络健康与回退增量已合入该分支，尚未合入 `main` 或发布。提交与工作树状态以当前 Git 状态为准；核心 main 基线与历史验收见 `core-brain-closure-acceptance-report.md`，产品分支状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
 
 ## 2. 核心与跨切面覆盖
 
@@ -41,8 +41,8 @@
 |---|---|---|
 | P04–05 / IP04–05：无配置可达与认领 | 独立 Web、证明/CAS、有限 setup、新脑签名 claim、断线恢复 | 与整机首次安装连接；旧脑/备份候选与并发/中断的完整路径。 |
 | P06 / IP06–07：账号与可信身份 | Argon2id、cookie/CSRF/epoch、plan-bound reauth、签名 bridge/durable fence | core 离线撤销恢复、OS 管理员有限口令恢复；账号/owner/keys 保持。 |
-| P07 / IP08：持久设置 | 模型 patch/CAS/journal、不可变凭据、validate/start/restart/ack；`0990bd0` 接入默认 workspace、前台优先与后台相关性模型；`b50a7d7` 接入受管 skills 与正式 `SkillRegistry`，组件见 `installed-product-managed-skills-acceptance.md`。 | MCP/plugin/package、消息渠道、代理、真实外部 provider 和完整产品验收仍仅经 core；skills 组件不单独提升 IP08。 |
-| P08 / IP09：本地与 LAN | 精确 Host/Origin、分桶限流；`3de4f58` 已接受管网络投影、TLS 材料校验、单次维护派发和 Windows 管理员 firewall 规则的只读核验，见网络组件报告。 | 公共 v2、监听健康/有界回退、其他平台核验、真实管理员规则/SCM、证书客户端信任及跨设备证据；不自动改防火墙。 |
+| P07 / IP08：持久设置 | 模型 patch/CAS/journal、不可变凭据、validate/start/restart/ack；`0990bd0` 接入默认 workspace、前台优先与后台相关性模型；受管 skills、公共设置 v2 与可用性投影已接入正式 `SkillRegistry`/ProductionRuntime，组件见 `installed-product-managed-skills-acceptance.md`。 | MCP/plugin/package、消息渠道、代理、真实外部 provider 和完整产品验收仍仅经 core；组件通过不单独提升 IP08。 |
+| P08 / IP09：本地与 LAN | 精确 Host/Origin、分桶限流；受管网络投影、TLS 材料校验、公共设置 v2、监听健康/有界回退、单次维护派发和 Windows 管理员 firewall 规则的只读核验已接入，见网络组件报告。 | 其他平台核验、真实管理员规则/SCM、证书客户端信任及跨设备证据；不自动改防火墙。 |
 | P15 / IP21：离线维护 | 认证独立、host inspect/启停、模型配置与原 operation 核实 | 健康/诊断、备份候选、升级恢复/回滚、安全系统操作和完整状态视图。 |
 
 ## 5. Web 五个工作面
