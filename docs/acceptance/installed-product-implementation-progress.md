@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-25 `82493ea` 完成[Windows sandbox lease journal 持久化与恢复底座](installed-product-windows-sandbox-lease-acceptance-20261025.md)：固定路径、有界 append-only/hash-chain、单 writer、逐步 intent/readback、启动恢复阻断，以及活动 lease 的 job 目录路径/file identity 唯一性。7 个 lease 专项场景、installed-host 永久门、workspace fmt/check/test/strict Clippy、代码质量与合规门通过。此组件不执行真实 ACL/AppContainer 操作、不提供 token 或文件访问正反断言，也未接入生产 dispatch；worker 仍 blocked，IP01–IP24（含 IP10/IP24）未通过。早期 M5 S99 clean-tree release audit 因其他未提交改动而报 `RELEASE_TREE_DIRTY`，不记作 release PASS。
+
 2026-10-25 `639b2b4` 完成[发布离线数据与服务 image 组件](installed-product-release-data-and-images-20261025.md)：真实 SQLite schema/独占锁/一致性备份、有界私有 worker、签名 staging 重查、历史 journal 原字节校验，以及三服务完整预检和持久 one-shot image claim。最终统一门 965 Rust passed / 0 failed / 5 默认 ignored，前端 75/75、strict Clippy/合规及宿主 122 个命名场景 PASS。独立 updater 与新 Host Checking 接管仍未闭合，生产 Upgrade/Rollback 保持拒绝；原生/IP 验收未提升。下表以该记录及已有网络/恢复增量校准，不将组件状态写成整个模块完成。
 
 2026-10-25 `cce9ea6` 完成[独立发布 updater 与 live readiness](installed-product-release-updater-acceptance.md)：固定按需 `forme-release-updater`、原操作 takeover、三服务有界切换、Checking/Committed/RecoveryRequired 恢复、真实 loopback nonce 签名 proof 与 admission gate 已实现。宿主永久门、workspace check/test、strict Clippy、代码质量和合规门通过；这仍是 Windows 控制面与受控 live socket 证据，不是管理员 SCM 注册、签名安装包、Linux/macOS 原生服务或 IP01–IP24 证据。完整产品里程碑继续保持未关闭。
