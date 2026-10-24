@@ -6,6 +6,8 @@
 
 ## 1. 实施顺序与当前范围
 
+2026-10-24 最新实现 `91072be` 将具体记忆的可信材料范围接到原 PrepareLifecycle/Apply：只读选择、版本绑定、显式预览/批准和真实清理均经正式主脑。统一门 161 suites、871 Rust passed / 0 failed / 5 默认 ignored，前端 58/58、strict Clippy、冻结图/99-kind、NTFS 与完整合规通过；593 源文件/63 既有规模债务未增长。见[具体记忆到数据生命周期组件验收](installed-product-memory-lifecycle-acceptance.md)。文字纠正仍未实现，新浏览器、原生安装与 IP20/IP24 证据仍开放。
+
 2026-10-24 `700bb6f` 完成显式模型角色/注册选择语义到正式 composition digest 的绑定，保留无角色的历史算法及旧事件。完整统一门 161 suites、870 Rust passed / 0 failed / 5 默认 ignored，前端 54/54、strict Clippy、NTFS 与完整默认合规通过；冻结门及默认审批恢复否定专项通过。组件边界见[模型角色装配绑定验收](installed-product-model-role-binding-acceptance.md)，无新增原生/浏览器/IP 通过声明。
 
 2026-10-24 `727e473` 完成正式 production composition 的纯职责拆分，原模块 3365→2926 行，独立装配模块 444 行；新增受管 store/重复 writer/外来 store 的否定边界测试。最终统一门 161 suites、868 Rust tests / 0 failed / 5 默认 ignored，前端 54/54、strict Clippy、完整合规及临时 NTFS 门通过，593 文件/63 处既有债务未增长。细节与日志摘要见[可维护性记录 §8](installed-product-maintainability-progress.md)。模型角色摘要的行为修正继续单独实施，完整产品里程碑未关闭。
