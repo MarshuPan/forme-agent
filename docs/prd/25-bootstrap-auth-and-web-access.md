@@ -333,6 +333,8 @@ owner 已确认扩展设置协议及 LAN/TLS 事务。公共 `ProductConfigView/
 
 `GET /api/v1/product/config?schema_version=2` 明确请求完整设置快照；未指定或显式 1 保留已发布的 v1 形状。v2 增加 typed 能力可用性投影，逐项标明模型、skills、MCP、plugin/package、消息渠道、代理和 LAN 管理是否有实际消费者及其阻断原因；不支持的设置只读展示，不能伪造已启用状态。模型与内层 DTO 沿用其各自 schema 1。写入响应跟随请求的设置 schema；同 operation 从 v1 改成 v2 是不同命令，不能静默复用授权。版本协商不降低 owner/CSRF、CAS、trust/permission 或执行隔离要求。
 
+可用性字段为 `availability: ProductConfigAvailability`，内层 schema 1，包含 `features: Vec<ProductSettingAvailability>`，每个固定 feature 恰好一项。feature 为 `models/skills/mcp/plugins/packages/channels/proxy/network`；state 为 `configurable/unavailable`，reason 为可选 `managed_consumer_missing/network_paths_missing`。本投影仅标明受管配置消费者是否已接通；是否已安装、授权、通过原生检查和允许本次维护仍取各自正式投影，不能把 configurable 解释为已获执行权。v1 响应完全省略 availability，不能以 null 新字段改变其已发布形状。
+
 v1/v2 共用同一 Host store 和恢复日志，不建第二套配置。新前端显式读取/提交 v2，并拒绝不能理解的响应版本；旧 patch、原日志字节、core 配置和凭据引用不因读取或升级而改写。设置可用性仅是配置/适配能力，不证明 provider、listener、客户端信任或任务质量。
 
 ### 11.11 网络监听检查与有界失败回退

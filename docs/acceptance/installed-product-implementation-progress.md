@@ -2,7 +2,9 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`；受管 skills 增量当前位于隔离实现提交 `b50a7d7`（设计提交 `ae0de84`），待按 owner 授权合并回产品施工分支。产品分支当前主线提交为 `802e3d2`（原子文字纠正、失效/低置信候选与无正文回执）；前笔 `91072be` 为具体记忆来源的真实遗忘，`700bb6f` 为模型角色装配绑定，`0990bd0` 为默认工作空间与模型角色持久配置。其余历史组件按下方记录保留。验证日期 2026-10-24。本分支尚未替代 `main`；当前本机 shell 非管理员、未注册 forme 系统服务；未读取真实 owner/model secret。
+最新隔离施工分支：`shu/managed-skill-config`，网络增量 `3de4f58`；产品主施工分支仍为 `shu/installed-product`。受管 skills 增量为 `b50a7d7`（设计提交 `ae0de84`），两项增量尚未合回产品主施工分支。产品分支主线基线为 `802e3d2`（原子文字纠正、失效/低置信候选与无正文回执）；前笔 `91072be` 为具体记忆来源的真实遗忘，`700bb6f` 为模型角色装配绑定，`0990bd0` 为默认工作空间与模型角色持久配置。其余历史组件按下方记录保留。验证日期 2026-10-24。本分支尚未替代 `main`；当前本机 shell 非管理员、未注册 forme 系统服务；未读取真实 owner/model secret。
+
+2026-10-24 `3de4f58` 完成[受管 Web 网络配置组件](installed-product-network-configuration-acceptance.md)：desired/published 分离、材料绑定、先回执后单次 dispatch、全局维护 fence、旧日志原字节兼容及独立发布权限；Windows 只读核验管理员预配 firewall，不自动修改规则。统一质量门 919 Rust passed / 0 failed / 5 默认 ignored，前端 68/68、完整合规/strict Clippy/冻结图和 3 项真实进程门 PASS。公共设置 v2、listener 健康与失败回退按新契约继续实施；原生管理员、证书客户端信任、跨设备及 IP09/IP21/IP24 仍未通过。
 
 2026-10-24 `b50a7d7` 完成[受管 skills 配置与运行时接入组件](installed-product-managed-skills-acceptance.md)：skills 与模型/brain preference 共用同一配置 revision、operation、journal、CAS 和恢复语义；Host schema 5 保留旧配置兼容，正式 ProductionRuntime 只向同 scope 的可信启用项开放按需正文。Web 设置页已接入完整保存事务，禁用、不可信、越 scope 和可执行能力声明均 fail closed。全量 workspace Rust tests、31 个配置专项、3 个脑偏好运行时、2 个 managed-skill 运行时、真实 Web→Host→core 进程桥、前端 verify、strict Clippy、代码质量与合规门通过。该组件不提升 IP08/IP21/IP24；MCP/plugin/package、消息渠道、真实 provider、原生服务与完整产品联合验收仍开放。
 
