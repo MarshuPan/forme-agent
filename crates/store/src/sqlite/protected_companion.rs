@@ -225,7 +225,7 @@ fn control_resolution_content_ref(
     ))
 }
 
-fn insert_companion(
+pub(super) fn insert_companion(
     transaction: &Transaction<'_>,
     record: &ProtectedContentRecord,
     plaintext: &[u8],

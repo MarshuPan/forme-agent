@@ -393,6 +393,14 @@ fn allowlisted_core_path(
             RouteMethods::Post,
         ),
         ["workbench", "review"] => ("/v1/brain/workbench/review".to_owned(), RouteMethods::Post),
+        ["workbench", "correction"] => (
+            "/v1/brain/workbench/correction".to_owned(),
+            RouteMethods::Post,
+        ),
+        ["workbench", "corrections", "query"] => (
+            "/v1/brain/workbench/corrections/query".to_owned(),
+            RouteMethods::Post,
+        ),
         ["workbench", "proposal"] => (
             "/v1/brain/workbench/proposal".to_owned(),
             RouteMethods::Post,

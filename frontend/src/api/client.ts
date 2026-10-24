@@ -10,6 +10,8 @@ import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts'
 import { parseRuntimeDoctor } from '../runtime-diagnostics.ts';
 import { parseMaterialLifecycleTarget, parseMemoryMaterial } from '../memory-material.ts';
 import type { WorkbenchItem } from '../workbench.ts';
+import { parseCorrectionReceipt, parseCorrectionsView } from '../correction.ts';
+import type { CognitionCorrection } from '../correction.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -196,6 +198,14 @@ export class WorkbenchClient {
   }
   reviewWorkbench(command: WorkbenchReview) {
     return this.json<WorkbenchReceipt>('brain/workbench/review', 'POST', command, command.command);
+  }
+  async correctCognition(command: CognitionCorrection) {
+    return parseCorrectionReceipt(await this.json<unknown>('brain/workbench/correction', 'POST', command, command.command), command.command);
+  }
+  async corrections(command?: string) {
+    return parseCorrectionsView(await this.json<unknown>('brain/workbench/corrections/query', 'POST', {
+      schema_version: 1, command: command ?? null,
+    }, newKey('correction-query')), command);
   }
   async memoryMaterial(item: WorkbenchItem, snapshot: string, scope: string | null = null) {
     const generation = this.generation;

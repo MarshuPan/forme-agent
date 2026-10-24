@@ -6,6 +6,8 @@ import type { PendingWorkbenchProposals, ReviewDecision, ReviewState, WorkbenchI
 import { inboxItemStatus, pendingProposalFor, reviewLabels, stateLabels } from '../workbench.ts';
 import { MemoryMaterial } from './MemoryMaterial.tsx';
 import type { MaterialLifecycleTarget } from '../memory-material.ts';
+import { canCorrect } from '../correction.ts';
+import { CognitionCorrectionForm, CorrectionHistory } from './CognitionCorrection.tsx';
 
 function useBrainView(api: WorkbenchClient, section: WorkbenchSection) {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
@@ -71,9 +73,10 @@ function CandidateControl({ api, item, changed }: { api: WorkbenchClient; item: 
 export function CognitionView({ api, open, prepareForgetting }: { api: WorkbenchClient; open: (run: string) => void; prepareForgetting: (target: MaterialLifecycleTarget) => void }) {
   const [section, setSection] = useState<WorkbenchSection>('Cognition');
   const view = useBrainView(api, section);
-  return <section className="view"><header className="view-header"><div><p className="eyebrow">从记录到判断</p><h1>记忆与认知</h1></div><button className="secondary-button" onClick={view.refresh}>刷新</button></header>
+  return <section className="view cognition-view"><header className="view-header"><div><p className="eyebrow">从记录到判断</p><h1>记忆与认知</h1></div><button className="secondary-button" onClick={view.refresh}>刷新</button></header>
     <nav className="run-tabs" aria-label="记忆层次"><button aria-pressed={section === 'Memory'} onClick={() => setSection('Memory')}>原始记忆</button><button aria-pressed={section === 'Cognition'} onClick={() => setSection('Cognition')}>认知、候选与重评</button></nav>
     <p className="muted">读取不会提升候选。撤回、归档与永久删除是不同操作；证据按原运行保留顺序。</p>
+    {section === 'Cognition' && <CorrectionHistory api={api} revision={view.snapshot?.digest} />}
     {view.error && <p className="form-error" role="alert">{view.error}</p>}
     {view.busy && <p role="status">正在读取主脑投影…</p>}
     <div className="content-grid">{view.snapshot?.items.map((item) => <article className="surface" key={`${item.run}:${item.kind}:${item.id}`}><p className="eyebrow">{item.kind} · {stateLabels[item.state] ?? item.state}</p><h2>{item.summary}</h2>
@@ -81,6 +84,7 @@ export function CognitionView({ api, open, prepareForgetting }: { api: Workbench
       {item.kind === 'Memory' && view.snapshot && <MemoryMaterial key={`${item.run}:${item.id}:${item.event}:${view.snapshot.digest}`} api={api} item={item} snapshot={view.snapshot.digest} prepareForgetting={prepareForgetting} />}
       <Evidence item={item} open={open} />
       {item.reviews.length > 0 && <CandidateControl key={`${item.id}:${item.state}`} api={api} item={item} changed={view.refresh} />}
+      {view.snapshot && canCorrect(item) && <CognitionCorrectionForm key={`${item.id}:correction`} api={api} item={item} snapshot={view.snapshot.digest} changed={view.refresh} />}
     </article>)}</div>
     {view.snapshot?.total === 0 && <div className="empty-state"><h2>当前还没有这一层的记录</h2><p>使用中的观察和经过审查的认知会逐步进入这里。</p></div>}
     {view.snapshot && <p className="muted small">已显示 {view.snapshot.items.length} / {view.snapshot.total} 项。</p>}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "0084b017088996b549b8bf20c7291770431c1227c52c4821163fabf56c762345",
+  "source_digest": "5548aa4ff97142266a359dac7e0dbe3694651d441c6a04aeee110327f60b160b",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "a70fa70cfc2324a32119c1499826461d91093afc8a7d17b70359c4d5ae015371"
+      "sha256": "52a35d87f352f50aadc910a4083ffac3d6ec7bc6dd141bc478363b6eade88506"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -40,7 +40,11 @@
     },
     {
       "path": "frontend/src/components/BrainViews.tsx",
-      "sha256": "08888e66a9f1ba3c87469991b92240bc8415fdcfb78ac76a1ccfe71fca4c606a"
+      "sha256": "011e9d27a3b92030c02913a22213d8fd845abbd6014e4a37fd4425fbf8f70c09"
+    },
+    {
+      "path": "frontend/src/components/CognitionCorrection.tsx",
+      "sha256": "eef6c9f00009e70ebbf16ed9ed76b4197cb686564506c2c5baf7523f382e46a8"
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
@@ -115,6 +119,10 @@
       "sha256": "c6492572a2a406f2669aea8abd1704f3b3e1849942b90550e86a19399237863c"
     },
     {
+      "path": "frontend/src/correction.ts",
+      "sha256": "4226126ec2abcf1aee51138dac44ab2a8b6f7cd627539f33e436e76ec5251f75"
+    },
+    {
       "path": "frontend/src/data.ts",
       "sha256": "cf6157680930c17d99fdd39624d3179ff7ee3163147978ce66dea9d09e7f6177"
     },
@@ -152,7 +160,7 @@
     },
     {
       "path": "frontend/src/styles.css",
-      "sha256": "a0d11c260a733a9a4cce97adf8c7e1f0e4246eb525cc0dbaf0b92f9665aeff6a"
+      "sha256": "d1725de1ea7658c60b199f6814d9ba93f403b6604b860ae9647d7b7e525c38ff"
     },
     {
       "path": "frontend/src/styles/layout.css",
@@ -173,6 +181,10 @@
     {
       "path": "frontend/src/tests/conversation.test.ts",
       "sha256": "4cff7c406720b4af690e33989b61732d2b476203b819e1b547e53602ee7089bc"
+    },
+    {
+      "path": "frontend/src/tests/correction.test.ts",
+      "sha256": "ba74676062a2b164d3d07def2c1063e4c867acca12d55606ffd255596013f672"
     },
     {
       "path": "frontend/src/tests/events.test.ts",
@@ -229,14 +241,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-BdkYm5fH.js",
-      "sha256": "46f200bc6aa6d3ae2bc43b38e576a6152cceabdf7aa16852913fdc5c993467c4",
-      "bytes": 345116
+      "path": "assets/index-CzjBrAdN.js",
+      "sha256": "54d7b2249debd145451631c46f628663ad82890df87979efe3bd5abb6860fdf6",
+      "bytes": 351483
     },
     {
-      "path": "assets/index-BmTcruJ3.css",
-      "sha256": "cc042690597d648369f6322898b656ce7c3bcc3541b8bb21525fb9ac661e13e1",
-      "bytes": 13853
+      "path": "assets/index-DbfzZG-o.css",
+      "sha256": "65b6e9a3923753ab027ccfce5664babf75772b2fa7c1b7e7739e6962e63aca92",
+      "bytes": 13966
     },
     {
       "path": "dependencies.json",
@@ -250,7 +262,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "769d461fae996940454bda0cd7adf2252fc0ecbba66270605f5ada10544c7354",
+      "sha256": "b4b689f1eff21245813c7bef2f816494ff34461a296c7f7cd226192523ce9dcc",
       "bytes": 595
     },
     {

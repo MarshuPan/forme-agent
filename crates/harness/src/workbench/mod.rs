@@ -4,6 +4,8 @@ use forme_protocol as p;
 use forme_store::EventStore;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
+mod correction;
+mod correction_receipts;
 mod material;
 mod projections;
 mod projects;

@@ -11,6 +11,8 @@ const BRIDGE_TOKEN: &str = "workbench-bridge-0123456789abcdef0123456789abcdef";
 
 #[path = "web_workbench/brain_views.rs"]
 mod brain_views;
+#[path = "web_workbench/correction_views.rs"]
+mod correction_views;
 #[path = "web_workbench/data_views.rs"]
 mod data_views;
 #[path = "web_workbench/memory_views.rs"]
@@ -358,6 +360,7 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
     };
     let body = serde_json::to_string(&run_request).unwrap();
     brain_views::verify(web_address, &runtime, &cookie, &csrf).await;
+    correction_views::verify(web_address, &runtime, &cookie, &csrf).await;
     memory_views::verify(web_address, &runtime, &fixture.calls, &cookie, &csrf).await;
     proposal_views::verify(web_address, &runtime, &cookie, &csrf).await;
     project_views::verify(web_address, &runtime, &cookie, &csrf).await;

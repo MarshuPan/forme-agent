@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use forme_protocol as p;
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
 
+mod cognition_batch;
 #[path = "lifecycle.rs"]
 pub(crate) mod lifecycle;
 #[path = "migration.rs"]

@@ -35,11 +35,13 @@ mod run_pending;
 mod v1_closure;
 mod web_identity;
 mod workbench;
+mod workbench_correction;
 mod workbench_material;
 mod workspace_charter;
 pub use brain_learning::*;
 pub use web_identity::*;
 pub use workbench::*;
+pub use workbench_correction::*;
 pub use workbench_material::*;
 pub use workspace_charter::*;
 

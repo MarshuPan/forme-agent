@@ -91,7 +91,38 @@ pub(super) fn register_material(
         }
         return Ok(());
     }
-    let encoded = serde_json::to_vec(&value)
+    let record = seal_material_receipt(protection, &value)?;
+    protection
+        .lifecycle_service(store.clone())
+        .put_protected_content(owner, record)
+}
+
+/// Builds the same trusted material registration for a caller's atomic store
+/// transaction. It does not insert either the body or its receipt.
+pub(super) fn material_receipt_record(
+    protection: &StoreContentProtection,
+    original: &ProtectedContentRecord,
+    bytes: &[u8],
+) -> p::Result<ProtectedContentRecord> {
+    original.validate()?;
+    seal_material_receipt(
+        protection,
+        &MaterialReceipt {
+            schema_version: p::SchemaVersion(1),
+            content_ref: original.content_ref.clone(),
+            scope: original.scope.clone(),
+            subject: original.subject_digest.clone(),
+            content_digest: p::sha256_content_digest(bytes),
+            bytes: bytes.len() as u64,
+        },
+    )
+}
+
+fn seal_material_receipt(
+    protection: &StoreContentProtection,
+    value: &MaterialReceipt,
+) -> p::Result<ProtectedContentRecord> {
+    let encoded = serde_json::to_vec(value)
         .map_err(|_| p::Error("artifact material receipt encoding failed".into()))?;
     if encoded.len() > MAX_RECEIPT_BYTES {
         return Err(p::Error(
@@ -104,9 +135,7 @@ pub(super) fn register_material(
         &receipt_object(&value.content_ref),
         &value.subject,
     )?;
-    protection
-        .lifecycle_service(store.clone())
-        .put_protected_content(owner, record)
+    Ok(record)
 }
 
 fn decode_receipt(

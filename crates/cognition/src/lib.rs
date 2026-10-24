@@ -33,6 +33,8 @@ mod brain_tick;
 pub use brain_tick::*;
 mod learning;
 pub use learning::*;
+mod owner_feedback;
+pub use owner_feedback::*;
 mod workspace;
 pub use workspace::*;
 mod maintenance;

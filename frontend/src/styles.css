@@ -53,6 +53,8 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .empty-state p { font-size: .88rem; }
 .surface { padding: 1.8rem; background: #fff; border-radius: .65rem; border: 1px solid var(--line); }
 .surface h2 { margin-bottom: 1.1rem; }
+.cognition-view { min-width: 0; overflow-wrap: anywhere; }
+.cognition-view .surface, .cognition-view fieldset { min-width: 0; }
 .project-create { margin-bottom: 1.5rem; }
 .project-create[open] > summary { margin-bottom: 1.4rem; }
 .form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
