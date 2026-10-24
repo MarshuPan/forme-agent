@@ -245,6 +245,27 @@ adapter 在任何更改前核对三个服务均已实际 Stopped、当前 image/
 
 组件测试可通过受控平台适配器验证三服务完整预检、intent/CAS、期限、配置漂移和部分失败；原生 SCM 管理员演练仍另列 IP14–15 证据。
 
+#### 4.10.3 独立接管与新版本工作准入
+
+Windows 使用同一个已安装、不可变的初始 `forme-hostd` 的 `--release-updater --config <fixed-host-config>` 模式，由固定按需 SCM 维护服务 `forme-release-updater` 托管。该服务不属于三个长期业务服务，不新增内核或 brain EventKind；LocalSystem、无依赖、无故障自动重跑，不随业务 image 切换。注册/卸载只由原生安装入口执行，必须核对原程序、完整参数、身份、启动方式和恢复策略；不在 HTTP 请求中创建任意 service。未实现的平台保持 unavailable。初始 updater 的实际版本必须满足目标签名 manifest 的 minimum_upgrader。
+
+| closed 对象 | 必需绑定与用途 |
+|---|---|
+| `ProductReleaseTakeover` v1 | 原 `ProductReleaseRequest`、installation digest、真实 owner、旧 config revision/内容摘要、同一授权 deadline、新鲜 readiness nonce。只由 Host 在 owner 重新认证与 CAS 后构造；文件只是原 journal 事实的派生投影。 |
+| `ProductReleaseBinding` v1 | installation/operation/command、目标 release ref/digest、目标 core image digest、owner/store digest、新 config revision、原新鲜 nonce。是 Host 管理的配置字段，不接受普通 Web patch。 |
+| `ProductReleaseAdmission` v1 | 完整 binding digest、released、时间；与 restore 的 `ProductWorkAdmission` 分开，两个条件须同时满足。缺失、损坏、旧绑定或未释放均阻断工作。 |
+| `ProductReleaseReadiness` v1 | 完整 binding、实际配置 revision、实际运行程序 digest、ProductionRuntime 的 data acknowledgement。只在正式 runtime 构建、恢复扫描、listener 绑定后写入独立 readiness 文件；不能用同 revision 旧 ack 或进程 Running 代替。 |
+
+Host 先写 Validated receipt，再以原 revision/CAS 持久化 `ReleaseTakeoverPrepared`，写 Quiescing intent，然后发布受保护 handoff；只有首次请求收到不可克隆 dispatch ticket。transport 先关闭成功响应，再消耗 ticket 启动独立 SCM updater。重复 POST/丢响应/重启只查询原 operation，不重建 ticket。没有真实平台 launcher 时不能公布 upgrade/rollback 可用。
+
+updater 初次读固定安装/handoff，先以 create-new、fsync 的 per-operation dispatch marker 消耗原执行；它只防止取得 journal writer 前重复停服，不是第二事实源。marker、handoff、installation 的绑定错误或过期在原生调用前拒绝。原生停止按 Brain → Web → Host，在相同截止时间内核实实际 Stopped；不得把 stop 超时当作可重复调用的许可。停止 Host 后才取得唯一 ProductJournal 与配置 writer，并核对同一 `ReleaseTakeoverPrepared`、Quiescing intent、旧配置与活动版本。无法取得 writer 或发现不匹配保留现场，不写另一个 journal。
+
+取得 writer 后完成 Quiescing receipt；在 BackedUp intent 后调用 §4.10.1，实际 schema 兼容才做一次备份；Switching intent 后调用 §4.10.2。在 core 仍停服且旧 inspector 释放独占锁后，由已验签目标 release 的固定 hostctl 再只读核验同一 owner/store/schema/数据库摘要/事件水位，不改变数据库。新配置 revision 在同一配置 journal 中发布 Host-only release binding，保留模型/凭据/恢复绑定，旧不可变 revision 字节保持不变（私有 state schema 7；公开配置 v1/v2 与 core 外壳 schema 1 不改）。hold 必须在发布新 config 前持久化；故障可关闭准入，不能提前开放。
+
+updater 写 Switching receipt 与原 journal active release 变更，再写 Checking intent及其绑定证据；释放管理/config writer 后，按 Host → Web → Brain 启动目标程序。每个动作前后复核期限、确切 service/image 与实际状态，不在进程内另起长期 supervisor。新 Host 只消费原 Checking 证据核实，不重复停服/备份/image change。核实当前 executable、三服务实际目标、fresh release readiness、config ack 与原 owner/store 后才写 Checking receipt/Committed；仅在 Committed 落盘后发布 released=true。配置保存/restore 必须保留或显式重新绑定当前 release，不能清掉另一条 admission。
+
+Checking 失败由持有唯一 writer 的新 Host 写 RecoveryRequired；新 Host 未能启动时，updater 只有在确认 Host 已 Stopped 并重新取得唯一 writer后才可写失败。未知结果不自动反向切换、不重启整条流程。Committed 与开放之间崩溃只可核实同一原操作并补开放，不重跑生命周期动作。普通 Start/Restart、配置应用和 worker admission 不得绕过未决升级；只读状态和认证维护仍可用。以上运行协议须有组件、真实子进程和独立原生证据，不能互相替代。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
