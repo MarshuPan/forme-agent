@@ -3,6 +3,12 @@ import type { ProductConfigView, ProductSettingFeature } from './types.ts';
 
 export const settingFeatures: ProductSettingFeature[] = ['models', 'skills', 'mcp', 'plugins', 'packages', 'channels', 'proxy', 'network'];
 
+export function settingConfigurable(value: ProductConfigView | null, feature: ProductSettingFeature): boolean {
+  return value?.schema_version === 2
+    && value.availability?.schema_version === 1
+    && value.availability.features.some((item) => item.feature === feature && item.state === 'configurable');
+}
+
 /** Negotiate settings v2 explicitly without weakening other protocol guards. */
 export function parseProductSettings(value: unknown): ProductConfigView {
   const invalid = () => new Error('设置协议不兼容，请更新页面或服务后重新读取。');

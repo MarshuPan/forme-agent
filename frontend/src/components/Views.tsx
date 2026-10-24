@@ -16,6 +16,7 @@ import { BrainPreferences } from './BrainPreferences.tsx';
 import { SkillSettings } from './SkillSettings.tsx';
 import { ConfigurationAvailability } from './ConfigurationAvailability.tsx';
 import type { MaterialLifecycleTarget } from '../memory-material.ts';
+import { settingConfigurable } from '../settings-schema.ts';
 
 
 export function Settings({ api, runtime, issue, refresh, signedOut, materialTarget, consumeMaterialTarget }: { api: WorkbenchClient; runtime: RuntimeView | null; issue: string; refresh: () => void; signedOut: () => void; materialTarget: MaterialLifecycleTarget | null; consumeMaterialTarget: () => void }) {
@@ -56,7 +57,7 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
       <ConfigurationAvailability value={config?.availability} />
       <ProductConfigEditor api={api} config={config} loading={configLoading} error={configError} busy={configBusy} onReload={() => void loadConfig()} onBusy={setConfigBusy} onError={setConfigError} onSaved={setConfig} />
       <ConfigurationActivation api={api} config={config} coreConnected={Boolean(runtime)} onSaved={setConfig} refresh={refresh} />
-      <NetworkConfigurationActivation api={api} config={config} onSaved={setConfig} refresh={refresh} />
+      {settingConfigurable(config, 'network') && <NetworkConfigurationActivation api={api} config={config} onSaved={setConfig} refresh={refresh} />}
     </article><article className="surface"><h2>修改登录密码</h2><p className="muted">成功后撤销已有登录会话，脑数据与所有者身份保持不变。</p><form onSubmit={changePassword} aria-busy={busy}>
       <label>当前密码<input name="current" type="password" autoComplete="current-password" required maxLength={128} readOnly={busy || passwordUnknown} /></label>
       <label>新密码<input name="next" type="password" autoComplete="new-password" required minLength={12} maxLength={128} readOnly={busy || passwordUnknown} /></label>
@@ -78,6 +79,7 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
   const [loadedRevision, setLoadedRevision] = useState<number | null>(null);
   const pending = useRef<{ operation: string; revision: number; models: ProductModelProfilePatch[]; brain: ProductBrainPreferences; capabilities: ProductCapabilitySettings; network: ProductNetworkConfig } | null>(null);
   const [uncertain, setUncertain] = useState(false);
+  const networkConfigurable = settingConfigurable(config, 'network');
   useEffect(() => {
     if (config && config.active_revision !== loadedRevision) {
       setModels(draftFromConfig(config)); setBrain(config.brain); setSkills(draftFromCapabilities(config.capabilities)); setNetwork(config.network); setLoadedRevision(config.active_revision);
@@ -113,7 +115,7 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
     {error && <p className="form-error" role="alert">{error}</p>}
     {brain && <BrainPreferences value={brain} models={models} disabled={busy || uncertain} onChange={setBrain} />}
     <SkillSettings value={skills} disabled={busy || uncertain} onChange={setSkills} />
-    <NetworkSettings value={network} active={config?.network_active ?? true} disabled={busy || uncertain} onChange={setNetwork} />
+    <NetworkSettings value={network} active={config?.network_active ?? true} disabled={busy || uncertain || !networkConfigurable} onChange={setNetwork} />
     {config && <p className="muted">工作空间与分工来源：{config.brain_source === 'installation_template' ? '安装默认值' : '已保存配置'}。</p>}
     {models.map((model, index) => <fieldset className="model-profile" key={index} disabled={busy || uncertain}>
       <legend>模型 {index + 1}{model.default ? ' · 默认' : ''}</legend>

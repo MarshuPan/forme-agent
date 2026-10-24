@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "276f99b0f0b9cd2ab179dd803e0a198b325523dbceb83d7892defc41da7f345a",
+  "source_digest": "490f046ab7959fa87884a8bba7aaddbbf0f9ac296645062befd10c32a3f78a66",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -104,7 +104,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "adb5dd94be863a0aa7e0fa2f89a40739a6711aaaa046a0fbee317a0e120f72b4"
+      "sha256": "0bc93705464b69aef68be163cdfe8542ace9aa5cb222c50a8697057cb11970e2"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -172,7 +172,7 @@
     },
     {
       "path": "frontend/src/settings-schema.ts",
-      "sha256": "1402356ad64c0eb421558e6ed142a37da9ea24fbac8bab414747c5d446399089"
+      "sha256": "75d2be883eb715d2cd4b760b43942d9df321d214359cf282a130c88ddb37b50d"
     },
     {
       "path": "frontend/src/skills.ts",
@@ -240,7 +240,7 @@
     },
     {
       "path": "frontend/src/tests/settings-schema.test.ts",
-      "sha256": "6e16f1287d6ab0c4809d30b83fbd394ce1f91767c3fccf2d7c770c283425bc8e"
+      "sha256": "2797ed55d4e1dbec436e8b7bce9d3684782a9e82386d120792779c066da53508"
     },
     {
       "path": "frontend/src/types.ts",
@@ -270,9 +270,9 @@
       "bytes": 14336
     },
     {
-      "path": "assets/index-Cv_UX_1L.js",
-      "sha256": "76f293db2a678382e5e80672671bc1ff5ea967c7b3f1705167a4ac6202499f2f",
-      "bytes": 364892
+      "path": "assets/index-D146rZhZ.js",
+      "sha256": "fb6e240bae50d8b2ca62a1caecae0568972612949c0f220e4d4cfa7eb47d5fcc",
+      "bytes": 365092
     },
     {
       "path": "dependencies.json",
@@ -286,7 +286,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "6ca2b0d69dceb22df1c9d0d0f68bb6c6d053d035fc5b482b6b40c252e583fa4d",
+      "sha256": "74400a6ac34a68cba098be3dbcfcca7756c0b3caf49e0444909d393f477e6f74",
       "bytes": 595
     },
     {

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { WorkbenchClient } from '../api/client.ts';
 import { emptyModel, patchFromDraft } from '../configuration.ts';
-import { parseProductSettings, settingFeatures } from '../settings-schema.ts';
+import { parseProductSettings, settingConfigurable, settingFeatures } from '../settings-schema.ts';
 import type { ProductConfigView } from '../types.ts';
 
 function view(): ProductConfigView {
@@ -49,6 +49,16 @@ test('unknown, incomplete, duplicate and contradictory settings capabilities are
   assert.throws(() => parseProductSettings({ ...view(), network: { ...view().network, tls: {
     schema_version: 1, material_ref: 'managed:web', material_configured: true, certificate_path: 'secret', private_key_path: 'secret',
   } } }));
+});
+
+test('settings actions fail closed when a feature is unavailable or has no v2 availability proof', () => {
+  const current = view();
+  assert.equal(settingConfigurable(current, 'network'), true);
+  assert.equal(settingConfigurable({ ...current, schema_version: 1, availability: undefined }, 'network'), false);
+  assert.equal(settingConfigurable({ ...current, availability: undefined }, 'network'), false);
+  const unavailable = { ...current, availability: { ...current.availability!, features: current.availability!.features.map((item) =>
+    item.feature === 'network' ? { ...item, state: 'unavailable' as const, reason: 'network_paths_missing' as const } : item) } };
+  assert.equal(settingConfigurable(unavailable, 'network'), false);
 });
 
 test('settings version support does not allow v2 on ordinary brain endpoints', async () => {
