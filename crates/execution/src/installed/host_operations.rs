@@ -60,6 +60,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 | p::MaintenanceKind::StartCore
                 | p::MaintenanceKind::StopCore
                 | p::MaintenanceKind::RestartCore
+                | p::MaintenanceKind::ConfigureLan { .. }
                 | p::MaintenanceKind::CommitRestore { .. }
         ) {
             self.release_stager

@@ -147,6 +147,8 @@ function Get-ForMeAccessPlan {
         @($ProgramRoot, $true, $bothRead), @($DataRoot, $true, $bothTraverse),
         @((Join-Path $DataRoot 'config'), $true, $bothTraverse),
         @((Join-Path $DataRoot 'config\core'), $true, @{ $BrainSid = 'ReadAndExecute' }),
+        @((Join-Path $DataRoot 'config\web-network'), $true, @{ $WebSid = 'ReadAndExecute' }),
+        @((Join-Path $DataRoot 'config\web-material'), $true, @{ $WebSid = 'ReadAndExecute' }),
         @((Join-Path $DataRoot 'brain'), $true, @{ $BrainSid = 'Modify' }),
         @((Join-Path $DataRoot 'web-auth'), $true, @{ $WebSid = 'Modify' }),
         @((Join-Path $DataRoot 'host-state'), $true, @{}),
@@ -164,6 +166,7 @@ function Get-ForMeAccessPlan {
         $rows += ,@((Join-Path $DataRoot "config\$name"), $false, @{})
     }
     $rows += ,@((Join-Path $DataRoot 'config\web.json'), $false, @{ $WebSid = 'Read' })
+    $rows += ,@((Join-Path $DataRoot 'config\web-network\web-network.json'), $false, @{ $WebSid = 'Read' })
     $rows += ,@((Join-Path $DataRoot 'keys\bootstrap.key'), $false, @{})
     $rows += ,@((Join-Path $DataRoot 'keys\host-maintenance.token'), $false, @{})
     foreach ($name in @('core-owner.token', 'agent-execution.token')) {
@@ -218,6 +221,8 @@ function Assert-ForMePreparedLayout {
     }
     $expected = @{
         core_config_path = 'config\core\core.json'
+        web_network_config_path = 'config\web-network\web-network.json'
+        web_material_directory = 'config\web-material'
         configuration_ack_path = 'brain\runtime\core-config-ack.json'
         core_session_fence_path = 'brain\runtime\core-auth.sqlite'
         model_credentials_directory = 'keys\model-credentials'

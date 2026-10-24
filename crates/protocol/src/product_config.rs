@@ -17,6 +17,10 @@ use crate::{
 pub const PRODUCT_CONFIG_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
 pub const PRODUCT_DATA_BINDING_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
 
+fn default_web_bind() -> SocketAddr {
+    "127.0.0.1:8765".parse().expect("valid default Web bind")
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProductConfigTemplate {
@@ -32,6 +36,12 @@ pub struct ProductConfigTemplate {
     pub core_web_assertion_verifying_key: [u8; 32],
     pub core_session_fence_path: PathBuf,
     pub core_bind: SocketAddr,
+    #[serde(default = "default_web_bind")]
+    pub web_bind: SocketAddr,
+    #[serde(default)]
+    pub web_network_config_path: Option<PathBuf>,
+    #[serde(default)]
+    pub web_material_directory: Option<PathBuf>,
     pub workspace: WorkspaceRef,
     pub agent_profile: AgentProfileRef,
     pub scheduler_tick: DurationMs,
@@ -100,6 +110,8 @@ impl ProductConfigTemplate {
         if self.schema_version != PRODUCT_CONFIG_SCHEMA_VERSION
             || self.core_bind.port() == 0
             || !self.core_bind.ip().is_loopback()
+            || self.web_bind.port() == 0
+            || !self.web_bind.ip().is_loopback()
             || self.scheduler_tick.0 == 0
             || self.scheduler_lease.0 == 0
             || self.scheduler_max_claims == 0
@@ -131,6 +143,26 @@ impl ProductConfigTemplate {
                     "product configuration template path is invalid".into(),
                 ));
             }
+        }
+        for path in self
+            .web_network_config_path
+            .iter()
+            .chain(self.web_material_directory.iter())
+        {
+            if !path.is_absolute() || path.as_os_str().is_empty() {
+                return Err(Error("product Web network path is invalid".into()));
+            }
+        }
+        if self.web_network_config_path.is_some() != self.web_material_directory.is_some() {
+            return Err(Error(
+                "product Web network paths must be configured together".into(),
+            ));
+        }
+        if matches!(
+            (&self.web_network_config_path, &self.web_material_directory),
+            (Some(network), Some(material)) if network == material
+        ) {
+            return Err(Error("product Web network paths overlap".into()));
         }
         Ok(())
     }
@@ -271,6 +303,9 @@ pub struct ProductConfigView {
     pub capabilities: ProductCapabilitySettings,
     #[serde(default)]
     pub capabilities_source: ProductPreferenceSource,
+    pub network: ProductNetworkConfig,
+    pub network_active: bool,
+    pub network_source: ProductPreferenceSource,
     pub issue_refs: Vec<String>,
 }
 
@@ -286,6 +321,8 @@ pub struct ProductConfigPatch {
     pub brain: Option<ProductBrainPreferences>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capabilities: Option<ProductCapabilitySettings>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network: Option<ProductNetworkConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -377,6 +414,9 @@ impl ProductConfigPatch {
         if let Some(capabilities) = &self.capabilities {
             capabilities.validate()?;
         }
+        if let Some(network) = &self.network {
+            network.validate()?;
+        }
         Ok(())
     }
 }
@@ -403,6 +443,7 @@ pub struct ProductConfigValidationReport {
     pub revision: u64,
     pub valid: bool,
     pub restart_required: bool,
+    pub network_validation_digest: SchemaDigest,
     pub model_test_status: ProductModelTestStatus,
     pub issue_refs: Vec<String>,
 }
@@ -467,3 +508,5 @@ mod preferences;
 pub use preferences::*;
 mod capabilities;
 pub use capabilities::*;
+mod network;
+pub use network::*;

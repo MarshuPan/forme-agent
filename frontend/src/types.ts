@@ -62,6 +62,14 @@ export interface ProductSkillConfig {
 export interface ProductCapabilitySettings {
   schema_version: 1; skills: ProductSkillConfig[];
 }
+export interface ProductNetworkTls {
+  schema_version: 1; certificate_path: string; private_key_path: string;
+}
+export interface ProductFirewallBinding { schema_version: 1; rule_ref: string }
+export interface ProductNetworkConfig {
+  schema_version: 1; bind: string; allowed_hosts: string[];
+  tls: ProductNetworkTls | null; firewall: ProductFirewallBinding | null;
+}
 export interface ProductConfigView {
   schema_version: 1; install_ref: string; owner: string | null;
   active_revision: number; acknowledged_revision: number | null; pending_restart: boolean;
@@ -69,10 +77,12 @@ export interface ProductConfigView {
   brain: ProductBrainPreferences; brain_source: 'installation_template' | 'managed_configuration';
   capabilities?: ProductCapabilitySettings;
   capabilities_source?: 'installation_template' | 'managed_configuration';
+  network: ProductNetworkConfig; network_active: boolean;
+  network_source: 'installation_template' | 'managed_configuration';
 }
 export interface ProductConfigValidation {
   schema_version: 1; revision: number; valid: boolean; restart_required: boolean;
-  model_test_status: 'NotRun'; issue_refs: string[];
+  network_validation_digest: string; model_test_status: 'NotRun'; issue_refs: string[];
 }
 export interface ProductCoreActivation {
   schema_version: 1; operation_id: string; expected_revision: number;

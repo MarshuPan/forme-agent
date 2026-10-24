@@ -500,6 +500,8 @@ fn web_read_quota_is_separate_and_rate_rejections_have_retry_after() {
 fn web_configuration_rejects_plaintext_lan_and_malformed_secret_bodies_are_not_echoed() {
     let fixture = Fixture::new(false);
     let mut config = WebServerConfig {
+        network_config_path: None,
+        network_material_directory: None,
         tls: None,
         bootstrap_bridge: None,
         configuration_bridge: None,

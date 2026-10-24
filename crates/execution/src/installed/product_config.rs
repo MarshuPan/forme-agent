@@ -3,8 +3,13 @@
 mod activation_tests;
 mod journal;
 #[cfg(test)]
+mod legacy_journal_tests;
+#[cfg(test)]
 mod maintenance_tests;
 mod materialize;
+mod network;
+#[cfg(test)]
+mod network_tests;
 #[cfg(test)]
 mod preference_tests;
 mod restore;
@@ -49,6 +54,8 @@ struct ConfigState {
     brain: Option<p::ProductBrainPreferences>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     capabilities: Option<p::ProductCapabilitySettings>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    network: Option<p::ProductNetworkConfig>,
 }
 
 impl ConfigState {
@@ -63,18 +70,25 @@ impl ConfigState {
             active_data: None,
             brain: None,
             capabilities: None,
+            network: None,
         }
     }
 
     fn validate(&self, template: &p::ProductConfigTemplate) -> p::Result<()> {
         if !matches!(
             self.schema_version,
-            p::SchemaVersion(2) | p::SchemaVersion(3) | p::SchemaVersion(4) | p::SchemaVersion(5)
+            p::SchemaVersion(2)
+                | p::SchemaVersion(3)
+                | p::SchemaVersion(4)
+                | p::SchemaVersion(5)
+                | p::SchemaVersion(6)
         ) || self.install_ref != template.install_ref
             || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
             || (self.schema_version.0 < 4 && self.brain.is_some())
             || (self.schema_version.0 < 5 && self.capabilities.is_some())
             || (self.schema_version.0 == 5 && self.capabilities.is_none())
+            || (self.schema_version.0 < 6 && self.network.is_some())
+            || (self.schema_version == p::SchemaVersion(6) && self.network.is_none())
             || self.revision > 1_000_000_000
             || self.models.len() != self.credentials.len()
             || (self.revision == 0) != self.models.is_empty()
@@ -96,6 +110,9 @@ impl ConfigState {
         }
         if let Some(capabilities) = &self.capabilities {
             capabilities.validate()?;
+        }
+        if let Some(network) = &self.network {
+            network.validate_material_root(template.web_material_directory.as_deref())?;
         }
         if let Some(binding) = &self.active_data {
             binding.validate()?;
@@ -185,13 +202,20 @@ impl ProductConfigStore {
         self.verify_published()?;
         self.sync_acknowledgement()?;
         let acknowledged = self.journal.acknowledged();
+        let network = self
+            .state
+            .network
+            .clone()
+            .unwrap_or_else(|| p::ProductNetworkConfig::loopback(self.template.web_bind));
+        let network_active = network == self.active_network()?;
         Ok(p::ProductConfigView {
             schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
             install_ref: self.template.install_ref.clone(),
             owner: self.state.owner.clone(),
             active_revision: self.state.revision,
             acknowledged_revision: acknowledged,
-            pending_restart: self.state.revision > 0 && acknowledged != Some(self.state.revision),
+            pending_restart: (self.state.revision > 0 && acknowledged != Some(self.state.revision))
+                || !network_active,
             configured: self.state.revision > 0,
             models: self.state.models.clone(),
             brain: self
@@ -211,6 +235,13 @@ impl ProductConfigStore {
             issue_refs: Vec::new(),
             capabilities: self.state.capabilities.clone().unwrap_or_default(),
             capabilities_source: if self.state.capabilities.is_some() {
+                p::ProductPreferenceSource::ManagedConfiguration
+            } else {
+                p::ProductPreferenceSource::InstallationTemplate
+            },
+            network,
+            network_active,
+            network_source: if self.state.network.is_some() {
                 p::ProductPreferenceSource::ManagedConfiguration
             } else {
                 p::ProductPreferenceSource::InstallationTemplate
@@ -257,10 +288,18 @@ impl ProductConfigStore {
             return self.response(patch.operation_id, false);
         }
         self.check_revision(patch.expected_revision, &patch.owner, true)?;
+        if !self.network_is_managed()
+            && patch.network.as_ref().is_some_and(|network| {
+                *network != p::ProductNetworkConfig::loopback(self.template.web_bind)
+            })
+        {
+            return Err(rejected_patch());
+        }
         let brain = patch.brain.or_else(|| self.state.brain.clone());
         let capabilities = patch
             .capabilities
             .or_else(|| self.state.capabilities.clone());
+        let network = patch.network.or_else(|| self.state.network.clone());
         if let Some(brain) = &brain {
             brain
                 .validate(
@@ -282,8 +321,11 @@ impl ProductConfigStore {
             .ok_or_else(invalid)?;
         let id = materialize::new_ref()?;
         let credentials = materialize::credential_paths(&self.template, &id, &prepared)?;
+        let active_network = self.active_network()?;
         let state = ConfigState {
-            schema_version: p::SchemaVersion(if capabilities.is_some() {
+            schema_version: p::SchemaVersion(if network.is_some() {
+                6
+            } else if capabilities.is_some() {
                 5
             } else if brain.is_some() {
                 4
@@ -298,13 +340,14 @@ impl ProductConfigStore {
             active_data: self.state.active_data.clone(),
             brain,
             capabilities,
+            network,
         };
         state
             .validate(&self.template)
             .map_err(|_| rejected_patch())?;
         materialize::validate_size(&self.template, &state).map_err(|_| rejected_patch())?;
         materialize::write_credentials(&self.template, &id, &prepared)?;
-        self.commit_state(patch.operation_id.clone(), digest, state)?;
+        self.commit_state_with_network(patch.operation_id.clone(), digest, state, active_network)?;
         self.response(patch.operation_id, true)
     }
 
@@ -322,11 +365,18 @@ impl ProductConfigStore {
         for path in self.state.credentials.values() {
             storage::secret(path)?;
         }
+        let network = self
+            .state
+            .network
+            .clone()
+            .unwrap_or_else(|| p::ProductNetworkConfig::loopback(self.template.web_bind));
         Ok(p::ProductConfigValidationReport {
             schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
             revision,
             valid: true,
-            restart_required: self.journal.acknowledged() != Some(revision),
+            restart_required: self.journal.acknowledged() != Some(revision)
+                || network != self.active_network()?,
+            network_validation_digest: network::validation_digest(&network)?,
             model_test_status: p::ProductModelTestStatus::NotRun,
             issue_refs: Vec::new(),
         })
@@ -390,8 +440,19 @@ impl ProductConfigStore {
         digest: p::SchemaDigest,
         state: ConfigState,
     ) -> p::Result<()> {
+        let network = self.active_network()?;
+        self.commit_state_with_network(operation, digest, state, network)
+    }
+
+    fn commit_state_with_network(
+        &mut self,
+        operation: String,
+        digest: p::SchemaDigest,
+        state: ConfigState,
+        network: p::ProductNetworkConfig,
+    ) -> p::Result<()> {
         state.validate(&self.template)?;
-        let reference = materialize::stage(&self.template, &state)?;
+        let reference = materialize::stage_with_network(&self.template, &state, &network)?;
         self.journal.prepare(Intent {
             operation,
             digest,
@@ -419,6 +480,15 @@ impl ProductConfigStore {
                 storage::secret(path)?;
             }
             storage::publish(&self.template.core_config_path, &bytes)?;
+        }
+        if intent.snapshot.web_network_digest.is_some() {
+            let bytes = materialize::web_network_bytes(&self.template, &intent.snapshot)?;
+            let path = self
+                .template
+                .web_network_config_path
+                .as_ref()
+                .ok_or_else(invalid)?;
+            storage::publish(path, &bytes)?;
         }
         self.journal.commit(intent.operation)?;
         self.state = state;
@@ -460,6 +530,23 @@ impl ProductConfigStore {
             }
         } else if self.template.core_config_path.exists() {
             return Err(invalid());
+        }
+        if let Some(reference) = self
+            .journal
+            .current()
+            .filter(|value| value.web_network_digest.is_some())
+        {
+            let path = self
+                .template
+                .web_network_config_path
+                .as_ref()
+                .ok_or_else(invalid)?;
+            let bytes = storage::read(path, MAX_CONFIG_BYTES)?;
+            if Some(materialize::bytes_digest(&bytes)) != reference.web_network_digest
+                || bytes != materialize::web_network_bytes(&self.template, reference)?
+            {
+                return Err(invalid());
+            }
         }
         Ok(())
     }

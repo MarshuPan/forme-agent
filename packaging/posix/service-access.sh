@@ -102,6 +102,8 @@ directory "$state/workspaces" "$brain" "$brain" 700
 directory "$state/web-auth" "$web" "$web" 700
 if [ "$phase" != prepare ]; then
   directory "$config/core" root "$brain" 2750
+  directory "$config/web-network" root "$web" 2750
+  directory "$config/web-material" root "$web" 2750
   directory "$state/keys/model-credentials" root "$brain" 2750
 fi
 directory "$logs/host" root "$admin" 700
@@ -113,6 +115,7 @@ for name in bootstrap.json host.json product-template.json installation.json; do
   file "$config/$name" root "$admin" 600
 done
 file "$config/web.json" root "$web" 640
+file "$config/web-network/web-network.json" root "$web" 640
 for name in bootstrap.key host-maintenance.token; do
   file "$state/keys/$name" root "$admin" 600
 done

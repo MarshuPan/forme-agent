@@ -1,5 +1,4 @@
 //! Installed HTTPS material. The manager owns files; Web has read access only.
-use std::collections::BTreeSet;
 use std::io::Read;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -33,40 +32,8 @@ impl WebTlsConfig {
         }
         super::config::check_path(&self.certificate_path)?;
         super::config::check_path(&self.private_key_path)?;
-        let mut seen = BTreeSet::new();
-        for host in &self.allowed_hosts {
-            let authority: axum::http::uri::Authority = host.parse().map_err(|_| invalid())?;
-            if host.len() > 260
-                || !host.is_ascii()
-                || host != &host.to_ascii_lowercase()
-                || authority.port_u16() != Some(bind.port())
-                || host.contains(['@', '%', '*'])
-                || authority.host().is_empty()
-                || authority.host().ends_with('.')
-                || !seen.insert(host)
-            {
-                return Err(invalid());
-            }
-            let name = authority.host();
-            let ip = name.trim_start_matches('[').trim_end_matches(']');
-            if let Ok(address) = ip.parse::<std::net::IpAddr>() {
-                if address.is_unspecified() || address.is_multicast() {
-                    return Err(invalid());
-                }
-            } else if name.len() > 253
-                || name.split('.').any(|part| {
-                    part.is_empty()
-                        || part.len() > 63
-                        || part.starts_with('-')
-                        || part.ends_with('-')
-                        || !part
-                            .bytes()
-                            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
-                })
-            {
-                return Err(invalid());
-            }
-        }
+        p::validate_product_network_hosts(&self.allowed_hosts, bind.port())
+            .map_err(|_| invalid())?;
         Ok(())
     }
 

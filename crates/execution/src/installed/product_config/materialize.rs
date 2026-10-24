@@ -44,6 +44,13 @@ pub(super) fn validate_template(
         &template.core_web_credential_path,
         &template.core_session_fence_path,
     ];
+    let mut paths: Vec<&Path> = paths.into_iter().collect();
+    if let Some(path) = &template.web_network_config_path {
+        paths.push(path);
+    }
+    if let Some(path) = &template.web_material_directory {
+        paths.push(path);
+    }
     for (index, path) in paths.iter().enumerate() {
         storage::check(path)?;
         let normalized = normalized_path(path);
@@ -209,6 +216,16 @@ pub(super) fn stage(
     template: &p::ProductConfigTemplate,
     state: &ConfigState,
 ) -> p::Result<SnapshotRef> {
+    let network = effective_network(template, state)?;
+    stage_with_network(template, state, &network)
+}
+
+pub(super) fn stage_with_network(
+    template: &p::ProductConfigTemplate,
+    state: &ConfigState,
+    network: &p::ProductNetworkConfig,
+) -> p::Result<SnapshotRef> {
+    network.validate_material_root(template.web_material_directory.as_deref())?;
     let id = new_ref()?;
     let directory = revision_directory(template, &id);
     storage::directory(&directory)?;
@@ -227,13 +244,49 @@ pub(super) fn stage(
     } else {
         None
     };
+    let web_network_digest = if template.web_network_config_path.is_some() {
+        let network = storage::encode(&network)?;
+        storage::immutable(&directory.join("web-network.json"), &network)?;
+        Some(bytes_digest(&network))
+    } else {
+        None
+    };
     storage::sync_directory(directory.parent().ok_or_else(invalid)?)?;
     Ok(SnapshotRef {
         id,
         revision: state.revision,
         state_digest: bytes_digest(&bytes),
         core_digest,
+        web_network_digest,
     })
+}
+
+pub(super) fn effective_network(
+    template: &p::ProductConfigTemplate,
+    state: &ConfigState,
+) -> p::Result<p::ProductNetworkConfig> {
+    let network = state
+        .network
+        .clone()
+        .unwrap_or_else(|| p::ProductNetworkConfig::loopback(template.web_bind));
+    network.validate_material_root(template.web_material_directory.as_deref())?;
+    Ok(network)
+}
+
+pub(super) fn web_network_bytes(
+    template: &p::ProductConfigTemplate,
+    reference: &SnapshotRef,
+) -> p::Result<Vec<u8>> {
+    let bytes = storage::read(
+        &revision_directory(template, &reference.id).join("web-network.json"),
+        MAX_CONFIG_BYTES,
+    )?;
+    if Some(bytes_digest(&bytes)) != reference.web_network_digest {
+        return Err(invalid());
+    }
+    let network: p::ProductNetworkConfig = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+    network.validate_material_root(template.web_material_directory.as_deref())?;
+    Ok(bytes)
 }
 
 pub(super) fn core_bytes(
@@ -382,6 +435,7 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         active_data: None,
         brain: None,
         capabilities: None,
+        network: None,
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

@@ -81,6 +81,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         ensure_directory(path)?;
     }
     ensure_directory(&paths.config.join("core"))?;
+    ensure_directory(&paths.config.join("web-network"))?;
+    ensure_directory(&paths.config.join("web-material"))?;
     ensure_directory(&paths.keys.join("model-credentials"))?;
 
     let install_ref = random_ref("installation")?;
@@ -99,6 +101,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     let web_config_path = request.config_root.join("web.json");
     let core_config_path = request.config_root.join("core").join("core.json");
     let template_path = request.config_root.join("product-template.json");
+    let web_network_config_path = paths.config.join("web-network").join("web-network.json");
+    let web_material_directory = paths.config.join("web-material");
     let web_assertion_key_path = paths.web_auth.join("web-assertion.key");
     let web_configuration_credential_path = paths.web_auth.join("configuration.token");
     let core_owner_credential_path = paths.keys.join("core-owner.token");
@@ -147,6 +151,11 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         core_bind: CORE_BIND
             .parse()
             .map_err(|_| "core bind is invalid".to_owned())?,
+        web_bind: WEB_BIND
+            .parse()
+            .map_err(|_| "Web bind is invalid".to_owned())?,
+        web_network_config_path: Some(web_network_config_path.clone()),
+        web_material_directory: Some(web_material_directory.clone()),
         workspace: p::WorkspaceRef("workspace:default".into()),
         agent_profile: p::AgentProfileRef("agent:forme-local".into()),
         scheduler_tick: p::DurationMs(1_000),
@@ -167,6 +176,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         bind: WEB_BIND
             .parse()
             .map_err(|_| "Web bind is invalid".to_owned())?,
+        network_config_path: Some(web_network_config_path.clone()),
+        network_material_directory: Some(web_material_directory),
         bootstrap_bridge: Some(WebBootstrapBridgeConfig {
             schema_version: p::SchemaVersion(1),
             address: HOST_BIND
@@ -245,6 +256,16 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
             template_path.clone(),
             serde_json::to_vec_pretty(&template)
                 .map_err(|_| "product configuration template encoding failed".to_owned())?,
+            0o600,
+        ),
+        (
+            web_network_config_path,
+            serde_json::to_vec_pretty(&p::ProductNetworkConfig::loopback(
+                WEB_BIND
+                    .parse()
+                    .map_err(|_| "Web bind is invalid".to_owned())?,
+            ))
+            .map_err(|_| "Web network configuration encoding failed".to_owned())?,
             0o600,
         ),
     ];

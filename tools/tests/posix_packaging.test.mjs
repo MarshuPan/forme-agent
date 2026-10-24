@@ -71,6 +71,16 @@ test('service mounts keep configuration publication in Host and global keys out 
   }
 });
 
+test('network and TLS publications have exclusive Web reader groups across inode replacement', async () => {
+  const source = await readFile(join(root, 'packaging/posix/service-access.sh'), 'utf8');
+  for (const name of ['web-network', 'web-material']) {
+    assert(source.includes(`directory "$config/${name}" root "$web" 2750`));
+  }
+  assert(source.includes('file "$config/web-network/web-network.json" root "$web" 640'));
+  assert(source.includes('directory "$config" root "$admin" 711'));
+  assert(!source.includes('directory "$config" root "$web"'));
+});
+
 test('POSIX service templates never declare an unbounded recovery loop', async () => {
   for (const name of ['forme-brain.service', 'forme-host.service', 'forme-web.service']) {
     const service = await readFile(join(root, 'packaging/linux', name), 'utf8');

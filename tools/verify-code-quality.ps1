@@ -43,6 +43,7 @@ try {
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Invoke-QualityStep 'current installation preparation binary' 'cargo' @('build', '--locked', '-p', 'forme-cli', '--bin', 'forme-hostctl')
         Invoke-QualityStep 'native NTFS access descriptors and safe installation refusal' 'powershell.exe' @('-NoProfile', '-NonInteractive', '-File', 'tools/tests/windows_service_access.tests.ps1')
+        Invoke-QualityStep 'read-only firewall policy (fixture observations, no native rule changes)' 'powershell.exe' @('-NoProfile', '-NonInteractive', '-File', 'tools/tests/windows_firewall_policy.tests.ps1')
     }
     $complianceArguments = @('tools/compliance-doctor.sh')
     if ($AllowMissingCorpus) { $complianceArguments += '--allow-missing-corpus' }

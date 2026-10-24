@@ -38,6 +38,17 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         request: p::ProductMaintenanceRequest,
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
+        self.owner_maintenance_inner(auth, request, now, false)
+            .map(|(op, _)| op)
+    }
+
+    pub(super) fn owner_maintenance_inner(
+        &self,
+        auth: &HostAuth,
+        request: p::ProductMaintenanceRequest,
+        now: p::Timestamp,
+        defer_network: bool,
+    ) -> p::Result<(p::MaintenanceOperation, Option<super::PreparedOwnerNetwork>)> {
         self.verify_web_configuration_auth(auth)?;
         request.validate()?;
         let config = self
@@ -103,7 +114,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             {
                 self.release_committed_restore(&request.operation_id, &mut config)?;
             }
-            return Ok(op);
+            return Ok((op, None));
         }
         if now >= request.requested_deadline
             || request.requested_deadline.saturating_sub(now) > 300_000
@@ -117,17 +128,54 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         ) {
             config.validate_revision(view.active_revision, &request.owner)?;
         }
+        if let p::ProductMaintenanceAction::ConfigureLan {
+            config_revision,
+            validation_digest,
+        } = &request.action
+        {
+            let actual = config.network_validation_digest(*config_revision, &request.owner)?;
+            if actual != *validation_digest {
+                return Err(p::Error(
+                    "LAN configuration validation is stale; refresh before applying".into(),
+                ));
+            }
+            if !self.network_change_preflight(&mut config)? {
+                return Err(p::Error(
+                    "LAN firewall reconciliation is unavailable before dispatch".into(),
+                ));
+            }
+        }
         if matches!(
             request.action,
             p::ProductMaintenanceAction::CommitRestore { .. }
         ) {
             self.plan_restore_locked(auth, command, now, &mut config)?;
-            return self.execute_restore_locked(auth, &request.operation_id, now, &mut config);
+            return self
+                .execute_restore_locked(auth, &request.operation_id, now, &mut config)
+                .map(|op| (op, None));
         }
-        self.plan_authorized(auth, command, now)?;
+        // Plan while the configuration lock still serializes admissions. Only
+        // the caller that first creates this operation receives a dispatch ticket.
+        let planned = self.plan_authorized(auth, command, now)?;
+        if matches!(
+            request.action,
+            p::ProductMaintenanceAction::ConfigureLan { .. }
+        ) {
+            drop(config);
+            if defer_network {
+                let ticket = super::PreparedOwnerNetwork {
+                    auth: auth.clone(),
+                    operation_id: request.operation_id,
+                    command_digest: planned.command_digest.clone(),
+                    owner: request.owner,
+                };
+                return Ok((planned, Some(ticket)));
+            }
+        }
         // Keep configuration locked until native IO finishes: configuration
         // cannot be replaced between validation and start/restart.
         self.execute_authorized(auth, &request.operation_id, now)
+            .map(|op| (op, None))
     }
 
     pub fn owner_maintenance_operation(
@@ -142,6 +190,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             p::MaintenanceKind::StartCore
                 | p::MaintenanceKind::StopCore
                 | p::MaintenanceKind::RestartCore
+                | p::MaintenanceKind::ConfigureLan { .. }
                 | p::MaintenanceKind::StageSignedRelease { .. }
                 | p::MaintenanceKind::UninstallPlan {
                     preserve_owner_data: true

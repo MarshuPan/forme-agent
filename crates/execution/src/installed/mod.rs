@@ -2,6 +2,8 @@
 #![forbid(unsafe_code)]
 
 pub mod bootstrap;
+#[cfg(windows)]
+mod firewall_windows;
 mod host;
 mod journal;
 mod paths;

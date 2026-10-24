@@ -30,6 +30,8 @@ fn configuration(
     std::fs::write(&key, identity.signing_key.serialize_pem()).unwrap();
     (
         WebServerConfig {
+            network_config_path: None,
+            network_material_directory: None,
             schema_version: p::SchemaVersion(1),
             install_ref: "installation:https-fixture".into(),
             identity_directory: root.to_path_buf(),
@@ -267,6 +269,52 @@ fn https_configuration_rejects_ambiguous_hosts_bad_keys_and_plaintext_lan() {
     config.tls = None;
     config.bind = "192.168.1.7:8765".parse().unwrap();
     assert!(config.validate().is_err());
+}
+
+#[test]
+fn installed_network_overlay_controls_web_binding_and_rejects_plaintext_lan() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().canonicalize().unwrap();
+    let material = path.join("web-material");
+    std::fs::create_dir(&material).unwrap();
+    let address: SocketAddr = "127.0.0.1:8765".parse().unwrap();
+    let (mut config, _) = configuration(&path, address);
+    let certificate = material.join("server.pem");
+    let key = material.join("server.key");
+    std::fs::copy(path.join("server.pem"), &certificate).unwrap();
+    std::fs::copy(path.join("server.key"), &key).unwrap();
+    let network_path = path.join("web-network.json");
+    config.network_config_path = Some(network_path.clone());
+    config.network_material_directory = Some(material.clone());
+    let network = p::ProductNetworkConfig {
+        schema_version: p::PRODUCT_NETWORK_SCHEMA_VERSION,
+        bind: address,
+        allowed_hosts: vec![format!("localhost:{}", address.port())],
+        tls: Some(p::ProductNetworkTls {
+            schema_version: p::PRODUCT_NETWORK_SCHEMA_VERSION,
+            certificate_path: certificate.clone(),
+            private_key_path: key.clone(),
+        }),
+        firewall: None,
+    };
+    std::fs::write(&network_path, serde_json::to_vec(&network).unwrap()).unwrap();
+    let config_path = path.join("web.json");
+    std::fs::write(&config_path, serde_json::to_vec(&config).unwrap()).unwrap();
+    let loaded = WebServerConfig::load(&config_path).unwrap();
+    assert_eq!(loaded.bind, address);
+    assert_eq!(loaded.tls.as_ref().unwrap().certificate_path, certificate);
+    loaded.tls.as_ref().unwrap().load().unwrap();
+
+    let mut plaintext_lan = network;
+    plaintext_lan.bind = "192.168.1.20:8765".parse().unwrap();
+    plaintext_lan.allowed_hosts = vec!["192.168.1.20:8765".into()];
+    plaintext_lan.tls = None;
+    plaintext_lan.firewall = Some(p::ProductFirewallBinding {
+        schema_version: p::PRODUCT_NETWORK_SCHEMA_VERSION,
+        rule_ref: "firewall:forme-web-lan".into(),
+    });
+    std::fs::write(&network_path, serde_json::to_vec(&plaintext_lan).unwrap()).unwrap();
+    assert!(WebServerConfig::load(&config_path).is_err());
 }
 
 #[tokio::test]

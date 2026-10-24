@@ -1240,6 +1240,7 @@ dependencies = [
  "url",
  "windows-service",
  "xcap",
+ "zeroize",
 ]
 
 [[package]]

@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, WorkbenchClient } from '../api/client.ts';
-import { maintenanceComplete, restoreCommand } from '../maintenance.ts';
+import { configureNetworkCommand, maintenanceComplete, restoreCommand } from '../maintenance.ts';
 import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 import type { RestoreCandidate } from '../data.ts';
-import type { ProductConfigView } from '../types.ts';
+import type { ProductConfigValidation, ProductConfigView } from '../types.ts';
 
 test('owner maintenance lost response only probes the original operation, without repeating credentials', async () => {
   const calls: { path: string; init: RequestInit }[] = [];
@@ -38,9 +38,49 @@ const candidate: RestoreCandidate = { schema_version: 1, candidate_ref: 'restore
 const config: ProductConfigView = { schema_version: 1, configured: true, install_ref: 'installation:fixture',
   active_revision: 7, acknowledged_revision: 7, owner: 'owner:fixture', pending_restart: false, models: [], issue_refs: [],
   brain_source: 'installation_template', brain: { schema_version: 1, default_workspace: 'workspace:default',
-    model_routing: { schema_version: 1, foreground: null, cognition: null } } };
+    model_routing: { schema_version: 1, foreground: null, cognition: null } },
+  network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null },
+  network_active: true, network_source: 'installation_template' };
 const snapshot: MaintenanceSnapshot = { schema_version: 1, product_revision: 31, owner: 'owner:fixture',
   host: { schema_version: 1, product_state: 'ready', core_health: 'ready', active_release: '0.0.1', allowed_operations: ['commit_restore'] }, operations: [] };
+
+const networkConfig = { ...config, network_active: false };
+const networkSnapshot = { ...snapshot, host: { ...snapshot.host, allowed_operations: ['configure_lan'] } };
+const networkValidation: ProductConfigValidation = { schema_version: 1, revision: 7, valid: true,
+  restart_required: true, model_test_status: 'NotRun', issue_refs: [], network_validation_digest: digest('e') };
+
+test('network maintenance binds checked certificate digest and both revisions without client authority', async () => {
+  const command = configureNetworkCommand(networkConfig, networkValidation, networkSnapshot, 'network:fixture', 1_000);
+  assert.deepEqual(command, { schema_version: 1, operation_id: 'network:fixture', expected_revision: 31,
+    requested_deadline: 121_000, action: { kind: 'configure_lan', config_revision: 7, validation_digest: digest('e') } });
+  const calls: { path: string; init: RequestInit }[] = [];
+  const api = new WorkbenchClient(async (path, init) => {
+    calls.push({ path: String(path), init: init! });
+    if (init?.method === 'POST') throw new TypeError('network switch disconnected');
+    return Response.json({ schema_version: 1, operation_id: command.operation_id, stage: 'recovery_required', pending_stage: 'checking' });
+  });
+  await assert.rejects(api.maintain(command, 'fixture-network-password'));
+  assert.equal(maintenanceComplete(await api.maintenanceOperation(command.operation_id)), false);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].init.method, 'GET');
+  assert.equal(calls[1].init.body, undefined);
+  const body = JSON.parse(String(calls[0].init.body));
+  for (const field of ['owner', 'network', 'certificate_path', 'private_key_path', 'principal', 'bind']) {
+    assert.equal(Object.hasOwn(body, field), false);
+  }
+});
+
+test('network apply refuses unsupported adapter, stale validation, owner or published configuration', () => {
+  for (const changed of [ { ...networkValidation, revision: 8 }, { ...networkValidation, valid: false },
+    { ...networkValidation, network_validation_digest: 'unbound' } ]) {
+    assert.throws(() => configureNetworkCommand(networkConfig, changed, networkSnapshot, 'network:fixture', 1_000));
+  }
+  for (const changed of [config, { ...networkConfig, owner: 'owner:foreign' }, { ...networkConfig, configured: false }]) {
+    assert.throws(() => configureNetworkCommand(changed, networkValidation, networkSnapshot, 'network:fixture', 1_000));
+  }
+  assert.throws(() => configureNetworkCommand(networkConfig, networkValidation, snapshot, 'network:fixture', 1_000));
+  assert.throws(() => configureNetworkCommand(networkConfig, networkValidation, networkSnapshot, '../op', 1_000));
+});
 
 test('restore activation binds final manifest, owner and both revisions without storage paths or client authority', () => {
   const command = restoreCommand(candidate, config, snapshot, 'restore:fixture', 1_000);

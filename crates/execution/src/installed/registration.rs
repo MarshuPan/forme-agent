@@ -127,6 +127,46 @@ fn current_executable(id: p::BuiltinServiceId) -> p::Result<PathBuf> {
     Ok(executable)
 }
 
+/// Read-only proof for the fixed privileged network adapter. SCM registrations
+/// and recovery policy must match the running installation, never test paths.
+pub(super) fn verify_network_installation() -> p::Result<(PathBuf, PathBuf, PathBuf, PathBuf)> {
+    let arguments: Vec<_> = std::env::args_os().collect();
+    if arguments.len() != 3 || arguments[1] != "--config" {
+        return Err(p::Error(
+            "native network adapter requires installed Host arguments".into(),
+        ));
+    }
+    let host_program = current_executable(p::BuiltinServiceId::Host)?;
+    let host_config = PathBuf::from(&arguments[2]);
+    if host_config.file_name() != Some(std::ffi::OsStr::new("host.json")) {
+        return Err(p::Error(
+            "native network adapter requires its fixed Host configuration".into(),
+        ));
+    }
+    let web_program = host_program.with_file_name("forme-webd.exe");
+    let web_config = host_config.with_file_name("web.json");
+    let manager = manager(ServiceManagerAccess::CONNECT)?;
+    for (id, config, program) in [
+        (p::BuiltinServiceId::Host, &host_config, &host_program),
+        (p::BuiltinServiceId::Web, &web_config, &web_program),
+    ] {
+        let expected = desired(id, config, program.clone())?;
+        for path in [config, program] {
+            super::reject_linked_ancestors(path)?;
+            if !path.is_file() {
+                return Err(p::Error(
+                    "native network installation files are unavailable".into(),
+                ));
+            }
+        }
+        let service = manager
+            .open_service(id.service_name(), ServiceAccess::QUERY_CONFIG)
+            .map_err(|_| p::Error("native network service registration is unavailable".into()))?;
+        verify(&service, &expected)?;
+    }
+    Ok((host_program, web_program, host_config, web_config))
+}
+
 fn desired(id: p::BuiltinServiceId, config: &Path, executable: PathBuf) -> p::Result<ServiceInfo> {
     for path in [config, executable.as_path()] {
         validate_path(path)?;

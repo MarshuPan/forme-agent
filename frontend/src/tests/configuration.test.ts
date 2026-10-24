@@ -11,7 +11,9 @@ test('saved model editing strips readonly fields and does not echo credentials',
     active_revision: 1, acknowledged_revision: null, pending_restart: true, configured: true,
     models: [{ ...model, credential_configured: true }], issue_refs: [],
     brain_source: 'installation_template', brain: { schema_version: 1, default_workspace: 'workspace:default',
-      model_routing: { schema_version: 1, foreground: null, cognition: null } } };
+      model_routing: { schema_version: 1, foreground: null, cognition: null } },
+    network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null },
+    network_active: true, network_source: 'installation_template' };
   const draft = draftFromConfig(config);
   assert.equal(draft[0].credential, '');
   const patch = patchFromDraft(draft);
@@ -56,7 +58,7 @@ test('lost activation response is not retried; probe uses a readonly original op
 test('static validation remains distinct from a real model connection test', async () => {
   const api = new WorkbenchClient(async (_path, init) => {
     assert.equal(JSON.parse(String(init?.body)).revision, 3);
-    return Response.json({ schema_version: 1, revision: 3, valid: true, restart_required: true, model_test_status: 'NotRun', issue_refs: [] });
+    return Response.json({ schema_version: 1, revision: 3, valid: true, restart_required: true, network_validation_digest: 'sha256:' + 'a'.repeat(64), model_test_status: 'NotRun', issue_refs: [] });
   });
   const report = await api.validateProductConfig(3, 'validate:fixture');
   assert.equal(report.model_test_status, 'NotRun');
@@ -93,6 +95,7 @@ test('managed skill settings keep trust separate from enablement and preserve th
       acknowledged_revision: null, pending_restart: true, configured: true, models: [], issue_refs: [],
       brain: { schema_version: 1, default_workspace: 'workspace:default', model_routing: { schema_version: 1, foreground: null, cognition: null } },
       brain_source: 'managed_configuration', capabilities, capabilities_source: 'managed_configuration',
+      network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null }, network_active: true, network_source: 'managed_configuration',
     }, applied: false, operation_id: 'config:skills' });
   });
   await api.saveProductConfig(1, [], 'config:skills', undefined, capabilities);

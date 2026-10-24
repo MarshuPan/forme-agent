@@ -7,6 +7,9 @@ use forme_protocol as p;
 mod host_configuration;
 #[path = "host_maintenance.rs"]
 mod host_maintenance;
+#[path = "host_network.rs"]
+mod host_network;
+pub use host_network::PreparedOwnerNetwork;
 #[path = "host_native.rs"]
 mod host_native;
 #[path = "host_operations.rs"]
@@ -380,6 +383,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             "plan".into(),
             "execute".into(),
         ];
+        if self.product_config.is_some() && self.network_change_available()? {
+            allowed_operations.push("configure_lan".into());
+        }
         if self.release_stager.is_some() {
             allowed_operations.extend(["stage_signed_release".into(), "uninstall_plan".into()]);
         }

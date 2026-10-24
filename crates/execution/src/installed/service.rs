@@ -12,6 +12,39 @@ use forme_protocol as p;
 pub trait NativeServiceManager: Send + Sync {
     fn inspect(&self, id: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus>;
     fn apply(&self, change: p::ValidatedServiceChange) -> p::Result<p::NativeReceipt>;
+
+    /// Capability only; it does not authorize or perform a firewall change.
+    fn supports_firewall_reconciliation(&self) -> bool {
+        false
+    }
+
+    /// Read-only admission check. Never creates or changes an OS rule.
+    fn validate_firewall_reconciliation(
+        &self,
+        _previous: &p::ProductNetworkConfig,
+        _desired: &p::ProductNetworkConfig,
+    ) -> p::Result<()> {
+        if self.supports_firewall_reconciliation() {
+            Ok(())
+        } else {
+            Err(p::Error(
+                "native firewall verification is unavailable".into(),
+            ))
+        }
+    }
+
+    /// Reconcile the exact previous and desired product bindings. A platform
+    /// adapter must observe stale rules already removed by the administrator;
+    /// this interface does not authorize automatic firewall changes.
+    fn reconcile_firewall(
+        &self,
+        _previous: &p::ProductNetworkConfig,
+        _desired: &p::ProductNetworkConfig,
+    ) -> p::Result<p::NativeFirewallReceipt> {
+        Err(p::Error(
+            "LAN Web exposure requires a verified firewall reconciliation adapter".into(),
+        ))
+    }
 }
 
 /// Calls only native service-management APIs with closed arguments. It neither
@@ -19,6 +52,53 @@ pub trait NativeServiceManager: Send + Sync {
 pub struct SystemServiceManager;
 
 impl NativeServiceManager for SystemServiceManager {
+    fn supports_firewall_reconciliation(&self) -> bool {
+        #[cfg(windows)]
+        {
+            super::firewall_windows::available().is_ok()
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    }
+
+    fn validate_firewall_reconciliation(
+        &self,
+        previous: &p::ProductNetworkConfig,
+        desired: &p::ProductNetworkConfig,
+    ) -> p::Result<()> {
+        #[cfg(windows)]
+        {
+            super::firewall_windows::verify(previous, desired)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (previous, desired);
+            Err(p::Error(
+                "native firewall verification is unavailable".into(),
+            ))
+        }
+    }
+
+    fn reconcile_firewall(
+        &self,
+        previous: &p::ProductNetworkConfig,
+        desired: &p::ProductNetworkConfig,
+    ) -> p::Result<p::NativeFirewallReceipt> {
+        #[cfg(windows)]
+        {
+            super::firewall_windows::reconcile(previous, desired)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (previous, desired);
+            Err(p::Error(
+                "native LAN firewall adapter is unavailable on this platform".into(),
+            ))
+        }
+    }
+
     fn inspect(&self, id: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus> {
         #[cfg(windows)]
         let state = windows_scm::inspect(id)?;

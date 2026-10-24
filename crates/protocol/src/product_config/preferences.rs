@@ -78,13 +78,19 @@ impl ProductConfigPatch {
                 crate::canonical_digest(&("forme-product-brain-preferences-v1", legacy, brain))
             }
         }?;
-        match &self.capabilities {
-            None => Ok(previous),
+        let previous = match &self.capabilities {
+            None => previous,
             Some(capabilities) => crate::canonical_digest(&(
                 "forme-product-capability-settings-v1",
                 previous,
                 capabilities,
-            )),
+            ))?,
+        };
+        match &self.network {
+            None => Ok(previous),
+            Some(network) => {
+                crate::canonical_digest(&("forme-product-network-settings-v1", previous, network))
+            }
         }
     }
 }

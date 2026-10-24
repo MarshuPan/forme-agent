@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeSet;
+use std::net::SocketAddr;
 use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -461,11 +462,18 @@ impl MaintenanceKind {
                 validate_product_digest(owner_digest)?;
             }
             Self::ApplyValidatedConfig {
-                validation_digest, ..
+                config_revision,
+                validation_digest,
             }
             | Self::ConfigureLan {
-                validation_digest, ..
-            } => validate_product_digest(validation_digest)?,
+                config_revision,
+                validation_digest,
+            } => {
+                if *config_revision == 0 {
+                    return Err(Error("configuration revision is required".into()));
+                }
+                validate_product_digest(validation_digest)?;
+            }
             Self::UninstallPlan {
                 preserve_owner_data: false,
             } => {
@@ -821,4 +829,21 @@ pub struct NativeReceipt {
     pub service: BuiltinServiceId,
     pub requested: NativeServiceAction,
     pub observed: NativeServiceState,
+}
+
+/// Receipt returned by a platform firewall adapter after it has applied and
+/// inspected the exact typed Web network binding. A reference string alone is
+/// never treated as proof that a firewall rule exists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NativeFirewallReceipt {
+    pub schema_version: SchemaVersion,
+    pub bind: SocketAddr,
+    /// The rule that is expected to remain enabled after reconciliation.
+    /// Loopback has no enabled rule.
+    pub rule_ref: Option<String>,
+    pub network_digest: SchemaDigest,
+    pub enabled: bool,
+    /// Rules observed as removed while moving away from the previous binding.
+    pub removed_rule_refs: Vec<String>,
 }

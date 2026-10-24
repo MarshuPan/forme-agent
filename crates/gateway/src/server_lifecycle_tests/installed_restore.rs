@@ -95,6 +95,9 @@ impl RestoreFixture {
             core_web_assertion_verifying_key: signing.verifying_key().to_bytes(),
             core_session_fence_path: install.paths.brain.join("runtime/core-auth.sqlite"),
             core_bind: "127.0.0.1:8770".parse().unwrap(),
+            web_bind: "127.0.0.1:8765".parse().unwrap(),
+            web_network_config_path: None,
+            web_material_directory: None,
             workspace: f.config.workspace.clone(),
             agent_profile: f.config.agent_profile.clone(),
             scheduler_tick: p::DurationMs(1000),
@@ -136,6 +139,8 @@ impl RestoreFixture {
             p::canonical_digest(&candidate_source.verify().unwrap().manifest).unwrap();
         drop(candidate_source);
         let web = WebServerConfig {
+            network_config_path: None,
+            network_material_directory: None,
             schema_version: p::SchemaVersion(1),
             install_ref: INSTALL.into(),
             identity_directory: install.paths.web_auth.clone(),

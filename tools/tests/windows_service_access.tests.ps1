@@ -43,7 +43,7 @@ try {
     $data = Join-Path $scratch 'data'
     $plan = @(Get-ForMeAccessPlan $program $data $web $brain)
     Test-Access 'closed role matrix separates management, Web, Brain and absent workers' {
-        Assert-That ($plan.Count -eq 29) 'Unexpected matrix size'
+        Assert-That ($plan.Count -eq 32) 'Unexpected matrix size'
         foreach ($row in $plan) {
             $security = New-ForMeSecurity -Directory $row.Directory -Grants $row.Grants
             Assert-That $security.AreAccessRulesProtected 'Inherited broad grants must be removed'
@@ -65,6 +65,10 @@ try {
         Assert-That (-not $owner.Grants.ContainsKey($web)) 'Web cannot impersonate CLI owner'
         $bridge = $plan | Where-Object Path -EQ (Join-Path $data 'keys\core-web.token')
         Assert-That ($bridge.Grants[$web] -eq 'Read' -and $bridge.Grants[$brain] -eq 'Read') 'Bridge must be shared read-only'
+        foreach ($relative in @('config\web-network', 'config\web-material')) {
+            $row = $plan | Where-Object Path -EQ (Join-Path $data $relative)
+            Assert-That ($row.Directory -and $row.Grants.Count -eq 1 -and $row.Grants[$web] -eq 'ReadAndExecute') 'Network publication must be Web read-only'
+        }
     }
     Test-Access 'parent traversal does not inherit access to neighboring credentials' {
         foreach ($relative in @('', 'config', 'keys', 'logs')) {
@@ -127,6 +131,26 @@ try {
         [IO.File]::WriteAllText($credential, 'repository-fixture-only')
         $rules = @(Service-Rules (Get-Acl -LiteralPath $credential) $brain)
         Assert-That ($rules.Count -eq 1 -and $rules[0].IsInherited) 'Nested revision lost read access'
+    }
+    Test-Access 'network publication replacement retains only Web read access' {
+        foreach ($name in @('web-network', 'web-material')) {
+            $directory = Join-Path $scratch $name
+            $row = $plan | Where-Object Path -EQ (Join-Path $data "config\$name")
+            New-ForMeProtectedDirectory $directory (Test-Security $true $row.Grants)
+            $active = Join-Path $directory 'active.json'
+            $staged = Join-Path $directory 'staged.json'
+            [IO.File]::WriteAllText($active, 'old-fixture')
+            [IO.File]::WriteAllText($staged, 'new-fixture')
+            if ($PSVersionTable.PSEdition -eq 'Desktop') { [IO.File]::Replace($staged, $active, (Join-Path $directory 'previous.json')) }
+            else { [IO.File]::Move($staged, $active, $true) }
+            $acl = Get-Acl -LiteralPath $active
+            $rules = @(Service-Rules $acl $web)
+            Assert-That ($rules.Count -eq 1 -and ($rules[0].FileSystemRights -band [Security.AccessControl.FileSystemRights]::ReadData) -ne 0) 'Web lost read access after replacement'
+            $writes = [Security.AccessControl.FileSystemRights]'Write,Delete,ChangePermissions,TakeOwnership'
+            Assert-That (($rules[0].FileSystemRights -band $writes) -eq 0) 'Web gained network write authority'
+            Assert-That (@(Service-Rules $acl $brain).Count -eq 0) 'Brain can read Web TLS or publication'
+            Assert-That ([IO.File]::ReadAllText($active) -eq 'new-fixture') 'New publication was not installed'
+        }
     }
     Test-Access 'unsafe paths, junctions and hard links are refused without touching targets' {
         foreach ($unsafe in @('relative', ($scratch + '\..\escape'), ($scratch + '\alias.'),
@@ -200,8 +224,8 @@ try {
         Assert-That ((Get-FileHash -LiteralPath $keyPath).Hash -eq $keyHash) 'Key was replaced'
         Assert-That (@(Get-ChildItem -LiteralPath (Join-Path $data 'brain') -Force).Count -eq 0) 'New brain was prematurely initialized'
     }
-    Assert-That ($script:passed -eq 7) 'Component cases did not all run'
-    Write-Host 'Windows access component: 7/7 PASS; native services, service-token denial and IP01-IP24: NOT_RUN'
+    Assert-That ($script:passed -eq 8) 'Component cases did not all run'
+    Write-Host 'Windows access component: 8/8 PASS; native services, service-token denial and IP01-IP24: NOT_RUN'
 } finally {
     # Only this independently created fixture is disposable; validate exact scope.
     Assert-That ([IO.Path]::GetDirectoryName($scratch) -ieq $tempRoot) 'Unsafe fixture cleanup root'

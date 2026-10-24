@@ -92,7 +92,12 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
     web.configuration_bridge.address = configurationAddress; web.core_bridge.address = coreAddress;
     await writeJson(prepared.web_config_path, web);
     const template = await readJson(host.product_config_template_path);
-    template.core_bind = coreAddress; template.cognition_tick = 600000; template.authority_lease = 3000;
+    template.core_bind = coreAddress; template.web_bind = webAddress;
+    template.cognition_tick = 600000; template.authority_lease = 3000;
+    if (web.network_config_path) {
+      await writeJson(web.network_config_path, { schema_version: 1, bind: webAddress,
+        allowed_hosts: [], tls: null, firewall: null });
+    }
     await writeJson(host.product_config_template_path, template);
     const cookieJar = new Map();
     let csrf;

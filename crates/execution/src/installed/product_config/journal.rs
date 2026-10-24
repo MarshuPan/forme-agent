@@ -16,6 +16,8 @@ pub(super) struct SnapshotRef {
     pub revision: u64,
     pub state_digest: p::SchemaDigest,
     pub core_digest: Option<p::SchemaDigest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_network_digest: Option<p::SchemaDigest>,
 }
 
 impl SnapshotRef {
@@ -25,6 +27,9 @@ impl SnapshotRef {
         }
         p::validate_product_digest(&self.state_digest)?;
         if let Some(digest) = &self.core_digest {
+            p::validate_product_digest(digest)?;
+        }
+        if let Some(digest) = &self.web_network_digest {
             p::validate_product_digest(digest)?;
         }
         if (self.revision == 0) != self.core_digest.is_none() {

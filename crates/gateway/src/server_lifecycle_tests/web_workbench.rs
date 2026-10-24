@@ -255,6 +255,8 @@ async fn web_workbench_runs_through_the_brain_once_and_logout_fences_core_proofs
     let web_address = probe.local_addr().unwrap();
     drop(probe);
     let web_config = WebServerConfig {
+        network_config_path: None,
+        network_material_directory: None,
         tls: None,
         schema_version: p::SchemaVersion(1),
         install_ref: INSTALL.into(),

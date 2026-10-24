@@ -8,6 +8,10 @@ pub enum ProductMaintenanceAction {
     StartCore {},
     StopCore {},
     RestartCore {},
+    ConfigureLan {
+        config_revision: u64,
+        validation_digest: SchemaDigest,
+    },
     StageSignedRelease {
         release_id: String,
         release_digest: SchemaDigest,
@@ -27,6 +31,13 @@ impl ProductMaintenanceAction {
             Self::StartCore {} => MaintenanceKind::StartCore,
             Self::StopCore {} => MaintenanceKind::StopCore,
             Self::RestartCore {} => MaintenanceKind::RestartCore,
+            Self::ConfigureLan {
+                config_revision,
+                validation_digest,
+            } => MaintenanceKind::ConfigureLan {
+                config_revision: *config_revision,
+                validation_digest: validation_digest.clone(),
+            },
             Self::StageSignedRelease {
                 release_id,
                 release_digest,
@@ -81,6 +92,16 @@ impl ProductMaintenanceRequest {
         {
             validate_release_id(release_id)?;
             validate_product_digest(release_digest)?;
+        }
+        if let ProductMaintenanceAction::ConfigureLan {
+            config_revision,
+            validation_digest,
+        } = &self.action
+        {
+            if *config_revision == 0 {
+                return Err(Error("LAN configuration revision is required".into()));
+            }
+            validate_product_digest(validation_digest)?;
         }
         Ok(())
     }

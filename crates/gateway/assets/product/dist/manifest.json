@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "203ad65919422c83734a7636d353d2d77a51e44d375f0ccb89ab06a6da3e0491",
+  "source_digest": "d921d5e3f2027668ff11a1dfa77f32cd6acfbe5c3ccd54f52c828c78de339f0e",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "bef7ba4b10a78599cb975948f7183c9ce3fa3c5be49daaa217f273637decc273"
+      "sha256": "92015f975c6409d89b2e5cf2a5e4589046ba82322cba0df48737f7288ad3987e"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -71,6 +71,10 @@
       "sha256": "9dd6435d7ba42473681e9b1ad4d874aef0fe7d2a9117c1c0b895e518f9c76a88"
     },
     {
+      "path": "frontend/src/components/NetworkConfigurationActivation.tsx",
+      "sha256": "eca2a77194903f887de803dce9a4e9f8da079a3a2f7a7b79aff2f99516b520ff"
+    },
+    {
       "path": "frontend/src/components/ProjectControls.tsx",
       "sha256": "886112b06a405f83088e0539d39e7b226bd2f0684564432b0a326f5069b28f90"
     },
@@ -96,7 +100,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "5e2fbfab2edea3c9ec6b901a8c7e813d3961b80cb108bdfd730083522374bc07"
+      "sha256": "ed8217b3f3f0bbda934c3ee8d2c1cd87b7ce68e0a4657e46372c360a86943831"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -144,7 +148,7 @@
     },
     {
       "path": "frontend/src/maintenance.ts",
-      "sha256": "a463f760c1f84271041894f6c64fc6cd5e97fbd0ed9859bedf75a6cfe181e7b2"
+      "sha256": "b06ce52629fffd15d89809dfc08f460b4ebc601ca1ab3df72fe27d07f4210136"
     },
     {
       "path": "frontend/src/memory-material.ts",
@@ -180,7 +184,7 @@
     },
     {
       "path": "frontend/src/tests/configuration.test.ts",
-      "sha256": "a8c12cb9a36ce8df71040c921b4bf16b89309277d02669c6f2be9d76db1165f2"
+      "sha256": "4228f2627bb2923a66ed174ef84ec7118476da3d922056e142d9c6a4b6188c32"
     },
     {
       "path": "frontend/src/tests/conversation-view.test.ts",
@@ -208,7 +212,7 @@
     },
     {
       "path": "frontend/src/tests/maintenance.test.ts",
-      "sha256": "19111b889e162206efe6c056442cfa10ae78709be8dd36be0731763f44c0b59e"
+      "sha256": "cd38b334f051c8bb2d78f94b0c043833c62a7135829472f0ac71657a5081ed52"
     },
     {
       "path": "frontend/src/tests/memory-material.test.ts",
@@ -228,7 +232,7 @@
     },
     {
       "path": "frontend/src/types.ts",
-      "sha256": "e4ed6686dfa1f5749bf64e71e57d04c59db50c75c57d42edc72fa8b815134e21"
+      "sha256": "594b458c4857fb8d8542ba81f6ec0b59a60c8da809815cd2ef2b776d5099117a"
     },
     {
       "path": "frontend/src/workbench.ts",
@@ -254,9 +258,9 @@
       "bytes": 14336
     },
     {
-      "path": "assets/index-DquYo9W2.js",
-      "sha256": "be430ac00c72763c503dfce74289302ab35dfd71e5aef89cccec9c6ae6095e92",
-      "bytes": 354761
+      "path": "assets/index-DT-y7t7p.js",
+      "sha256": "898ccf2926a154b99fa66b34d6a28be71f12172d6568cb196991e7921539c185",
+      "bytes": 362314
     },
     {
       "path": "dependencies.json",
@@ -270,7 +274,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "d11957f776eb132e81e6e80760c8f87889d422183e383f35e3e0ee4f670faa96",
+      "sha256": "17359c78db4be1a11a3fd1f9c3e90643dbd574c93015ba85d5a5d3ecb142ca3f",
       "bytes": 595
     },
     {

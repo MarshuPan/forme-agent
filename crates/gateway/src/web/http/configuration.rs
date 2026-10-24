@@ -24,6 +24,8 @@ pub(super) struct ProductConfigBody {
     brain: Option<p::ProductBrainPreferences>,
     #[serde(default)]
     capabilities: Option<p::ProductCapabilitySettings>,
+    #[serde(default)]
+    network: Option<p::ProductNetworkConfig>,
 }
 
 #[derive(Deserialize)]
@@ -122,6 +124,7 @@ pub(super) async fn write(
         models: body.models,
         brain: body.brain,
         capabilities: body.capabilities,
+        network: body.network,
     };
     let response = state
         .configuration_call(move |configuration| configuration.apply(patch))

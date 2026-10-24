@@ -57,6 +57,20 @@ pub(super) fn handle_connection(
             return Ok(());
         }
     };
+    if matches!(domain, EndpointDomain::Configuration)
+        && request.method == "POST"
+        && request.path == "/v1/host/configuration/maintenance"
+    {
+        let command = serde_json::from_slice::<p::ProductMaintenanceRequest>(&request.body);
+        if let Ok(command) = command {
+            if matches!(
+                command.action,
+                p::ProductMaintenanceAction::ConfigureLan { .. }
+            ) {
+                return network_response(&mut stream, broker.as_ref(), &auth, command);
+            }
+        }
+    }
     match route(&request, broker.as_ref(), worker.as_ref(), &auth, domain) {
         Ok((status, body)) => write_response(&mut stream, status, &body),
         Err(error) => {
@@ -74,6 +88,41 @@ pub(super) fn handle_connection(
             Ok(())
         }
     }
+}
+
+fn network_response(
+    stream: &mut TcpStream,
+    broker: &ProductHostBroker,
+    auth: &forme_execution::installed::HostAuth,
+    request: p::ProductMaintenanceRequest,
+) -> p::Result<()> {
+    let (operation, dispatch) = match broker.prepare_owner_network(auth, request, now_ms()) {
+        Ok(value) => value,
+        Err(error) => return write_error(stream, 409, error),
+    };
+    let body = serde_json::to_vec(&operation)
+        .map_err(|_| p::Error("host maintenance response failed".into()))?;
+    respond_before_dispatch(stream, &body, || {
+        if let Some(dispatch) = dispatch {
+            broker.execute_owner_network(dispatch, now_ms())?;
+        }
+        Ok(())
+    })
+}
+
+fn respond_before_dispatch(
+    stream: &mut TcpStream,
+    body: &[u8],
+    dispatch: impl FnOnce() -> p::Result<()>,
+) -> p::Result<()> {
+    write_response(stream, 200, body)?;
+    // LocalConfigurationClient reads to EOF. Closing the response releases its
+    // Web request before stopping Web; this supervised worker remains counted
+    // until dispatch finishes. A failed response must never trigger native IO.
+    stream
+        .shutdown(std::net::Shutdown::Both)
+        .map_err(|_| p::Error("network response closure is unconfirmed".into()))?;
+    dispatch()
 }
 
 fn route(
@@ -395,4 +444,53 @@ fn write_error(stream: &mut TcpStream, status: u16, error: p::Error) -> p::Resul
     }))
     .map_err(|_| p::Error("host error response failed".into()))?;
     write_response(stream, status, &body)
+}
+
+#[cfg(test)]
+mod network_response_tests {
+    use super::*;
+    use std::net::{Shutdown, TcpListener};
+    use std::sync::mpsc;
+
+    #[test]
+    fn response_eof_releases_the_web_client_before_service_dispatch_finishes() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let (released, receiver) = mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            respond_before_dispatch(&mut stream, b"{\"stage\":\"planned\"}", || {
+                // This models a Web stop draining its current configuration call.
+                // The client cannot release that call until it receives EOF.
+                receiver.recv_timeout(Duration::from_secs(3)).unwrap();
+                Ok(())
+            })
+            .unwrap();
+        });
+        let mut client = TcpStream::connect(address).unwrap();
+        client
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .unwrap();
+        let mut response = String::new();
+        client.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert!(response.ends_with("{\"stage\":\"planned\"}"));
+        released.send(()).unwrap();
+        server.join().unwrap();
+    }
+
+    #[test]
+    fn failed_response_never_dispatches_the_side_effect() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let _client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (mut stream, _) = listener.accept().unwrap();
+        stream.shutdown(Shutdown::Both).unwrap();
+        let mut dispatched = false;
+        assert!(respond_before_dispatch(&mut stream, b"{}", || {
+            dispatched = true;
+            Ok(())
+        })
+        .is_err());
+        assert!(!dispatched);
+    }
 }

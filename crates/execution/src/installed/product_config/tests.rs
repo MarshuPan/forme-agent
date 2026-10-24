@@ -15,6 +15,9 @@ fn template(root: &Path) -> p::ProductConfigTemplate {
         core_web_assertion_verifying_key: [3; 32],
         core_session_fence_path: root.join("auth/fence.sqlite"),
         core_bind: "127.0.0.1:8770".parse().unwrap(),
+        web_bind: "127.0.0.1:8771".parse().unwrap(),
+        web_network_config_path: Some(root.join("config/web-network.json")),
+        web_material_directory: Some(root.join("config/web-material")),
         workspace: p::WorkspaceRef("workspace:test".into()),
         agent_profile: p::AgentProfileRef("agent:forme".into()),
         scheduler_tick: p::DurationMs(1000),
@@ -58,13 +61,25 @@ pub(crate) fn patch(operation: &str, revision: u64) -> p::ProductConfigPatch {
         models: vec![profile()],
         brain: None,
         capabilities: None,
+        network: None,
     }
 }
 
 pub(crate) fn fixture() -> (tempfile::TempDir, PathBuf, Mutex<ProductConfigStore>) {
+    fixture_with_network(true)
+}
+
+pub(super) fn fixture_with_network(
+    managed: bool,
+) -> (tempfile::TempDir, PathBuf, Mutex<ProductConfigStore>) {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("template.json");
-    fs::write(&path, storage::encode(&template(directory.path())).unwrap()).unwrap();
+    let mut template = template(directory.path());
+    if !managed {
+        template.web_network_config_path = None;
+        template.web_material_directory = None;
+    }
+    fs::write(&path, storage::encode(&template).unwrap()).unwrap();
     let store = ProductConfigStore::open(&path).unwrap();
     store
         .lock()
@@ -344,6 +359,7 @@ fn legacy_fixture(mismatch: bool) -> (tempfile::TempDir, PathBuf, Vec<u8>, PathB
         active_data: None,
         brain: None,
         capabilities: None,
+        network: None,
     };
     let mut core = materialize::core_config(&template, &state).unwrap();
     if mismatch {
