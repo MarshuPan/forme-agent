@@ -49,6 +49,17 @@ const networkSnapshot = { ...snapshot, host: { ...snapshot.host, allowed_operati
 const networkValidation: ProductConfigValidation = { schema_version: 1, revision: 7, valid: true,
   restart_required: true, model_test_status: 'NotRun', issue_refs: [], network_validation_digest: digest('e') };
 
+test('settings v2 remains compatible with the independently versioned maintenance contracts', () => {
+  const current: ProductConfigView = { ...config, schema_version: 2 };
+  assert.deepEqual(restoreCommand(candidate, current, snapshot, 'restore:v2', 1_000),
+    restoreCommand(candidate, config, snapshot, 'restore:v2', 1_000));
+  assert.deepEqual(configureNetworkCommand({ ...current, network_active: false }, networkValidation, networkSnapshot, 'network:v2', 1_000),
+    configureNetworkCommand(networkConfig, networkValidation, networkSnapshot, 'network:v2', 1_000));
+  const unknown = { ...current, schema_version: 3 } as unknown as ProductConfigView;
+  assert.throws(() => restoreCommand(candidate, unknown, snapshot, 'restore:v2', 1_000));
+  assert.throws(() => configureNetworkCommand({ ...unknown, network_active: false }, networkValidation, networkSnapshot, 'network:v2', 1_000));
+});
+
 test('network maintenance binds checked certificate digest and both revisions without client authority', async () => {
   const command = configureNetworkCommand(networkConfig, networkValidation, networkSnapshot, 'network:fixture', 1_000);
   assert.deepEqual(command, { schema_version: 1, operation_id: 'network:fixture', expected_revision: 31,

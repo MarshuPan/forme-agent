@@ -18,7 +18,16 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
     }
 
     pub fn configuration(&self, auth: &HostAuth) -> p::Result<p::ProductConfigView> {
+        self.configuration_with_schema(auth, p::PRODUCT_CONFIG_SCHEMA_VERSION)
+    }
+
+    pub fn configuration_with_schema(
+        &self,
+        auth: &HostAuth,
+        version: p::SchemaVersion,
+    ) -> p::Result<p::ProductConfigView> {
         self.verify_web_configuration_auth(auth)?;
+        p::validate_product_settings_schema(version)?;
         let store = self
             .product_config
             .as_ref()
@@ -26,7 +35,19 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         let mut store = store
             .lock()
             .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
-        store.snapshot()
+        store.snapshot_with_schema(version)
+    }
+
+    pub fn configuration_v2(&self, auth: &HostAuth) -> p::Result<p::ProductConfigViewV2> {
+        self.verify_web_configuration_auth(auth)?;
+        let store = self
+            .product_config
+            .as_ref()
+            .ok_or_else(|| p::Error("managed product configuration is unavailable".into()))?;
+        store
+            .lock()
+            .map_err(|_| p::Error("managed product configuration is unavailable".into()))?
+            .snapshot_settings_v2()
     }
 
     pub fn apply_configuration(
@@ -54,6 +75,33 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             ));
         }
         store.apply(patch)
+    }
+
+    pub fn apply_configuration_v2(
+        &self,
+        auth: &HostAuth,
+        patch: p::ProductConfigPatchV2,
+    ) -> p::Result<p::ProductConfigResponseV2> {
+        self.verify_web_configuration_auth(auth)?;
+        let store = self
+            .product_config
+            .as_ref()
+            .ok_or_else(|| p::Error("managed product configuration is unavailable".into()))?;
+        let mut store = store
+            .lock()
+            .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
+        if self.journal.operations(0)?.iter().any(|operation| {
+            operation.stage != p::MaintenanceStage::Committed
+                && self
+                    .journal
+                    .command_kind(&operation.operation_id)
+                    .map_or(true, |kind| kind.is_lifecycle_transaction())
+        }) {
+            return Err(p::Error(
+                "configuration cannot change during an unresolved lifecycle operation".into(),
+            ));
+        }
+        store.apply_settings_v2(patch)
     }
 
     pub fn bind_configuration_owner(

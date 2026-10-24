@@ -14,6 +14,9 @@ mod network_tests;
 mod preference_tests;
 mod restore;
 mod service_files;
+mod settings_schema;
+#[cfg(test)]
+mod settings_schema_tests;
 #[cfg(test)]
 mod skill_tests;
 mod storage;
@@ -197,58 +200,6 @@ impl ProductConfigStore {
         Ok(Mutex::new(store))
     }
 
-    pub fn snapshot(&mut self) -> p::Result<p::ProductConfigView> {
-        self.recover()?;
-        self.verify_published()?;
-        self.sync_acknowledgement()?;
-        let acknowledged = self.journal.acknowledged();
-        let network = self
-            .state
-            .network
-            .clone()
-            .unwrap_or_else(|| p::ProductNetworkConfig::loopback(self.template.web_bind));
-        let network_active = network == self.active_network()?;
-        Ok(p::ProductConfigView {
-            schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-            install_ref: self.template.install_ref.clone(),
-            owner: self.state.owner.clone(),
-            active_revision: self.state.revision,
-            acknowledged_revision: acknowledged,
-            pending_restart: (self.state.revision > 0 && acknowledged != Some(self.state.revision))
-                || !network_active,
-            configured: self.state.revision > 0,
-            models: self.state.models.clone(),
-            brain: self
-                .state
-                .brain
-                .clone()
-                .unwrap_or_else(|| p::ProductBrainPreferences {
-                    schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-                    default_workspace: self.template.workspace.clone(),
-                    model_routing: Default::default(),
-                }),
-            brain_source: if self.state.brain.is_some() {
-                p::ProductPreferenceSource::ManagedConfiguration
-            } else {
-                p::ProductPreferenceSource::InstallationTemplate
-            },
-            issue_refs: Vec::new(),
-            capabilities: self.state.capabilities.clone().unwrap_or_default(),
-            capabilities_source: if self.state.capabilities.is_some() {
-                p::ProductPreferenceSource::ManagedConfiguration
-            } else {
-                p::ProductPreferenceSource::InstallationTemplate
-            },
-            network,
-            network_active,
-            network_source: if self.state.network.is_some() {
-                p::ProductPreferenceSource::ManagedConfiguration
-            } else {
-                p::ProductPreferenceSource::InstallationTemplate
-            },
-        })
-    }
-
     /// Operation queries remain available when a core acknowledgement is bad.
     pub(crate) fn maintenance_owner(&mut self) -> p::Result<Option<p::OwnerPrincipalRef>> {
         self.recover()?;
@@ -282,10 +233,11 @@ impl ProductConfigStore {
     /// have immutable revision paths, including when a saved key is retained.
     pub fn apply(&mut self, patch: p::ProductConfigPatch) -> p::Result<p::ProductConfigResponse> {
         patch.validate().map_err(|_| rejected_patch())?;
+        let settings_schema = patch.schema_version;
         self.recover()?;
         let digest = patch.digest()?;
         if self.journal.existing(&patch.operation_id, &digest)? {
-            return self.response(patch.operation_id, false);
+            return self.settings_response(patch.operation_id, false, settings_schema);
         }
         self.check_revision(patch.expected_revision, &patch.owner, true)?;
         if !self.network_is_managed()
@@ -348,7 +300,7 @@ impl ProductConfigStore {
         materialize::validate_size(&self.template, &state).map_err(|_| rejected_patch())?;
         materialize::write_credentials(&self.template, &id, &prepared)?;
         self.commit_state_with_network(patch.operation_id.clone(), digest, state, active_network)?;
-        self.response(patch.operation_id, true)
+        self.settings_response(patch.operation_id, true, settings_schema)
     }
 
     pub fn validate_revision(

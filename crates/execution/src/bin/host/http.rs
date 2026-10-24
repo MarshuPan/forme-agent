@@ -141,11 +141,28 @@ fn route(
             serde_json::to_vec(&broker.configuration(auth)?)
                 .map_err(|_| p::Error("host configuration response failed".into()))?
         }
-        ("POST", "/v1/host/configuration") if matches!(domain, EndpointDomain::Configuration) => {
-            let patch: p::ProductConfigPatch = serde_json::from_slice(&request.body)
-                .map_err(|_| p::Error("host configuration body is invalid".into()))?;
-            serde_json::to_vec(&broker.apply_configuration(auth, patch)?)
+        ("GET", "/v1/host/configuration/v2") if matches!(domain, EndpointDomain::Configuration) => {
+            serde_json::to_vec(&broker.configuration_v2(auth)?)
                 .map_err(|_| p::Error("host configuration response failed".into()))?
+        }
+        ("POST", "/v1/host/configuration") if matches!(domain, EndpointDomain::Configuration) => {
+            let value: serde_json::Value = serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("host configuration body is invalid".into()))?;
+            if value
+                .get("schema_version")
+                .and_then(serde_json::Value::as_u64)
+                == Some(u64::from(p::PRODUCT_SETTINGS_SCHEMA_VERSION.0))
+            {
+                let patch: p::ProductConfigPatchV2 = serde_json::from_value(value)
+                    .map_err(|_| p::Error("host settings v2 body is invalid".into()))?;
+                serde_json::to_vec(&broker.apply_configuration_v2(auth, patch)?)
+                    .map_err(|_| p::Error("host configuration response failed".into()))?
+            } else {
+                let patch: p::ProductConfigPatch = serde_json::from_value(value)
+                    .map_err(|_| p::Error("host configuration body is invalid".into()))?;
+                serde_json::to_vec(&broker.apply_configuration(auth, patch)?)
+                    .map_err(|_| p::Error("host configuration response failed".into()))?
+            }
         }
         ("POST", "/v1/host/configuration/owner")
             if matches!(domain, EndpointDomain::Configuration) =>
@@ -285,6 +302,7 @@ fn is_configuration_path(path: &str) -> bool {
     matches!(
         path,
         "/v1/host/configuration"
+            | "/v1/host/configuration/v2"
             | "/v1/host/configuration/owner"
             | "/v1/host/configuration/validate"
             | "/v1/host/configuration/activate"

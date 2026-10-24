@@ -138,7 +138,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             auth.actor,
             now,
         )?;
-        let receipt = match self.apply_maintenance(&command, &operation) {
+        let receipt = match self.apply_maintenance(&command, &operation, now) {
             Ok(receipt) => receipt,
             Err(error) => {
                 self.journal.require_recovery(

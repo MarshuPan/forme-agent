@@ -8,12 +8,12 @@ use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
 use super::reject_linked_ancestors;
-
+#[path = "network_journal.rs"]
+mod network_journal;
 mod verification;
 
 const MAX_JOURNAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = 64 * 1024;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "record", rename_all = "snake_case", deny_unknown_fields)]
 enum JournalFact {
@@ -29,6 +29,8 @@ enum JournalFact {
         references: p::MaintenanceReferences,
         actor: p::MaintenanceActorClass,
         at: p::Timestamp,
+        #[serde(default)]
+        network_contract: Option<u32>,
     },
     StageIntent {
         operation_id: String,
@@ -40,6 +42,13 @@ enum JournalFact {
         operation_id: String,
         stage: p::MaintenanceStage,
         receipts: Vec<p::SchemaDigest>,
+        at: p::Timestamp,
+        #[serde(default)]
+        network_result: Option<p::ProductNetworkResult>,
+    },
+    NetworkProgress {
+        operation_id: String,
+        progress: p::ProductNetworkProgress,
         at: p::Timestamp,
     },
     RecoveryRequired {
@@ -73,6 +82,8 @@ impl JournalEnvelope {
 struct OperationState {
     command: p::MaintenanceCommand,
     view: p::MaintenanceOperation,
+    network_contract: bool,
+    network_progress: Option<p::ProductNetworkProgress>,
 }
 
 #[derive(Clone, Default)]
@@ -132,6 +143,7 @@ impl Projection {
                 references,
                 actor,
                 at,
+                network_contract,
             } => {
                 command.validate()?;
                 references.validate(&command.kind)?;
@@ -167,7 +179,10 @@ impl Projection {
                             backup_ref: references.backup_ref.clone(),
                             receipts: Vec::new(),
                             failure_ref: None,
+                            network_result: None,
                         },
+                        network_contract: *network_contract == Some(1),
+                        network_progress: None,
                     },
                 );
             }
@@ -200,6 +215,7 @@ impl Projection {
                 operation_id,
                 stage,
                 receipts,
+                network_result,
                 ..
             } => {
                 let state = self
@@ -218,13 +234,28 @@ impl Projection {
                 for receipt in receipts {
                     p::validate_product_digest(receipt)?;
                 }
+                network_journal::validate_stage_receipt(state, *stage, network_result.as_ref())?;
                 state.view.stage = *stage;
                 state.view.pending_stage = None;
                 state
                     .view
                     .receipts
                     .extend(receipts.iter().map(|r| r.0.clone()));
+                if network_result.is_some() {
+                    state.view.network_result = network_result.clone();
+                }
                 state.view.revision = envelope.product_seq;
+            }
+            JournalFact::NetworkProgress {
+                operation_id,
+                progress,
+                ..
+            } => {
+                let state = self
+                    .operations
+                    .get_mut(operation_id)
+                    .ok_or_else(invalid_journal)?;
+                network_journal::apply_progress(state, progress, envelope.product_seq)?;
             }
             JournalFact::RecoveryRequired {
                 operation_id,
@@ -433,6 +464,7 @@ impl ProductJournal {
         }
         let expected = command.expected_revision;
         let id = command.operation_id.clone();
+        let network_contract = matches!(command.kind, p::MaintenanceKind::ConfigureLan { .. });
         write_fact(
             &mut writer,
             expected,
@@ -441,6 +473,7 @@ impl ProductJournal {
                 references,
                 actor,
                 at: now,
+                network_contract: network_contract.then_some(1),
             },
         )?;
         Ok(writer
@@ -479,6 +512,14 @@ impl ProductJournal {
         receipts: Vec<p::SchemaDigest>,
         now: p::Timestamp,
     ) -> p::Result<()> {
+        let network_result = self
+            .writer
+            .lock()
+            .map_err(|_| storage_error())?
+            .projection
+            .operations
+            .get(id)
+            .and_then(|operation| operation.view.network_result.clone());
         self.append(
             expected,
             JournalFact::StageReceipt {
@@ -486,9 +527,11 @@ impl ProductJournal {
                 stage,
                 receipts,
                 at: now,
+                network_result,
             },
         )
     }
+
     pub fn require_recovery(
         &self,
         id: &str,

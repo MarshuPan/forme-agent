@@ -1,7 +1,7 @@
 //! Authenticated product configuration routes.
 use std::sync::Arc;
 
-use axum::extract::{rejection::JsonRejection, Path, State};
+use axum::extract::{rejection::JsonRejection, Path, Query, State};
 use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -17,7 +17,8 @@ use crate::web::identity::{
 #[serde(deny_unknown_fields)]
 pub(super) struct ProductConfigBody {
     schema_version: p::SchemaVersion,
-    operation_id: String,
+    #[serde(rename = "operation_id")]
+    _operation_id: String,
     expected_revision: u64,
     models: Vec<p::ProductModelProfilePatch>,
     #[serde(default)]
@@ -26,6 +27,43 @@ pub(super) struct ProductConfigBody {
     capabilities: Option<p::ProductCapabilitySettings>,
     #[serde(default)]
     network: Option<p::ProductNetworkConfig>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ProductConfigBodyV2 {
+    schema_version: p::SchemaVersion,
+    #[serde(rename = "operation_id")]
+    _operation_id: String,
+    expected_revision: u64,
+    models: Vec<p::ProductModelProfilePatch>,
+    #[serde(default)]
+    brain: Option<p::ProductBrainPreferences>,
+    #[serde(default)]
+    capabilities: Option<p::ProductCapabilitySettings>,
+    #[serde(default)]
+    network: Option<p::ProductNetworkSettingsPatch>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct SettingsQuery {
+    #[serde(default = "legacy_settings_version")]
+    schema_version: p::SchemaVersion,
+}
+
+fn legacy_settings_version() -> p::SchemaVersion {
+    p::PRODUCT_CONFIG_SCHEMA_VERSION
+}
+
+fn settings_version(version: p::SchemaVersion) -> Result<(), WebError> {
+    p::validate_product_settings_schema(version).map_err(|_| {
+        WebError::new(
+            axum::http::StatusCode::UPGRADE_REQUIRED,
+            "UnsupportedVersion",
+            "设置协议版本不受支持，请更新页面或服务",
+        )
+    })
 }
 
 #[derive(Deserialize)]
@@ -83,53 +121,100 @@ pub(super) async fn owner(
 pub(super) async fn read(
     State(state): State<Arc<WebState>>,
     headers: HeaderMap,
+    Query(query): Query<SettingsQuery>,
 ) -> Result<Response, WebError> {
     client(&state)?;
     let owner = owner(&state, &headers, false).await?;
-    let view = state
-        .configuration_call(|configuration| configuration.snapshot())
-        .await?;
-    if view
-        .owner
-        .as_ref()
-        .is_some_and(|bound| bound != &owner.view().owner)
-    {
-        return Err(AuthError::Unauthenticated.into());
+    settings_version(query.schema_version)?;
+    if query.schema_version == p::PRODUCT_SETTINGS_SCHEMA_VERSION {
+        let view = state
+            .configuration_call(|configuration| configuration.snapshot_v2())
+            .await?;
+        if view
+            .owner
+            .as_ref()
+            .is_some_and(|bound| bound != &owner.view().owner)
+        {
+            return Err(AuthError::Unauthenticated.into());
+        }
+        Ok(Json(view).into_response())
+    } else {
+        let view = state
+            .configuration_call(|configuration| configuration.snapshot())
+            .await?;
+        if view
+            .owner
+            .as_ref()
+            .is_some_and(|bound| bound != &owner.view().owner)
+        {
+            return Err(AuthError::Unauthenticated.into());
+        }
+        Ok(Json(view).into_response())
     }
-    Ok(Json(view).into_response())
 }
 
 pub(super) async fn write(
     State(state): State<Arc<WebState>>,
     headers: HeaderMap,
-    body: Result<Json<ProductConfigBody>, JsonRejection>,
+    body: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Result<Response, WebError> {
     client(&state)?;
     let operation_id = auth::key(&headers)?.to_owned();
     let owner = owner(&state, &headers, true).await?;
-    let body = auth::json(body)?;
-    auth::version(body.schema_version)?;
-    if body.operation_id != operation_id {
+    let value = auth::json(body)?;
+    let schema_version = value
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|value| u32::try_from(value).ok())
+        .map(p::SchemaVersion)
+        .ok_or_else(WebError::invalid)?;
+    settings_version(schema_version)?;
+    if value
+        .get("operation_id")
+        .and_then(serde_json::Value::as_str)
+        != Some(operation_id.as_str())
+    {
         return Err(WebError::new(
             axum::http::StatusCode::CONFLICT,
             "Conflict",
             "配置操作标识与请求绑定不一致",
         ));
     }
-    let patch = p::ProductConfigPatch {
-        schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-        operation_id,
-        expected_revision: body.expected_revision,
-        owner: owner.view().owner.clone(),
-        models: body.models,
-        brain: body.brain,
-        capabilities: body.capabilities,
-        network: body.network,
-    };
-    let response = state
-        .configuration_call(move |configuration| configuration.apply(patch))
-        .await?;
-    Ok(Json(response).into_response())
+    if schema_version == p::PRODUCT_SETTINGS_SCHEMA_VERSION {
+        let body: ProductConfigBodyV2 =
+            serde_json::from_value(value).map_err(|_| WebError::invalid())?;
+        let patch = p::ProductConfigPatchV2 {
+            schema_version: body.schema_version,
+            operation_id,
+            expected_revision: body.expected_revision,
+            owner: owner.view().owner.clone(),
+            models: body.models,
+            brain: body.brain,
+            capabilities: body.capabilities,
+            network: body.network,
+        };
+        let response = state
+            .configuration_call(move |configuration| configuration.apply_v2(patch))
+            .await?;
+        Ok(Json(response).into_response())
+    } else {
+        let body: ProductConfigBody =
+            serde_json::from_value(value).map_err(|_| WebError::invalid())?;
+        let patch = p::ProductConfigPatch {
+            schema_version: body.schema_version,
+            operation_id,
+            expected_revision: body.expected_revision,
+            owner: owner.view().owner.clone(),
+            models: body.models,
+            brain: body.brain,
+            capabilities: body.capabilities,
+            network: body.network,
+        };
+        let response = state
+            .configuration_call(move |configuration| configuration.apply(patch))
+            .await?;
+        Ok(Json(response).into_response())
+    }
 }
 
 pub(super) async fn validate(

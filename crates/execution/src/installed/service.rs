@@ -45,6 +45,19 @@ pub trait NativeServiceManager: Send + Sync {
             "LAN Web exposure requires a verified firewall reconciliation adapter".into(),
         ))
     }
+
+    fn supports_web_health(&self) -> bool {
+        false
+    }
+
+    fn probe_web_listener(
+        &self,
+        _network: &p::ProductNetworkConfig,
+        _expected_listener_digest: &p::SchemaDigest,
+        _nonce: &str,
+    ) -> p::Result<p::ProductNetworkHealthObservation> {
+        Err(p::Error("managed Web health probe is unavailable".into()))
+    }
 }
 
 /// Calls only native service-management APIs with closed arguments. It neither
@@ -52,6 +65,19 @@ pub trait NativeServiceManager: Send + Sync {
 pub struct SystemServiceManager;
 
 impl NativeServiceManager for SystemServiceManager {
+    fn supports_web_health(&self) -> bool {
+        true
+    }
+
+    fn probe_web_listener(
+        &self,
+        network: &p::ProductNetworkConfig,
+        expected_listener_digest: &p::SchemaDigest,
+        nonce: &str,
+    ) -> p::Result<p::ProductNetworkHealthObservation> {
+        super::web_health::probe(network, expected_listener_digest, nonce)
+    }
+
     fn supports_firewall_reconciliation(&self) -> bool {
         #[cfg(windows)]
         {

@@ -14,6 +14,7 @@ import { Maintenance } from './Maintenance.tsx';
 import { RuntimeDiagnostics } from './RuntimeDiagnostics.tsx';
 import { BrainPreferences } from './BrainPreferences.tsx';
 import { SkillSettings } from './SkillSettings.tsx';
+import { ConfigurationAvailability } from './ConfigurationAvailability.tsx';
 import type { MaterialLifecycleTarget } from '../memory-material.ts';
 
 
@@ -52,6 +53,7 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
       {runtime && <><dl><div><dt>工作空间</dt><dd>{runtime.workspace}</dd></div><div><dt>可用模型配置</dt><dd>{runtime.model_profiles.join('、')}</dd></div></dl><ul className="service-list">{runtime.service_states.map((service) => <li key={service.name}><span>{service.name}</span><span>{service.status}</span></li>)}</ul></>}
       {!runtime && <p className="notice">账号服务仍可使用。请检查本机主脑服务和安装配置；这里不会另建一个空主脑。</p>}
     </article><RuntimeDiagnostics api={api} runtime={runtime} /><article className="surface"><h2>主脑与入口配置</h2><p className="muted">密钥只写入本机受保护存储，不会回显到页面、浏览器存储或日志。</p>
+      <ConfigurationAvailability value={config?.availability} />
       <ProductConfigEditor api={api} config={config} loading={configLoading} error={configError} busy={configBusy} onReload={() => void loadConfig()} onBusy={setConfigBusy} onError={setConfigError} onSaved={setConfig} />
       <ConfigurationActivation api={api} config={config} coreConnected={Boolean(runtime)} onSaved={setConfig} refresh={refresh} />
       <NetworkConfigurationActivation api={api} config={config} onSaved={setConfig} refresh={refresh} />
@@ -142,8 +144,10 @@ function NetworkSettings({ value, active, disabled, onChange }: { value: Product
   const lan = !isLoopback(value.bind);
   const hosts = value.allowed_hosts.join('\n');
   function update(change: Partial<ProductNetworkConfig>) { onChange({ ...value, ...change }); }
-  function updateTls(change: Partial<NonNullable<ProductNetworkConfig['tls']>>) {
-    onChange({ ...value, tls: { schema_version: 1, certificate_path: '', private_key_path: '', ...value.tls, ...change } });
+  function updateTls(enabled: boolean) {
+    onChange({ ...value, tls: enabled
+      ? { schema_version: 1, material_ref: 'managed:web', material_configured: value.tls?.material_configured ?? false }
+      : null, ...(enabled ? {} : { allowed_hosts: [] }) });
   }
   return <section className="network-settings"><h3>Web 网络入口</h3>
     <p className="muted">默认只监听本机。启用 LAN 时必须使用明确的 IP、HTTPS、精确 Host（含端口）和已验证防火墙规则；保存后还要单独应用。规则由管理员预先配置，ForMe 不自动修改防火墙。</p>
@@ -152,11 +156,10 @@ function NetworkSettings({ value, active, disabled, onChange }: { value: Product
       <label>监听地址<input value={value.bind} onChange={(event) => update({ bind: event.target.value, ...(isLoopback(event.target.value) ? { firewall: null } : {}) })} required disabled={disabled} placeholder="127.0.0.1:8765" /></label>
       <label className="wide-field">允许的 Host（每行一个，必须含端口）<textarea value={hosts} onChange={(event) => update({ allowed_hosts: event.target.value.split(/[,\n]/).map((host) => host.trim()).filter(Boolean) })} disabled={disabled} placeholder={lan ? '192.168.1.20:8765' : '留空表示本机 HTTP'} rows={2} /></label>
     </div>
-    <label className="checkbox-label"><input type="checkbox" checked={value.tls !== null} onChange={(event) => event.target.checked ? updateTls({}) : update({ tls: null, allowed_hosts: [] })} disabled={disabled} />启用 HTTPS（LAN 必须启用）</label>
-    {value.tls && <div className="form-grid">
-      <label className="wide-field">证书路径<input value={value.tls.certificate_path} onChange={(event) => updateTls({ certificate_path: event.target.value })} required disabled={disabled} /></label>
-      <label className="wide-field">私钥路径<input value={value.tls.private_key_path} onChange={(event) => updateTls({ private_key_path: event.target.value })} required disabled={disabled} /></label>
-    </div>}
+    <label className="checkbox-label"><input type="checkbox" checked={value.tls !== null} onChange={(event) => updateTls(event.target.checked)} disabled={disabled} />启用 HTTPS（LAN 必须启用）</label>
+    {value.tls && <p className={value.tls.material_configured ? 'status-pill' : 'notice'}>
+      受管 Web TLS 材料：{value.tls.material_configured ? '已配置' : '未配置'}。浏览器不会读取或提交证书、私钥路径；请由安装器或 hostctl 管理材料。
+    </p>}
     {lan && <label>防火墙规则标识<input value={value.firewall?.rule_ref ?? ''} onChange={(event) => update({ firewall: event.target.value ? { schema_version: 1, rule_ref: event.target.value } : null })} required disabled={disabled} placeholder="firewall:forme-web-lan" /></label>}
     {!lan && <p className="muted">当前是 loopback；不会要求防火墙规则。切换到 LAN 前请先准备受管 Web 证书材料。</p>}
   </section>;

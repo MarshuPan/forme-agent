@@ -11,8 +11,8 @@ try {
         $code = $LASTEXITCODE
     } finally { $ErrorActionPreference = $previous }
     $output | ForEach-Object { Write-Host $_ }
-    if ($code -ne 0 -or @($output | Where-Object { $_ -match '^test result: ok\. 52 passed; 0 failed; 0 ignored;' }).Count -ne 1) {
-        throw 'Product configuration state/activation/maintenance/skills/network tests did not execute exactly 52 cases'
+    if ($code -ne 0 -or @($output | Where-Object { $_ -match '^test result: ok\. 60 passed; 0 failed; 0 ignored;' }).Count -ne 1) {
+        throw 'Product configuration state/activation/maintenance/skills/network/settings tests did not execute exactly 60 cases'
     }
     & cargo test --locked -p forme-execution --test installed_network_fence
     if ($LASTEXITCODE -ne 0) { throw 'Durable network transition admission failed' }

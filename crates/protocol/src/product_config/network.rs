@@ -5,6 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::{Component, Path, PathBuf};
 
 pub const PRODUCT_NETWORK_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
+pub const PRODUCT_NETWORK_MATERIAL_REF: &str = "managed:web";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -31,6 +32,87 @@ pub struct ProductFirewallBinding {
     pub rule_ref: String,
 }
 
+/// Public settings v2 never carries a certificate or private-key path. The
+/// host resolves the fixed managed material reference inside its own store.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductNetworkSettingsPatch {
+    pub schema_version: SchemaVersion,
+    pub bind: SocketAddr,
+    pub allowed_hosts: Vec<String>,
+    pub tls: Option<ProductNetworkTlsSettingsPatch>,
+    pub firewall: Option<ProductFirewallBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductNetworkTlsSettingsPatch {
+    pub schema_version: SchemaVersion,
+    pub material_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductNetworkSettingsView {
+    pub schema_version: SchemaVersion,
+    pub bind: SocketAddr,
+    pub allowed_hosts: Vec<String>,
+    pub tls: Option<ProductNetworkTlsSettingsView>,
+    pub firewall: Option<ProductFirewallBinding>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProductNetworkTlsSettingsView {
+    pub schema_version: SchemaVersion,
+    pub material_ref: String,
+    pub material_configured: bool,
+}
+
+impl ProductNetworkSettingsPatch {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != PRODUCT_NETWORK_SCHEMA_VERSION {
+            return Err(Error("product network settings are invalid".into()));
+        }
+        validate_network_shape(
+            self.bind,
+            &self.allowed_hosts,
+            self.tls.is_some(),
+            self.firewall.as_ref(),
+        )?;
+        if let Some(tls) = &self.tls {
+            if tls.schema_version != PRODUCT_NETWORK_SCHEMA_VERSION
+                || tls.material_ref != PRODUCT_NETWORK_MATERIAL_REF
+            {
+                return Err(Error(
+                    "product network TLS material reference is invalid".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl ProductNetworkSettingsView {
+    pub fn from_internal(
+        network: &ProductNetworkConfig,
+        material_configured: bool,
+    ) -> Result<Self> {
+        network.validate()?;
+        Ok(Self {
+            schema_version: PRODUCT_NETWORK_SCHEMA_VERSION,
+            bind: network.bind,
+            allowed_hosts: network.allowed_hosts.clone(),
+            tls: network.tls.as_ref().map(|_| ProductNetworkTlsSettingsView {
+                schema_version: PRODUCT_NETWORK_SCHEMA_VERSION,
+                material_ref: PRODUCT_NETWORK_MATERIAL_REF.into(),
+                material_configured,
+            }),
+            firewall: network.firewall.clone(),
+        })
+    }
+}
+
 impl ProductNetworkConfig {
     pub fn loopback(bind: SocketAddr) -> Self {
         Self {
@@ -43,14 +125,15 @@ impl ProductNetworkConfig {
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.schema_version != PRODUCT_NETWORK_SCHEMA_VERSION
-            || self.bind.port() == 0
-            || self.bind.ip().is_unspecified()
-            || self.bind.ip().is_multicast()
-        {
+        if self.schema_version != PRODUCT_NETWORK_SCHEMA_VERSION {
             return Err(Error("product network configuration is invalid".into()));
         }
-        validate_product_network_hosts(&self.allowed_hosts, self.bind.port())?;
+        validate_network_shape(
+            self.bind,
+            &self.allowed_hosts,
+            self.tls.is_some(),
+            self.firewall.as_ref(),
+        )?;
         if let Some(tls) = &self.tls {
             if tls.schema_version != PRODUCT_NETWORK_SCHEMA_VERSION
                 || tls.certificate_path == tls.private_key_path
@@ -109,6 +192,41 @@ impl ProductNetworkConfig {
         self.validate()?;
         crate::canonical_digest(&("forme-product-network-validation-v1", self))
     }
+}
+
+fn validate_network_shape(
+    bind: SocketAddr,
+    allowed_hosts: &[String],
+    tls_configured: bool,
+    firewall: Option<&ProductFirewallBinding>,
+) -> Result<()> {
+    if bind.port() == 0 || bind.ip().is_unspecified() || bind.ip().is_multicast() {
+        return Err(Error("product network configuration is invalid".into()));
+    }
+    validate_product_network_hosts(allowed_hosts, bind.port())?;
+    if !tls_configured && !allowed_hosts.is_empty() {
+        return Err(Error(
+            "product network hosts require an HTTPS configuration".into(),
+        ));
+    }
+    if let Some(firewall) = firewall {
+        if firewall.schema_version != PRODUCT_NETWORK_SCHEMA_VERSION {
+            return Err(Error("product firewall binding is invalid".into()));
+        }
+        validate_product_id(&firewall.rule_ref)?;
+    }
+    if bind.ip().is_loopback() {
+        if firewall.is_some() {
+            return Err(Error(
+                "loopback Web configuration must not require a firewall rule".into(),
+            ));
+        }
+    } else if !tls_configured || allowed_hosts.is_empty() || firewall.is_none() {
+        return Err(Error(
+            "LAN Web configuration requires HTTPS, hosts and a firewall binding".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Validate the exact Host authorities accepted by both the product config
@@ -280,5 +398,31 @@ mod tests {
         let mut network = lan();
         network.allowed_hosts = vec!["[2001:db8::1]:8765".into()];
         assert!(network.validate().is_ok());
+    }
+
+    #[test]
+    fn public_network_settings_expose_managed_material_without_paths() {
+        let view = ProductNetworkSettingsView::from_internal(&lan(), true).unwrap();
+        let encoded = serde_json::to_value(view).unwrap();
+        assert_eq!(encoded["tls"]["material_ref"], "managed:web");
+        assert_eq!(encoded["tls"]["material_configured"], true);
+        assert!(encoded["tls"].get("certificate_path").is_none());
+        assert!(encoded["tls"].get("private_key_path").is_none());
+
+        let patch = ProductNetworkSettingsPatch {
+            schema_version: PRODUCT_NETWORK_SCHEMA_VERSION,
+            bind: lan().bind,
+            allowed_hosts: lan().allowed_hosts,
+            tls: Some(ProductNetworkTlsSettingsPatch {
+                schema_version: PRODUCT_NETWORK_SCHEMA_VERSION,
+                material_ref: PRODUCT_NETWORK_MATERIAL_REF.into(),
+            }),
+            firewall: lan().firewall,
+        };
+        let encoded = serde_json::to_value(patch).unwrap();
+        assert!(encoded.get("certificate_path").is_none());
+        assert!(encoded.get("private_key_path").is_none());
+        assert!(encoded["tls"].get("certificate_path").is_none());
+        assert!(encoded["tls"].get("private_key_path").is_none());
     }
 }

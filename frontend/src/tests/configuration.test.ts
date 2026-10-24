@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { activationRejectedBeforeDispatch, draftFromConfig, emptyModel, patchFromDraft } from '../configuration.ts';
 import { ApiError, WorkbenchClient } from '../api/client.ts';
 import { capabilitiesFromDraft, emptySkill } from '../skills.ts';
+import { settingFeatures } from '../settings-schema.ts';
 import type { ProductConfigView, ProductCoreActivation } from '../types.ts';
 
 test('saved model editing strips readonly fields and does not echo credentials', () => {
@@ -90,8 +91,9 @@ test('managed skill settings keep trust separate from enablement and preserve th
   const calls: RequestInit[] = [];
   const api = new WorkbenchClient(async (_path, init) => {
     calls.push(init!);
-    return Response.json({ schema_version: 1, view: {
-      schema_version: 1, install_ref: 'install:fixture', owner: 'owner:fixture', active_revision: 2,
+    return Response.json({ schema_version: 2, view: {
+      schema_version: 2, install_ref: 'install:fixture', owner: 'owner:fixture', active_revision: 2,
+      availability: { schema_version: 1, features: settingFeatures.map((feature) => ({ schema_version: 1, feature, state: 'configurable', reason: null })) },
       acknowledged_revision: null, pending_restart: true, configured: true, models: [], issue_refs: [],
       brain: { schema_version: 1, default_workspace: 'workspace:default', model_routing: { schema_version: 1, foreground: null, cognition: null } },
       brain_source: 'managed_configuration', capabilities, capabilities_source: 'managed_configuration',

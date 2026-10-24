@@ -7,7 +7,10 @@ use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{canonical_digest, DurationMs, Error, Result, SchemaDigest, SchemaVersion, Timestamp};
+use crate::{
+    canonical_digest, DurationMs, Error, ProductNetworkResult, Result, SchemaDigest, SchemaVersion,
+    Timestamp,
+};
 mod worker;
 pub use worker::*;
 mod restore;
@@ -673,6 +676,8 @@ pub struct MaintenanceOperation {
     pub backup_ref: Option<String>,
     pub receipts: Vec<String>,
     pub failure_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub network_result: Option<ProductNetworkResult>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

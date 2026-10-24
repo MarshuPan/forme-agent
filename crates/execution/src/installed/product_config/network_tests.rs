@@ -4,11 +4,13 @@ use super::{
     *,
 };
 use crate::installed::{HostCredentials, NativeServiceManager, ProductHostBroker};
+use ed25519_dalek::Signer;
 use std::sync::Arc;
 
 const WEB: &str = "network-fixture-web-abcdefghijklmnopqrstuvwxyz";
 const ADMIN: &str = "network-fixture-admin-abcdefghijklmnopqrstuvwxyz";
 const AGENT: &str = "network-fixture-agent-abcdefghijklmnopqrstuvwxyz";
+const INSTALL: &str = "install:config-test";
 const NOW: i64 = 1_000_000;
 
 #[derive(Clone, Default)]
@@ -21,9 +23,58 @@ struct Services {
     unknown_start: bool,
     unsupported_firewall: bool,
     rejected_preflight: bool,
+    unreachable_non_loopback: bool,
+    untrusted_health: bool,
+    wrong_health_nonce: bool,
+    wrong_health_installation: bool,
+    wrong_health_listener: bool,
+    wrong_health_signature: bool,
 }
 
 impl NativeServiceManager for Services {
+    fn supports_web_health(&self) -> bool {
+        true
+    }
+
+    fn probe_web_listener(
+        &self,
+        network: &p::ProductNetworkConfig,
+        expected_listener_digest: &p::SchemaDigest,
+        nonce: &str,
+    ) -> p::Result<p::ProductNetworkHealthObservation> {
+        if self.unreachable_non_loopback && !network.bind.ip().is_loopback() {
+            return Ok(p::ProductNetworkHealthObservation::Unreachable);
+        }
+        if self.untrusted_health {
+            return Ok(p::ProductNetworkHealthObservation::Untrusted);
+        }
+        let mut proof = p::ProductNetworkHealthProof {
+            schema_version: p::PRODUCT_NETWORK_HEALTH_SCHEMA_VERSION,
+            installation_digest: p::product_network_installation_digest(INSTALL)?,
+            listener_digest: expected_listener_digest.clone(),
+            nonce: nonce.to_owned(),
+            signature: Vec::new(),
+        };
+        if self.wrong_health_nonce {
+            proof.nonce = "00".repeat(32);
+        }
+        if self.wrong_health_installation {
+            proof.installation_digest =
+                p::product_network_installation_digest("install:other-test")?;
+        }
+        if self.wrong_health_listener {
+            proof.listener_digest = p::sha256_content_digest(b"wrong-listener");
+        }
+        proof.signature = tests::web_assertion_signing_key()
+            .sign(proof.signing_digest()?.0.as_bytes())
+            .to_bytes()
+            .to_vec();
+        if self.wrong_health_signature {
+            proof.signature[0] ^= 1;
+        }
+        Ok(p::ProductNetworkHealthObservation::Verified(proof))
+    }
+
     fn supports_firewall_reconciliation(&self) -> bool {
         !self.unsupported_firewall
     }
@@ -124,7 +175,7 @@ fn broker(
 ) -> ProductHostBroker<Services> {
     ProductHostBroker::open_with_service_manager_and_config(
         &root.join("network-maintenance.jsonl"),
-        "install:config-test",
+        INSTALL,
         HostCredentials::new(ADMIN.into(), Some(AGENT.into()))
             .unwrap()
             .with_web_configuration(Some(WEB.into()))
@@ -246,6 +297,120 @@ fn configure_lan_requires_a_bound_firewall_and_restarts_only_web() {
         ]
     );
     assert!(config.lock().unwrap().snapshot().unwrap().network_active);
+}
+
+#[test]
+fn ordinary_target_unreachable_rolls_back_to_verified_loopback() {
+    let (directory, _path, store) = fixture();
+    stage_lan(&store);
+    let config = Arc::new(store);
+    let services = Services {
+        unreachable_non_loopback: true,
+        ..Services::default()
+    };
+    let host = broker(directory.path(), config.clone(), services.clone());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+    let digest = config
+        .lock()
+        .unwrap()
+        .network_validation_digest(1, &p::OwnerPrincipalRef("owner:test".into()))
+        .unwrap();
+    let result = host
+        .owner_maintenance(&auth, maintenance_request(&host, &auth, 1, digest), NOW)
+        .unwrap();
+    let network_result = result.network_result.as_ref().unwrap();
+    assert_eq!(network_result.outcome, p::ProductNetworkOutcome::RolledBack);
+    assert_eq!(
+        network_result.active_bind,
+        "127.0.0.1:8771".parse().unwrap()
+    );
+    assert_eq!(
+        config.lock().unwrap().active_network().unwrap().bind,
+        "127.0.0.1:8771".parse().unwrap()
+    );
+    assert!(!config.lock().unwrap().snapshot().unwrap().network_active);
+    assert_eq!(services.firewall_calls.lock().unwrap().len(), 1);
+    assert_eq!(services.service_calls.lock().unwrap().len(), 4);
+}
+
+#[test]
+fn untrusted_target_health_requires_recovery_without_fallback() {
+    let (directory, _path, store) = fixture();
+    stage_lan(&store);
+    let config = Arc::new(store);
+    let services = Services {
+        untrusted_health: true,
+        ..Services::default()
+    };
+    let host = broker(directory.path(), config.clone(), services.clone());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+    let digest = config
+        .lock()
+        .unwrap()
+        .network_validation_digest(1, &p::OwnerPrincipalRef("owner:test".into()))
+        .unwrap();
+    let result = host
+        .owner_maintenance(&auth, maintenance_request(&host, &auth, 1, digest), NOW)
+        .unwrap();
+    assert_eq!(result.stage, p::MaintenanceStage::RecoveryRequired);
+    assert!(result.network_result.is_none());
+    assert_eq!(services.firewall_calls.lock().unwrap().len(), 1);
+    assert_eq!(services.service_calls.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn malformed_target_health_proofs_require_recovery_without_fallback() {
+    for (label, services) in [
+        (
+            "nonce",
+            Services {
+                wrong_health_nonce: true,
+                ..Services::default()
+            },
+        ),
+        (
+            "installation",
+            Services {
+                wrong_health_installation: true,
+                ..Services::default()
+            },
+        ),
+        (
+            "listener",
+            Services {
+                wrong_health_listener: true,
+                ..Services::default()
+            },
+        ),
+        (
+            "signature",
+            Services {
+                wrong_health_signature: true,
+                ..Services::default()
+            },
+        ),
+    ] {
+        let (directory, _path, store) = fixture();
+        stage_lan(&store);
+        let config = Arc::new(store);
+        let host = broker(directory.path(), config.clone(), services.clone());
+        let auth = host.authenticate_web_configuration(WEB).unwrap();
+        let digest = config
+            .lock()
+            .unwrap()
+            .network_validation_digest(1, &p::OwnerPrincipalRef("owner:test".into()))
+            .unwrap();
+        let result = host
+            .owner_maintenance(&auth, maintenance_request(&host, &auth, 1, digest), NOW)
+            .unwrap();
+        assert_eq!(
+            result.stage,
+            p::MaintenanceStage::RecoveryRequired,
+            "{label}"
+        );
+        assert!(result.network_result.is_none(), "{label}");
+        assert_eq!(services.service_calls.lock().unwrap().len(), 2, "{label}");
+    }
 }
 
 #[test]

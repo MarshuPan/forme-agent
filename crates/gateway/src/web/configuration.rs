@@ -49,6 +49,10 @@ impl LocalConfigurationClient {
         self.request("GET", "/v1/host/configuration", None::<&()>)
     }
 
+    pub(super) fn snapshot_v2(&self) -> p::Result<p::ProductConfigViewV2> {
+        self.request("GET", "/v1/host/configuration/v2", None::<&()>)
+    }
+
     pub(super) fn bind_owner(
         &self,
         operation_id: &str,
@@ -71,6 +75,13 @@ impl LocalConfigurationClient {
         &self,
         patch: p::ProductConfigPatch,
     ) -> p::Result<p::ProductConfigResponse> {
+        self.request("POST", "/v1/host/configuration", Some(&patch))
+    }
+
+    pub(super) fn apply_v2(
+        &self,
+        patch: p::ProductConfigPatchV2,
+    ) -> p::Result<p::ProductConfigResponseV2> {
         self.request("POST", "/v1/host/configuration", Some(&patch))
     }
 
@@ -126,6 +137,7 @@ impl LocalConfigurationClient {
         if !matches!(
             (method, path),
             ("GET", "/v1/host/configuration")
+                | ("GET", "/v1/host/configuration/v2")
                 | ("POST", "/v1/host/configuration")
                 | ("POST", "/v1/host/configuration/owner")
                 | ("POST", "/v1/host/configuration/validate")

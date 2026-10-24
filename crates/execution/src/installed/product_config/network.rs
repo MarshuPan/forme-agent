@@ -4,6 +4,18 @@ use rustls_pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
 use zeroize::Zeroizing;
 
 impl ProductConfigStore {
+    pub(crate) fn installation_ref(&self) -> &str {
+        &self.template.install_ref
+    }
+
+    pub(crate) fn web_assertion_verifying_key(&self) -> [u8; 32] {
+        self.template.core_web_assertion_verifying_key
+    }
+
+    pub(crate) fn loopback_network(&self) -> p::ProductNetworkConfig {
+        p::ProductNetworkConfig::loopback(self.template.web_bind)
+    }
+
     pub(crate) fn network_is_managed(&self) -> bool {
         self.template.web_network_config_path.is_some()
     }
@@ -69,6 +81,33 @@ impl ProductConfigStore {
         }
         serde_json::from_slice(&materialize::web_network_bytes(&self.template, reference)?)
             .map_err(|_| invalid())
+    }
+
+    /// Publish only the installation loopback overlay. Desired settings remain
+    /// untouched, so a later owner operation may retry the approved target.
+    pub(crate) fn publish_loopback(
+        &mut self,
+        operation: &str,
+        failure: &p::SchemaDigest,
+    ) -> p::Result<()> {
+        self.recover()?;
+        self.verify_published()?;
+        let network = self.loopback_network();
+        let fallback_operation = format!("{operation}.fallback");
+        p::validate_product_id(&fallback_operation)?;
+        let digest = p::canonical_digest(&(
+            "forme-product-network-fallback-v1",
+            operation,
+            failure,
+            &network,
+        ))?;
+        let reference = materialize::stage_with_network(&self.template, &self.state, &network)?;
+        self.journal.prepare(Intent {
+            operation: fallback_operation,
+            digest,
+            snapshot: reference,
+        })?;
+        self.recover()
     }
 }
 

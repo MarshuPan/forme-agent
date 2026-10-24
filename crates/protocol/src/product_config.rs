@@ -306,6 +306,8 @@ pub struct ProductConfigView {
     pub network: ProductNetworkConfig,
     pub network_active: bool,
     pub network_source: ProductPreferenceSource,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub availability: Option<ProductConfigAvailability>,
     pub issue_refs: Vec<String>,
 }
 
@@ -378,8 +380,8 @@ impl ProductConfigAcknowledgement {
 
 impl ProductConfigPatch {
     pub fn validate(&self) -> Result<()> {
-        if self.schema_version != PRODUCT_CONFIG_SCHEMA_VERSION
-            || self.expected_revision > 1_000_000_000
+        validate_product_settings_schema(self.schema_version)?;
+        if self.expected_revision > 1_000_000_000
             || self.models.is_empty()
             || self.models.len() > 32
         {
@@ -510,3 +512,7 @@ mod capabilities;
 pub use capabilities::*;
 mod network;
 pub use network::*;
+mod health;
+pub use health::*;
+mod settings_schema;
+pub use settings_schema::*;

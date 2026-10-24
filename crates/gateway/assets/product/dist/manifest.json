@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "d921d5e3f2027668ff11a1dfa77f32cd6acfbe5c3ccd54f52c828c78de339f0e",
+  "source_digest": "276f99b0f0b9cd2ab179dd803e0a198b325523dbceb83d7892defc41da7f345a",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "92015f975c6409d89b2e5cf2a5e4589046ba82322cba0df48737f7288ad3987e"
+      "sha256": "a1bb625eb0c3f1537abe4adef85edb8f4062e32354e607f973cb20300b32dada"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -48,7 +48,11 @@
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
-      "sha256": "71837efee399bb2235bb525859c1a47218f42b6688fa2aa3b61947027552af75"
+      "sha256": "5565418e0f4e3e62b302a0f46a24fbefccf0513c16a99930a89990e18301d326"
+    },
+    {
+      "path": "frontend/src/components/ConfigurationAvailability.tsx",
+      "sha256": "3bd63d92f51c5d6c1658c97e30c9919539dc094f4c5cc9a49f1803b9430ce471"
     },
     {
       "path": "frontend/src/components/Conversation.tsx",
@@ -72,7 +76,7 @@
     },
     {
       "path": "frontend/src/components/NetworkConfigurationActivation.tsx",
-      "sha256": "eca2a77194903f887de803dce9a4e9f8da079a3a2f7a7b79aff2f99516b520ff"
+      "sha256": "8f627d72facd543a5e65e9c88c979ff8d165d40362c32fc4be811d513a591566"
     },
     {
       "path": "frontend/src/components/ProjectControls.tsx",
@@ -100,7 +104,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "ed8217b3f3f0bbda934c3ee8d2c1cd87b7ce68e0a4657e46372c360a86943831"
+      "sha256": "adb5dd94be863a0aa7e0fa2f89a40739a6711aaaa046a0fbee317a0e120f72b4"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -148,7 +152,7 @@
     },
     {
       "path": "frontend/src/maintenance.ts",
-      "sha256": "b06ce52629fffd15d89809dfc08f460b4ebc601ca1ab3df72fe27d07f4210136"
+      "sha256": "aac0fd68f52bd4c546c80d836813d64452a7f11d964cea99204fedb79346c4c5"
     },
     {
       "path": "frontend/src/memory-material.ts",
@@ -165,6 +169,10 @@
     {
       "path": "frontend/src/runtime-diagnostics.ts",
       "sha256": "c30e432e5e542483105be0efbeda3912c22cb837c6475311ce6d7de0399b0c1d"
+    },
+    {
+      "path": "frontend/src/settings-schema.ts",
+      "sha256": "1402356ad64c0eb421558e6ed142a37da9ea24fbac8bab414747c5d446399089"
     },
     {
       "path": "frontend/src/skills.ts",
@@ -184,7 +192,7 @@
     },
     {
       "path": "frontend/src/tests/configuration.test.ts",
-      "sha256": "4228f2627bb2923a66ed174ef84ec7118476da3d922056e142d9c6a4b6188c32"
+      "sha256": "52c521f14a70e829cc7bb3d75bb30387883fa382b3081ce8c49a68333f8c12ef"
     },
     {
       "path": "frontend/src/tests/conversation-view.test.ts",
@@ -212,7 +220,7 @@
     },
     {
       "path": "frontend/src/tests/maintenance.test.ts",
-      "sha256": "cd38b334f051c8bb2d78f94b0c043833c62a7135829472f0ac71657a5081ed52"
+      "sha256": "2a9bd3af98b4d4e4db6e6bd650cd6daa70ba907e9e3c48998f5c3bf00ac7d922"
     },
     {
       "path": "frontend/src/tests/memory-material.test.ts",
@@ -231,8 +239,12 @@
       "sha256": "f2c1396a44ce2ee707be1bd6056b230598f8f77d48dc991f213e9099e79832ab"
     },
     {
+      "path": "frontend/src/tests/settings-schema.test.ts",
+      "sha256": "6e16f1287d6ab0c4809d30b83fbd394ce1f91767c3fccf2d7c770c283425bc8e"
+    },
+    {
       "path": "frontend/src/types.ts",
-      "sha256": "594b458c4857fb8d8542ba81f6ec0b59a60c8da809815cd2ef2b776d5099117a"
+      "sha256": "bc86b9cb78c1c11c2bbc15143cf97f4ce58a57ca63b1124e1cc8778a7042254e"
     },
     {
       "path": "frontend/src/workbench.ts",
@@ -258,9 +270,9 @@
       "bytes": 14336
     },
     {
-      "path": "assets/index-DT-y7t7p.js",
-      "sha256": "898ccf2926a154b99fa66b34d6a28be71f12172d6568cb196991e7921539c185",
-      "bytes": 362314
+      "path": "assets/index-Cv_UX_1L.js",
+      "sha256": "76f293db2a678382e5e80672671bc1ff5ea967c7b3f1705167a4ac6202499f2f",
+      "bytes": 364892
     },
     {
       "path": "dependencies.json",
@@ -274,7 +286,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "17359c78db4be1a11a3fd1f9c3e90643dbd574c93015ba85d5a5d3ecb142ca3f",
+      "sha256": "6ca2b0d69dceb22df1c9d0d0f68bb6c6d053d035fc5b482b6b40c252e583fa4d",
       "bytes": 595
     },
     {

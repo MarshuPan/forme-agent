@@ -15,6 +15,7 @@ mod release;
 mod release_staging;
 mod restore_worker;
 mod service;
+mod web_health;
 mod worker;
 mod worker_config;
 

@@ -19,7 +19,7 @@ export const maintenanceComplete = (operation: ProductOperation) => operation.st
 
 export function configureNetworkCommand(config: ProductConfigView, validation: ProductConfigValidation,
   view: MaintenanceSnapshot, operation: string, now: number): MaintenanceCommand {
-  if (config.schema_version !== 1 || validation.schema_version !== 1 || view.schema_version !== 1 ||
+  if (![1, 2].includes(config.schema_version) || validation.schema_version !== 1 || view.schema_version !== 1 ||
       view.host.schema_version !== 1 || !config.configured || !config.owner || config.owner !== view.owner ||
       config.network_active || validation.revision !== config.active_revision || !validation.valid ||
       !view.host.allowed_operations.includes('configure_lan') ||
@@ -38,7 +38,7 @@ export function configureNetworkCommand(config: ProductConfigView, validation: P
 /** Candidate metadata is read-only server output. The Host still revalidates it. */
 export function restoreCommand(candidate: RestoreCandidate, config: ProductConfigView, view: MaintenanceSnapshot,
   operation: string, now: number): MaintenanceCommand {
-  if (candidate.schema_version !== 1 || config.schema_version !== 1 || view.schema_version !== 1 ||
+  if (candidate.schema_version !== 1 || ![1, 2].includes(config.schema_version) || view.schema_version !== 1 ||
       view.host.schema_version !== 1 || !config.configured || !config.owner || config.owner !== view.owner ||
       !Number.isSafeInteger(config.active_revision) || config.active_revision < 1 ||
       !Number.isSafeInteger(view.product_revision) || view.product_revision < 1 ||

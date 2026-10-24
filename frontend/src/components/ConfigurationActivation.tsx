@@ -33,9 +33,11 @@ export function ConfigurationActivation({ api, config, coreConnected, onSaved, r
     setBusy(true); setError(''); setOperation(null);
     try {
       const result = await api.activateProductConfig(pending.current, password);
-      onSaved(result.configuration); setOperation(result.operation); refresh();
+      setOperation(result.operation); refresh();
       if (result.operation.stage === 'committed' && result.operation.pending_stage === null) pending.current = null;
       else setNeedsProbe(true);
+      try { onSaved(await api.productConfig()); }
+      catch { setError('服务操作已返回原回执，配置状态刷新未完成，请重新读取。'); }
     } catch (problem) {
       // No automatic retry: the OS may already have received this operation.
       if (activationRejectedBeforeDispatch(problem)) { pending.current = null; setNeedsProbe(false); }

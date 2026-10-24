@@ -228,13 +228,60 @@ fn committed_network_releases_admission_without_changing_the_stage_protocol() {
     let path = directory.path().join("product.jsonl");
     let journal = ProductJournal::open(&path, "install:network-fence").unwrap();
     plan(&journal, "network:original", network());
-    for next in [
-        p::MaintenanceStage::Validated,
-        p::MaintenanceStage::Checking,
-        p::MaintenanceStage::Committed,
-    ] {
-        stage(&journal, next);
-    }
+    stage(&journal, p::MaintenanceStage::Validated);
+    journal
+        .begin_stage(
+            "network:original",
+            journal.revision().unwrap(),
+            p::MaintenanceStage::Checking,
+            p::MaintenanceActorClass::LocalAdministrator,
+            5,
+        )
+        .unwrap();
+    let requested_listener_digest = p::sha256_content_digest(b"requested-listener");
+    journal
+        .record_network_progress(
+            "network:original",
+            journal.revision().unwrap(),
+            p::ProductNetworkProgress {
+                schema_version: p::SchemaVersion(1),
+                phase: p::ProductNetworkProgressPhase::TargetIntent,
+                requested_listener_digest: requested_listener_digest.clone(),
+                active_bind: None,
+                active_listener_digest: None,
+                health_receipt_digest: None,
+                failure_ref: None,
+            },
+            6,
+        )
+        .unwrap();
+    let health_receipt_digest = p::sha256_content_digest(b"health-receipt");
+    journal
+        .record_network_progress(
+            "network:original",
+            journal.revision().unwrap(),
+            p::ProductNetworkProgress {
+                schema_version: p::SchemaVersion(1),
+                phase: p::ProductNetworkProgressPhase::TargetVerified,
+                requested_listener_digest,
+                active_bind: Some("127.0.0.1:8765".parse().unwrap()),
+                active_listener_digest: Some(p::sha256_content_digest(b"active-listener")),
+                health_receipt_digest: Some(health_receipt_digest.clone()),
+                failure_ref: None,
+            },
+            7,
+        )
+        .unwrap();
+    journal
+        .finish_stage(
+            "network:original",
+            journal.revision().unwrap(),
+            p::MaintenanceStage::Checking,
+            vec![health_receipt_digest],
+            8,
+        )
+        .unwrap();
+    stage(&journal, p::MaintenanceStage::Committed);
     assert_eq!(
         plan(&journal, "network:next", network()).stage,
         p::MaintenanceStage::Planned

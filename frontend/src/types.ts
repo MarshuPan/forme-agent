@@ -63,15 +63,22 @@ export interface ProductCapabilitySettings {
   schema_version: 1; skills: ProductSkillConfig[];
 }
 export interface ProductNetworkTls {
-  schema_version: 1; certificate_path: string; private_key_path: string;
+  schema_version: 1; material_ref: string; material_configured: boolean;
+}
+export interface ProductNetworkTlsPatch {
+  schema_version: 1; material_ref: string;
 }
 export interface ProductFirewallBinding { schema_version: 1; rule_ref: string }
 export interface ProductNetworkConfig {
   schema_version: 1; bind: string; allowed_hosts: string[];
   tls: ProductNetworkTls | null; firewall: ProductFirewallBinding | null;
 }
+export interface ProductNetworkConfigPatch {
+  schema_version: 1; bind: string; allowed_hosts: string[];
+  tls: ProductNetworkTlsPatch | null; firewall: ProductFirewallBinding | null;
+}
 export interface ProductConfigView {
-  schema_version: 1; install_ref: string; owner: string | null;
+  schema_version: 1 | 2; install_ref: string; owner: string | null;
   active_revision: number; acknowledged_revision: number | null; pending_restart: boolean;
   configured: boolean; models: ProductModelProfile[]; issue_refs: string[];
   brain: ProductBrainPreferences; brain_source: 'installation_template' | 'managed_configuration';
@@ -79,7 +86,14 @@ export interface ProductConfigView {
   capabilities_source?: 'installation_template' | 'managed_configuration';
   network: ProductNetworkConfig; network_active: boolean;
   network_source: 'installation_template' | 'managed_configuration';
+  availability?: ProductConfigAvailability;
 }
+export type ProductSettingFeature = 'models' | 'skills' | 'mcp' | 'plugins' | 'packages' | 'channels' | 'proxy' | 'network';
+export interface ProductSettingAvailability {
+  schema_version: 1; feature: ProductSettingFeature; state: 'configurable' | 'unavailable';
+  reason: 'managed_consumer_missing' | 'network_paths_missing' | null;
+}
+export interface ProductConfigAvailability { schema_version: 1; features: ProductSettingAvailability[] }
 export interface ProductConfigValidation {
   schema_version: 1; revision: number; valid: boolean; restart_required: boolean;
   network_validation_digest: string; model_test_status: 'NotRun'; issue_refs: string[];

@@ -9,6 +9,7 @@ mod core_routes;
 mod data;
 mod error;
 mod maintenance;
+mod network;
 mod proposal_controls;
 mod security;
 mod sessions;
@@ -43,6 +44,7 @@ pub(super) struct WebState {
     core: Option<Arc<crate::web::core::CoreBridgeClient>>,
     authorities: Vec<String>,
     secure: bool,
+    listener_digest: p::SchemaDigest,
     rate: Mutex<security::RateWindow>,
     reads: Arc<Semaphore>,
     passwords: Arc<Semaphore>,
@@ -224,6 +226,7 @@ fn router(state: Arc<WebState>) -> Router {
                 .post(configuration::write)
                 .layer(DefaultBodyLimit::max(256 * 1024)),
         )
+        .route("/api/v1/product/network/health", get(network::health))
         .route(
             "/api/v1/product/config/validate",
             post(configuration::validate),
@@ -384,6 +387,12 @@ where
             "plaintext Web ingress must remain loopback-only".into(),
         ));
     }
+    let authorities = if secure {
+        listener.authorities.clone()
+    } else {
+        vec![address.to_string()]
+    };
+    let listener_digest = p::product_network_listener_digest(address, &authorities, secure)?;
     let admission = Arc::new(WorkAdmission::default());
     let _close_on_drop = CloseWebAdmission(admission.clone());
     let state = Arc::new(WebState {
@@ -391,12 +400,9 @@ where
         bootstrap,
         configuration,
         core,
-        authorities: if secure {
-            listener.authorities.clone()
-        } else {
-            vec![address.to_string()]
-        },
+        authorities,
         secure,
+        listener_digest,
         rate: Mutex::new(security::RateWindow::new()),
         reads: Arc::new(Semaphore::new(16)),
         passwords: Arc::new(Semaphore::new(2)),

@@ -45,6 +45,29 @@ impl CoreBridgeClient {
         })
     }
 
+    pub(super) fn health_proof(
+        &self,
+        listener_digest: &p::SchemaDigest,
+        nonce: String,
+    ) -> p::Result<p::ProductNetworkHealthProof> {
+        let installation_digest = p::product_network_installation_digest(&self.install_ref)?;
+        let mut proof = p::ProductNetworkHealthProof {
+            schema_version: p::PRODUCT_NETWORK_HEALTH_SCHEMA_VERSION,
+            installation_digest,
+            listener_digest: listener_digest.clone(),
+            nonce,
+            signature: Vec::new(),
+        };
+        let digest = proof.signing_digest()?;
+        proof.signature = self
+            .signing_key
+            .sign(digest.0.as_bytes())
+            .to_bytes()
+            .to_vec();
+        proof.validate()?;
+        Ok(proof)
+    }
+
     pub(super) fn request(
         &self,
         binding: &CoreSessionBinding,

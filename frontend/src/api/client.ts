@@ -1,7 +1,7 @@
 import { isRecord, versioned } from '../types.ts';
 import type { ArtifactCatalogView } from '../types.ts';
 import type { ProjectSupervisionCommand, WorkspaceControlSnapshot } from '../types.ts';
-import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProductNetworkConfig, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductModelProfilePatch, ProductNetworkConfig, ProductNetworkConfigPatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductBrainPreferences, ProductCapabilitySettings, ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
 import { isWorkbenchProposal } from '../workbench.ts';
 import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
@@ -12,6 +12,7 @@ import { parseMaterialLifecycleTarget, parseMemoryMaterial } from '../memory-mat
 import type { WorkbenchItem } from '../workbench.ts';
 import { parseCorrectionReceipt, parseCorrectionsView } from '../correction.ts';
 import type { CognitionCorrection } from '../correction.ts';
+import { parseProductSettings } from '../settings-schema.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -78,13 +79,15 @@ export class WorkbenchClient {
     }
     return response;
   }
-  private async json<T>(path: string, method = 'GET', body?: unknown, key?: string): Promise<T> {
+  private async json<T>(path: string, method = 'GET', body?: unknown, key?: string, schema: 1 | 2 = 1): Promise<T> {
     const generation = this.generation;
     const response = await this.request(path, method, body, key);
     if (response.status === 204) return undefined as T;
     const value: unknown = await response.json();
     this.current(generation);
-    if (isRecord(value)) versioned(value);
+    if (schema === 2) {
+      if (!isRecord(value) || value.schema_version !== 2) throw new Error('设置协议不兼容，请更新页面或服务。');
+    } else if (isRecord(value)) versioned(value);
     if (Array.isArray(value)) for (const item of value) if (isRecord(item)) versioned(item);
     return value as T;
   }
@@ -123,12 +126,22 @@ export class WorkbenchClient {
   async password(old_password: string, new_password: string, operation: string) {
     await this.request('auth/password', 'PUT', { schema_version: 1, old_password, new_password }, operation); this.clear();
   }
-  productConfig() { return this.json<ProductConfigView>('product/config'); }
-  saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config'), brain?: ProductBrainPreferences, capabilities?: ProductCapabilitySettings, network?: ProductNetworkConfig) {
-    return this.json<{ schema_version: 1; view: ProductConfigView; applied: boolean; operation_id: string | null }>(
-      'product/config', 'POST', { schema_version: 1, operation_id: operation, expected_revision, models,
-        ...(brain ? { brain } : {}), ...(capabilities ? { capabilities } : {}), ...(network ? { network } : {}) }, operation,
+  async productConfig() {
+    return parseProductSettings(await this.json<unknown>('product/config?schema_version=2', 'GET', undefined, undefined, 2));
+  }
+  async saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config'), brain?: ProductBrainPreferences, capabilities?: ProductCapabilitySettings, network?: ProductNetworkConfig) {
+    const networkPatch: ProductNetworkConfigPatch | undefined = network && {
+      schema_version: network.schema_version,
+      bind: network.bind,
+      allowed_hosts: network.allowed_hosts,
+      tls: network.tls && { schema_version: network.tls.schema_version, material_ref: network.tls.material_ref },
+      firewall: network.firewall,
+    };
+    const response = await this.json<{ schema_version: 2; view: unknown; applied: boolean; operation_id: string | null }>(
+      'product/config', 'POST', { schema_version: 2, operation_id: operation, expected_revision, models,
+        ...(brain ? { brain } : {}), ...(capabilities ? { capabilities } : {}), ...(networkPatch ? { network: networkPatch } : {}) }, operation, 2,
     );
+    return { ...response, view: parseProductSettings(response.view) };
   }
   validateProductConfig(revision: number, operation = newKey('config-check')) {
     return this.json<ProductConfigValidation>('product/config/validate', 'POST', { schema_version: 1, revision }, operation);

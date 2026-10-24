@@ -566,6 +566,12 @@ async fn web_cancelled_request_keeps_password_capacity_until_real_work_finishes(
         identity,
         authorities: vec!["127.0.0.1:8765".into()],
         secure: false,
+        listener_digest: p::product_network_listener_digest(
+            "127.0.0.1:8765".parse().unwrap(),
+            &["127.0.0.1:8765".into()],
+            false,
+        )
+        .unwrap(),
         rate: Mutex::new(security::RateWindow::new()),
         reads: Arc::new(Semaphore::new(16)),
         passwords: Arc::new(Semaphore::new(1)),

@@ -1,7 +1,14 @@
 //! A single admitted network change, dispatched only after its response closes.
+use ed25519_dalek::{Signature, VerifyingKey};
 use forme_protocol as p;
 
 use super::{HostAuth, NativeServiceManager, ProductHostBroker};
+
+pub(super) enum NetworkHealthCheck {
+    Verified(p::SchemaDigest),
+    Unreachable,
+    Untrusted,
+}
 
 /// In-process, non-cloneable dispatch authority. A journal entry alone cannot
 /// recreate it after restart, response loss or a repeated POST.
@@ -13,6 +20,64 @@ pub struct PreparedOwnerNetwork {
 }
 
 impl<M: NativeServiceManager> ProductHostBroker<M> {
+    pub(super) fn network_listener_digest(
+        &self,
+        network: &p::ProductNetworkConfig,
+    ) -> p::Result<p::SchemaDigest> {
+        p::product_network_listener_digest(
+            network.bind,
+            &network.allowed_hosts,
+            network.tls.is_some(),
+        )
+    }
+
+    pub(super) fn probe_network_health(
+        &self,
+        config: &super::ProductConfigStore,
+        network: &p::ProductNetworkConfig,
+    ) -> p::Result<NetworkHealthCheck> {
+        let listener_digest = self.network_listener_digest(network)?;
+        let mut nonce_bytes = [0_u8; 32];
+        getrandom::fill(&mut nonce_bytes)
+            .map_err(|_| p::Error("Web health probe entropy is unavailable".into()))?;
+        let nonce = nonce_bytes
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let observation = self
+            .services
+            .probe_web_listener(network, &listener_digest, &nonce)?;
+        let proof = match observation {
+            p::ProductNetworkHealthObservation::Verified(proof) => proof,
+            p::ProductNetworkHealthObservation::Unreachable => {
+                return Ok(NetworkHealthCheck::Unreachable)
+            }
+            p::ProductNetworkHealthObservation::Untrusted => {
+                return Ok(NetworkHealthCheck::Untrusted)
+            }
+        };
+        let installation_digest =
+            p::product_network_installation_digest(config.installation_ref())?;
+        if proof.validate().is_err()
+            || proof.installation_digest != installation_digest
+            || proof.listener_digest != listener_digest
+            || proof.nonce != nonce
+        {
+            return Ok(NetworkHealthCheck::Untrusted);
+        }
+        let key = VerifyingKey::from_bytes(&config.web_assertion_verifying_key())
+            .map_err(|_| p::Error("Web health verification key is invalid".into()))?;
+        let signature = Signature::from_slice(&proof.signature)
+            .map_err(|_| p::Error("Web health signature is invalid".into()))?;
+        if key
+            .verify_strict(proof.signing_digest()?.0.as_bytes(), &signature)
+            .is_err()
+        {
+            return Ok(NetworkHealthCheck::Untrusted);
+        }
+        Ok(NetworkHealthCheck::Verified(p::canonical_digest(&proof)?))
+    }
+
     pub(super) fn network_change_available(&self) -> p::Result<bool> {
         let Some(config) = &self.product_config else {
             return Ok(false);
@@ -38,6 +103,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             return Ok(false);
         }
         if !config.network_is_managed() {
+            return Ok(false);
+        }
+        if !self.services.supports_web_health() {
             return Ok(false);
         }
         let desired = config.snapshot()?.network;

@@ -1,5 +1,10 @@
 use super::*;
+use ed25519_dalek::SigningKey;
 use std::fs;
+
+pub(crate) fn web_assertion_signing_key() -> SigningKey {
+    SigningKey::from_bytes(&[7; 32])
+}
 
 fn template(root: &Path) -> p::ProductConfigTemplate {
     p::ProductConfigTemplate {
@@ -12,7 +17,7 @@ fn template(root: &Path) -> p::ProductConfigTemplate {
         artifact_root: root.join("brain/artifacts"),
         core_owner_credential_path: root.join("keys/owner.token"),
         core_web_credential_path: root.join("keys/web.token"),
-        core_web_assertion_verifying_key: [3; 32],
+        core_web_assertion_verifying_key: web_assertion_signing_key().verifying_key().to_bytes(),
         core_session_fence_path: root.join("auth/fence.sqlite"),
         core_bind: "127.0.0.1:8770".parse().unwrap(),
         web_bind: "127.0.0.1:8771".parse().unwrap(),
