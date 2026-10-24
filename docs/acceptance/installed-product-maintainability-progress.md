@@ -54,3 +54,13 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 `63ecc43` 的完整统一源码门通过（158 suites、852 Rust tests、49 前端 tests、打包/签名/NTFS/完整合规）；维护分支补验的前端可重复 build、8 项 Python 结构/checkout tests、7 项真实 NTFS/hostctl 场景、打包/签名、最终 check/结构/合规/diff 门通过。原失败日志保留，不把拆分前的源码门冒充拆分后的单次总门。当前结构门 **578 文件、63 处历史规模债务**；没有刷新基线，也不声称大文件债务清零。
 
 日志分别为主工作区 `target/installed-product-quality-20261024-checkout.log`，维护 worktree 的 `target/harness-refactor-quality-final-20261024.log`、`harness-refactor-frontend-lf-20261024.log`、`harness-refactor-*-final-20261024.log`。完整 M5 已走到 S99：当前临时回执生成/验证通过，但仓库旧回执 compare 失败，**当前完整 M5 尚不记 PASS**，须在最终干净源码上更新回执并重验。原生安装、worker 隔离、跨平台和 IP01–IP24 仍按产品记录开放。
+
+## 8. Production composition 职责拆分（2026-10-24）
+
+`727e473` 将正式装配、服务状态、能力摘要和启动 doctor 事件四个完整函数移入 `production/composition.rs`（444 行），`production.rs` 从 3365 行降至 2926 行。只改变模块路径和私有可见性；将这些差异规范化后，四个函数与拆分前原文完全一致。公开 API、装配顺序、事务、事件和恢复逻辑保持。未刷新规模基线，63 处历史债务仍须后续处理。
+
+受管配置边界测试现为 2/2：除原有实际 loopback provider/后台认知/重启场景，新增 build_with_store 与普通 build 的相同装配证明；重复 writer 与外来 store 被拒，拒绝不生成模型调用或脑事件，外来 store 没有 authority。释放后重启保留原 store、aggregate 与 manifest。
+
+最终统一门 `pwsh -NoProfile -File tools/verify-code-quality.ps1` PASS：161 suites、868 Rust tests passed / 0 failed / 5 默认 ignored；strict Clippy、前端 54/54、bundle 9/9、打包输入 15/15、真实 Rust 签名验证 5/5、临时 NTFS 7/7、完整默认合规和 diff 检查通过。结构门 593 文件/63 处既有债务。验证启动后未修改源码；日志 `target/installed-product-evidence/composition-extraction-20261024/code-quality.log` 的 SHA-256 为 `BE865AA58DF22F117C23F0A17475C05C10194FDC5E4F428EAC01332AC86FBC87`。
+
+本次只完成维护拆分与其边界证据，不改变 IP 或发布状态；已确认的模型角色摘要绑定按独立行为变更继续实施，不能用本次纯拆分的回归代替其验收。

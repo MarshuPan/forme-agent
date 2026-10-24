@@ -6,6 +6,8 @@
 
 ## 1. 实施顺序与当前范围
 
+2026-10-24 `727e473` 完成正式 production composition 的纯职责拆分，原模块 3365→2926 行，独立装配模块 444 行；新增受管 store/重复 writer/外来 store 的否定边界测试。最终统一门 161 suites、868 Rust tests / 0 failed / 5 默认 ignored，前端 54/54、strict Clippy、完整合规及临时 NTFS 门通过，593 文件/63 处既有债务未增长。细节与日志摘要见[可维护性记录 §8](installed-product-maintainability-progress.md)。模型角色摘要的行为修正继续单独实施，完整产品里程碑未关闭。
+
 2026-10-24 `0990bd0` 完成默认 workspace、前台优先与后台相关性模型的 Host→正式 ProductionRuntime 配置链路，保持旧摘要/物化兼容、保存和恢复发布 CAS、Unknown 原操作核实以及离线灾备独立性。最终统一源码门 PASS：161 suites、867 passed / 0 failed / 5 默认 ignored，前端 54/54、strict Clippy、完整合规、592 源文件/63 规模债务未增长；配置专项 26 Host cases + 1 managed runtime + 2 实际进程/权限场景通过，冻结图/事件分类通过。浏览器检查和早期 Unknown 的证据边界见[默认工作空间与模型角色配置组件验收](installed-product-brain-preferences-acceptance.md)。完整能力/渠道/网络设置、原生服务与 IP08/IP21/IP24 仍开放，继续整体里程碑。
 
 2026-10-24 `de3c7b1` 通过统一源码门：160 suites、858 passed / 0 failed / 5 默认 ignored，strict Clippy/完整合规/结构门通过；前端 53/53，记忆来源材料专项 5 Rust cases、Web→core 1 个正式 runtime 场景、artifact 回归 5 cases 与 writer 回归通过。正文入口不接受任意 locator，读取不调用模型、不写脑事件、不创建 key；真实浏览器与 IP 仍未因此关闭。详见[记忆来源材料正文读取组件验收](installed-product-memory-material-acceptance.md)。
