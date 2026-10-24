@@ -6,6 +6,8 @@
 
 2026-10-25 `cce9ea6` 完成[独立发布 updater 与 live readiness](installed-product-release-updater-acceptance.md)：固定按需 `forme-release-updater`、原操作 takeover、三服务有界切换、Checking/Committed/RecoveryRequired 恢复、真实 loopback nonce 签名 proof 与 admission gate 已实现。宿主永久门、workspace check/test、strict Clippy、代码质量和合规门通过；这仍是 Windows 控制面与受控 live socket 证据，不是管理员 SCM 注册、签名安装包、Linux/macOS 原生服务或 IP01–IP24 证据。完整产品里程碑继续保持未关闭。
 
+2026-10-25 `a6e9a7c` 修复[设置可用性 fail-closed 展示](installed-product-settings-availability-readonly-acceptance.md)：旧安装缺少受管网络路径时，网络字段只读且不显示网络应用操作；模型/技能等已接通设置仍可按原事务保存。前端 76/76、workspace fmt/check/test（5 项按既定外部前置条件 ignored）、strict Clippy、代码质量与合规门通过。没有执行真实浏览器、管理员防火墙或 IP09/IP24 产品验收；PRD25/26 与整体产品里程碑仍开放。
+
 2026-10-24 `5cbe175` 完成 Windows `WindowsJobWorkerIsolation`：使用 Job Object 在 worker 首次执行前接管进程，启用 kill-on-close，取消和宿主退出可终止同一进程树；真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等，2/2 PASS。该提交只闭合 Windows 进程树生命周期 custody，不等于完整 sandbox；服务账户、ACL、逐 job 文件/网络/credential scope、会话 helper、原生安装和 IP10/IP24 仍开放。详见[Windows Job Object worker adapter 验收](installed-product-windows-job-object-acceptance.md)。
 
 2026-10-24 `780ec1e` 完成 Core→AgentExecution 的 typed driver 接缝：`WorkerExecutionSpec`、loopback-only `WorkerBrokerTransport`、job 专属 execution binding、精确 job/permit/plan 校验、Unknown/原 job probe-cancel 与进程入口传递已实现。协议专项 3/3、host transport 8/8、workspace check、strict Clippy、代码质量与合规门通过；workspace 全量 test 在 Windows 链接阶段因 C 盘空间不足（`No space left on device`）未完成，不能写成完整 workspace test PASS。该提交只闭合 wire/receipt/状态边界，不证明 ProductionRuntime 已接入真实平台隔离；普通 process worker、Windows/Linux/macOS 原生 sandbox、IP10/IP24、安装包和系统服务仍未完成。
