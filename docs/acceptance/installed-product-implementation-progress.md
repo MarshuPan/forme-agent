@@ -2,11 +2,13 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-最新施工分支：`shu/installed-product`，当前实现提交 `700bb6f`（模型角色绑定正式装配摘要），前笔 `0990bd0` 为默认工作空间与模型角色持久配置；此前 `de3c7b1` 完成记忆工作台来源材料正文的受绑定只读读取，`72db326` 完成只读运行诊断、对话历史/终态同步、本机恢复权限与安全依赖，`92a8820` 修正宿主 socket 的有界 IO，`a53557f` 完成项目监管与工作空间后续调整；`95b9d71` 为运行待决 Inbox 投影，`dd76f20` 补齐改密码操作幂等绑定，`56dbed1` 将会话 workspace 绑定到后续正式 run 上下文，`69ee763` 增加 owner 对运行未知结果的持久裁决与恢复。此前 `29a1790` 补齐会话产物历史，`e36b5b9` 补齐恢复候选工作台/发布重新认证；再前为 `5b99ac5`（恢复执行边界与 Host 提交准入）、`b16997c`（原生打包入口/POSIX 权限）、`92459a2`（离线恢复候选）、`20faeac`（签名暂存与维护）。验证日期 2026-10-24。主脑工作台 `477ef52`、权限分区 `29984a4`、配置闭合 `01b77f9` 为历史组件。本分支尚未替代 `main`；当前本机 shell 非管理员、未注册 forme 系统服务；未读取真实 owner/model secret。
+最新施工分支：`shu/installed-product`，当前实现提交 `802e3d2`（原子文字纠正、失效/低置信候选与无正文回执）；前笔 `91072be` 为具体记忆来源的真实遗忘，`700bb6f` 为模型角色装配绑定，`0990bd0` 为默认工作空间与模型角色持久配置。其余历史组件按下方记录保留。验证日期 2026-10-24。本分支尚未替代 `main`；当前本机 shell 非管理员、未注册 forme 系统服务；未读取真实 owner/model secret。
 
 ## 1. 实施顺序与当前范围
 
-2026-10-24 最新实现 `91072be` 将具体记忆的可信材料范围接到原 PrepareLifecycle/Apply：只读选择、版本绑定、显式预览/批准和真实清理均经正式主脑。统一门 161 suites、871 Rust passed / 0 failed / 5 默认 ignored，前端 58/58、strict Clippy、冻结图/99-kind、NTFS 与完整合规通过；593 源文件/63 既有规模债务未增长。见[具体记忆到数据生命周期组件验收](installed-product-memory-lifecycle-acceptance.md)。文字纠正仍未实现，新浏览器、原生安装与 IP20/IP24 证据仍开放。
+2026-10-24 `802e3d2` 完成[原子文字纠正组件](installed-product-cognition-correction-acceptance.md)：来源密文、原认知失效、新候选与回执在 SQLite 多 stream CAS 中一并提交；Unknown 只查询原命令，真实删除反馈后旧错误不复活。统一门 163 suites、878 Rust passed / 0 failed / 5 默认 ignored，前端 64/64、strict Clippy/完整合规、冻结图/99-kind 与纠正专项通过；607 文件、63 处既有规模债务未增长。真实临时浏览器验证纠正/刷新/原号核实和安全文本，修复长引用溢出；窄屏/双 tab/多 Web、真实 provider、原生安装及完整 IP20/IP24 仍开放。完整 M5 继续重验，整体任务未结束。
+
+2026-10-24 前批 `91072be` 将具体记忆的可信材料范围接到原 PrepareLifecycle/Apply：只读选择、版本绑定、显式预览/批准和真实清理均经正式主脑。统一门 161 suites、871 Rust passed / 0 failed / 5 默认 ignored，前端 58/58、strict Clippy、冻结图/99-kind、NTFS 与完整合规通过；593 源文件/63 既有规模债务未增长。见[具体记忆到数据生命周期组件验收](installed-product-memory-lifecycle-acceptance.md)。当时文字纠正尚未实现，后由上方 `802e3d2` 补齐；原生安装与完整 IP20/IP24 仍开放。
 
 2026-10-24 `700bb6f` 完成显式模型角色/注册选择语义到正式 composition digest 的绑定，保留无角色的历史算法及旧事件。完整统一门 161 suites、870 Rust passed / 0 failed / 5 默认 ignored，前端 54/54、strict Clippy、NTFS 与完整默认合规通过；冻结门及默认审批恢复否定专项通过。组件边界见[模型角色装配绑定验收](installed-product-model-role-binding-acceptance.md)，无新增原生/浏览器/IP 通过声明。
 
