@@ -29,7 +29,7 @@ fn main() {
         return;
     }
     if env::args().any(|arg| arg == "--spawn-descendant") {
-        let child = Command::new(env::current_exe().expect("worker fixture executable"))
+        let mut child = Command::new(env::current_exe().expect("worker fixture executable"))
             .args(["--descendant", "--sleep-ms=750"])
             .spawn()
             .expect("worker fixture descendant");
@@ -38,6 +38,7 @@ fn main() {
             child.id().to_string(),
         )
         .expect("worker descendant pid");
+        let _ = child.wait();
     }
     let sleep_ms = env::args()
         .skip(1)
