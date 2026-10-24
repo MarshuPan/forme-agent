@@ -3,7 +3,8 @@
 //! protocol code.
 use super::{validate_product_digest, validate_product_id, version};
 use crate::{
-    ActionId, AuthorityEpoch, Error, Nonce, PlanDigest, ResourceRef, Result, SchemaDigest,
+    affected_resources_for, normalized_action_digest, ActionId, ActionIntent, AuthorityEpoch,
+    BackendKind, DurationMs, Error, Nonce, PlanDigest, ResourceRef, Result, SchemaDigest,
     SchemaVersion, Scope, Timestamp, VerifiedPrincipal,
 };
 use serde::{Deserialize, Serialize};
@@ -199,6 +200,84 @@ impl WorkerPermit {
     }
 }
 
+/// The already-authorized action description handed from the brain to the
+/// execution broker. It carries references and bounded parameters, never
+/// resolved secrets or an alternate program path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkerExecutionSpec {
+    pub schema_version: SchemaVersion,
+    pub plan_digest: PlanDigest,
+    pub intent: ActionIntent,
+    pub backend: BackendKind,
+    pub scope: Scope,
+    pub affected_resources: Vec<ResourceRef>,
+    pub normalized_action_digest: SchemaDigest,
+    pub timeout: DurationMs,
+    pub output_budget_bytes: u64,
+}
+
+impl WorkerExecutionSpec {
+    pub fn validate_for(
+        &self,
+        job: &WorkerJob,
+        permit: &WorkerPermit,
+        now: Timestamp,
+    ) -> Result<()> {
+        version(self.schema_version)?;
+        validate_worker_plan_digest(&self.plan_digest)?;
+        self.intent.validate_product_action()?;
+        if self.plan_digest != job.plan_digest
+            || self.plan_digest != permit.plan_digest
+            || self.intent.intent_id != job.action_ref
+            || self.backend != self.intent.backend_hint
+            || self.scope != self.intent.scope
+            || self.scope != job.workspace_scope
+            || self.affected_resources != job.affected_resources
+            || self.affected_resources != affected_resources_for(&self.intent)
+            || self.normalized_action_digest != normalized_action_digest(&self.intent)?
+            || self.timeout.0 == 0
+            || self.timeout.0 > 600_000
+            || self.timeout.0 > job.deadline.saturating_sub(now).try_into().unwrap_or(0)
+            || self.output_budget_bytes == 0
+            || self.output_budget_bytes > 64 * 1024 * 1024
+        {
+            return Err(Error(
+                "worker execution spec is not bound to the exact job or plan".into(),
+            ));
+        }
+        if now >= job.deadline || now >= permit.deadline {
+            return Err(Error("worker execution spec has expired".into()));
+        }
+        let encoded = serde_json::to_vec(self)
+            .map_err(|_| Error("worker execution spec cannot be encoded".into()))?;
+        if encoded.len() > 1_048_576 {
+            return Err(Error("worker execution spec is too large".into()));
+        }
+        Ok(())
+    }
+}
+
+/// The execution broker only needs product-level action validation here. The
+/// full policy and plan recheck remains a Harness responsibility.
+trait ProductActionValidation {
+    fn validate_product_action(&self) -> Result<()>;
+}
+
+impl ProductActionValidation for ActionIntent {
+    fn validate_product_action(&self) -> Result<()> {
+        if self.schema_version != SchemaVersion(1)
+            || self.intent_id.0.trim().is_empty()
+            || self.capability_ref.0.trim().is_empty()
+            || self.scope.0.trim().is_empty()
+            || self.requested_at <= 0
+        {
+            return Err(Error("worker action intent is incomplete".into()));
+        }
+        Ok(())
+    }
+}
+
 /// The only wire request that can admit a worker. The execution host accepts
 /// the exact job and permit together; it never derives a permit from a job.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -207,12 +286,18 @@ pub struct WorkerDispatchRequest {
     pub schema_version: SchemaVersion,
     pub job: WorkerJob,
     pub permit: WorkerPermit,
+    #[serde(default)]
+    pub execution: Option<WorkerExecutionSpec>,
 }
 
 impl WorkerDispatchRequest {
     pub fn validate_at(&self, now: Timestamp) -> Result<()> {
         version(self.schema_version)?;
-        self.permit.validate_for(&self.job, now)
+        self.permit.validate_for(&self.job, now)?;
+        if let Some(execution) = &self.execution {
+            execution.validate_for(&self.job, &self.permit, now)?;
+        }
+        Ok(())
     }
 }
 

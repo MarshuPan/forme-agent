@@ -172,7 +172,12 @@ impl ProcessWorkerIsolation {
         Ok(path)
     }
 
-    fn spawn_worker(&self, job: &p::WorkerJob, permit: &p::WorkerPermit) -> p::Result<Child> {
+    fn spawn_worker(
+        &self,
+        job: &p::WorkerJob,
+        permit: &p::WorkerPermit,
+        execution: Option<&p::WorkerExecutionSpec>,
+    ) -> p::Result<Child> {
         let spec = self.launches.get(&job.sandbox_profile_ref)?;
         spec.validate()?;
         if spec.sandbox_profile_ref != permit.sandbox_profile_ref {
@@ -195,6 +200,10 @@ impl ProcessWorkerIsolation {
         let permit_path = run_dir.join("permit.json");
         write_private_json(&job_path, job)?;
         write_private_json(&permit_path, permit)?;
+        let execution_path = run_dir.join("execution.json");
+        if let Some(execution) = execution {
+            write_private_json(&execution_path, execution)?;
+        }
 
         let mut command = Command::new(&spec.program);
         command
@@ -214,6 +223,9 @@ impl ProcessWorkerIsolation {
             // execution-backend concern.
             .stdout(Stdio::null())
             .stderr(Stdio::null());
+        if execution.is_some() {
+            command.env("FORME_WORKER_EXECUTION_PATH", &execution_path);
+        }
         command
             .spawn()
             .map_err(|_| p::Error("worker process could not be started".into()))
@@ -259,6 +271,31 @@ impl ProcessWorkerIsolation {
             reason_ref: reason,
         })
     }
+
+    fn admit_at_with_execution(
+        &self,
+        job: &p::WorkerJob,
+        permit: &p::WorkerPermit,
+        execution: Option<&p::WorkerExecutionSpec>,
+        now: p::Timestamp,
+    ) -> p::Result<()> {
+        let mut children = self
+            .children
+            .lock()
+            .map_err(|_| p::Error("worker process registry is unavailable".into()))?;
+        if children.contains_key(&job.job_id) {
+            return Err(p::Error("worker process is already admitted".into()));
+        }
+        let child = self.spawn_worker(job, permit, execution)?;
+        children.insert(
+            job.job_id.clone(),
+            RunningWorker {
+                child,
+                started_at: now,
+            },
+        );
+        Ok(())
+    }
 }
 
 impl WorkerIsolation for ProcessWorkerIsolation {
@@ -272,22 +309,17 @@ impl WorkerIsolation for ProcessWorkerIsolation {
         permit: &p::WorkerPermit,
         now: p::Timestamp,
     ) -> p::Result<()> {
-        let mut children = self
-            .children
-            .lock()
-            .map_err(|_| p::Error("worker process registry is unavailable".into()))?;
-        if children.contains_key(&job.job_id) {
-            return Err(p::Error("worker process is already admitted".into()));
-        }
-        let child = self.spawn_worker(job, permit)?;
-        children.insert(
-            job.job_id.clone(),
-            RunningWorker {
-                child,
-                started_at: now,
-            },
-        );
-        Ok(())
+        self.admit_at_with_execution(job, permit, None, now)
+    }
+
+    fn admit_with_execution(
+        &self,
+        job: &p::WorkerJob,
+        permit: &p::WorkerPermit,
+        execution: Option<&p::WorkerExecutionSpec>,
+        now: p::Timestamp,
+    ) -> p::Result<()> {
+        self.admit_at_with_execution(job, permit, execution, now)
     }
 
     fn cancel(&self, job: &p::WorkerJob) -> p::Result<p::WorkerCancelReceipt> {

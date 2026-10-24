@@ -8,7 +8,7 @@ use super::{now_ms, EndpointDomain};
 use forme_execution::installed::{HostManagement, IsolatedExecutorHost, ProductHostBroker};
 use forme_protocol as p;
 
-const MAX_REQUEST: usize = 1_048_576;
+const MAX_REQUEST: usize = 4 * 1024 * 1024;
 const MAX_HEADERS: usize = 16_384;
 
 pub(super) fn handle_connection(
@@ -248,8 +248,14 @@ fn route(
                 .map_err(|_| p::Error("worker dispatch body is invalid".into()))?;
             let now = now_ms();
             request.validate_at(now)?;
-            serde_json::to_vec(&worker.dispatch(auth, request.job, request.permit, now)?)
-                .map_err(|_| p::Error("worker dispatch response failed".into()))?
+            serde_json::to_vec(&worker.dispatch_with_execution(
+                auth,
+                request.job,
+                request.permit,
+                request.execution,
+                now,
+            )?)
+            .map_err(|_| p::Error("worker dispatch response failed".into()))?
         }
         ("GET", path) if path.starts_with("/v1/agent/workers/") => {
             let job_id = worker_id(path, "/v1/agent/workers/", "")?;

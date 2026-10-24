@@ -17,7 +17,10 @@ mod restore_worker;
 mod service;
 mod web_health;
 mod worker;
+mod worker_binding;
+mod worker_client;
 mod worker_config;
+mod worker_host;
 
 pub use host::*;
 pub use journal::*;
@@ -31,4 +34,6 @@ pub use release_staging::*;
 pub use restore_worker::*;
 pub use service::*;
 pub use worker::*;
+pub use worker_client::*;
 pub use worker_config::*;
+pub use worker_host::*;

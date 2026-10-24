@@ -5,8 +5,11 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use forme_execution::installed::{WorkerLaunchProfileConfig, WorkerRuntimeConfig};
+use forme_execution::installed::{
+    WorkerBrokerClient, WorkerBrokerTransport, WorkerLaunchProfileConfig, WorkerRuntimeConfig,
+};
 use forme_protocol as p;
+use forme_protocol::WorkerExecutionSpec;
 
 const MAINTENANCE_TOKEN: &str = "repository-owned-maintenance-token-0123456789";
 const AGENT_TOKEN: &str = "repository-owned-agent-token-0123456789012345";
@@ -211,6 +214,7 @@ fn job(job_id: &str, deadline: p::Timestamp) -> p::WorkerDispatchRequest {
         schema_version: p::SchemaVersion(1),
         job,
         permit,
+        execution: None,
     }
 }
 
@@ -234,6 +238,48 @@ fn observe_until_terminal(daemon: &Daemon, job_id: &str) -> p::WorkerObservation
         std::thread::sleep(Duration::from_millis(10));
     }
     panic!("worker did not reach a terminal state");
+}
+
+fn typed_execution_request(job_id: &str, deadline: p::Timestamp) -> p::WorkerDispatchRequest {
+    let mut request = job(job_id, deadline);
+    let intent = p::ActionIntent {
+        schema_version: p::SchemaVersion(1),
+        intent_id: request.job.action_ref.clone(),
+        source: p::Source::Internal,
+        goal: p::GoalRef(format!("goal-{job_id}")),
+        backend_hint: p::BackendKind::Shell,
+        capability_ref: p::CapabilityRef("shell:worker-fixture".into()),
+        action_type: p::ActionType::Execute,
+        scope: request.job.workspace_scope.clone(),
+        risk_hint: p::Risk::Low,
+        expected_effect: p::ExpectedEffect::Internal,
+        rollback_expectation: p::RollbackBoundary("none".into()),
+        parameters: p::ActionParameters::Shell {
+            program: "worker-fixture".into(),
+            args: Vec::new(),
+            cwd: None,
+            network: false,
+        },
+        requested_permissions: Vec::new(),
+        requested_at: now_ms(),
+        estimated_output_bytes: 1_024,
+        estimated_duration: p::DurationMs(1_000),
+    };
+    let resources = p::affected_resources_for(&intent);
+    request.job.affected_resources = resources.clone();
+    request.permit.affected_resources = resources.clone();
+    request.execution = Some(WorkerExecutionSpec {
+        schema_version: p::SchemaVersion(1),
+        plan_digest: request.job.plan_digest.clone(),
+        intent: intent.clone(),
+        backend: p::BackendKind::Shell,
+        scope: request.job.workspace_scope.clone(),
+        affected_resources: resources,
+        normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
+        timeout: p::DurationMs(5_000),
+        output_budget_bytes: 4 * 1024,
+    });
+    request
 }
 
 #[test]
@@ -297,6 +343,71 @@ fn hostd_dispatches_registered_worker_and_keeps_maintenance_domain_out() {
     assert_eq!(observation.state, p::WorkerState::Completed);
     assert_eq!(observation.outcome, Some(p::WorkerOutcome::Completed));
     assert!(daemon.root.join("workspace/worker-fixture-ran").is_file());
+}
+
+#[test]
+fn worker_broker_client_dispatches_typed_spec_and_reuses_original_job() {
+    let daemon = Daemon::start(Vec::new());
+    let credential_path = daemon.root.join("agent.token");
+    std::fs::write(&credential_path, format!("{AGENT_TOKEN}\n")).unwrap();
+    let client =
+        WorkerBrokerClient::connect(daemon.agent_address.parse().unwrap(), &credential_path)
+            .unwrap();
+    let request = typed_execution_request("job-client-typed", now_ms() + 30_000);
+    let expected_execution = request.execution.clone().unwrap();
+    let admitted = client.dispatch(request.clone()).unwrap();
+    assert_eq!(admitted.state, p::WorkerState::Running);
+    let run_digest =
+        p::canonical_digest(&("worker-run", &request.job.job_id, &request.job.plan_digest))
+            .unwrap()
+            .0;
+    let execution_path = daemon
+        .root
+        .join("runtime")
+        .join(format!("job-{}", run_digest.trim_start_matches("sha256:")))
+        .join("execution.json");
+    for _ in 0..100 {
+        if execution_path.is_file() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let encoded = std::fs::read(&execution_path).unwrap();
+    let stored: WorkerExecutionSpec = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(stored, expected_execution);
+
+    let mut changed = request.clone();
+    changed.execution.as_mut().unwrap().timeout = p::DurationMs(4_000);
+    assert_eq!(
+        client.dispatch(changed).unwrap_err().0,
+        "agent execution request was rejected before admission"
+    );
+
+    let duplicate = client.dispatch(request).unwrap();
+    assert_eq!(duplicate.job_id, admitted.job_id);
+    let observation = loop {
+        let observation = client.probe(&duplicate.job_id).unwrap();
+        if matches!(
+            observation.state,
+            p::WorkerState::Completed | p::WorkerState::Failed | p::WorkerState::Cancelled
+        ) {
+            break observation;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    assert_eq!(observation.state, p::WorkerState::Completed);
+    assert_eq!(observation.outcome, Some(p::WorkerOutcome::Completed));
+}
+
+#[test]
+fn worker_broker_client_cannot_use_maintenance_listener() {
+    let daemon = Daemon::start_mode(Vec::new(), false);
+    let credential_path = daemon.root.join("agent.token");
+    std::fs::write(&credential_path, format!("{AGENT_TOKEN}\n")).unwrap();
+    let client =
+        WorkerBrokerClient::connect(daemon.address.parse().unwrap(), &credential_path).unwrap();
+    let error = client.probe("job-not-on-maintenance").unwrap_err();
+    assert_eq!(error.0, "agent execution authorization was rejected");
 }
 
 #[test]
