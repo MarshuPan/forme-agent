@@ -129,6 +129,8 @@ assertion 至少绑定 InstallId、OwnerId、session 摘要、auth epoch、audie
 
 默认 Web 绑定 loopback，固定持久端口 **8765**；占用时返回可修复问题，由 owner 选择新端口并持久化，不静默漂移。LAN 是显式设置：选择网卡/监听地址、允许 Host/origin、HTTPS certificate 和 firewall 范围；不默认监听公网，不自动开路由映射。
 
+配置接缝按 `prd/25 §11.8`：Host 的 typed network 设置与已发布 overlay 分离；普通保存/core 启动/restore 不切换 Web 网络，`ConfigureLan` 绑定 revision 与材料校验摘要，经独立产品 journal。首次接纳先关闭 HTTP 回执流，再由同一受监督 Host worker 切换 Web，避免服务排空等待自身请求；原号查询/重启不重新派发。原生 firewall 必须 reconcile 旧/新绑定，包含撤销旧规则；`network_active` 只描述配置投影一致，不证明 listener、证书信任或 IP09。没有真实平台 adapter 的版本在 plan 前阻断 LAN 激活，不写假事务。
+
 证书可由 owner 导入、使用本地 CA，或展示自签名证书指纹并指导客户端建立信任。自签名成功不等于另一设备已信任；在信任完成前明确阻断或显示未就绪。mDNS 名称仅用于发现，不是认证。反向代理必须精确配置 trusted proxy/forwarded origin，默认拒绝任意 forwarded headers。
 
 | 外部 Web 路由域 | 权限/行为 |

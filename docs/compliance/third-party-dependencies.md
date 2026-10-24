@@ -192,3 +192,12 @@ and licenses were reviewed without copying implementation or fixtures.
 Negative process tests use a repository-authored spoof executable. They
 do not reset a real account or establish privileged/native installation
 acceptance; that requires its own administrator environment and evidence.
+
+Managed Web network material validation (2026-10-24): `forme-execution`
+directly reuses the already locked, exact-pinned `zeroize 1.9.0` (MIT OR
+Apache-2.0) to bound the lifetime of TLS private-key input buffers. The
+existing public `rustls` and `rustls-pki-types` APIs parse certificates and
+verify key matching; no new internal crate edge or dependency version is
+introduced. This does not claim to erase parser, OS or runtime copies.
+Certificates in tests are newly generated temporary rcgen inputs, not
+upstream fixtures. No implementation, prompt, test data or naming is copied.

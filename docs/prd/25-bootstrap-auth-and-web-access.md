@@ -298,3 +298,21 @@ Host 在同一 CAS/journal 中保存偏好、模型与凭据，materialize 到�
 新安装的路径/Windows ACL 采用 prd/24 §4.4。`brain/runtime` 在认领后由 core 首次启动按需创建；准备安装和赋权不往新脑目录预写占位文件/子目录，保持原“新脑候选必须为空”的检查。Host 创建的 `config/core` 和 `keys/model-credentials` 则可预建，未来发布/凭据 revision 继承只读授权。
 
 重复准备只核对原安装与其有界、版本化 template，报告 template 指定的 core 文件，不改写 template、密钥或旧 runtime。模板身份、路径归属、版本或文件类型不匹配即拒绝；不得把找不到新路径误当成旧安装没有配置，也不得通过放宽父目录写权限兼容旧布局。
+
+### 11.8 受管 Web 网络配置与维护绑定
+
+`ProductConfigPatch.network?: ProductNetworkConfig` 与模型、brain、skills 共用原 CAS/revision；省略保留，不能在普通保存、核心启动或恢复脑发布时激活网络。对象为 closed/versioned `{schema_version:1, bind, allowed_hosts, tls, firewall}`：bind 是带非零端口的明确 IP，禁止 unspecified/multicast；Host 是最多 16 项、无重复、小写且带实际端口的精确 authority，IPv6 必须带方括号。LAN 必须同时具备 HTTPS、Host 与 firewall binding。loopback 不保留 firewall rule。
+
+`tls` 为 `{schema_version:1, certificate_path, private_key_path}`，只能引用安装者指定的 `web_material_directory` 内的绝对普通文件，拒绝路径逃逸与链接；证书和私钥各至多 64 KiB。静态检查解析 PEM、验证证书与密钥匹配，不声称客户端信任或网络可达。`firewall` 为 `{schema_version:1, rule_ref}`，引用不能代替原生规则生效证明。
+
+Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。安装者固定 `web_network_config_path`（`config/web-network.json`）及材料目录，浏览器不能改变投影路径。不可变 revision 同时保留待应用配置和当前已发布网络投影；journal 的可选 `web_network_digest` 绑定后者。`network_active` 只表示两者一致，不等于运行中的 listener 已加载、客户端信任或跨设备可用；core acknowledgement 也不能代替网络维护回执。`pending_restart`/校验报告须同时覆盖 core 未确认与网络投影未应用。
+
+没有上述受管投影路径的旧安装模板继续支持原模型/brain/skills 保存；客户端回传未改变的默认网络值可兼容读写，但不同的网络目标须在任何 staging 前拒绝。不能通过设置页静默改写旧安装模板，也不能保存实际上没有输出路径的新网络配置。此类安装不宣告 ConfigureLan 可用，待显式安装升级处理。
+
+`ProductConfigValidationReport.network_validation_digest` 绑定待应用的 typed 配置和已解析证书指纹；私钥匹配复核但不回传私钥/其路径衍生秘密。`ConfigureLan{config_revision,validation_digest}` 仍经 `/product/maintenance`、owner、近期口令与 product revision。已知缺少 firewall adapter 时在 plan 前拒绝，不写假维护事务，Host 不宣告该切换可用。原生 firewall 接口 `reconcile_firewall(previous, desired)` 必须核实完整目标绑定，并撤销旧规则或同规则中的旧监听范围。receipt 绑定 `bind,rule_ref?,network_digest,enabled,removed_rule_refs`；LAN→loopback 也须证明旧规则已移除。adapter 已尝试后的错误绑定或不明结果 fail closed，原 operation 进入待恢复，不换 key 重试。
+
+网络切换采用先回执、后切换：Host 在配置锁内校验并持久化原 `Planned`，只有首次接纳者得到不可复制的进程内 dispatch ticket；HTTP 完整返回该操作并关闭内部响应流，让 Web 配置请求能先退出，再由同一受监督、计入 drain 的 Host connection worker 消费 ticket。不得在请求仍等待 host 时同步停止其所在 Web，也不得启动无监管后台线程。响应写入/关闭失败、重复 POST、原号查询或进程重启均不重新生成 ticket，不自动执行。执行时重新认证原 actor/owner、校验原 command digest、期限、当前 release、revision、已发布投影和证书材料，之后先落 durable stage intent 再做原生动作。首次回执仅是接纳，不等于切换完成；Web 保留原操作号和候选地址，断线后在新入口重新登录只核实原号。
+
+网络切换还须在产品 journal 的 `plan` 单写者锁内执行持久准入互斥：尚未 `Committed` 的 `ConfigureLan`（包括 `Planned`、未决 intent 和 `RecoveryRequired`）阻止新的网络切换、升级、回滚、恢复提交、配置应用或卸载计划；反向也拒绝在这些未完成生命周期事务上叠加网络切换。不同操作号、刷新页面、重新认证和 Host 重启不解除此边界。相同原命令的幂等核实及只读 Inspect 保持可用；不能通过删除记录或把 Unknown 当成失败解除互斥。旧 journal 按原 schema 只读恢复，新准入检查不重写历史事实或改动既有阶段迁移语义。
+
+只有已核实 firewall 后才发布固定 overlay 并对内置 Web 服务执行有界切换；副作用/启动结果未知须保留原操作和诊断，不视为已完成。原生 adapter、监听健康检查、失败回到可达 loopback、客户端证书信任与跨设备登录属于完整 IP09/IP24 的独立义务；仅有 typed 配置、TLS 组件或模拟 receipt 时不得宣称这些义务通过。Web 关闭不停止主脑，内部 Gateway 地址不随此配置变为 LAN。
