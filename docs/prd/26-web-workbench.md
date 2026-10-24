@@ -226,6 +226,8 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 同一纠偏涉及的来源、原对象失效、派生重评和新候选须在 authority store 的一次本地事务内提交，使用所有相关 stream 的 expected version/CAS；事件仍经原 prepare/append/projection/FTS 路径分配 stream_seq。可新增 store 的受限本地原子写入实现方法，不改冻结 trait、同步/复制协议、事件类型或内部依赖图。来源密文与其登记绑定同事务提交；失败回滚全部脑记录，不能先撤回再因候选写入失败留下半次纠偏。规范事件顺序和 ID 由服务端确定，文字不得出现在 journal、命令 ID、摘要标签、日志或错误文本中。
 
+只读核实使用 `POST /api/v1/brain/workbench/corrections/query` 与 closed `WorkbenchCorrectionQuery { schema_version: 1, command? }`，仍经同一签名桥。指定原 command 时返回该命令的真实回执；未指定时只返回同一认知 aggregate 内最近最多 100 条确认回执及 `truncated` 标志，不将跨 run 时间排序当权威。回执登记为既有 MemoryMaintenanceApplied 下的版本化 `workbench-correction-v1` 元数据，仅含 command/binding/target/candidate 等安全引用，不含反馈正文。来源正文和新候选受同一真实清理血缘约束；删除反馈正文不撤销既有失效事实，也不得使原错误认知复活。
+
 相同 owner/command/规范化 body 返回原回执，异义复用拒绝。审批式确认与普通 review 共享原对象的并发边界，并在事务内重查 source stream 与大脑 aggregate 版本，后台变化不能被旧页面覆盖。断线/写入结果不明时只查询同一命令的正式回执；原子事务使核实结果只能是完整提交、没有接纳记录或明确故障，禁止用新 key 自动再纠正。回执包含 `schema_version, command, binding, status, event, candidate`；确认的含义是“反馈、失效与新候选已记录”，不是新说法已提升、认知质量已验证或授权已改变。
 
 页面先让 owner 审阅原对象、影响范围和纠正文本，再显式提交。处理中/未确认时固定原 key/body，注销清草稿；刷新后从认证的主脑只读回执恢复原操作，不能从浏览器持久层重建事实。原文/纠正内容只按已有授权正文规则读取。新候选仍需正式 governor 的证据、冲突和谨慎不对称检查；确认 owner 反馈不伪造多时点的结果证据。纠正不删除历史，永久遗忘继续走 §5.6.2。
