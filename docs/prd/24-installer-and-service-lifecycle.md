@@ -233,6 +233,16 @@ Checking intent 先于重启。`ProductConfigAcknowledgement` 增加可选版本
 
 产品 journal 的旧记录保持原字节与原 hash。新增可选投影字段不能在重放时以默认值重新序列化并改变历史摘要；读取先校验 closed DTO，再对记录实际保存的 fact 编码验 hash。内存 active release 只有在同一 journal 接受初始绑定/切换后才能更新。Committed 与工作准入开放分开：开放失败保留提交事实和关闭状态，查询原 operation 不重做升级。
 
+#### 4.10.2 原生服务 image 切换接缝
+
+切换 adapter 只消费库内构造、不可反序列化的 `PreparedReleaseServiceSwitch`。构造时从原 product journal 核对同一安装、原 operation/command、Switching intent、原 active release 和目标签名；从安装清单推导三个固定配置文件，从已提交 staging 推导目标程序。首次安装版本的源目录为 installation.releases，后续版本的源目录必须重新通过 committed staging 核验。不接受请求传来的程序、配置路径、服务名或账户。
+
+adapter 在任何更改前核对三个服务均已实际 Stopped、当前 image/固定参数/账户/依赖/启动方式/有限恢复策略均匹配原发布。每个原始程序的字节摘要被 preparation 绑定，执行前重新核验；目标完整文件集亦重新核验。仅在原 journal 的同一 Switching intent 仍有效且未过授权截止时刻时，按固定顺序切换三个 image；每个更改前后重新核对该服务的配置、状态和恢复策略。Windows 使用 SCM 的 CHANGE_CONFIG 权限，不删除/重建服务，不改服务账户或恢复策略；保留既有 display name、load-order/tag、依赖及其他安全描述符。
+
+`ProductReleaseServiceReceipt` v1 包含原 operation/command digest 和三个 `ProductReleaseServiceImageReceipt` v1（固定 service、实际 source/target image digest、配置快照摘要）。它只证明观察到的原生 image 配置，不代替启动、实际运行程序、数据连续性、config ack 或 Committed。一个配置调用成功但读取回执失败即为未知结果；已切换部分保持现场，不自动反向切换或重复调用。未实现的原生平台返回 unavailable，不回退到普通子进程或任意 shell。
+
+组件测试可通过受控平台适配器验证三服务完整预检、intent/CAS、期限、配置漂移和部分失败；原生 SCM 管理员演练仍另列 IP14–15 证据。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
