@@ -1,7 +1,7 @@
 # 独立发布 updater 与 live readiness 验收
 
-日期：2026-10-25  
-实现提交：`cce9ea6`  
+日期：2026-10-25
+实现提交：`cce9ea6`
 分支：`shu/installed-product`
 
 ## 1. 本次闭合的范围
