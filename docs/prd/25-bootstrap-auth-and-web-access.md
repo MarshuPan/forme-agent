@@ -317,12 +317,12 @@ Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。新
 
 只有已核实 firewall 后才发布固定 overlay 并对内置 Web 服务执行有界切换；副作用/启动结果未知须保留原操作和诊断，不视为已完成。原生 adapter、监听健康检查、失败回到可达 loopback、客户端证书信任与跨设备登录属于完整 IP09/IP24 的独立义务；仅有 typed 配置、TLS 组件或模拟 receipt 时不得宣称这些义务通过。Web 关闭不停止主脑，内部 Gateway 地址不随此配置变为 LAN。
 
-### 11.9 Windows 原生防火墙适配
+### 11.9 Windows 原生防火墙核验
 
-此适配实现 §11.8 已批准的原生网络边界，不新增维护动作或脑事件。`SystemServiceManager` 只在实际 Windows Host daemon、匹配的 Host/Web SCM 注册与恢复策略、受保护的固定配置/二进制以及管理员 token 均可核实时宣告支持；开发测试程序和未注册安装不因此获得能力。执行前重新核对原安装与实际权限；其他平台继续明确不可用，直至完成对应适配。
+此适配实现 §11.8 已批准的原生网络边界，不新增维护动作或脑事件。遵守 owner 本轮确认的“不自动修改防火墙”：安装、配置保存、检查与网络应用均不创建、修改或删除 OS firewall rule。管理员在系统中预先配置规则；产品只读核实目标规则以及旧绑定已撤销。`SystemServiceManager` 只在实际 Windows Host daemon、匹配的 Host/Web SCM 注册与恢复策略、受保护的固定配置/二进制以及管理员 token 均可核实时宣告支持；开发测试程序和未注册安装不因此获得能力。执行前重新核对原安装与实际权限；其他平台继续明确不可用，直至完成对应适配。
 
-原生命令使用产品内置的固定 PowerShell/NetSecurity 程序，仅通过有界 stdin 接受 closed/versioned 参数；不拼接用户脚本、命令、服务名或任意规则名。系统程序和模块路径固定到受核对的 Windows 目录，清除继承环境、禁用 profile，并限制输入、输出、运行期限和 child 回收。进程失败、超时、截断/不匹配回执均属于原操作的不明结果，不自动重新派发。
+原生命令使用产品内置的固定、只读 PowerShell/NetSecurity 程序，仅通过有界 stdin 接受 closed/versioned 参数；不拼接用户脚本、命令、服务名或任意规则名。当前适配固定受保护的 `C:\Windows\System32` 程序与模块，其他 Windows 目录布局显式不可用；不搜索 PATH 或从请求/env 选择可执行文件。清除继承环境、禁用 profile，并限制输入、输出、运行期限和 child 回收。预检须在 plan 前拒绝缺失/不匹配规则；执行前再查。执行中的进程失败、超时、截断/不匹配回执保留原操作的不明结果，不自动重新派发。
 
-规则名由产品命名空间与 `rule_ref` 的摘要生成，限定到 SCM 核实的 Web 程序及 Web 服务。LAN allow 仅覆盖明确本机 IP/端口、入站 TCP、`LocalSubnet`、Domain/Private profile，禁用 edge traversal；不修改全局 firewall profile、不开放 Public 或路由映射、不操作其他产品规则。现有同名规则必须逐项核对产品标记与已知旧/目标绑定，不能盲目覆盖。变更先处理原绑定，并核实旧规则/旧范围不再存在；目标必须同时在持久规则和实际生效规则中核实地址、端口、应用、服务、方向、动作和 profile，命令退出成功不能替代该读回。
+规则名为 `forme.web.lan.` 加 `SHA256(rule_ref UTF-8)` 的小写 hex，产品 group 为 `forme.web.lan.v1`，description 绑定 `canonical_digest(("forme-native-web-rule-v1",rule_ref,bind,SCM Web executable))`。管理员规则限定到 SCM 核实的 Web 程序及 `forme-web` 服务。LAN allow 仅覆盖明确本机 IP/端口、入站 TCP、`LocalSubnet`、Domain/Private profile，禁用 edge traversal；不开放 Public 或路由映射，不操作其他规则。旧规则名不同时须在 PersistentStore/ActiveStore 均已不存在；同名换范围只接受唯一精确的新绑定。目标必须同时在持久规则和实际生效规则中核实地址、端口、应用、服务、方向、动作和 profile，命令退出成功不能替代该读回。`validate_firewall_reconciliation` 是只读 plan 前预检，默认 adapter 保持兼容；`reconcile_firewall` 在正式 Windows 适配中也只再次核验并生成绑定回执，不隐含 OS 写权限。
 
 测试将固定脚本的参数/读回算法与实际管理员防火墙验收分开。自建 cmdlet fixture、只读权限预检或编译成功不计原生防火墙 PASS；证书客户端信任、Web listener 健康、失败恢复和跨设备路径仍须单独完成，不能由该 adapter 的成功回执替代 IP09/IP24。
