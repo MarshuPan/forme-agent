@@ -85,7 +85,7 @@ impl WorkerLaunchRegistry {
         Ok(Self { entries })
     }
 
-    fn get(&self, profile_ref: &str) -> p::Result<&WorkerLaunchSpec> {
+    pub(crate) fn get(&self, profile_ref: &str) -> p::Result<&WorkerLaunchSpec> {
         self.entries
             .get(profile_ref)
             .ok_or_else(|| p::Error("worker sandbox profile is not installed".into()))
@@ -423,7 +423,7 @@ fn validate_program(program: &Path) -> p::Result<()> {
     Ok(())
 }
 
-fn validate_scope_key(value: &str) -> p::Result<()> {
+pub(crate) fn validate_scope_key(value: &str) -> p::Result<()> {
     if value.is_empty()
         || value.len() > 512
         || !value.starts_with("workspace:")
@@ -438,7 +438,7 @@ fn validate_scope_key(value: &str) -> p::Result<()> {
     Ok(())
 }
 
-fn set_private_directory(path: &Path) -> p::Result<()> {
+pub(crate) fn set_private_directory(path: &Path) -> p::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -463,7 +463,7 @@ fn private_file(path: &Path) -> p::Result<File> {
         .map_err(|_| p::Error("worker private file cannot be created".into()))
 }
 
-fn write_private_json<T: Serialize>(path: &Path, value: &T) -> p::Result<()> {
+pub(crate) fn write_private_json<T: Serialize>(path: &Path, value: &T) -> p::Result<()> {
     let mut file = private_file(path)?;
     let bytes = serde_json::to_vec(value)
         .map_err(|_| p::Error("worker launch payload cannot be serialized".into()))?;

@@ -1238,6 +1238,7 @@ dependencies = [
  "tempfile",
  "ureq",
  "url",
+ "win-custody",
  "windows-service",
  "xcap",
  "zeroize",
@@ -3725,6 +3726,15 @@ name = "widestring"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72069c3113ab32ab29e5584db3c6ec55d416895e60715417b5b883a357c3e471"
+
+[[package]]
+name = "win-custody"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e9f78c23db90914be58d60cb31a9f4c608cc344f55fc7aa8879937ba308eada3"
+dependencies = [
+ "windows-sys 0.61.2",
+]
 
 [[package]]
 name = "winapi"

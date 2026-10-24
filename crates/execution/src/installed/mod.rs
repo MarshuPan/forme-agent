@@ -16,6 +16,8 @@ mod release_staging;
 mod restore_worker;
 mod service;
 mod web_health;
+#[cfg(windows)]
+mod windows_worker;
 mod worker;
 mod worker_binding;
 mod worker_client;
@@ -33,6 +35,8 @@ pub use release::*;
 pub use release_staging::*;
 pub use restore_worker::*;
 pub use service::*;
+#[cfg(windows)]
+pub use windows_worker::*;
 pub use worker::*;
 pub use worker_client::*;
 pub use worker_config::*;
