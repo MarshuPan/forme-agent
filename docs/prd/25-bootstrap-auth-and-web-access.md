@@ -313,6 +313,16 @@ Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。安
 
 网络切换采用先回执、后切换：Host 在配置锁内校验并持久化原 `Planned`，只有首次接纳者得到不可复制的进程内 dispatch ticket；HTTP 完整返回该操作并关闭内部响应流，让 Web 配置请求能先退出，再由同一受监督、计入 drain 的 Host connection worker 消费 ticket。不得在请求仍等待 host 时同步停止其所在 Web，也不得启动无监管后台线程。响应写入/关闭失败、重复 POST、原号查询或进程重启均不重新生成 ticket，不自动执行。执行时重新认证原 actor/owner、校验原 command digest、期限、当前 release、revision、已发布投影和证书材料，之后先落 durable stage intent 再做原生动作。首次回执仅是接纳，不等于切换完成；Web 保留原操作号和候选地址，断线后在新入口重新登录只核实原号。
 
-网络切换还须在产品 journal 的 `plan` 单写者锁内执行持久准入互斥：尚未 `Committed` 的 `ConfigureLan`（包括 `Planned`、未决 intent 和 `RecoveryRequired`）阻止新的网络切换、升级、回滚、恢复提交、配置应用或卸载计划；反向也拒绝在这些未完成生命周期事务上叠加网络切换。不同操作号、刷新页面、重新认证和 Host 重启不解除此边界。相同原命令的幂等核实及只读 Inspect 保持可用；不能通过删除记录或把 Unknown 当成失败解除互斥。旧 journal 按原 schema 只读恢复，新准入检查不重写历史事实或改动既有阶段迁移语义。
+网络切换沿用产品 journal 已有的全局维护互斥：`Planned` 在单写者锁内检查所有未 `Committed` 的原操作（包括未决 intent 和 `RecoveryRequired`），拒绝新网络切换、升级、回滚、恢复提交、配置应用或卸载事务，反向同样成立。不同操作号、刷新页面、重新认证和 Host 重启不解除此边界。相同原命令的幂等核实、状态投影和原回执查询保持可用，但只读查询不创建另一个 Inspect 事务；不能通过删除记录或把 Unknown 当成失败解除互斥。沿用原 schema/fold，不另造网络锁、重写历史事实或改动既有阶段迁移语义。
 
 只有已核实 firewall 后才发布固定 overlay 并对内置 Web 服务执行有界切换；副作用/启动结果未知须保留原操作和诊断，不视为已完成。原生 adapter、监听健康检查、失败回到可达 loopback、客户端证书信任与跨设备登录属于完整 IP09/IP24 的独立义务；仅有 typed 配置、TLS 组件或模拟 receipt 时不得宣称这些义务通过。Web 关闭不停止主脑，内部 Gateway 地址不随此配置变为 LAN。
+
+### 11.9 Windows 原生防火墙适配
+
+此适配实现 §11.8 已批准的原生网络边界，不新增维护动作或脑事件。`SystemServiceManager` 只在实际 Windows Host daemon、匹配的 Host/Web SCM 注册与恢复策略、受保护的固定配置/二进制以及管理员 token 均可核实时宣告支持；开发测试程序和未注册安装不因此获得能力。执行前重新核对原安装与实际权限；其他平台继续明确不可用，直至完成对应适配。
+
+原生命令使用产品内置的固定 PowerShell/NetSecurity 程序，仅通过有界 stdin 接受 closed/versioned 参数；不拼接用户脚本、命令、服务名或任意规则名。系统程序和模块路径固定到受核对的 Windows 目录，清除继承环境、禁用 profile，并限制输入、输出、运行期限和 child 回收。进程失败、超时、截断/不匹配回执均属于原操作的不明结果，不自动重新派发。
+
+规则名由产品命名空间与 `rule_ref` 的摘要生成，限定到 SCM 核实的 Web 程序及 Web 服务。LAN allow 仅覆盖明确本机 IP/端口、入站 TCP、`LocalSubnet`、Domain/Private profile，禁用 edge traversal；不修改全局 firewall profile、不开放 Public 或路由映射、不操作其他产品规则。现有同名规则必须逐项核对产品标记与已知旧/目标绑定，不能盲目覆盖。变更先处理原绑定，并核实旧规则/旧范围不再存在；目标必须同时在持久规则和实际生效规则中核实地址、端口、应用、服务、方向、动作和 profile，命令退出成功不能替代该读回。
+
+测试将固定脚本的参数/读回算法与实际管理员防火墙验收分开。自建 cmdlet fixture、只读权限预检或编译成功不计原生防火墙 PASS；证书客户端信任、Web listener 健康、失败恢复和跨设备路径仍须单独完成，不能由该 adapter 的成功回执替代 IP09/IP24。
