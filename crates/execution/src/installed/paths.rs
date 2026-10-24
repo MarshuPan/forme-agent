@@ -15,7 +15,11 @@ pub fn reject_linked_ancestors(path: &Path) -> p::Result<()> {
     }
     let mut current = PathBuf::new();
     for part in path.components() {
-        current.push(part);
+        let is_prefix = matches!(part, Component::Prefix(_));
+        current.push(part.as_os_str());
+        if is_prefix {
+            continue;
+        }
         match fs::symlink_metadata(&current) {
             Ok(meta) => {
                 if meta.file_type().is_symlink() || is_reparse_point(&meta) {
@@ -27,6 +31,17 @@ pub fn reject_linked_ancestors(path: &Path) -> p::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::reject_linked_ancestors;
+
+    #[test]
+    fn canonical_extended_path_checks_filesystem_components() {
+        let path = std::env::temp_dir().canonicalize().unwrap();
+        assert!(reject_linked_ancestors(&path).is_ok());
+    }
 }
 
 #[cfg(windows)]

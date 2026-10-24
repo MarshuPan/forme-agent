@@ -93,6 +93,16 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::tests::$name" }
 
     foreach ($name in @(
+        "incomplete_acl_intent_survives_restart_as_pending_cleanup",
+        "cleanup_requires_tree_termination_and_exact_acl_revocation",
+        "cleanup_receipt_and_projection_survive_reopen",
+        "second_writer_and_torn_journal_fail_closed",
+        "hash_chain_tampering_is_rejected",
+        "appcontainer_identity_and_cleanup_directory_are_bound_to_lease",
+        "active_leases_cannot_share_job_directory_path_or_identity"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::sandbox_lease::tests::$name" }
+
+    foreach ($name in @(
         "release_data_identity_is_bound_to_owner_operation_and_real_schema_versions",
         "release_data_protocol_is_closed_and_rejects_rebinding_and_unknown_versions",
         "service_image_receipts_require_all_three_distinct_services_and_the_original_command"

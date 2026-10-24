@@ -20,6 +20,7 @@ mod release_staging;
 mod release_updater;
 mod release_worker;
 mod restore_worker;
+mod sandbox_lease;
 mod service;
 mod web_health;
 #[cfg(windows)]
@@ -48,6 +49,7 @@ pub use release_staging::*;
 pub use release_updater::*;
 pub use release_worker::*;
 pub use restore_worker::*;
+pub use sandbox_lease::*;
 pub use service::*;
 #[cfg(windows)]
 pub use windows_worker::*;
