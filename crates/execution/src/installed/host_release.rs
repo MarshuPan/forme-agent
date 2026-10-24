@@ -40,7 +40,11 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             &request.target_release_digest,
         )?;
         verified.recheck()?;
-        self.verified_release_worker()?.preflight(&request)
+        if let Some(updater) = &self.release_updater {
+            updater.preflight(&self.journal, &request)
+        } else {
+            self.verified_release_worker()?.preflight(&request)
+        }
     }
 
     pub(super) fn execute_release_authorized(
@@ -50,6 +54,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
         use p::MaintenanceStage as Stage;
+
+        if self.release_updater.is_some() {
+            return Err(unavailable());
+        }
 
         let operation = self.operation_state(id)?;
         let command = self.journal.command(id)?;
@@ -160,7 +168,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         }
     }
 
-    fn release_request(
+    pub(super) fn release_request(
         &self,
         command: &p::MaintenanceCommand,
         original_release_ref: &str,

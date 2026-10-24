@@ -14,6 +14,7 @@ pub(super) struct ReleaseDataProgram {
     pub(super) installation: p::InstallationManifest,
     manifest_path: PathBuf,
     program: PathBuf,
+    verified: Option<super::VerifiedStagedRelease>,
 }
 
 impl ReleaseDataProgram {
@@ -28,10 +29,36 @@ impl ReleaseDataProgram {
             manifest_path: installation.paths.config.join("installation.json"),
             program: installation.paths.releases.join("bin").join(name),
             installation,
+            verified: None,
         })
     }
 
+    pub(super) fn from_verified(
+        installation: p::InstallationManifest,
+        verified: super::VerifiedStagedRelease,
+    ) -> p::Result<Self> {
+        verified.recheck()?;
+        if verified.manifest().target != installation.target {
+            return Err(unavailable());
+        }
+        let suffix = if installation.target == p::ProductTarget::WindowsX86_64 {
+            ".exe"
+        } else {
+            ""
+        };
+        let program = verified
+            .content_root()
+            .join(format!("bin/forme-hostctl{suffix}"));
+        let mut instance = Self::new(installation)?;
+        instance.program = program;
+        instance.verified = Some(verified);
+        Ok(instance)
+    }
+
     pub(super) fn preflight(&self) -> p::Result<()> {
+        if let Some(verified) = &self.verified {
+            verified.recheck()?;
+        }
         for path in [&self.manifest_path, &self.program] {
             super::reject_linked_ancestors(path)?;
             if !std::fs::metadata(path)

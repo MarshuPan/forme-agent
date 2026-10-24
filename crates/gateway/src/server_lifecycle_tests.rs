@@ -388,6 +388,7 @@ async fn cancelled_request_keeps_its_blocking_admission_until_the_operation_fini
             &p::VerifiedPrincipal("owner:test".into()),
         )
         .unwrap(),
+        release_health: None,
     });
     let (release, wait) = mpsc::channel();
     let (entered, entry) = tokio::sync::oneshot::channel();

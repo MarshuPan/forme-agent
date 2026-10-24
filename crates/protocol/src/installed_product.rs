@@ -19,8 +19,12 @@ mod release;
 pub use release::*;
 mod release_data;
 pub use release_data::*;
+mod release_probe;
 mod release_services;
+mod release_takeover;
+pub use release_probe::*;
 pub use release_services::*;
+pub use release_takeover::*;
 
 fn version(version: SchemaVersion) -> Result<()> {
     if version != SchemaVersion(1) {

@@ -12,6 +12,8 @@ use windows_service::service::{
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
 pub(super) mod release;
+pub(super) mod release_lifecycle;
+pub(super) mod updater;
 
 /// Register only this daemon, without starting it. Existing registrations must
 /// match exactly; partial/foreign registrations need explicit administrator repair.

@@ -38,6 +38,17 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         request: p::ProductMaintenanceRequest,
         now: p::Timestamp,
     ) -> p::Result<p::MaintenanceOperation> {
+        if self.release_updater.is_some()
+            && matches!(
+                request.action,
+                p::ProductMaintenanceAction::Upgrade { .. }
+                    | p::ProductMaintenanceAction::RollbackCompatibleRelease { .. }
+            )
+        {
+            return Err(p::Error(
+                "installed release requires deferred updater dispatch".into(),
+            ));
+        }
         self.owner_maintenance_inner(auth, request, now, false)
             .map(|(op, _)| op)
     }

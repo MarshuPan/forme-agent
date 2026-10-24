@@ -27,6 +27,12 @@ pub struct ManagedGatewayTransport {
     pub configuration_ack_path: Option<PathBuf>,
     #[serde(default)]
     pub work_admission_path: Option<PathBuf>,
+    #[serde(default)]
+    pub release_binding: Option<p::ProductReleaseBinding>,
+    #[serde(default)]
+    pub release_admission_path: Option<PathBuf>,
+    #[serde(default)]
+    pub release_readiness_path: Option<PathBuf>,
     pub max_body_bytes: usize,
     pub request_timeout_ms: u64,
     pub max_requests_per_minute: u32,
@@ -72,6 +78,9 @@ impl CoreServiceConfig {
         if let Some(path) = self.transport.work_admission_path.as_ref() {
             paths.push(path);
         }
+        super::release_admission::validate_transport(self)?;
+        paths.extend(self.transport.release_admission_path.iter());
+        paths.extend(self.transport.release_readiness_path.iter());
         if self.brain.expected_restoration_fence.is_some()
             && self.transport.work_admission_path.is_none()
         {
@@ -161,10 +170,14 @@ pub(super) fn write_configuration_ack(
     acknowledgement: &p::ProductConfigAcknowledgement,
 ) -> p::Result<()> {
     acknowledgement.validate()?;
+    write_product_fact(path, acknowledgement)
+}
+
+pub(super) fn write_product_fact(path: &Path, fact: &impl serde::Serialize) -> p::Result<()> {
     crate::web::config::check_path(path)?;
     let parent = path.parent().ok_or_else(invalid)?;
     std::fs::create_dir_all(parent).map_err(|_| invalid())?;
-    let bytes = serde_json::to_vec_pretty(acknowledgement).map_err(|_| invalid())?;
+    let bytes = serde_json::to_vec_pretty(fact).map_err(|_| invalid())?;
     let mut file = tempfile::NamedTempFile::new_in(parent).map_err(|_| invalid())?;
     use std::io::Write;
     file.write_all(&bytes)
@@ -180,4 +193,4 @@ pub(super) fn write_configuration_ack(
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

@@ -12,6 +12,7 @@ use super::reject_linked_ancestors;
 mod network_journal;
 mod projection;
 mod release_images;
+mod release_takeover;
 #[cfg(test)]
 mod tests;
 mod verification;
@@ -42,6 +43,14 @@ enum JournalFact {
         operation_id: String,
         command_digest: p::SchemaDigest,
         prepared_digest: p::SchemaDigest,
+        at: p::Timestamp,
+    },
+    ReleaseTakeoverPrepared {
+        takeover: Box<p::ProductReleaseTakeover>,
+        at: p::Timestamp,
+    },
+    ReleaseCheckingPrepared {
+        checking: Box<p::ProductReleaseChecking>,
         at: p::Timestamp,
     },
     Planned {
@@ -118,6 +127,8 @@ struct OperationState {
     network_contract: bool,
     network_progress: Option<p::ProductNetworkProgress>,
     release_images_claimed: bool,
+    release_takeover: Option<p::ProductReleaseTakeover>,
+    release_checking: Option<p::ProductReleaseChecking>,
 }
 
 #[derive(Clone, Default)]

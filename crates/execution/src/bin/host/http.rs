@@ -69,6 +69,13 @@ pub(super) fn handle_connection(
             ) {
                 return network_response(&mut stream, broker.as_ref(), &auth, command);
             }
+            if matches!(
+                command.action,
+                p::ProductMaintenanceAction::Upgrade { .. }
+                    | p::ProductMaintenanceAction::RollbackCompatibleRelease { .. }
+            ) {
+                return release_response(&mut stream, broker.as_ref(), &auth, command);
+            }
         }
     }
     match route(&request, broker.as_ref(), worker.as_ref(), &auth, domain) {
@@ -88,6 +95,26 @@ pub(super) fn handle_connection(
             Ok(())
         }
     }
+}
+
+fn release_response(
+    stream: &mut TcpStream,
+    broker: &ProductHostBroker,
+    auth: &forme_execution::installed::HostAuth,
+    request: p::ProductMaintenanceRequest,
+) -> p::Result<()> {
+    let (operation, ticket) = match broker.prepare_owner_release(auth, request, now_ms()) {
+        Ok(value) => value,
+        Err(error) => return write_error(stream, 409, error),
+    };
+    let body =
+        serde_json::to_vec(&operation).map_err(|_| p::Error("release response failed".into()))?;
+    respond_before_dispatch(stream, &body, || {
+        if let Some(ticket) = ticket {
+            broker.execute_owner_release(ticket)?;
+        }
+        Ok(())
+    })
 }
 
 fn network_response(
@@ -248,13 +275,15 @@ fn route(
                 .map_err(|_| p::Error("worker dispatch body is invalid".into()))?;
             let now = now_ms();
             request.validate_at(now)?;
-            serde_json::to_vec(&worker.dispatch_with_execution(
-                auth,
-                request.job,
-                request.permit,
-                request.execution,
-                now,
-            )?)
+            serde_json::to_vec(&broker.with_installed_work_admission(|| {
+                worker.dispatch_with_execution(
+                    auth,
+                    request.job,
+                    request.permit,
+                    request.execution,
+                    now,
+                )
+            })?)
             .map_err(|_| p::Error("worker dispatch response failed".into()))?
         }
         ("GET", path) if path.starts_with("/v1/agent/workers/") => {

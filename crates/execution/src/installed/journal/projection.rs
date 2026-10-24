@@ -145,6 +145,8 @@ impl Projection {
                         network_contract: *network_contract == Some(1),
                         network_progress: None,
                         release_images_claimed: false,
+                        release_takeover: None,
+                        release_checking: None,
                     },
                 );
             }
@@ -175,6 +177,12 @@ impl Projection {
                 }
                 state.release_images_claimed = true;
                 state.view.revision = envelope.product_seq;
+            }
+            JournalFact::ReleaseTakeoverPrepared { takeover, at } => {
+                release_takeover::fold_takeover(self, takeover, *at, envelope.product_seq)?;
+            }
+            JournalFact::ReleaseCheckingPrepared { checking, at } => {
+                release_takeover::fold_checking(self, checking, *at, envelope.product_seq)?;
             }
             JournalFact::StageIntent {
                 operation_id,

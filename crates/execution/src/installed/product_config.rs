@@ -12,6 +12,7 @@ mod network;
 mod network_tests;
 #[cfg(test)]
 mod preference_tests;
+mod release;
 mod restore;
 mod service_files;
 mod settings_schema;
@@ -59,6 +60,8 @@ struct ConfigState {
     capabilities: Option<p::ProductCapabilitySettings>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     network: Option<p::ProductNetworkConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    release: Option<p::ProductReleaseBinding>,
 }
 
 impl ConfigState {
@@ -74,6 +77,7 @@ impl ConfigState {
             brain: None,
             capabilities: None,
             network: None,
+            release: None,
         }
     }
 
@@ -85,6 +89,7 @@ impl ConfigState {
                 | p::SchemaVersion(4)
                 | p::SchemaVersion(5)
                 | p::SchemaVersion(6)
+                | p::SchemaVersion(7)
         ) || self.install_ref != template.install_ref
             || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
             || (self.schema_version.0 < 4 && self.brain.is_some())
@@ -99,6 +104,7 @@ impl ConfigState {
         {
             return Err(invalid());
         }
+        release::validate_state(self, template)?;
         if let Some(owner) = &self.owner {
             owner.validate()?;
         }
@@ -275,7 +281,9 @@ impl ProductConfigStore {
         let credentials = materialize::credential_paths(&self.template, &id, &prepared)?;
         let active_network = self.active_network()?;
         let state = ConfigState {
-            schema_version: p::SchemaVersion(if network.is_some() {
+            schema_version: p::SchemaVersion(if self.state.release.is_some() {
+                7
+            } else if network.is_some() {
                 6
             } else if capabilities.is_some() {
                 5
@@ -293,6 +301,7 @@ impl ProductConfigStore {
             brain,
             capabilities,
             network,
+            release: self.state.release.clone(),
         };
         state
             .validate(&self.template)
@@ -354,6 +363,9 @@ impl ProductConfigStore {
             {
                 return Err(invalid());
             }
+        }
+        if let Some(binding) = &self.state.release {
+            self.verify_release_readiness(binding, acknowledgement.revision)?;
         }
         if self.journal.acknowledged() != Some(acknowledgement.revision) {
             self.journal.acknowledge(acknowledgement.revision)?;

@@ -16,6 +16,9 @@ mod host_native;
 mod host_operations;
 #[path = "host_release.rs"]
 mod host_release;
+#[path = "host_release_takeover.rs"]
+mod host_release_takeover;
+pub use host_release_takeover::PreparedOwnerRelease;
 #[path = "host_release_state.rs"]
 mod host_release_state;
 #[path = "host_restore.rs"]
@@ -168,6 +171,7 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     product_config: Option<Arc<Mutex<ProductConfigStore>>>,
     release_stager: Option<Arc<ReleaseStager>>,
     release_worker: Option<Arc<dyn ReleaseWorkerProvider>>,
+    release_updater: Option<Arc<super::InstalledReleaseUpdater>>,
     restore_worker: Option<Arc<dyn super::RestoreWorkerProvider>>,
     target: p::ProductTarget,
     install_id: String,
@@ -263,6 +267,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             product_config,
             release_stager: None,
             release_worker: None,
+            release_updater: None,
             restore_worker: None,
             target,
             install_id: install_id.into(),
@@ -407,7 +412,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         if self.release_stager.is_some() {
             allowed_operations.extend(["stage_signed_release".into(), "uninstall_plan".into()]);
         }
-        if self.release_stager.is_some() && self.release_worker.is_some() {
+        if self.release_stager.is_some()
+            && (self.release_worker.is_some()
+                || self.release_updater.as_ref().is_some_and(|u| u.available()))
+        {
             allowed_operations.extend(["upgrade".into(), "rollback_compatible_release".into()]);
         }
         if self

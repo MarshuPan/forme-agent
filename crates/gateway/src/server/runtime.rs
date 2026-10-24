@@ -67,6 +67,10 @@ where
     let mut configuration_ack = config.configuration_ack();
     let configuration_ack_path = config.transport.configuration_ack_path.clone();
     let work_admission_path = config.transport.work_admission_path.clone();
+    let release_binding = config.transport.release_binding.clone();
+    let release_admission_path = config.transport.release_admission_path.clone();
+    let release_readiness_path = config.transport.release_readiness_path.clone();
+    let release_image = super::release_admission::current_image(release_binding.as_ref())?;
     let lifecycle = GatewayLifecycleConfig {
         schema_version: p::SchemaVersion(1),
         drain_timeout: Duration::from_millis(config.drain_timeout_ms),
@@ -108,11 +112,50 @@ where
         }
         _ => WorkAdmission::default(),
     };
+    let release_readiness = match (release_binding, release_admission_path, release_image) {
+        (Some(binding), Some(path), Some(image)) => {
+            let ack = configuration_ack.as_ref().ok_or_else(|| {
+                p::Error("release configuration acknowledgement is missing".into())
+            })?;
+            let readiness = p::ProductReleaseReadiness {
+                schema_version: p::SchemaVersion(1),
+                binding: binding.clone(),
+                config_revision: ack.revision,
+                actual_image_digest: image,
+                data_identity: ack
+                    .data_identity
+                    .clone()
+                    .ok_or_else(|| p::Error("release data readiness is missing".into()))?,
+            };
+            readiness.validate()?;
+            Some((
+                readiness,
+                super::release_admission::managed_admission(path, binding),
+            ))
+        }
+        _ => None,
+    };
+    let (release_readiness, admission) = match release_readiness {
+        Some((readiness, hold)) => (Some(readiness), admission.and(hold)),
+        None => (None, admission),
+    };
+    let release_health = release_readiness
+        .as_ref()
+        .map(|readiness| {
+            super::release_health::ReleaseHealth::new(readiness.clone(), &transport.token)
+        })
+        .transpose()?;
     serve_with_admission_until(
         transport,
         runtime,
         lifecycle,
         move |address| {
+            if let (Some(path), Some(readiness)) = (
+                release_readiness_path.as_deref(),
+                release_readiness.as_ref(),
+            ) {
+                super::managed_config::write_product_fact(path, readiness)?;
+            }
             if let (Some(path), Some(acknowledgement)) = (
                 configuration_ack_path.as_deref(),
                 configuration_ack.as_ref(),
@@ -124,6 +167,7 @@ where
         },
         shutdown,
         Arc::new(admission),
+        release_health,
     )
     .await
 }
@@ -146,6 +190,7 @@ where
         on_bound,
         shutdown,
         Arc::new(WorkAdmission::default()),
+        None,
     )
     .await
 }
@@ -157,6 +202,7 @@ async fn serve_with_admission_until<F, S>(
     on_bound: F,
     shutdown: S,
     admission: Arc<WorkAdmission>,
+    release_health: Option<super::release_health::ReleaseHealth>,
 ) -> p::Result<()>
 where
     F: FnOnce(SocketAddr) -> p::Result<()>,
@@ -208,6 +254,7 @@ where
         max_requests_per_minute: config.max_requests_per_minute,
         max_body_bytes: config.max_body_bytes,
         admission: admission.clone(),
+        release_health,
         web_bridge: super::web_bridge::WebBridgeState::open(
             config.install_ref.clone(),
             config.web_bridge_token.clone(),

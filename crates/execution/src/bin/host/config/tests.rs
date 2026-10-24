@@ -313,7 +313,11 @@ fn release_staging_roots_are_checked_before_credentials_and_journal() {
     std::fs::write(&staging_path, serde_json::to_vec(&staging).unwrap()).unwrap();
     fixture.key("maintenance.key", b"test-maintenance-only-token-0000000001");
     fixture.key("agent.key", b"test-agent-only-token-000000000000002");
-    let runtime = from_managed_config(&path).unwrap();
+    // Installed release takeover only accepts the immutable service config
+    // location recorded by the installation manifest.
+    let installed_path = fixture.0.join("config/host.json");
+    std::fs::copy(&path, &installed_path).unwrap();
+    let runtime = from_managed_config(&installed_path).unwrap();
     assert!(runtime.release_stager.is_some());
     assert!(!fixture.journal().exists());
     doc["release_staging_config_path"] = doc["journal_path"].clone();

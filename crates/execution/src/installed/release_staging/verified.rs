@@ -69,6 +69,50 @@ impl VerifiedStagedRelease {
 }
 
 impl ReleaseStager {
+    /// Before writer transfer, recheck the protected staging projection and
+    /// signature/content without opening a competing management writer. The
+    /// original journal is revalidated again after Host is actually stopped.
+    pub(crate) fn takeover_content(
+        &self,
+        id: &str,
+        digest: &p::SchemaDigest,
+    ) -> p::Result<VerifiedStagedRelease> {
+        p::validate_release_id(id)?;
+        p::validate_product_digest(digest)?;
+        let directory = self.installation.paths.host_state.join("release-records");
+        crate::installed::reject_linked_ancestors(&directory)?;
+        let entries = std::fs::read_dir(&directory).map_err(|_| invalid())?;
+        let mut selected = None;
+        for (count, entry) in entries.enumerate() {
+            if count >= 4096 {
+                return Err(invalid());
+            }
+            let path = entry.map_err(|_| invalid())?.path();
+            let record: StagedReleaseRecord = json(&path, 8 * 1024 * 1024)?;
+            if record.manifest.release_id != id {
+                continue;
+            }
+            if selected.is_some()
+                || record.schema_version != p::SchemaVersion(1)
+                || record.install_ref != self.installation.install_id
+                || record.manifest.digest()? != *digest
+            {
+                return Err(invalid());
+            }
+            let root = self.destination(id)?;
+            let release =
+                self.keys
+                    .verify(&record.manifest, &record.signature, &root, self.target())?;
+            selected = Some(VerifiedStagedRelease {
+                release,
+                root,
+                record_path: path,
+                record_digest: p::canonical_digest(&record)?,
+                staging_operation: record.operation_id,
+            });
+        }
+        selected.ok_or_else(invalid)
+    }
     /// Read-only, no service/active-pointer/data writes. The source inbox is not
     /// needed after successful publication. Ambiguous/incomplete staging fails.
     pub fn verified_staged(

@@ -14,11 +14,14 @@ pub(super) fn dispatch() -> Result<(), windows_service::Error> {
 }
 
 pub(super) fn install(config_path: &Path) -> p::Result<()> {
-    super::config::HostServiceConfig::load(config_path)?;
-    forme_execution::installed::register_windows_service(p::BuiltinServiceId::Host, config_path)
+    let installation = super::config::installation(config_path)?;
+    forme_execution::installed::register_windows_service(p::BuiltinServiceId::Host, config_path)?;
+    forme_execution::installed::register_windows_release_updater(&installation, config_path)
 }
 
 pub(super) fn uninstall(config_path: &Path) -> p::Result<()> {
+    let installation = super::config::installation(config_path)?;
+    forme_execution::installed::unregister_windows_release_updater(&installation, config_path)?;
     forme_execution::installed::unregister_windows_service(p::BuiltinServiceId::Host, config_path)
 }
 

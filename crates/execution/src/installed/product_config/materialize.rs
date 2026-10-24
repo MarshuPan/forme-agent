@@ -374,6 +374,22 @@ pub(super) fn core_config(
         )
         .map_err(|_| invalid())?;
     }
+    if let Some(binding) = &state.release {
+        config["transport"]["release_binding"] =
+            serde_json::to_value(binding).map_err(|_| invalid())?;
+        config["transport"]["release_admission_path"] = serde_json::to_value(
+            template
+                .core_config_path
+                .with_extension("release-admission.json"),
+        )
+        .map_err(|_| invalid())?;
+        config["transport"]["release_readiness_path"] = serde_json::to_value(
+            template
+                .configuration_ack_path
+                .with_extension("release-readiness.json"),
+        )
+        .map_err(|_| invalid())?;
+    }
     Ok(config)
 }
 
@@ -436,6 +452,7 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         brain: None,
         capabilities: None,
         network: None,
+        release: None,
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

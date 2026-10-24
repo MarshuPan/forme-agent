@@ -105,9 +105,26 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_data_transport") $name }
 
     foreach ($name in @(
+        "updater_cases::deferred_release_admission_is_exact_once_and_restart_cannot_recreate_dispatch_authority",
+        "updater_cases::updater_consumes_marker_before_stops_and_never_competes_for_the_live_host_writer",
+        "updater_cases::altered_handoff_or_tampered_target_produces_zero_native_stops",
+        "updater_cases::updater_transfers_real_writers_and_child_pipe_then_leaves_target_checking_closed"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") $name }
+
+    foreach ($name in @(
         "release_data_observes_real_schema_holds_store_and_creates_verified_backup_once",
         "release_data_rejects_wrong_owner_revision_missing_keys_and_cross_operation_frames"
     )) { Invoke-NamedTest "forme-gateway" @("--lib") "server::lifecycle_tests::installed_release::$name" }
+
+    foreach ($name in @(
+        "server::lifecycle_tests::installed_release::live_probe::live_release_router_enforces_http_boundaries_and_independent_rate_without_brain_effects",
+        "server::lifecycle_tests::installed_release::live_probe::ordinary_runtime_has_no_release_readiness_endpoint_authority"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") $name }
+
+    foreach ($name in @(
+        "installed::release_probe::tests::real_probe_socket_rejects_forgery_replay_and_wrong_binding_without_disclosing_bearer",
+        "installed::release_probe::tests::non_loopback_or_expired_probe_has_no_connection_attempt"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
 
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::release::tests::image_change_preserves_identity_startup_dependency_group_and_display"

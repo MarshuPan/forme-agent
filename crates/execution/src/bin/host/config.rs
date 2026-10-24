@@ -204,6 +204,8 @@ pub(crate) struct HostRuntimeConfig {
     pub product_config_template_path: Option<PathBuf>,
     pub release_stager: Option<std::sync::Arc<ReleaseStager>>,
     pub restore_worker: Option<std::sync::Arc<forme_execution::installed::InstalledRestoreWorker>>,
+    pub release_updater:
+        Option<std::sync::Arc<forme_execution::installed::InstalledReleaseUpdater>>,
     pub host_bind: SocketAddr,
     pub agent_execution_bind: SocketAddr,
     pub configuration_bind: SocketAddr,
@@ -221,6 +223,7 @@ pub(crate) enum Launch {
     Managed(PathBuf),
     InstallService(PathBuf),
     UninstallService(PathBuf),
+    ReleaseUpdater(PathBuf),
     VerifyRelease {
         root: PathBuf,
         trust: PathBuf,
@@ -253,6 +256,11 @@ pub(crate) fn launch_from_args(
             let path = PathBuf::from(path);
             reject_path(&path)?;
             Ok(Launch::UninstallService(path))
+        }
+        [updater, flag, path] if updater == "--release-updater" && flag == "--config" => {
+            let path = PathBuf::from(path);
+            reject_path(&path)?;
+            Ok(Launch::ReleaseUpdater(path))
         }
         [verify, root, trust_flag, trust, target_flag, target]
             if verify == "--verify-release"
@@ -335,6 +343,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         product_config_template_path: None,
         release_stager: None,
         restore_worker: None,
+        release_updater: None,
         host_bind,
         agent_execution_bind,
         configuration_bind,
@@ -363,6 +372,18 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         .map(|path| ReleaseStager::open(manifest.clone(), ReleaseStagingConfig::load(path)?))
         .transpose()?
         .map(std::sync::Arc::new);
+    let release_updater = release_stager
+        .as_ref()
+        .map(|stager| {
+            forme_execution::installed::InstalledReleaseUpdater::new(
+                manifest.clone(),
+                path.to_owned(),
+                stager.clone(),
+                std::sync::Arc::new(forme_execution::installed::SystemReleaseUpdaterPlatform),
+            )
+            .map(std::sync::Arc::new)
+        })
+        .transpose()?;
     let credentials = HostCredentials::new(
         read_managed_credential(&config.maintenance_credential_path, "maintenance")?,
         Some(read_managed_credential(
@@ -395,6 +416,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         worker_config_path: config.worker_config_path,
         product_config_template_path: config.product_config_template_path,
         release_stager,
+        release_updater,
         restore_worker,
         host_bind: config.host_bind,
         agent_execution_bind: config.agent_execution_bind,
@@ -405,6 +427,12 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         worker_protected_paths,
         managed: true,
     })
+}
+
+#[cfg(windows)]
+pub(super) fn installation(path: &Path) -> p::Result<p::InstallationManifest> {
+    let config = HostServiceConfig::load(path)?;
+    manifest::load_installation_manifest(&config).map(|pair| pair.0)
 }
 
 #[cfg(test)]

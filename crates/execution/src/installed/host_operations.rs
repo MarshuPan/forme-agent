@@ -54,6 +54,13 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 "maintenance command is bound to a stale active release".into(),
             ));
         }
+        if self.journal.release_is_unresolved()?
+            && request.command.kind != p::MaintenanceKind::Inspect
+        {
+            return Err(p::Error(
+                "release takeover is unresolved; inspect the original operation".into(),
+            ));
+        }
         if matches!(
             &request.command.kind,
             p::MaintenanceKind::Upgrade { .. }
@@ -105,6 +112,14 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             return Err(p::Error("operation has an unresolved stage intent".into()));
         }
         let command = self.journal.command(operation_id)?;
+        if !matches!(
+            command.kind,
+            p::MaintenanceKind::Inspect
+                | p::MaintenanceKind::Upgrade { .. }
+                | p::MaintenanceKind::RollbackCompatibleRelease { .. }
+        ) {
+            self.ensure_release_settled()?;
+        }
         if matches!(command.kind, p::MaintenanceKind::CommitRestore { .. }) {
             let mut config = self
                 .product_config

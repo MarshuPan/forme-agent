@@ -7,6 +7,14 @@ pub struct InstalledReleaseDataWorker {
     program: ReleaseDataProgram,
 }
 impl InstalledReleaseDataWorker {
+    pub(crate) fn from_verified(
+        installation: p::InstallationManifest,
+        verified: super::VerifiedStagedRelease,
+    ) -> p::Result<Self> {
+        Ok(Self {
+            program: ReleaseDataProgram::from_verified(installation, verified)?,
+        })
+    }
     pub fn new(installation: p::InstallationManifest) -> p::Result<Self> {
         Ok(Self {
             program: ReleaseDataProgram::new(installation)?,

@@ -66,6 +66,20 @@ pub(crate) struct WorkAdmission {
 }
 
 impl WorkAdmission {
+    /// Independent product holds must all allow work. Combining their guards
+    /// keeps one active/drain counter instead of acquiring nested work leases.
+    pub(crate) fn and(self, other: Self) -> Self {
+        Self::guarded(move || {
+            if let Some(check) = &self.check {
+                check()?;
+            }
+            if let Some(check) = &other.check {
+                check()?;
+            }
+            Ok(())
+        })
+    }
+
     pub(crate) fn guarded(check: impl Fn() -> p::Result<()> + Send + Sync + 'static) -> Self {
         Self {
             check: Some(Arc::new(check)),

@@ -1,5 +1,7 @@
 mod maintenance_admission;
 mod managed_config;
+mod release_admission;
+mod release_health;
 mod runtime;
 pub use managed_config::CoreServiceConfig;
 #[cfg(test)]
@@ -202,6 +204,10 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/app.css", get(styles))
         .route("/app.js", get(script))
         .route("/healthz", get(health))
+        .route(
+            "/v1/product/release/readiness",
+            post(release_health::probe).layer(DefaultBodyLimit::max(4096)),
+        )
         .route("/v1/runtime/manifest", get(runtime_manifest))
         .route(
             "/v1/web/session-fence",
@@ -296,6 +302,7 @@ struct HttpState {
     max_body_bytes: usize,
     admission: Arc<WorkAdmission>,
     web_bridge: WebBridgeState,
+    release_health: Option<release_health::ReleaseHealth>,
 }
 
 struct RateWindow {

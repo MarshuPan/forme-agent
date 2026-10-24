@@ -16,7 +16,9 @@ try {
         throw 'Native installation requires the administrator installer'
     }
     Assert-ForMeInstallRoots $ProgramRoot $DataRoot
-    $names = @('forme-host', 'forme-web', 'forme-brain')
+    # The updater is an on-demand maintenance service, not a fourth business daemon.
+    # A leftover registration must also block fresh installation.
+    $names = @('forme-host', 'forme-web', 'forme-brain', 'forme-release-updater')
     $services = @(Get-Service -ErrorAction Stop | Where-Object { $_.Name -in $names })
     if ($Mode -eq 'Prepare') {
         if ($services.Count -ne 0) { throw 'Existing services require explicit lifecycle recovery' }
@@ -36,8 +38,8 @@ try {
             }
         }
     } else {
-        if ($services.Count -ne 3 -or @($services | Where-Object Status -NE 'Stopped').Count -ne 0) {
-            throw 'All three registered services must be stopped before first-install access checks'
+        if ($services.Count -ne 4 -or @($services | Where-Object Status -NE 'Stopped').Count -ne 0) {
+            throw 'All business services and the maintenance updater must be registered and stopped before first-install access checks'
         }
         $web = [Security.Principal.NTAccount]::new('NT SERVICE\forme-web').Translate([Security.Principal.SecurityIdentifier]).Value
         $brain = [Security.Principal.NTAccount]::new('NT SERVICE\forme-brain').Translate([Security.Principal.SecurityIdentifier]).Value

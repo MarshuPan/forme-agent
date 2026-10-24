@@ -4,6 +4,8 @@ pub(super) mod config;
 pub(super) mod http;
 #[cfg(windows)]
 mod service;
+#[cfg(windows)]
+mod updater_service;
 
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener};
@@ -43,6 +45,9 @@ pub(super) fn run() -> p::Result<()> {
         match launch {
             Launch::InstallService(path) => service::install(&path),
             Launch::UninstallService(path) => service::uninstall(&path),
+            Launch::ReleaseUpdater(_) => updater_service::dispatch().map_err(|_| {
+                p::Error("release updater must run under its fixed SCM service".into())
+            }),
             Launch::Development { .. } | Launch::Managed(_) => match service::dispatch() {
                 Ok(()) => Ok(()),
                 Err(windows_service::Error::Winapi(error))
@@ -65,6 +70,9 @@ pub(super) fn run() -> p::Result<()> {
         Launch::InstallService(_) | Launch::UninstallService(_) => Err(p::Error(
             "host service installation is managed by the native package manager on this platform"
                 .into(),
+        )),
+        Launch::ReleaseUpdater(_) => Err(p::Error(
+            "native independent release updater is unavailable on this platform".into(),
         )),
         Launch::VerifyRelease { .. } => Err(p::Error(
             "offline verification cannot start a service".into(),
@@ -128,6 +136,9 @@ fn run_host(
     if let Some(worker) = runtime.restore_worker {
         broker = broker.with_restore_worker(worker)?;
     }
+    if let Some(updater) = runtime.release_updater {
+        broker = broker.with_release_updater(updater)?;
+    }
     let broker = Arc::new(broker);
     if runtime.managed {
         broker.record_installation_verification(
@@ -186,12 +197,17 @@ fn run_host(
         let _ = std::io::stdout().flush();
     }
     on_ready()?;
+    let mut checked_release = std::time::Instant::now() - Duration::from_secs(1);
     loop {
         if let Some(receiver) = shutdown.as_ref() {
             match receiver.try_recv() {
                 Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
                 Err(std::sync::mpsc::TryRecvError::Empty) => {}
             }
+        }
+        if checked_release.elapsed() >= Duration::from_secs(1) {
+            broker.reconcile_release_checking()?;
+            checked_release = std::time::Instant::now();
         }
         let mut accepted = false;
         for endpoint in &endpoints {

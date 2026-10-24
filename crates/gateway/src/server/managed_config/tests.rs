@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn fixture(root: &Path) -> serde_json::Value {
+pub(crate) fn fixture(root: &Path) -> serde_json::Value {
     let key = ed25519_dalek::SigningKey::from_bytes(&[61; 32])
         .verifying_key()
         .to_bytes();

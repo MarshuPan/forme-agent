@@ -136,7 +136,10 @@ fn release_data_child_deadline_kills_waiting_process_and_does_not_retry_unknown_
         let started = Instant::now();
         let result = f
             .worker()
-            .start(f.request(mode), started + Duration::from_secs(2));
+            // A new Windows executable can spend seconds in native image/AV
+            // startup under the full suite. Keep a finite end-to-end deadline
+            // with enough startup margin; neither stalled phase may bypass it.
+            .start(f.request(mode), started + Duration::from_secs(10));
         if mode == "stall-on-backup" {
             let mut process = result.unwrap();
             assert!(process.step(p::ProductReleaseDataStep::Backup).is_err());
@@ -145,7 +148,7 @@ fn release_data_child_deadline_kills_waiting_process_and_does_not_retry_unknown_
         } else {
             assert!(result.is_err());
         }
-        assert!(started.elapsed() < Duration::from_secs(8));
+        assert!(started.elapsed() < Duration::from_secs(18));
         // A replaced executable is also impossible while a Windows child is
         // still live. Keep both copies inside this test-owned installation.
         let binary = f

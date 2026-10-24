@@ -2,6 +2,9 @@
 use super::{installed_restore::RestoreFixture, *};
 use crate::offline_data::{OfflineCoreMaintenance, OfflineReleaseWorker};
 
+#[path = "installed_release/live_probe.rs"]
+mod live_probe;
+
 fn request(f: &RestoreFixture) -> p::ProductReleaseDataRequest {
     p::ProductReleaseDataRequest {
         schema_version: p::SchemaVersion(1),
