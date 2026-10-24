@@ -218,6 +218,21 @@ Checking intent 先于重启。`ProductConfigAcknowledgement` 增加可选版本
 
 新 release 的程序保持不可变。切换只修改内置三个服务的确切 image/固定配置参数与受保护 active-release 投影，保留原账户、权限、依赖和恢复策略。初始 InstallationManifest 与 journal 的初始验证不改写；后续活动版本必须能追溯到同一 journal 的批准切换。Checking 期间新 Host 只能核实原接管，不重新停服/备份/切换；实际新程序、原 owner/store/event 连续性、配置 ack 与服务状态通过后，先提交 Committed 再开放工作准入。失败保留可运行的旧 release 和数据备份，显式进入恢复核实；组件通过不等于三平台自更新/IP14–15 已通过。
 
+#### 4.10.1 离线数据检查与备份接缝
+
+固定已安装 `forme-hostctl maintenance-release-data --installation-manifest <absolute-protected-path>` 仅接受继承的私有 stdin/stdout；不增加 Web 路由、任意路径、SQL 或模型调用。独立 updater 必须先观察 core 已停，再启动该接缝；它不能替代 updater 的 OS 生命周期托管。接缝沿 gateway → harness → store 的既有离线外观取得原脑独占锁，持锁直到 Release 或进程退出，不初始化空脑、不修改原库、不分配新 key，也不提升为升级成功。
+
+| 版本化 closed 对象 | 契约 |
+|---|---|
+| `ProductReleaseDataRequest` v1 | `release: ProductReleaseRequest, owner, expected_config_revision`；release 绑定 installation/原 operation/command digest/原与目标 release digest/backup ref。owner 与配置 revision 来自已认证维护及受保护配置。 |
+| `ProductReleaseDataIdentity` v1 | `config_schema_version, database_schema_version, owner_digest, store_identity, schema_digest, database_digest, event_count, last_stream_seq`；配置 schema 来自实际配置文件，数据库 schema 来自持锁读取的 `PRAGMA user_version`，不能用其他 DTO 的 schema_version 代替。只包含结构与摘要，不含内容/key。 |
+| `ProductReleaseDataStepRequest` v1 | `operation_id, command_digest, step: Backup / Release`；握手先返回 Inspected。每一帧都重新核对原绑定；乱序、重复 Backup、额外字段与错误版本拒绝。 |
+| `ProductReleaseDataResponse` v1 | 原 operation/command digest + `Inspected { identity } / BackedUp { backup_ref, backup_digest, identity } / Released {}`。Backup 仅在 BackedUp intent 后请求，返回已核验 manifest 的摘要；实际备份位置由 installation.backups 与 operation/command 摘要派生，绝不将请求 ref 当路径。Release 的回执必须在独占锁释放后发送。 |
+
+帧上限 64 KiB；父进程使用同一个绝对截止时刻、有界队列、最小环境和退出回收。Backup 为新目标且不覆盖已有/部分目标；未知结果保留现场及原 operation，不自动再做。独立 updater 使用 Inspected 的两个实际 schema 调用 `VerifiedStagedRelease::check_runtime_compatibility`，备份前后需保持同一身份与事件水位。检查、备份、后续恢复各自保留证据，不能拿该接缝的组件测试代替完整自更新或原生 IP 验收。
+
+产品 journal 的旧记录保持原字节与原 hash。新增可选投影字段不能在重放时以默认值重新序列化并改变历史摘要；读取先校验 closed DTO，再对记录实际保存的 fact 编码验 hash。内存 active release 只有在同一 journal 接受初始绑定/切换后才能更新。Committed 与工作准入开放分开：开放失败保留提交事实和关闭状态，查询原 operation 不重做升级。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
