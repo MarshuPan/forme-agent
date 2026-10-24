@@ -208,6 +208,16 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 页面由 owner 显式点击后查询，正文仅存在当前条目的内存状态；关闭/切换视图或登录失效时清除。请求完成后必须核对 node/run/event/scope/ref、schema、状态与 text/bytes/digest 一致性；刷新列表不会自动读取所有正文。测试覆盖已登记正文、刷新/重启后的同一内容、陈旧快照/跨 scope/跨 owner/伪造节点、内部 companion 冒充、真实生命周期删除、超限/非 UTF-8、安全文本渲染和零模型/零事件/零 key 创建。
 
+#### 5.6.2 从具体记忆进入真正的数据生命周期
+
+记忆条目的“准备遗忘”先做只读范围解析，不删除卡片或原文。新增产品只读适配 `/api/v1/brain/workbench/material-lifecycle` → 原签名桥 → core `/v1/brain/workbench/material-lifecycle`，请求继续使用 §5.6.1 的 `WorkbenchMaterialQuery`。响应为新的 `WorkbenchMaterialLifecycleView { schema_version: 1, node, run, event, scope, content_ref, subject, lifecycle_version }`；不改既有对象、trait、DataWorkbenchAction 或脑事件。subject 由同一当前记忆行、真实 writer 登记的材料 companion 和 protected-content 记录共同解析，不能从 node/ref 字符串猜测，更不能把内部 companion 当作用户材料。来源缺失、被删除、scope 不符或陈旧列表均拒绝；不要求解密正文，也不创建事件、模型调用或 key。
+
+页面核对响应与原条目身份、scope/ref、摘要格式和版本后，仅以内存把范围带入现有设置的数据管理区；不放入 URL 或浏览器持久存储，注销后清除。跳转不自动发送生命周期命令。该区仍使用既有 `DataWorkbenchAction::PrepareLifecycle`，绑定返回的 scope/subject/lifecycle_version 并要求口令；版本已变化时阻止沿旧选择准备，owner 需重新从当前条目解析或明确选择数据目录中的其他范围。
+
+准备后显示正式 core 的对象/派生项总数、范围、有效期与不可逆性：一个主体可能包含多条来源或派生记忆，不能宣称只删除当前卡片。实际 Delete/CryptoShred 继续用独立、显式确认、口令和 plan digest 绑定的既有 Apply 命令；Unknown 只查原回执，不能通过换号或刷新重试删除。确认后显示本地清理/key 销毁和真实远端状态，旧正文、下载及主脑上下文均遵守原 data fence。认知撤回仍只进入 governor/重评，不因这一入口被等同为永久遗忘。
+
+验收须有 source→subject 的正反绑定、只读零写入、陈旧/跨 owner/伪造/内部引用拒绝，以及正式 Web→core 准备/批准/真实清理/原号核实的临时数据证据；浏览器跨页与整包 IP20/IP24 继续独立取证。
+
 ### 5.7 设置与维护
 
 | 设置分区 | 必须展示/允许的动作 |
