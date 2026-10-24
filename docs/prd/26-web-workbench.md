@@ -218,6 +218,20 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 验收须有 source→subject 的正反绑定、只读零写入、陈旧/跨 owner/伪造/内部引用拒绝，以及正式 Web→core 准备/批准/真实清理/原号核实的临时数据证据；浏览器跨页与整包 IP20/IP24 继续独立取证。
 
+#### 5.6.3 文字纠正与原认知失效
+
+文字纠正与既有确认/拒绝/撤回分开。新增 closed 产品命令 `WorkbenchCorrectionCommand { schema_version: 1, command, run, kind, id, event, snapshot, statement }`，其中 kind 只接受 Candidate/Stable，statement 是 1–8,192 UTF-8 字节的 owner 反馈。命令不接收 actor、scope、原对象、证据、派生列表、置信度、稳定性、权限或新属性类型；认证 owner、当前 Cognition 列表及原事件共同决定这些字段。陈旧 snapshot、来源/状态不匹配、无可靠 scope、已撤回/拒绝/失效及 fixed/constitutional 对象在写入前拒绝。
+
+`POST /api/v1/brain/workbench/correction` 经既有签名桥进入 core 同名正式适配，交给唯一 ProductionRuntime。Harness 从真实原候选/稳定对象构造 owner 纠偏：原稳定认知沿既有 RetractionEvent/传递 ReevaluationTaskCreated 语义停用；未提升的原候选沿既有 CandidateDowngraded 语义处理。文字反馈形成单独、应用层加密的来源记录与 owner evidence，并生成低置信、working 层的纠正判断候选，关联原对象和来源。该候选使用现有 CognitiveMapUpdateProposed/Frame 与 CandidateCreated 路径，不直接修改任何稳定对象；文字不是 UserModel、AgentSelfModel、TrustProfile、PartnershipModel 的结构化字段补丁，也不能改变权限或提高能力自评。
+
+同一纠偏涉及的来源、原对象失效、派生重评和新候选须在 authority store 的一次本地事务内提交，使用所有相关 stream 的 expected version/CAS；事件仍经原 prepare/append/projection/FTS 路径分配 stream_seq。可新增 store 的受限本地原子写入实现方法，不改冻结 trait、同步/复制协议、事件类型或内部依赖图。来源密文与其登记绑定同事务提交；失败回滚全部脑记录，不能先撤回再因候选写入失败留下半次纠偏。规范事件顺序和 ID 由服务端确定，文字不得出现在 journal、命令 ID、摘要标签、日志或错误文本中。
+
+相同 owner/command/规范化 body 返回原回执，异义复用拒绝。审批式确认与普通 review 共享原对象的并发边界，并在事务内重查 source stream 与大脑 aggregate 版本，后台变化不能被旧页面覆盖。断线/写入结果不明时只查询同一命令的正式回执；原子事务使核实结果只能是完整提交、没有接纳记录或明确故障，禁止用新 key 自动再纠正。回执包含 `schema_version, command, binding, status, event, candidate`；确认的含义是“反馈、失效与新候选已记录”，不是新说法已提升、认知质量已验证或授权已改变。
+
+页面先让 owner 审阅原对象、影响范围和纠正文本，再显式提交。处理中/未确认时固定原 key/body，注销清草稿；刷新后从认证的主脑只读回执恢复原操作，不能从浏览器持久层重建事实。原文/纠正内容只按已有授权正文规则读取。新候选仍需正式 governor 的证据、冲突和谨慎不对称检查；确认 owner 反馈不伪造多时点的结果证据。纠正不删除历史，永久遗忘继续走 §5.6.2。
+
+验收覆盖候选与稳定对象、原派生链立即失效、纠正后候选未提升、文本注入仅为数据、跨 owner/伪造来源/陈旧页面/固定层拒绝、CAS 与事务中故障零半提交、同号重启核实/异义冲突、加密落盘/真实生命周期清理，以及 Web→bridge→core 和浏览器交互；未取到对应层级证据不得声称完整 IP20/IP24 通过。
+
 ### 5.7 设置与维护
 
 | 设置分区 | 必须展示/允许的动作 |

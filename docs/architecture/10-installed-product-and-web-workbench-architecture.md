@@ -190,6 +190,8 @@ Binary rollback 只在 schema/config 兼容时允许；不兼容进入新路径�
 
 五个工作面由同一个 Web API client、认证/session store、event reducer 和错误处理驱动：对话；工作空间；收件箱；记忆与认知；设置。细节由 prd/26 固定。共享对象只从安全 DTO 生成，不把 Rust 内部对象或 raw SQLite 暴露到页面。
 
+认知文字纠正由 prd/26 §5.6.3 的 closed 产品适配进入同一 Harness。来源密文、原候选降级/稳定对象撤回、传递重评及低置信纠正候选由 authority store 一次本地多 stream CAS 事务提交，再从既有事件 fold；Web/认证库不参与脑事务。该受限本地原子实现不借用 peer 同步接口、不新增 EventKind 或冻结 trait。纠正是 owner 反馈与认知失效，不是结构化权限/信任补丁或稳定认知直接覆盖。
+
 前端状态区分 optimistic/pending 与 server-acknowledged。只允许本地保存无秘密草稿和 UI 偏好；脑数据不作为可继续执行的离线私有副本。event reducer 按 run 内 `stream_seq` 与 event_id 去重，跨 run 列表使用服务端 opaque page cursor，不能把 ULID 或 ts 当全局顺序。
 
 浏览器提交普通主动建议处置后，Web 身份库在转发主脑前持久化 owner-scoped 的封闭原命令恢复记录，绑定原 command key 与规范化命令摘要。登录后的收件箱可读取当前 owner 的未决命令并与 inbox item 按 run/proposal 关联；若对应建议已不在当前投影中，仍显示安全的待核实条目。用户必须显式选择“核实原处置”，按原命令原 key 重发；页面加载不自动执行。只有主脑返回绑定一致的明确终态，或原命令收到该建议入口确定的执行前冲突（HTTP 409），才条件删除记录；Unknown、其他 HTTP 错误、超时、断线和服务不可用均保留。此 409 例外不能扩展到其他业务动作。记录不含自由文本或凭据，不写脑事件/脑表；脑事件仍是建议处置结果的唯一事实源，浏览器不持久化该恢复队列。
