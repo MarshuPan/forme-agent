@@ -239,6 +239,8 @@ Checking intent 先于重启。`ProductConfigAcknowledgement` 增加可选版本
 
 adapter 在任何更改前核对三个服务均已实际 Stopped、当前 image/固定参数/账户/依赖/启动方式/有限恢复策略均匹配原发布。每个原始程序的字节摘要被 preparation 绑定，执行前重新核验；目标完整文件集亦重新核验。仅在原 journal 的同一 Switching intent 仍有效且未过授权截止时刻时，按固定顺序切换三个 image；每个更改前后重新核对该服务的配置、状态和恢复策略。Windows 使用 SCM 的 CHANGE_CONFIG 权限，不删除/重建服务，不改服务账户或恢复策略；保留既有 display name、load-order/tag、依赖及其他安全描述符。
 
+完成全部只读预检后，先以原 product revision/CAS 追加 `ReleaseImagesClaimed(operation_id, command_digest, prepared_digest)` 产品事实，再调用第一个配置更改。该原 operation 只允许 claim 一次；重启也不清除。claim 后进程退出、期限耗尽、配置漂移或任意回执缺失，均只核实原操作，不允许重新 preparation/claim 来重跑整个 image 切换。该事实不是脑 EventKind，也不推进 Switching receipt。
+
 `ProductReleaseServiceReceipt` v1 包含原 operation/command digest 和三个 `ProductReleaseServiceImageReceipt` v1（固定 service、实际 source/target image digest、配置快照摘要）。它只证明观察到的原生 image 配置，不代替启动、实际运行程序、数据连续性、config ack 或 Committed。一个配置调用成功但读取回执失败即为未知结果；已切换部分保持现场，不自动反向切换或重复调用。未实现的原生平台返回 unavailable，不回退到普通子进程或任意 shell。
 
 组件测试可通过受控平台适配器验证三服务完整预检、intent/CAS、期限、配置漂移和部分失败；原生 SCM 管理员演练仍另列 IP14–15 证据。
