@@ -281,6 +281,18 @@ Host 在同一 CAS/journal 中保存偏好、模型与凭据，materialize 到�
 
 本增量只闭合上述有实际消费者的设置；能力、消息渠道、代理和网络分别按其 typed 生命周期实施，不能因本节通过而宣称 IP08/IP21 完成。
 
+### 11.7 受管 skills 配置接入
+
+能力设置按实际消费者逐项接入，首先接通现有 SkillRegistry，不开放任意能力 JSON、可执行路径或配置中自报权限。`ProductConfigPatch` additive 字段 `capabilities?: ProductCapabilitySettings` 与模型/brain 共用原 operation、expected revision、Host journal 和 staging/CAS；对象为 closed/versioned `{ schema_version: 1, skills }`。每项为 `{ schema_version: 1, id, summary, scope, version, body, enabled, trust }`，id/scope 是产品标识而非磁盘路径；version 为正整数。最多 128 项，summary 最多 2,048、body 最多 16,384 UTF-8 字节，整个 settings JSON 最多 65,536 字节；空正文、重复 id、未知字段/版本和非法控制字符拒绝。秘密仍只走现有专用 resolver，skill 正文不能作为密钥输入。
+
+`enabled` 与 `trust` 独立；缺省为禁用、`untrusted`。信任选择仅为 `untrusted / owner_input`，后者必须由已认证 owner 明确标记，不由启用、导入或保存自动生成。它是现有 TrustTier 的输入来源标记，不是 capability permission、AutonomyEnvelope 或 VerifiedProcess。外部技能保留不可信状态，直至 owner 单独审查并确认；不能从正文自报 trust、hook、工具或执行权。
+
+`ProductConfigView` 返回已认证 owner 的当前 skills 和来源。缺省 patch 字段保留既有设置，显式空列表才清空；读回不调模型、不触发安装/发现/执行。配置保存和 core acknowledgement 分开，旧 run 不热换 skill/context。Host state 使用 schema 5 承载显式 capability settings，保留 schema 2/3/4、无 capabilities 的旧 patch digest、已保存 core bytes、brain preferences 和恢复数据绑定；在任何凭据/快照文件写入前验证完整新 state 与 core 的体积上限。恢复/后续旧客户端保存不能丢掉已保存 skills。
+
+受管 core 文件只在显式配置时增加同一 versioned skills settings。ManagedBrainConfig 进行同一语义校验并转为现有 SkillDefinition：禁用项不可选，不可信项不可见/不可加载，其他项仍经既有作用域过滤、按需正文加载、provenance、context 及 Harness 治理；不旁路注册表、不新建 memory 或后台模型 client。不接受 stdio MCP、shell、browser、plugin executable 或任意 environment 配置；这些能力仍按 prd/24 的隔离 worker 接入，尚未接通时保持 blocked。
+
+验收覆盖旧 digest/旧 materialization、保存/幂等/异义复用/CAS、中断后原 intent 恢复、旧客户端保留/显式清空、恢复数据切换保留；正式 managed runtime 及 Web→Host→core 重启证明 skill metadata/正文进入真实 context，未选/不可信/禁用/越 scope 不进入。模型用量、真实 provider、原生安装和完整 IP08/IP21/IP24 分别取证。
+
 ### 11.6 实施细化：配置发布与运行态的访问隔离
 
 新安装的路径/Windows ACL 采用 prd/24 §4.4。`brain/runtime` 在认领后由 core 首次启动按需创建；准备安装和赋权不往新脑目录预写占位文件/子目录，保持原“新脑候选必须为空”的检查。Host 创建的 `config/core` 和 `keys/model-credentials` 则可预建，未来发布/凭据 revision 继承只读授权。
