@@ -5,6 +5,8 @@ mod journal;
 #[cfg(test)]
 mod maintenance_tests;
 mod materialize;
+#[cfg(test)]
+mod preference_tests;
 mod restore;
 mod service_files;
 mod storage;
@@ -41,6 +43,8 @@ struct ConfigState {
     credentials: BTreeMap<String, PathBuf>,
     #[serde(default)]
     active_data: Option<p::ProductDataBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    brain: Option<p::ProductBrainPreferences>,
 }
 
 impl ConfigState {
@@ -53,15 +57,17 @@ impl ConfigState {
             models: Vec::new(),
             credentials: BTreeMap::new(),
             active_data: None,
+            brain: None,
         }
     }
 
     fn validate(&self, template: &p::ProductConfigTemplate) -> p::Result<()> {
         if !matches!(
             self.schema_version,
-            p::SchemaVersion(2) | p::SchemaVersion(3)
+            p::SchemaVersion(2) | p::SchemaVersion(3) | p::SchemaVersion(4)
         ) || self.install_ref != template.install_ref
             || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
+            || (self.schema_version.0 < 4 && self.brain.is_some())
             || self.revision > 1_000_000_000
             || self.models.len() != self.credentials.len()
             || (self.revision == 0) != self.models.is_empty()
@@ -71,6 +77,15 @@ impl ConfigState {
         }
         if let Some(owner) = &self.owner {
             owner.validate()?;
+        }
+        if let Some(brain) = &self.brain {
+            brain.validate(
+                &self
+                    .models
+                    .iter()
+                    .map(|model| model.id.clone())
+                    .collect::<Vec<_>>(),
+            )?;
         }
         if let Some(binding) = &self.active_data {
             binding.validate()?;
@@ -169,6 +184,20 @@ impl ProductConfigStore {
             pending_restart: self.state.revision > 0 && acknowledged != Some(self.state.revision),
             configured: self.state.revision > 0,
             models: self.state.models.clone(),
+            brain: self
+                .state
+                .brain
+                .clone()
+                .unwrap_or_else(|| p::ProductBrainPreferences {
+                    schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
+                    default_workspace: self.template.workspace.clone(),
+                    model_routing: Default::default(),
+                }),
+            brain_source: if self.state.brain.is_some() {
+                p::ProductPreferenceSource::ManagedConfiguration
+            } else {
+                p::ProductPreferenceSource::InstallationTemplate
+            },
             issue_refs: Vec::new(),
         })
     }
@@ -207,17 +236,23 @@ impl ProductConfigStore {
     pub fn apply(&mut self, patch: p::ProductConfigPatch) -> p::Result<p::ProductConfigResponse> {
         patch.validate().map_err(|_| rejected_patch())?;
         self.recover()?;
-        let digest = p::canonical_digest(&(
-            &patch.schema_version,
-            &patch.operation_id,
-            &patch.expected_revision,
-            &patch.owner,
-            &patch.models,
-        ))?;
+        let digest = patch.digest()?;
         if self.journal.existing(&patch.operation_id, &digest)? {
             return self.response(patch.operation_id, false);
         }
         self.check_revision(patch.expected_revision, &patch.owner, true)?;
+        let brain = patch.brain.or_else(|| self.state.brain.clone());
+        if let Some(brain) = &brain {
+            brain
+                .validate(
+                    &patch
+                        .models
+                        .iter()
+                        .map(|model| model.id.clone())
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|_| rejected_patch())?;
+        }
         let prepared = materialize::prepare_models(&patch.models, &self.state.credentials)
             .map_err(|_| rejected_patch())?;
         let revision = self
@@ -229,13 +264,14 @@ impl ProductConfigStore {
         let id = materialize::new_ref()?;
         let credentials = materialize::write_credentials(&self.template, &id, &prepared)?;
         let state = ConfigState {
-            schema_version: p::SchemaVersion(3),
+            schema_version: p::SchemaVersion(if brain.is_some() { 4 } else { 3 }),
             install_ref: self.template.install_ref.clone(),
             owner: Some(patch.owner),
             revision,
             models: prepared.iter().map(|(view, _)| view.clone()).collect(),
             credentials,
             active_data: self.state.active_data.clone(),
+            brain,
         };
         self.commit_state(patch.operation_id.clone(), digest, state)?;
         self.response(patch.operation_id, true)

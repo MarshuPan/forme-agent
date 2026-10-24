@@ -29,6 +29,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
                 "base_url":model.base_url,"credential_env":model.credential_env,"default":true},
             "credential_path":key}]))
         .unwrap(),
+        model_routing: Default::default(),
         scheduler_enabled: false,
         scheduler: c.scheduler.clone(),
         cognition: c.cognition.clone(),

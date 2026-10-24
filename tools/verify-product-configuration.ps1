@@ -11,9 +11,11 @@ try {
         $code = $LASTEXITCODE
     } finally { $ErrorActionPreference = $previous }
     $output | ForEach-Object { Write-Host $_ }
-    if ($code -ne 0 -or @($output | Where-Object { $_ -match '^test result: ok\. 22 passed; 0 failed; 0 ignored;' }).Count -ne 1) {
-        throw 'Product configuration state/activation/maintenance tests did not execute exactly 22 cases'
+    if ($code -ne 0 -or @($output | Where-Object { $_ -match '^test result: ok\. 26 passed; 0 failed; 0 ignored;' }).Count -ne 1) {
+        throw 'Product configuration state/activation/maintenance tests did not execute exactly 26 cases'
     }
+    & cargo test --locked -p forme-harness --test installed_brain_preferences
+    if ($LASTEXITCODE -ne 0) { throw 'Managed brain preference runtime evidence failed' }
     & cargo build --locked -p forme-execution --bin forme-hostd -p forme-cli --bin forme-hostctl -p forme-gateway --bin forme-webd --bin forme-gatewayd
     if ($LASTEXITCODE -ne 0) { throw 'Managed product binaries failed to build' }
     & node --test tools/tests/managed_configuration.test.mjs tools/tests/local_authority.test.mjs

@@ -270,7 +270,7 @@ impl ProductionRuntime {
         let services = self.services();
         let model = services
             .model_registry
-            .get(services.model_registry.default_ref())
+            .get(services.model_registry.cognition_ref())
             .ok_or_else(|| p::Error("relevance model is not registered".into()))?;
         let endpoint = model.profile().base_url.as_str();
         let local = endpoint.starts_with("http://127.0.0.1:")

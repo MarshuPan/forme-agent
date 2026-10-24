@@ -265,6 +265,8 @@ pub struct ProductConfigView {
     pub pending_restart: bool,
     pub configured: bool,
     pub models: Vec<ProductModelProfileView>,
+    pub brain: ProductBrainPreferences,
+    pub brain_source: ProductPreferenceSource,
     pub issue_refs: Vec<String>,
 }
 
@@ -276,6 +278,8 @@ pub struct ProductConfigPatch {
     pub expected_revision: u64,
     pub owner: OwnerPrincipalRef,
     pub models: Vec<ProductModelProfilePatch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub brain: Option<ProductBrainPreferences>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -354,6 +358,15 @@ impl ProductConfigPatch {
                     "product configuration contains duplicate model ids".into(),
                 ));
             }
+        }
+        if let Some(brain) = &self.brain {
+            brain.validate(
+                &self
+                    .models
+                    .iter()
+                    .map(|model| model.id.clone())
+                    .collect::<Vec<_>>(),
+            )?;
         }
         Ok(())
     }
@@ -441,3 +454,5 @@ mod readiness;
 pub use readiness::*;
 mod admission;
 pub use admission::*;
+mod preferences;
+pub use preferences::*;

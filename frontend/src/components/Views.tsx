@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
-import type { ProductConfigView, ProductModelProfilePatch, RuntimeView } from '../types.ts';
+import type { ProductBrainPreferences, ProductConfigView, ProductModelProfilePatch, RuntimeView } from '../types.ts';
 import { draftFromConfig, emptyModel, patchFromDraft } from '../configuration.ts';
 import type { ModelDraft } from '../configuration.ts';
 import { ConfigurationActivation } from './ConfigurationActivation.tsx';
 import { DataManagement } from './DataManagement.tsx';
 import { Maintenance } from './Maintenance.tsx';
 import { RuntimeDiagnostics } from './RuntimeDiagnostics.tsx';
+import { BrainPreferences } from './BrainPreferences.tsx';
 
 
 export function Settings({ api, runtime, issue, refresh, signedOut }: { api: WorkbenchClient; runtime: RuntimeView | null; issue: string; refresh: () => void; signedOut: () => void }) {
@@ -63,12 +64,13 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
   onSaved: (value: ProductConfigView) => void;
 }) {
   const [models, setModels] = useState<ModelDraft[]>(() => draftFromConfig(config));
+  const [brain, setBrain] = useState<ProductBrainPreferences | null>(config?.brain ?? null);
   const [loadedRevision, setLoadedRevision] = useState<number | null>(null);
-  const pending = useRef<{ operation: string; revision: number; models: ProductModelProfilePatch[] } | null>(null);
+  const pending = useRef<{ operation: string; revision: number; models: ProductModelProfilePatch[]; brain: ProductBrainPreferences } | null>(null);
   const [uncertain, setUncertain] = useState(false);
   useEffect(() => {
     if (config && config.active_revision !== loadedRevision) {
-      setModels(draftFromConfig(config)); setLoadedRevision(config.active_revision);
+      setModels(draftFromConfig(config)); setBrain(config.brain); setLoadedRevision(config.active_revision);
     }
   }, [config, loadedRevision]);
   function update(index: number, change: Partial<ModelDraft>) {
@@ -78,14 +80,14 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
     setModels((current) => current.map((model, position) => ({ ...model, default: position === index })));
   }
   async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (busy || !config || !models.length) return;
+    event.preventDefault(); if (busy || !config || !models.length || !brain) return;
     onBusy(true); onError('');
     try {
-      pending.current ??= { operation: newKey('config'), revision: config.active_revision, models: patchFromDraft(models) };
-      const { operation, revision, models: patch } = pending.current;
-      const result = await api.saveProductConfig(revision, patch, operation);
+      pending.current ??= { operation: newKey('config'), revision: config.active_revision, models: patchFromDraft(models), brain };
+      const { operation, revision, models: patch, brain: preferences } = pending.current;
+      const result = await api.saveProductConfig(revision, patch, operation, preferences);
       pending.current = null; setUncertain(false);
-      onSaved(result.view); setLoadedRevision(result.view.active_revision); setModels(draftFromConfig(result.view));
+      onSaved(result.view); setLoadedRevision(result.view.active_revision); setModels(draftFromConfig(result.view)); setBrain(result.view.brain);
     } catch (problem) {
       if (problem instanceof ApiError && (problem.status === 409 || (problem.status === 422 && problem.code === 'ConfigurationInvalid'))) { pending.current = null; setUncertain(false); }
       else setUncertain(true);
@@ -99,6 +101,8 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
     {config?.pending_restart && <p className="notice">配置版本 {config.active_revision} 已保存，等待主脑重新加载并确认。已确认版本：{config.acknowledged_revision ?? '无'}。</p>}
     {uncertain && <p className="notice">上次保存结果尚未确认，再次提交将核实同一份配置；请先完成核实再修改。</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
+    {brain && <BrainPreferences value={brain} models={models} disabled={busy || uncertain} onChange={setBrain} />}
+    {config && <p className="muted">工作空间与分工来源：{config.brain_source === 'installation_template' ? '安装默认值' : '已保存配置'}。</p>}
     {models.map((model, index) => <fieldset className="model-profile" key={index} disabled={busy || uncertain}>
       <legend>模型 {index + 1}{model.default ? ' · 默认' : ''}</legend>
       <div className="form-grid model-form-grid">
@@ -116,6 +120,6 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
       </div>
       <div className="button-row model-actions"><label className="checkbox-label"><input type="checkbox" checked={model.tool_use} onChange={(event) => update(index, { tool_use: event.target.checked })} />允许工具调用</label><label className="checkbox-label"><input type="radio" name="default-model" checked={model.default} onChange={() => makeDefault(index)} />设为默认</label>{models.length > 1 && <button type="button" className="secondary-button" onClick={() => setModels((current) => current.filter((_, position) => position !== index))}>移除模型</button>}</div>
     </fieldset>)}
-    <div className="button-row"><button type="button" className="secondary-button" disabled={busy || uncertain} onClick={() => setModels((current) => [...current, { ...emptyModel(), id: `model:${current.length + 1}`, default: false }])}>添加模型</button><button type="submit" className="primary-button" disabled={busy || !config}>{busy ? '正在保存…' : uncertain ? '核实原保存' : '保存模型配置'}</button></div>
+    <div className="button-row"><button type="button" className="secondary-button" disabled={busy || uncertain} onClick={() => setModels((current) => [...current, { ...emptyModel(), id: `model:${current.length + 1}`, default: false }])}>添加模型</button><button type="submit" className="primary-button" disabled={busy || !config}>{busy ? '正在保存…' : uncertain ? '核实原保存' : '保存模型与主脑配置'}</button></div>
   </form>;
 }

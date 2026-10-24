@@ -60,6 +60,8 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   const empty = await product.request('/api/v1/product/config');
   assert.equal(empty.owner, session.session.owner);
   assert.equal(empty.configured, false);
+  assert.equal(empty.brain_source, 'installation_template');
+  assert.equal(empty.brain.default_workspace, product.template.workspace);
   const initial = save(baseUrl);
   const invalid = save('https://fixture.invalid/v1?key=forbidden', 0, 'config:invalid');
   await product.request('/api/v1/product/config', { method: 'POST', key: invalid.operation_id, body: invalid, expected: 422 });
@@ -165,9 +167,19 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   // New config is saved while old core continues using its immutable key file.
   const second = save(baseUrl, 1, 'config:process-second');
   second.models[0].credential = 'rotated-fixture-key-not-a-real-secret';
+  second.models.push({ ...second.models[0], id: 'model:foreground', model: 'fixture-foreground-model',
+    credential, default: false });
+  second.brain = { schema_version: 1, default_workspace: 'workspace:configured',
+    model_routing: { schema_version: 1, foreground: 'model:foreground', cognition: 'model:foreground' } };
+  const badRoute = { ...second, operation_id: 'config:absent-role', brain: { ...second.brain,
+    model_routing: { ...second.brain.model_routing, cognition: 'model:absent' } } };
+  await product.request('/api/v1/product/config', { method: 'POST', key: badRoute.operation_id, body: badRoute, expected: 422 });
+  assert.equal((await product.request('/api/v1/product/config')).active_revision, 1);
   await product.request('/api/v1/product/config', { method: 'POST', key: second.operation_id, body: second });
   const pending = await product.request('/api/v1/product/config');
   assert.equal(pending.active_revision, 2); assert.equal(pending.acknowledged_revision, 1); assert.equal(pending.pending_restart, true);
+  assert.deepEqual(pending.brain, second.brain);
+  assert.equal(pending.brain_source, 'managed_configuration');
   assert.equal(await fs.readFile(coreConfig.brain.models[0].credential_path, 'utf8'), credential);
   await product.stop(core);
   // The fixture deliberately kills the process; respect its original writer lease.
@@ -178,6 +190,27 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   await projects.verify();
   // Acknowledgement means loaded, not that the rotated provider credential works.
   assert.equal((await readJson(product.template.configuration_ack_path)).revision, 2);
+  const newManifest = await product.request('/api/v1/brain/runtime/manifest');
+  assert.equal(newManifest.workspace, 'workspace:configured');
+  const configuredSession = await product.request('/api/v1/sessions', { method: 'POST', key: 'session:configured',
+    body: { schema_version: 1, command: 'session:configured', title: 'Configured workspace', workspace: null } });
+  const configuredKey = 'run:managed-preferences';
+  const configuredRun = await product.request('/api/v1/brain/runs', { method: 'POST', key: configuredKey, expected: 202,
+    body: { ...unregistered, session: configuredSession.session, idempotency_key: configuredKey } });
+  const configuredDeadline = Date.now() + 30000;
+  let configuredSummary;
+  do {
+    configuredSummary = await product.request(`/api/v1/brain/runs/${encodeURIComponent(configuredRun)}`);
+    if (terminal.has(configuredSummary.status)) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  } while (Date.now() < configuredDeadline);
+  assert.equal(configuredSummary.status, 'Complete');
+  assert.equal(configuredSummary.workspace, 'workspace:configured');
+  assert.equal(modelRequests.at(-1).model, 'fixture-foreground-model');
+  const configuredEvents = await product.request(`/api/v1/brain/runs/${encodeURIComponent(configuredRun)}/events?after=0`, { text: true });
+  assert.ok(configuredEvents.includes('workspace:configured'));
+  assert.ok(configuredEvents.includes('openai-compatible:fixture-foreground-model'));
+  const callsAfterPreferences = modelRequests.length;
   await product.stop(core);
   // This is an explicit temporary test-process selection, not a production
   // active-pointer/Host restore transaction or a native service restart.
@@ -190,7 +223,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   await setFixtureAdmission(product, offline, true);
   const restoredAnswer = await product.request(`/api/v1/brain/runs/${encodeURIComponent(run)}/answer`);
   assert.equal(restoredAnswer.answer, answer);
-  assert.equal(modelRequests.length, callsBeforeMaintenance, 'restored read-only query must not call a model');
+  assert.equal(modelRequests.length, callsAfterPreferences, 'restored read-only query must not call a model');
   offline.run('inspect-data', offline.restoredConfigPath, [], false);
   await product.stop(restoredCore); await product.stop(web); await product.stop(host);
 });

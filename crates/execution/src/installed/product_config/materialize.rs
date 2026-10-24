@@ -272,6 +272,14 @@ pub(super) fn core_config(
         },
         "drain_timeout_ms":template.drain_timeout.0
     });
+    // Do not add fields to historical materializations: their bytes remain
+    // bound to the original immutable revision and journal digest.
+    if let Some(brain) = &state.brain {
+        config["brain"]["workspace"] =
+            serde_json::to_value(&brain.default_workspace).map_err(|_| invalid())?;
+        config["brain"]["model_routing"] =
+            serde_json::to_value(&brain.model_routing).map_err(|_| invalid())?;
+    }
     if state.active_data.is_some() {
         config["transport"]["work_admission_path"] = serde_json::to_value(
             template
@@ -339,6 +347,7 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         models: legacy.models,
         credentials,
         active_data: None,
+        brain: None,
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

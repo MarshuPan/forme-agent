@@ -158,7 +158,8 @@ impl ProductConfigStore {
             .ok_or_else(invalid)?
             .join("data-operations")
             .join(&request.candidate_ref);
-        if binding.store_path != expected_path
+        if request.install_ref != self.template.install_ref
+            || binding.store_path != expected_path
             || binding.candidate_ref != request.candidate_ref
             || binding.content_key_directory
                 != self
@@ -177,7 +178,7 @@ impl ProductConfigStore {
             return Err(invalid());
         }
         let mut state = self.state.clone();
-        state.schema_version = p::SchemaVersion(3);
+        state.schema_version = p::SchemaVersion(if state.brain.is_some() { 4 } else { 3 });
         state.revision = state.revision.checked_add(1).ok_or_else(invalid)?;
         state.active_data = Some(binding);
         let digest = p::canonical_digest(&(

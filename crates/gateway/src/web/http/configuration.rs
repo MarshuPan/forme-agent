@@ -20,6 +20,8 @@ pub(super) struct ProductConfigBody {
     operation_id: String,
     expected_revision: u64,
     models: Vec<p::ProductModelProfilePatch>,
+    #[serde(default)]
+    brain: Option<p::ProductBrainPreferences>,
 }
 
 #[derive(Deserialize)]
@@ -116,6 +118,7 @@ pub(super) async fn write(
         expected_revision: body.expected_revision,
         owner: owner.view().owner.clone(),
         models: body.models,
+        brain: body.brain,
     };
     let response = state
         .configuration_call(move |configuration| configuration.apply(patch))

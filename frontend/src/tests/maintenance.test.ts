@@ -36,7 +36,9 @@ const digest = (digit: string) => `sha256:${digit.repeat(64)}`;
 const candidate: RestoreCandidate = { schema_version: 1, candidate_ref: 'restored.sqlite',
   candidate_digest: digest('a'), owner_digest: digest('b'), store_identity: digest('c'), execution_fence_digest: digest('d') };
 const config: ProductConfigView = { schema_version: 1, configured: true, install_ref: 'installation:fixture',
-  active_revision: 7, acknowledged_revision: 7, owner: 'owner:fixture', pending_restart: false, models: [], issue_refs: [] };
+  active_revision: 7, acknowledged_revision: 7, owner: 'owner:fixture', pending_restart: false, models: [], issue_refs: [],
+  brain_source: 'installation_template', brain: { schema_version: 1, default_workspace: 'workspace:default',
+    model_routing: { schema_version: 1, foreground: null, cognition: null } } };
 const snapshot: MaintenanceSnapshot = { schema_version: 1, product_revision: 31, owner: 'owner:fixture',
   host: { schema_version: 1, product_state: 'ready', core_health: 'ready', active_release: '0.0.1', allowed_operations: ['commit_restore'] }, operations: [] };
 

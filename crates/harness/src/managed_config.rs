@@ -24,6 +24,8 @@ pub struct ManagedBrainConfig {
     pub workspace: p::WorkspaceRef,
     pub agent_profile: p::AgentProfileRef,
     pub models: Vec<ManagedModelProfile>,
+    #[serde(default)]
+    pub model_routing: p::ProductModelRouting,
     pub scheduler_enabled: bool,
     pub scheduler: p::SchedulerConfig,
     pub cognition: CognitiveRuntimeConfig,
@@ -83,6 +85,12 @@ impl ManagedBrainConfig {
             profiles: profiles.clone(),
         }
         .validate()?;
+        self.model_routing.validate(
+            &profiles
+                .iter()
+                .map(|profile| profile.id.clone())
+                .collect::<Vec<_>>(),
+        )?;
         if profiles.iter().filter(|model| model.default).count() != 1 {
             return Err(invalid());
         }

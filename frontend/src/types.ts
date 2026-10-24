@@ -50,10 +50,15 @@ export interface ProductModelProfile {
   fallback_group: string | null; default: boolean; tool_schema_versions: number[];
   credential_configured: boolean;
 }
+export interface ProductBrainPreferences {
+  schema_version: 1; default_workspace: string;
+  model_routing: { schema_version: 1; foreground: string | null; cognition: string | null };
+}
 export interface ProductConfigView {
   schema_version: 1; install_ref: string; owner: string | null;
   active_revision: number; acknowledged_revision: number | null; pending_restart: boolean;
   configured: boolean; models: ProductModelProfile[]; issue_refs: string[];
+  brain: ProductBrainPreferences; brain_source: 'installation_template' | 'managed_configuration';
 }
 export interface ProductConfigValidation {
   schema_version: 1; revision: number; valid: boolean; restart_required: boolean;

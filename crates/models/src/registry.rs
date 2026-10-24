@@ -11,6 +11,7 @@ use crate::{
 };
 
 mod credentials;
+mod routing;
 
 const MAX_PROFILE_CONFIG_BYTES: usize = 65_536;
 const MAX_MODEL_PROFILES: usize = 32;
@@ -121,6 +122,7 @@ impl fmt::Debug for RegisteredModel {
 pub struct ModelRegistry {
     models: BTreeMap<p::ModelProfileRef, RegisteredModel>,
     default: p::ModelProfileRef,
+    routing: p::ProductModelRouting,
 }
 
 impl ModelRegistry {
@@ -129,6 +131,7 @@ impl ModelRegistry {
         Ok(Self {
             models: BTreeMap::new(),
             default,
+            routing: Default::default(),
         })
     }
 
@@ -333,58 +336,7 @@ pub trait ModelSelector: Send + Sync {
 
 impl ModelSelector for ModelRegistry {
     fn select(&self, request: &ModelSelectionRequest) -> p::Result<ModelSelection> {
-        request.validate()?;
-        self.validate_ready()?;
-        let mut candidates = self
-            .models
-            .values()
-            .filter(|registered| {
-                let profile = registered.profile();
-                profile.capability.context_window >= request.minimum_context_window
-                    && strength_rank(profile.capability.strength)
-                        >= strength_rank(request.minimum_strength)
-                    && (!request.require_tool_use
-                        || registered.permits_tools(request.tool_schema_version))
-            })
-            .collect::<Vec<_>>();
-        candidates.sort_by_key(|registered| {
-            let profile = registered.profile();
-            (
-                strength_rank(profile.capability.strength),
-                profile.cost.input_microunits_per_million,
-                profile.cost.output_microunits_per_million,
-                registered.reference().clone(),
-            )
-        });
-        let selected = candidates
-            .first()
-            .copied()
-            .ok_or_else(|| p::Error("no compatible model profile is registered".into()))?;
-        let fallback_chain = candidates
-            .iter()
-            .skip(1)
-            .filter(|candidate| {
-                request.risk != p::Risk::High
-                    && selected.fallback_group().is_some()
-                    && candidate.fallback_group() == selected.fallback_group()
-            })
-            // Availability recovery is bounded independently of catalog size.
-            .take(2)
-            .map(|candidate| candidate.reference().clone())
-            .collect::<Vec<_>>();
-        Ok(ModelSelection {
-            schema_version: p::SchemaVersion(1),
-            selected: selected.reference().clone(),
-            policy: p::ReasonRef("model-selection:a-wave-deterministic".into()),
-            rationale: p::Rationale(format!(
-                "compatible profile selected for context={}, tools={}, risk={:?}, evidence={}",
-                request.minimum_context_window,
-                request.require_tool_use,
-                request.risk,
-                request.evidence.len()
-            )),
-            fallback_chain,
-        })
+        self.select_foreground(request)
     }
 }
 
@@ -644,7 +596,12 @@ mod tests {
     use super::*;
     use crate::{ModelOutput, ModelResponse, ScriptedModelProvider};
 
-    fn profile(id: &str, strength: ModelStrength, tools: bool, cost: u64) -> RegisteredModel {
+    pub(super) fn profile(
+        id: &str,
+        strength: ModelStrength,
+        tools: bool,
+        cost: u64,
+    ) -> RegisteredModel {
         let reference = p::ModelProfileRef(id.into());
         let profile = ModelProfile {
             schema_version: p::SchemaVersion(1),

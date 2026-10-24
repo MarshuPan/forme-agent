@@ -2694,7 +2694,7 @@ impl ContextSliceSource for ProductionContextSliceSource {
 fn compose(
     config: ProductionRuntimeConfig,
     store: SqliteEventStore,
-    credential_files: Option<BTreeMap<String, PathBuf>>,
+    credential_files: Option<builder::ManagedModelSources>,
     access: forme_store::StoreAccessGuard,
 ) -> p::Result<ProductionRuntime> {
     if !store.is_file_backed()? {

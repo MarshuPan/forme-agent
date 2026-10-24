@@ -8,7 +8,9 @@ test('saved model editing strips readonly fields and does not echo credentials',
   const { credential: _secret, ...model } = emptyModel();
   const config: ProductConfigView = { schema_version: 1, install_ref: 'install:test', owner: 'owner:test',
     active_revision: 1, acknowledged_revision: null, pending_restart: true, configured: true,
-    models: [{ ...model, credential_configured: true }], issue_refs: [] };
+    models: [{ ...model, credential_configured: true }], issue_refs: [],
+    brain_source: 'installation_template', brain: { schema_version: 1, default_workspace: 'workspace:default',
+      model_routing: { schema_version: 1, foreground: null, cognition: null } } };
   const draft = draftFromConfig(config);
   assert.equal(draft[0].credential, '');
   const patch = patchFromDraft(draft);
@@ -58,4 +60,22 @@ test('static validation remains distinct from a real model connection test', asy
   const report = await api.validateProductConfig(3, 'validate:fixture');
   assert.equal(report.model_test_status, 'NotRun');
   assert.equal(report.restart_required, true);
+});
+
+test('brain preferences share the saved model revision and exact operation with no automatic retry', async () => {
+  const calls: RequestInit[] = [];
+  const brain = { schema_version: 1 as const, default_workspace: 'workspace:project',
+    model_routing: { schema_version: 1 as const, foreground: 'model:primary', cognition: 'model:background' } };
+  const api = new WorkbenchClient(async (_path, init) => {
+    calls.push(init!); throw new TypeError('fixture unknown response');
+  });
+  await assert.rejects(api.saveProductConfig(12, patchFromDraft([emptyModel()]), 'config:original', brain));
+  assert.equal(calls.length, 1);
+  const body = JSON.parse(String(calls[0].body));
+  assert.deepEqual(body.brain, brain);
+  assert.equal(body.expected_revision, 12);
+  assert.equal(body.operation_id, 'config:original');
+  assert.equal(new Headers(calls[0].headers).get('Idempotency-Key'), 'config:original');
+  assert.equal(Object.hasOwn(body, 'owner'), false);
+  assert.equal(Object.hasOwn(body.models[0], 'credential'), false);
 });

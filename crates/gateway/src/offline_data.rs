@@ -12,6 +12,8 @@ use std::{
 };
 mod restore;
 pub use restore::OfflineRestoreWorker;
+#[cfg(test)]
+mod config_tests;
 
 // A closed projection of the managed config, deliberately independent from
 // runtime/model/transport decoding. Ignored fields cannot influence storage.
@@ -44,6 +46,10 @@ struct StorageBinding {
     _agent_profile: IgnoredAny,
     #[serde(rename = "models")]
     _models: IgnoredAny,
+    // Model routing cannot affect storage identity or block disaster recovery.
+    // Keep the projection closed while accepting this known runtime-only field.
+    #[serde(default, rename = "model_routing")]
+    _model_routing: Option<IgnoredAny>,
     #[serde(rename = "scheduler_enabled")]
     _scheduler_enabled: IgnoredAny,
     #[serde(rename = "scheduler")]

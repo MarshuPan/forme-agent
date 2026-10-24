@@ -56,6 +56,7 @@ pub(crate) fn patch(operation: &str, revision: u64) -> p::ProductConfigPatch {
         expected_revision: revision,
         owner: p::OwnerPrincipalRef("owner:test".into()),
         models: vec![profile()],
+        brain: None,
     }
 }
 
@@ -340,6 +341,7 @@ fn legacy_fixture(mismatch: bool) -> (tempfile::TempDir, PathBuf, Vec<u8>, PathB
         models: models.into_iter().map(|(view, _)| view).collect(),
         credentials: BTreeMap::from([("model:test".into(), credential.clone())]),
         active_data: None,
+        brain: None,
     };
     let mut core = materialize::core_config(&template, &state).unwrap();
     if mismatch {

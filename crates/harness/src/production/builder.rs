@@ -4,10 +4,15 @@ use super::*;
 
 pub struct ProductionRuntimeBuilder {
     config: ProductionRuntimeConfig,
-    credential_files: Option<BTreeMap<String, PathBuf>>,
+    credential_files: Option<ManagedModelSources>,
     managed_key_directory: Option<PathBuf>,
     // None is development; Some(None) is a managed, unrestored store.
     required_restoration_fence: Option<Option<p::SchemaDigest>>,
+}
+
+pub(super) struct ManagedModelSources {
+    credentials: BTreeMap<String, PathBuf>,
+    routing: p::ProductModelRouting,
 }
 
 impl ProductionRuntimeBuilder {
@@ -38,7 +43,10 @@ impl ProductionRuntimeBuilder {
             .collect();
         Ok(Self {
             config: runtime,
-            credential_files: Some(credential_files),
+            credential_files: Some(ManagedModelSources {
+                credentials: credential_files,
+                routing: config.model_routing,
+            }),
             managed_key_directory: Some(key_directory),
             required_restoration_fence: Some(expected_fence),
         })
@@ -113,7 +121,7 @@ impl ProductionRuntimeBuilder {
 
 pub(super) fn bind_models(
     models: &[ModelRuntimeConfig],
-    credentials: Option<BTreeMap<String, PathBuf>>,
+    credentials: Option<ManagedModelSources>,
 ) -> p::Result<(ModelRegistry, Vec<forme_models::UnavailableModelProfile>)> {
     let config = ModelRegistryConfig {
         schema_version: p::SchemaVersion(1),
@@ -121,19 +129,24 @@ pub(super) fn bind_models(
     };
     match credentials {
         None => ModelRegistry::from_config_degrading(config),
-        Some(paths) => ModelRegistry::from_config_degrading_with_credentials(config, |profile| {
-            let path = paths
-                .get(&profile.id)
-                .ok_or_else(|| p::Error("managed model credential is unavailable".into()))?;
-            let bytes = crate::managed_config::read_managed_file(path, 16 * 1024)?;
-            let value = String::from_utf8(bytes)
-                .map_err(|_| p::Error("managed model credential is invalid".into()))?;
-            let secret =
-                forme_models::SecretString::new(value.trim_end_matches(['\r', '\n']).to_owned())?;
-            Ok((
-                secret,
-                p::CredentialRef(format!("managed-model:{}", profile.id)),
-            ))
-        }),
+        Some(sources) => {
+            let (registry, unavailable) =
+                ModelRegistry::from_config_degrading_with_credentials(config, |profile| {
+                    let path = sources.credentials.get(&profile.id).ok_or_else(|| {
+                        p::Error("managed model credential is unavailable".into())
+                    })?;
+                    let bytes = crate::managed_config::read_managed_file(path, 16 * 1024)?;
+                    let value = String::from_utf8(bytes)
+                        .map_err(|_| p::Error("managed model credential is invalid".into()))?;
+                    let secret = forme_models::SecretString::new(
+                        value.trim_end_matches(['\r', '\n']).to_owned(),
+                    )?;
+                    Ok((
+                        secret,
+                        p::CredentialRef(format!("managed-model:{}", profile.id)),
+                    ))
+                })?;
+            Ok((registry.with_role_routing(sources.routing)?, unavailable))
+        }
     }
 }

@@ -58,6 +58,7 @@ export async function exerciseOfflineData(product, originalConfig) {
   // Disaster recovery does not depend on model, scheduler or transport health.
   const brokenRuntimeConfig = structuredClone(config);
   brokenRuntimeConfig.brain.models = [{ unsupported: 'broken-runtime-only' }];
+  brokenRuntimeConfig.brain.model_routing = { unavailable: 'broken-runtime-only' };
   brokenRuntimeConfig.brain.scheduler = null;
   brokenRuntimeConfig.transport = null;
   const brokenRuntimePath = path.join(product.root, 'broken-runtime-config.json');

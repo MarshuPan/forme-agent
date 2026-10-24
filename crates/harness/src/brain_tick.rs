@@ -206,7 +206,7 @@ impl HarnessCognitiveTick<'_> {
                             .collect::<Vec<_>>();
                         let model = services
                             .model_registry
-                            .get(services.model_registry.default_ref())
+                            .get(services.model_registry.cognition_ref())
                             .ok_or_else(|| p::Error("no bound relevance model".into()))?;
                         let baseline = crate::brain_relevance::ProviderRelevanceBaseline {
                             model,
