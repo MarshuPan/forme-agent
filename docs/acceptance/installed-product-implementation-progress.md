@@ -8,6 +8,8 @@
 
 2026-10-25 `a6e9a7c` 修复[设置可用性 fail-closed 展示](installed-product-settings-availability-readonly-acceptance.md)：旧安装缺少受管网络路径时，网络字段只读且不显示网络应用操作；模型/技能等已接通设置仍可按原事务保存。前端 76/76、workspace fmt/check/test（5 项按既定外部前置条件 ignored）、strict Clippy、代码质量与合规门通过。没有执行真实浏览器、管理员防火墙或 IP09/IP24 产品验收；PRD25/26 与整体产品里程碑仍开放。
 
+2026-10-25 Windows worker 隔离边界审查：PRD24 §4.1.2 已明确 `forme-hostd` 是安装清单绑定的 LocalSystem broker；core peer 身份与每个 worker 的 AppContainer/低完整性 token、Job Object、有效文件权限分别取证。静态审查的现有候选没有同时满足挂起后先入 Job、精确且身份绑定的 ACL、可崩溃恢复的 ACL lease，以及真实 token/文件访问正反断言；未新增依赖或启用 adapter。当前进程非管理员，`forme-host`/`forme-web`/`forme-brain` 均未注册，因此没有原生 SCM 身份或 worker 权限验收证据。生产 Host 继续使用 `UnavailableWorkerIsolation`，普通 worker dispatch 保持 blocked，IP10 未通过。
+
 2026-10-24 `5cbe175` 完成 Windows `WindowsJobWorkerIsolation`：使用 Job Object 在 worker 首次执行前接管进程，启用 kill-on-close，取消和宿主退出可终止同一进程树；真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等，2/2 PASS。该提交只闭合 Windows 进程树生命周期 custody，不等于完整 sandbox；服务账户、ACL、逐 job 文件/网络/credential scope、会话 helper、原生安装和 IP10/IP24 仍开放。详见[Windows Job Object worker adapter 验收](installed-product-windows-job-object-acceptance.md)。
 
 2026-10-24 `780ec1e` 完成 Core→AgentExecution 的 typed driver 接缝：`WorkerExecutionSpec`、loopback-only `WorkerBrokerTransport`、job 专属 execution binding、精确 job/permit/plan 校验、Unknown/原 job probe-cancel 与进程入口传递已实现。协议专项 3/3、host transport 8/8、workspace check、strict Clippy、代码质量与合规门通过；workspace 全量 test 在 Windows 链接阶段因 C 盘空间不足（`No space left on device`）未完成，不能写成完整 workspace test PASS。该提交只闭合 wire/receipt/状态边界，不证明 ProductionRuntime 已接入真实平台隔离；普通 process worker、Windows/Linux/macOS 原生 sandbox、IP10/IP24、安装包和系统服务仍未完成。
