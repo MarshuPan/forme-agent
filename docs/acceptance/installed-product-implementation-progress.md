@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-24 `780ec1e` 完成 Core→AgentExecution 的 typed driver 接缝：`WorkerExecutionSpec`、loopback-only `WorkerBrokerTransport`、job 专属 execution binding、精确 job/permit/plan 校验、Unknown/原 job probe-cancel 与进程入口传递已实现。协议专项 3/3、host transport 8/8、workspace check、strict Clippy、代码质量与合规门通过；workspace 全量 test 在 Windows 链接阶段因 C 盘空间不足（`No space left on device`）未完成，不能写成完整 workspace test PASS。该提交只闭合 wire/receipt/状态边界，不证明 ProductionRuntime 已接入真实平台隔离；普通 process worker、Windows/Linux/macOS 原生 sandbox、IP10/IP24、安装包和系统服务仍未完成。
+
 当前产品主施工分支：`shu/installed-product`；受管 skills、公共设置 v2、网络健康与回退增量已合入本分支，尚未合入 `main` 或发布。产品分支主线基线为 `802e3d2`（原子文字纠正、失效/低置信候选与无正文回执）；前笔 `91072be` 为具体记忆来源的真实遗忘，`700bb6f` 为模型角色装配绑定，`0990bd0` 为默认工作空间与模型角色持久配置。其余历史组件按下方记录保留。验证日期 2026-10-24。本机 shell 非管理员、未注册 forme 系统服务；未读取真实 owner/model secret。
 
 2026-10-24 `e405bd8`、`ba7f51a`、`4963169` 完成[受管 Web 网络配置组件](installed-product-network-configuration-acceptance.md)的后续公共设置 v2、listener 健康与失败回退：desired/published 分离、材料绑定、先回执后单次 dispatch、全局维护 fence、旧日志原字节兼容及独立发布权限；Windows 只读核验管理员预配 firewall，不自动修改规则。配置专项与 Web 工作台真实进程门 PASS；原生管理员、证书客户端信任、跨设备及 IP09/IP21/IP24 仍未通过。

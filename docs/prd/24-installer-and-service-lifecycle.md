@@ -88,6 +88,14 @@ AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/work
 
 `FORME_WORKER_CONFIG_PATH` 指向受保护的绝对 JSON 文件。`WorkerRuntimeConfig` 含 `schema_version, authority_epoch, journal_path, runtime_root, allowed_scopes, workspace_roots, launch_profiles`；每个 profile 含 `schema_version, sandbox_profile_ref, program, args`。读取上限 4 MiB；拒绝未知字段、重复 scope/profile、缺失映射、链接、路径别名或交叠。配置、worker journal、runtime、workspace 与注册程序不得互相成为可写覆盖目标；broker 另拒绝 worker journal 与管理 journal/凭据文件混用。结构检查不替代实际 ACL 和执行时身份验证。
 
+#### 4.1.1 Core→broker typed driver 接缝
+
+`WorkerDispatchRequest` 保持当前 schema 1，并以兼容新增字段携带有限的 `WorkerExecutionSpec`。它只复制已经由 Harness 最终重查过的 `ActionIntent`、backend、scope、affected resources、plan digest、timeout 和 output budget；不携带解析后的 secret、任意环境变量、程序路径或可替代的 plan 字段。spec 的 digest、intent id、scope、resources 和 plan digest 必须与 `WorkerJob`/`WorkerPermit` 逐项一致，Host 在调用隔离器前再次校验；没有 spec 的旧请求仍只保留控制面兼容语义，不被当成正式执行 driver 证据。
+
+Host 将已校验 spec 写入本 job 的受保护运行目录，按注册 launch profile 通过固定的 `FORME_WORKER_EXECUTION_PATH` 只读入口交给 worker；worker 只能读取该 job 自己的文件。spec 丢失、损坏、过期、与 job/permit 不一致或写入结果不明时，该原 job 进入 `Unknown`，不能换 job 重发。probe/cancel 只引用原 job，不重新提交 spec；重启后未终态 job 仍只做 Unknown 恢复。
+
+Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，绑定固定 loopback endpoint、独立 credential、请求/响应大小和超时；它不能调用 OwnerMaintenance，也不能让 Web 直接取得该 credential。该 transport 只负责 admission/probe/cancel 和 receipt 投影，不在 transport 内产生 permission、重算 plan 或执行模型。正式 ProductionRuntime 在没有真实平台隔离 adapter 时继续将对应 capability 标为 unavailable/blocked；开发 process worker 仅用于 transport/协议验证。
+
 默认配置加载**不启用普通进程 adapter**。没有已验证的平台隔离实现时，服务可提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，开发证据不得登记为安全沙箱或 IP10 PASS。
 
 ### 4.2 Core 停服接缝（24.2 增量）

@@ -2,6 +2,19 @@
 
 实施日期：2026-10-20；复核日期：2026-10-21；分支：`shu/installed-product`。实现提交：`f1122ec`；前置契约提交：`976e958`。这是内部 transport/状态一致性验收，不是 IP01–IP24、安装包或平台强隔离验收。
 
+## 0.1 2026-10-24 typed driver 增量
+
+提交 `780ec1e` 在原控制面之上闭合 Core→AgentExecution 的有限 typed 接缝：
+
+- `WorkerDispatchRequest` 保持 schema 1，并兼容可选 `WorkerExecutionSpec`；spec 绑定 exact plan digest、`ActionIntent`、backend、scope、affected resources、timeout 与 output budget，不携带解析后的 secret、任意环境或程序路径。
+- `WorkerExecutorHost` 在 admission 与隔离器之间重新校验 job/permit/spec；重复 job 只能复用原语义，替换 spec 被拒绝；host 重启、写入/启动/回执不明仍只产生原 job 的 `Unknown`。
+- `WorkerBrokerTransport` 只允许 loopback AgentExecution listener 和独立 credential，固定 dispatch/probe/cancel 路由；不拥有 permission、不重算 plan、不调模型，也不能进入 OwnerMaintenance。
+- typed spec 只写入 job 专属 execution 文件并通过固定 `FORME_WORKER_EXECUTION_PATH` 传递；`worker.rs` 按 journal/host 职责拆分后降至 593 行，未增长规模基线。
+
+本增量的专项证据为 protocol 3/3、host transport 8/8；workspace check、strict Clippy、代码质量和 compliance doctor 通过。提交前的 workspace 全量 test 在 Windows 链接阶段因 C 盘空间不足失败，失败原因是 `ld.exe: No space left on device`，不是断言失败，因此本节不把它记为完整 workspace test PASS。`verify-installed-host.ps1` 的全量命名门未因本增量重新声称通过。
+
+边界不变：这只证明 typed wire/receipt/Unknown 语义和开发 process fixture 的传递，不证明 Windows Job Object、Linux cgroup/systemd sandbox、macOS sandbox、逐 job 文件/网络隔离、真实服务账户或 IP10/IP24。普通 process worker 在正式服务仍 blocked。
+
 ## 1. 范围
 
 接通 `forme-hostd -> WorkerExecutorHost -> registered development process`，包括版本化受管配置、dispatch/probe/cancel、独立双域 listener 和取消回执重放。保持 18 crates、99 EventKinds 与内部依赖图；没有新增大脑或直接读写 brain store。
