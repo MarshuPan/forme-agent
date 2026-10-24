@@ -28,6 +28,7 @@ tokio-rustls 0.26.6 - MIT OR Apache-2.0 - https://crates.io/crates/tokio-rustls
 rcgen 0.14.8 - MIT OR Apache-2.0 - https://crates.io/crates/rcgen
 ed25519-dalek 2.2.0 - BSD-3-Clause - https://crates.io/crates/ed25519-dalek
 windows-service 0.8.1 - MIT OR Apache-2.0 - https://crates.io/crates/windows-service
+win-custody 0.1.1 - MIT OR Apache-2.0 - https://crates.io/crates/win-custody
 is_elevated 0.1.2 - MIT - https://crates.io/crates/is_elevated
 rustix 1.1.4 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT - https://crates.io/crates/rustix
 argon2 0.6.0 - MIT OR Apache-2.0 - https://crates.io/crates/argon2

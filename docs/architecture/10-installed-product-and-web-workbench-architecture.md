@@ -166,9 +166,9 @@ broker 不签发新 permission；安装权限、登录、trust 或能力安装�
 
 Host 把经过验证的 spec 写入该 job 专属、受保护的运行目录，通过固定的 `FORME_WORKER_EXECUTION_PATH` 交给已注册 launch profile；子进程不得读取兄弟 job、brain、keys、管理 journal 或 Web 凭据。写入、启动或回执不明均保留原 job 为 `Unknown`，probe/cancel 只查原 job，不能换号重做。`WorkerBrokerTransport` 只负责 AgentExecution 的 admission/probe/cancel wire 调用，不拥有 permission、不重新规划、不调模型。
 
-这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。没有 Windows Job Object、Linux cgroup/systemd sandbox、macOS sandbox/账户和逐 job 文件/网络拒绝的真实 adapter 时，ProductionRuntime 仍不得把普通子进程声明为可用执行能力；开发开关只允许验证 wire/receipt/Unknown 语义，IP10/IP24 仍需原生证据。
+这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；它仍不覆盖服务账户、ACL、逐 job 文件/网络/credential scope 或桌面会话。没有这些剩余门以及 Linux cgroup/systemd sandbox、macOS sandbox/账户和逐 job 文件/网络拒绝的完整真实 adapter 证据时，ProductionRuntime 仍不得把 worker capability 声明为可用；开发开关只允许验证 wire/receipt/Unknown 语义，IP10/IP24 仍需原生证据。
 
-24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。加载 worker 配置不能自动把普通子进程变成服务沙箱：默认 adapter 不可用时阻断 dispatch；仅显式前台开发开关可启用普通进程测试，SCM 服务路径不接受该开关。配置/路由细节见 prd/24 §4.1。原生 peer identity、独立账户/ACL 与每 job 文件/网络隔离仍需各平台的实际证据。
+24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。加载 worker 配置不能自动把普通子进程变成服务沙箱：Windows Job Object adapter 只证明进程树 custody，默认 managed service 仍在账户/ACL/网络/credential/session 门闭合前阻断 dispatch；仅显式前台开发开关可启用普通进程测试，SCM 服务路径不接受该开关。配置/路由细节见 prd/24 §4.1。原生 peer identity、独立账户/ACL 与每 job 文件/网络隔离仍需各平台的实际证据。
 
 Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session id、OS user、desktop grant 和 TTL；不从 Web payload 指定任意桌面。锁屏/注销/TCC/Wayland 能力缺失会改变可用性；在另一台常开服务器上运行大脑，不自动赋予操作用户电脑的权限，跨机继续复用 M4 executor 治理。
 

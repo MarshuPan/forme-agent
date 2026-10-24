@@ -137,6 +137,15 @@
       "allowed_sha256": []
     },
     {
+      "source": "win-custody 0.1.1 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public Windows Job Object and launch APIs behind the project-owned worker isolation adapter; do not copy source, examples, fixtures, errors, or naming. This is process-tree custody, not a complete sandbox.",
+      "notice_action": "Review locked transitive licenses, notices, and reachable advisories before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
       "source": "ed25519-dalek 2.2.0 public crate API",
       "license": "BSD-3-Clause",
       "copy_risk": "low",

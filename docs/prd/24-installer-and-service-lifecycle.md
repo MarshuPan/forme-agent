@@ -96,7 +96,9 @@ Host 将已校验 spec 写入本 job 的受保护运行目录，按注册 launch
 
 Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，绑定固定 loopback endpoint、独立 credential、请求/响应大小和超时；它不能调用 OwnerMaintenance，也不能让 Web 直接取得该 credential。该 transport 只负责 admission/probe/cancel 和 receipt 投影，不在 transport 内产生 permission、重算 plan 或执行模型。正式 ProductionRuntime 在没有真实平台隔离 adapter 时继续将对应 capability 标为 unavailable/blocked；开发 process worker 仅用于 transport/协议验证。
 
-默认配置加载**不启用普通进程 adapter**。没有已验证的平台隔离实现时，服务可提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，开发证据不得登记为安全沙箱或 IP10 PASS。
+Windows 的 `WindowsJobWorkerIsolation` 已提供平台 adapter：Job Object 在进程首次执行前接管 worker，并启用 kill-on-close；取消和宿主退出会终止同一 Job Object 下的进程树，observe 只读取受管 process handle 的退出码。该 adapter 的真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等。它只证明进程树生命周期 custody，不证明低权限服务账户、ACL、网络/credential scope、桌面会话或完整 sandbox；因此 managed service 尚不自动选择它，直到其余原生隔离门也有独立证据。
+
+默认配置加载**不启用普通进程 adapter**。即使 Windows Job Object adapter 已存在，只要服务账户、ACL、网络/credential scope、会话 helper 等平台门未全部通过，服务仍提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，Job Object 或开发进程证据都不得单独登记为完整安全沙箱或 IP10 PASS。
 
 ### 4.2 Core 停服接缝（24.2 增量）
 
@@ -236,7 +238,7 @@ OS 监管配置必须通过 `ServiceRecoveryPolicy` 表达延迟/退避/崩溃�
 
 ### 5.3 工具与会话隔离
 
-worker 使用独立低权限身份启动；最小 env/handles，仅装载本 plan 的 workspace、临时目录、网络/credential scope。同一执行账户的不同 job 也须互相隔离，不能读写兄弟 workspace/credential。Windows Job Object/账户 ACL、Linux systemd sandbox/cgroup/账户、macOS 可用的账户/文件与进程限制必须逐平台验证；进程组本身不证明文件/网络隔离。不可满足强制限制则该 backend blocked，不能回退到 brain 用户执行。
+worker 使用独立低权限身份启动；最小 env/handles，仅装载本 plan 的 workspace、临时目录、网络/credential scope。同一执行账户的不同 job 也须互相隔离，不能读写兄弟 workspace/credential。Windows `WindowsJobWorkerIsolation` 已证明 Job Object 的进程树接管与 kill-on-close 生命周期，但账户/ACL、网络/credential scope、桌面会话仍必须单独验证；Linux systemd sandbox/cgroup/账户、macOS 可用的账户/文件与进程限制也必须逐平台验证。进程组或 Job Object 本身不证明文件/网络隔离。不可满足强制限制则该 backend blocked，不能回退到 brain 用户执行。
 
 会话 helper 仅在 owner 指定的 OS 会话启动，受 grant/TTL/会话 liveness 约束。OS 注销后撤销桌面执行能力，broker/core 仍常驻。会话 helper 不能获得私有 keys、brain DB 或安装管理 API。
 
