@@ -54,11 +54,21 @@ export interface ProductBrainPreferences {
   schema_version: 1; default_workspace: string;
   model_routing: { schema_version: 1; foreground: string | null; cognition: string | null };
 }
+export type ProductSkillTrust = 'untrusted' | 'owner_input';
+export interface ProductSkillConfig {
+  schema_version: 1; id: string; summary: string; scope: string; version: number;
+  body: string; enabled: boolean; trust: ProductSkillTrust;
+}
+export interface ProductCapabilitySettings {
+  schema_version: 1; skills: ProductSkillConfig[];
+}
 export interface ProductConfigView {
   schema_version: 1; install_ref: string; owner: string | null;
   active_revision: number; acknowledged_revision: number | null; pending_restart: boolean;
   configured: boolean; models: ProductModelProfile[]; issue_refs: string[];
   brain: ProductBrainPreferences; brain_source: 'installation_template' | 'managed_configuration';
+  capabilities?: ProductCapabilitySettings;
+  capabilities_source?: 'installation_template' | 'managed_configuration';
 }
 export interface ProductConfigValidation {
   schema_version: 1; revision: number; valid: boolean; restart_required: boolean;

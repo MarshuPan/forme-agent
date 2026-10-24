@@ -8,6 +8,8 @@ use serde::Deserialize;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
+mod skills;
+
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ManagedBrainConfig {
@@ -26,6 +28,8 @@ pub struct ManagedBrainConfig {
     pub models: Vec<ManagedModelProfile>,
     #[serde(default)]
     pub model_routing: p::ProductModelRouting,
+    #[serde(default)]
+    pub capabilities: Option<p::ProductCapabilitySettings>,
     pub scheduler_enabled: bool,
     pub scheduler: p::SchedulerConfig,
     pub cognition: CognitiveRuntimeConfig,
@@ -103,7 +107,7 @@ impl ManagedBrainConfig {
             workspace: self.workspace.clone(),
             agent_profile: self.agent_profile.clone(),
             models: profiles,
-            capabilities: CapabilityRuntimeConfig::default(),
+            capabilities: self.runtime_capabilities()?,
             scheduler_enabled: self.scheduler_enabled,
             scheduler: self.scheduler.clone(),
             cognition: self.cognition.clone(),

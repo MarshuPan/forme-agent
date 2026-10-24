@@ -267,6 +267,10 @@ pub struct ProductConfigView {
     pub models: Vec<ProductModelProfileView>,
     pub brain: ProductBrainPreferences,
     pub brain_source: ProductPreferenceSource,
+    #[serde(default)]
+    pub capabilities: ProductCapabilitySettings,
+    #[serde(default)]
+    pub capabilities_source: ProductPreferenceSource,
     pub issue_refs: Vec<String>,
 }
 
@@ -280,6 +284,8 @@ pub struct ProductConfigPatch {
     pub models: Vec<ProductModelProfilePatch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub brain: Option<ProductBrainPreferences>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capabilities: Option<ProductCapabilitySettings>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -367,6 +373,9 @@ impl ProductConfigPatch {
                     .map(|model| model.id.clone())
                     .collect::<Vec<_>>(),
             )?;
+        }
+        if let Some(capabilities) = &self.capabilities {
+            capabilities.validate()?;
         }
         Ok(())
     }
@@ -456,3 +465,5 @@ mod admission;
 pub use admission::*;
 mod preferences;
 pub use preferences::*;
+mod capabilities;
+pub use capabilities::*;

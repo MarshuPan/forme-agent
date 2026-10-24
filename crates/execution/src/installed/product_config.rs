@@ -9,6 +9,8 @@ mod materialize;
 mod preference_tests;
 mod restore;
 mod service_files;
+#[cfg(test)]
+mod skill_tests;
 mod storage;
 #[cfg(test)]
 pub(crate) mod tests;
@@ -45,6 +47,8 @@ struct ConfigState {
     active_data: Option<p::ProductDataBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     brain: Option<p::ProductBrainPreferences>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    capabilities: Option<p::ProductCapabilitySettings>,
 }
 
 impl ConfigState {
@@ -58,16 +62,19 @@ impl ConfigState {
             credentials: BTreeMap::new(),
             active_data: None,
             brain: None,
+            capabilities: None,
         }
     }
 
     fn validate(&self, template: &p::ProductConfigTemplate) -> p::Result<()> {
         if !matches!(
             self.schema_version,
-            p::SchemaVersion(2) | p::SchemaVersion(3) | p::SchemaVersion(4)
+            p::SchemaVersion(2) | p::SchemaVersion(3) | p::SchemaVersion(4) | p::SchemaVersion(5)
         ) || self.install_ref != template.install_ref
             || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
             || (self.schema_version.0 < 4 && self.brain.is_some())
+            || (self.schema_version.0 < 5 && self.capabilities.is_some())
+            || (self.schema_version.0 == 5 && self.capabilities.is_none())
             || self.revision > 1_000_000_000
             || self.models.len() != self.credentials.len()
             || (self.revision == 0) != self.models.is_empty()
@@ -86,6 +93,9 @@ impl ConfigState {
                     .map(|model| model.id.clone())
                     .collect::<Vec<_>>(),
             )?;
+        }
+        if let Some(capabilities) = &self.capabilities {
+            capabilities.validate()?;
         }
         if let Some(binding) = &self.active_data {
             binding.validate()?;
@@ -199,6 +209,12 @@ impl ProductConfigStore {
                 p::ProductPreferenceSource::InstallationTemplate
             },
             issue_refs: Vec::new(),
+            capabilities: self.state.capabilities.clone().unwrap_or_default(),
+            capabilities_source: if self.state.capabilities.is_some() {
+                p::ProductPreferenceSource::ManagedConfiguration
+            } else {
+                p::ProductPreferenceSource::InstallationTemplate
+            },
         })
     }
 
@@ -242,6 +258,9 @@ impl ProductConfigStore {
         }
         self.check_revision(patch.expected_revision, &patch.owner, true)?;
         let brain = patch.brain.or_else(|| self.state.brain.clone());
+        let capabilities = patch
+            .capabilities
+            .or_else(|| self.state.capabilities.clone());
         if let Some(brain) = &brain {
             brain
                 .validate(
@@ -262,9 +281,15 @@ impl ProductConfigStore {
             .filter(|value| *value <= 1_000_000_000)
             .ok_or_else(invalid)?;
         let id = materialize::new_ref()?;
-        let credentials = materialize::write_credentials(&self.template, &id, &prepared)?;
+        let credentials = materialize::credential_paths(&self.template, &id, &prepared)?;
         let state = ConfigState {
-            schema_version: p::SchemaVersion(if brain.is_some() { 4 } else { 3 }),
+            schema_version: p::SchemaVersion(if capabilities.is_some() {
+                5
+            } else if brain.is_some() {
+                4
+            } else {
+                3
+            }),
             install_ref: self.template.install_ref.clone(),
             owner: Some(patch.owner),
             revision,
@@ -272,7 +297,13 @@ impl ProductConfigStore {
             credentials,
             active_data: self.state.active_data.clone(),
             brain,
+            capabilities,
         };
+        state
+            .validate(&self.template)
+            .map_err(|_| rejected_patch())?;
+        materialize::validate_size(&self.template, &state).map_err(|_| rejected_patch())?;
+        materialize::write_credentials(&self.template, &id, &prepared)?;
         self.commit_state(patch.operation_id.clone(), digest, state)?;
         self.response(patch.operation_id, true)
     }

@@ -53,9 +53,10 @@ impl ProductBrainPreferences {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ProductPreferenceSource {
+    #[default]
     InstallationTemplate,
     ManagedConfiguration,
 }
@@ -71,11 +72,19 @@ impl ProductConfigPatch {
             &self.owner,
             &self.models,
         );
-        match &self.brain {
+        let previous = match &self.brain {
             None => crate::canonical_digest(&legacy),
             Some(brain) => {
                 crate::canonical_digest(&("forme-product-brain-preferences-v1", legacy, brain))
             }
+        }?;
+        match &self.capabilities {
+            None => Ok(previous),
+            Some(capabilities) => crate::canonical_digest(&(
+                "forme-product-capability-settings-v1",
+                previous,
+                capabilities,
+            )),
         }
     }
 }

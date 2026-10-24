@@ -158,15 +158,44 @@ pub(super) fn write_credentials(
     models: &[(p::ProductModelProfileView, Vec<u8>)],
 ) -> p::Result<BTreeMap<String, PathBuf>> {
     let directory = template.model_credentials_directory.join(id);
+    let paths = credential_paths(template, id, models)?;
     super::service_files::directory(&directory)?;
-    let mut paths = BTreeMap::new();
     for (view, secret) in models {
-        let path = directory.join(credential_name(&view.id)?);
-        super::service_files::immutable(&path, secret)?;
-        paths.insert(view.id.clone(), path);
+        super::service_files::immutable(paths.get(&view.id).ok_or_else(invalid)?, secret)?;
     }
     storage::sync_directory(&template.model_credentials_directory)?;
     Ok(paths)
+}
+
+pub(super) fn credential_paths(
+    template: &p::ProductConfigTemplate,
+    id: &str,
+    models: &[(p::ProductModelProfileView, Vec<u8>)],
+) -> p::Result<BTreeMap<String, PathBuf>> {
+    models
+        .iter()
+        .map(|(view, _)| {
+            Ok((
+                view.id.clone(),
+                template
+                    .model_credentials_directory
+                    .join(id)
+                    .join(credential_name(&view.id)?),
+            ))
+        })
+        .collect()
+}
+
+pub(super) fn validate_size(
+    template: &p::ProductConfigTemplate,
+    state: &ConfigState,
+) -> p::Result<()> {
+    if storage::encode(state)?.len() as u64 > MAX_STATE_BYTES
+        || storage::encode(&core_config(template, state)?)?.len() as u64 > MAX_CONFIG_BYTES
+    {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 pub(super) fn revision_directory(template: &p::ProductConfigTemplate, id: &str) -> PathBuf {
@@ -280,6 +309,10 @@ pub(super) fn core_config(
         config["brain"]["model_routing"] =
             serde_json::to_value(&brain.model_routing).map_err(|_| invalid())?;
     }
+    if let Some(capabilities) = &state.capabilities {
+        config["brain"]["capabilities"] =
+            serde_json::to_value(capabilities).map_err(|_| invalid())?;
+    }
     if state.active_data.is_some() {
         config["transport"]["work_admission_path"] = serde_json::to_value(
             template
@@ -348,6 +381,7 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         credentials,
         active_data: None,
         brain: None,
+        capabilities: None,
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

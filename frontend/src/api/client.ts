@@ -2,7 +2,7 @@ import { isRecord, versioned } from '../types.ts';
 import type { ArtifactCatalogView } from '../types.ts';
 import type { ProjectSupervisionCommand, WorkspaceControlSnapshot } from '../types.ts';
 import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductConfigView, ProductModelProfilePatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
-import type { ProductBrainPreferences, ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
+import type { ProductBrainPreferences, ProductCapabilitySettings, ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
 import { isWorkbenchProposal } from '../workbench.ts';
 import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
@@ -124,9 +124,10 @@ export class WorkbenchClient {
     await this.request('auth/password', 'PUT', { schema_version: 1, old_password, new_password }, operation); this.clear();
   }
   productConfig() { return this.json<ProductConfigView>('product/config'); }
-  saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config'), brain?: ProductBrainPreferences) {
+  saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config'), brain?: ProductBrainPreferences, capabilities?: ProductCapabilitySettings) {
     return this.json<{ schema_version: 1; view: ProductConfigView; applied: boolean; operation_id: string | null }>(
-      'product/config', 'POST', { schema_version: 1, operation_id: operation, expected_revision, models, ...(brain ? { brain } : {}) }, operation,
+      'product/config', 'POST', { schema_version: 1, operation_id: operation, expected_revision, models,
+        ...(brain ? { brain } : {}), ...(capabilities ? { capabilities } : {}) }, operation,
     );
   }
   validateProductConfig(revision: number, operation = newKey('config-check')) {

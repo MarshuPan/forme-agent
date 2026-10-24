@@ -66,6 +66,12 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .model-actions { align-items: center; margin-top: 1rem; }
 .checkbox-label { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: .5rem; font-size: .8rem; }
 .checkbox-label input { width: auto; padding: 0; }
+.skill-settings { display: grid; gap: 1rem; }
+.skill-list { display: grid; gap: .9rem; }
+.skill-entry { min-width: 0; margin: 0; padding: 1rem; border: 1px solid var(--line); border-radius: .5rem; background: #fcfdf9; }
+.skill-entry legend { padding: 0 .35rem; color: #637260; font-size: .8rem; overflow-wrap: anywhere; }
+.skill-entry textarea { min-height: 4.2rem; }
+.skill-entry .skill-trust { min-width: min(100%, 14rem); }
 .project-card { display: flex; flex-direction: column; gap: .3rem; }
 .project-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
 .project-heading h2 { overflow-wrap: anywhere; }

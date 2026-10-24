@@ -80,7 +80,7 @@ mod managed_config;
 pub mod offline_data;
 #[cfg(windows)]
 pub use forme_execution::installed::{register_windows_service, unregister_windows_service};
-pub use managed_config::ManagedBrainConfig;
+pub use managed_config::{ManagedBrainConfig, ManagedModelProfile};
 mod production;
 mod production_artifact_store;
 mod production_artifacts;

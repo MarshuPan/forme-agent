@@ -178,7 +178,13 @@ impl ProductConfigStore {
             return Err(invalid());
         }
         let mut state = self.state.clone();
-        state.schema_version = p::SchemaVersion(if state.brain.is_some() { 4 } else { 3 });
+        state.schema_version = p::SchemaVersion(if state.capabilities.is_some() {
+            5
+        } else if state.brain.is_some() {
+            4
+        } else {
+            3
+        });
         state.revision = state.revision.checked_add(1).ok_or_else(invalid)?;
         state.active_data = Some(binding);
         let digest = p::canonical_digest(&(

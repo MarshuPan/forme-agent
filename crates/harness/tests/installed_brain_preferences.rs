@@ -37,6 +37,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
             cognition: Some(p::ModelProfileRef("model:background".into())),
         },
         scheduler_enabled: false,
+        capabilities: None,
         scheduler: f.config.scheduler.clone(),
         cognition: f.config.cognition.clone(),
         authority_lease: f.config.authority_lease,

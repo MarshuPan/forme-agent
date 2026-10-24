@@ -2,14 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
-import type { ProductBrainPreferences, ProductConfigView, ProductModelProfilePatch, RuntimeView } from '../types.ts';
+import type { ProductBrainPreferences, ProductCapabilitySettings, ProductConfigView, ProductModelProfilePatch, RuntimeView } from '../types.ts';
 import { draftFromConfig, emptyModel, patchFromDraft } from '../configuration.ts';
 import type { ModelDraft } from '../configuration.ts';
+import { capabilitiesFromDraft, draftFromCapabilities } from '../skills.ts';
+import type { SkillDraft } from '../skills.ts';
 import { ConfigurationActivation } from './ConfigurationActivation.tsx';
 import { DataManagement } from './DataManagement.tsx';
 import { Maintenance } from './Maintenance.tsx';
 import { RuntimeDiagnostics } from './RuntimeDiagnostics.tsx';
 import { BrainPreferences } from './BrainPreferences.tsx';
+import { SkillSettings } from './SkillSettings.tsx';
 import type { MaterialLifecycleTarget } from '../memory-material.ts';
 
 
@@ -66,12 +69,13 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
 }) {
   const [models, setModels] = useState<ModelDraft[]>(() => draftFromConfig(config));
   const [brain, setBrain] = useState<ProductBrainPreferences | null>(config?.brain ?? null);
+  const [skills, setSkills] = useState<SkillDraft[]>(() => draftFromCapabilities(config?.capabilities));
   const [loadedRevision, setLoadedRevision] = useState<number | null>(null);
-  const pending = useRef<{ operation: string; revision: number; models: ProductModelProfilePatch[]; brain: ProductBrainPreferences } | null>(null);
+  const pending = useRef<{ operation: string; revision: number; models: ProductModelProfilePatch[]; brain: ProductBrainPreferences; capabilities: ProductCapabilitySettings } | null>(null);
   const [uncertain, setUncertain] = useState(false);
   useEffect(() => {
     if (config && config.active_revision !== loadedRevision) {
-      setModels(draftFromConfig(config)); setBrain(config.brain); setLoadedRevision(config.active_revision);
+      setModels(draftFromConfig(config)); setBrain(config.brain); setSkills(draftFromCapabilities(config.capabilities)); setLoadedRevision(config.active_revision);
     }
   }, [config, loadedRevision]);
   function update(index: number, change: Partial<ModelDraft>) {
@@ -84,11 +88,11 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
     event.preventDefault(); if (busy || !config || !models.length || !brain) return;
     onBusy(true); onError('');
     try {
-      pending.current ??= { operation: newKey('config'), revision: config.active_revision, models: patchFromDraft(models), brain };
-      const { operation, revision, models: patch, brain: preferences } = pending.current;
-      const result = await api.saveProductConfig(revision, patch, operation, preferences);
+      pending.current ??= { operation: newKey('config'), revision: config.active_revision, models: patchFromDraft(models), brain, capabilities: capabilitiesFromDraft(skills) };
+      const { operation, revision, models: patch, brain: preferences, capabilities } = pending.current;
+      const result = await api.saveProductConfig(revision, patch, operation, preferences, capabilities);
       pending.current = null; setUncertain(false);
-      onSaved(result.view); setLoadedRevision(result.view.active_revision); setModels(draftFromConfig(result.view)); setBrain(result.view.brain);
+      onSaved(result.view); setLoadedRevision(result.view.active_revision); setModels(draftFromConfig(result.view)); setBrain(result.view.brain); setSkills(draftFromCapabilities(result.view.capabilities));
     } catch (problem) {
       if (problem instanceof ApiError && (problem.status === 409 || (problem.status === 422 && problem.code === 'ConfigurationInvalid'))) { pending.current = null; setUncertain(false); }
       else setUncertain(true);
@@ -103,6 +107,7 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
     {uncertain && <p className="notice">上次保存结果尚未确认，再次提交将核实同一份配置；请先完成核实再修改。</p>}
     {error && <p className="form-error" role="alert">{error}</p>}
     {brain && <BrainPreferences value={brain} models={models} disabled={busy || uncertain} onChange={setBrain} />}
+    <SkillSettings value={skills} disabled={busy || uncertain} onChange={setSkills} />
     {config && <p className="muted">工作空间与分工来源：{config.brain_source === 'installation_template' ? '安装默认值' : '已保存配置'}。</p>}
     {models.map((model, index) => <fieldset className="model-profile" key={index} disabled={busy || uncertain}>
       <legend>模型 {index + 1}{model.default ? ' · 默认' : ''}</legend>

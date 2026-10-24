@@ -14,6 +14,7 @@ import { exerciseWebProjects } from './fixtures/projects_web_process.mjs';
 const password = 'configuration process fixture 82';
 const credential = 'fixture-model-key-not-a-real-secret';
 const answer = 'Managed configuration process fixture answer.';
+const skillBody = 'process-managed-skill-body-fixture';
 const save = (baseUrl, revision = 0, operation = 'config:process-first') => ({ schema_version: 1,
   operation_id: operation, expected_revision: revision, models: [{ schema_version: 1, id: 'model:fixture',
     provider: 'openai-compatible', model: 'fixture-process-model', base_url: baseUrl, credential,
@@ -63,6 +64,9 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal(empty.brain_source, 'installation_template');
   assert.equal(empty.brain.default_workspace, product.template.workspace);
   const initial = save(baseUrl);
+  initial.capabilities = { schema_version: 1, skills: [{ schema_version: 1, id: 'skill:process-fixture',
+    summary: 'quantumorbit process fixture', scope: product.template.workspace, version: 1, body: skillBody,
+    enabled: true, trust: 'owner_input' }] };
   const invalid = save('https://fixture.invalid/v1?key=forbidden', 0, 'config:invalid');
   await product.request('/api/v1/product/config', { method: 'POST', key: invalid.operation_id, body: invalid, expected: 422 });
   assert.equal((await product.request('/api/v1/product/config')).active_revision, 0);
@@ -73,6 +77,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal(saved.view.active_revision, 1);
   assert.equal(saved.view.acknowledged_revision, null);
   assert.equal(saved.view.pending_restart, true);
+  assert.deepEqual(saved.view.capabilities, initial.capabilities);
   assert.equal(JSON.stringify(saved).includes(credential), false);
   assert.equal(Object.hasOwn(saved.view.models[0], 'credential_path'), false);
   assert.equal(modelRequests.length, 0, 'configuration service must not call the provider');
@@ -120,6 +125,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.ok(runtime.model_profiles.includes('model:fixture'));
   const coreConfig = await readJson(product.template.core_config_path);
   assert.equal(coreConfig.brain.owner, session.session.owner);
+  assert.deepEqual(coreConfig.brain.capabilities, initial.capabilities);
   assert.equal(JSON.stringify(coreConfig).includes(credential), false);
   const beforeArtifacts = modelRequests.length;
   const artifacts = await exerciseWebArtifacts(product, coreConfig);
@@ -128,7 +134,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   const runKey = 'run:managed-configuration-fixture';
   const unregistered = {
     schema_version: 1, source: 'UserTurn', session: 'session:configuration-process', agent_profile: product.template.agent_profile,
-    input: 'Verify the managed fixture configuration.', budget: null, idempotency_key: runKey };
+    input: 'Verify the managed fixture configuration with quantumorbit context.', budget: null, idempotency_key: runKey };
   await product.request('/api/v1/brain/runs', { method: 'POST', key: runKey, expected: 400, body: unregistered });
   assert.equal(modelRequests.length, beforeArtifacts, 'unregistered sessions must not reach the model');
   const conversation = await product.request('/api/v1/sessions', { method: 'POST', key: 'session:configuration-process', body: {
@@ -148,6 +154,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal(result.answer, answer);
   assert.ok(modelRequests.length > 0);
   assert.ok(modelRequests.every((request) => request.model === 'fixture-process-model'));
+  assert.ok(JSON.stringify(modelRequests.at(-1)).includes(skillBody), 'trusted enabled skill body must reach the managed context');
   const stream = await product.request(`/api/v1/brain/runs/${encodeURIComponent(run)}/events?after=0`, { text: true });
   for (const kind of ['RunAccepted', 'SessionBound', 'ContextBuildFinished', 'ModelCallStarted', 'ModelCallFinished', 'RunComplete']) {
     assert.ok(stream.includes(kind), `runtime trace is missing ${kind}`);
@@ -180,6 +187,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal(pending.active_revision, 2); assert.equal(pending.acknowledged_revision, 1); assert.equal(pending.pending_restart, true);
   assert.deepEqual(pending.brain, second.brain);
   assert.equal(pending.brain_source, 'managed_configuration');
+  assert.deepEqual(pending.capabilities, initial.capabilities);
   assert.equal(await fs.readFile(coreConfig.brain.models[0].credential_path, 'utf8'), credential);
   await product.stop(core);
   // The fixture deliberately kills the process; respect its original writer lease.
@@ -207,6 +215,8 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal(configuredSummary.status, 'Complete');
   assert.equal(configuredSummary.workspace, 'workspace:configured');
   assert.equal(modelRequests.at(-1).model, 'fixture-foreground-model');
+  assert.equal(JSON.stringify(modelRequests.at(-1)).includes(skillBody), false,
+    'a skill scoped to the original workspace must not cross into the configured workspace');
   const configuredEvents = await product.request(`/api/v1/brain/runs/${encodeURIComponent(configuredRun)}/events?after=0`, { text: true });
   assert.ok(configuredEvents.includes('workspace:configured'));
   assert.ok(configuredEvents.includes('openai-compatible:fixture-foreground-model'));

@@ -50,6 +50,10 @@ struct StorageBinding {
     // Keep the projection closed while accepting this known runtime-only field.
     #[serde(default, rename = "model_routing")]
     _model_routing: Option<IgnoredAny>,
+    // Managed skill settings affect runtime context only, not storage identity
+    // or disaster-recovery admission.
+    #[serde(default, rename = "capabilities")]
+    _capabilities: Option<IgnoredAny>,
     #[serde(rename = "scheduler_enabled")]
     _scheduler_enabled: IgnoredAny,
     #[serde(rename = "scheduler")]
