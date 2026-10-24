@@ -8,8 +8,13 @@ use forme_execution::installed::{
     HostManagement, NativeServiceManager, ProductHostBroker, ProductJournal,
 };
 use forme_protocol as p;
+mod release_data_fixture;
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("maintenance-release-data") {
+        release_data_fixture::run();
+        return;
+    }
     let path = PathBuf::from(std::env::args_os().nth(1).expect("fixture journal path"));
     if std::env::args().nth(2).as_deref() == Some("--broker") {
         broker_crash_fixture(path);

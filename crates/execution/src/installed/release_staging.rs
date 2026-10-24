@@ -42,7 +42,7 @@ impl ReleaseStagingConfig {
 
 /// Administrator-installed layout and trust roots; no request-supplied paths.
 pub struct ReleaseStager {
-    installation: p::InstallationManifest,
+    pub(super) installation: p::InstallationManifest,
     keys: ReleaseKeyring,
 }
 

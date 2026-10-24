@@ -10,6 +10,10 @@ use serde::{Deserialize, Serialize};
 use super::reject_linked_ancestors;
 #[path = "network_journal.rs"]
 mod network_journal;
+mod projection;
+mod release_images;
+#[cfg(test)]
+mod tests;
 mod verification;
 
 const MAX_JOURNAL_BYTES: u64 = 64 * 1024 * 1024;
@@ -23,6 +27,22 @@ enum JournalFact {
     InstallationVerified {
         manifest_digest: p::SchemaDigest,
         release_digest: p::SchemaDigest,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        active_release: Option<JournalReleaseRef>,
+    },
+    ActiveReleaseBound {
+        release: JournalReleaseRef,
+    },
+    ActiveReleaseChanged {
+        operation_id: String,
+        from: JournalReleaseRef,
+        to: JournalReleaseRef,
+    },
+    ReleaseImagesClaimed {
+        operation_id: String,
+        command_digest: p::SchemaDigest,
+        prepared_digest: p::SchemaDigest,
+        at: p::Timestamp,
     },
     Planned {
         command: Box<p::MaintenanceCommand>,
@@ -58,6 +78,13 @@ enum JournalFact {
     },
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JournalReleaseRef {
+    release_id: String,
+    release_digest: p::SchemaDigest,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct JournalEnvelope {
@@ -66,6 +93,12 @@ struct JournalEnvelope {
     previous: p::SchemaDigest,
     fact: JournalFact,
     digest: p::SchemaDigest,
+}
+
+#[derive(Deserialize)]
+struct PersistedFact<'a> {
+    #[serde(borrow)]
+    fact: &'a serde_json::value::RawValue,
 }
 
 impl JournalEnvelope {
@@ -84,210 +117,18 @@ struct OperationState {
     view: p::MaintenanceOperation,
     network_contract: bool,
     network_progress: Option<p::ProductNetworkProgress>,
+    release_images_claimed: bool,
 }
 
 #[derive(Clone, Default)]
 struct Projection {
     install_id: Option<String>,
     installation_verification: Option<(p::SchemaDigest, p::SchemaDigest)>,
+    active_release: Option<JournalReleaseRef>,
     sequence: u64,
     head: Option<p::SchemaDigest>,
     operations: BTreeMap<String, OperationState>,
     commands: BTreeMap<String, (p::SchemaDigest, String)>,
-}
-
-impl Projection {
-    fn head(&self) -> p::Result<p::SchemaDigest> {
-        self.head
-            .clone()
-            .map_or_else(|| p::canonical_digest(&"forme-product-journal-v1"), Ok)
-    }
-    fn fold(&mut self, envelope: &JournalEnvelope) -> p::Result<()> {
-        if envelope.schema_version != p::SchemaVersion(1)
-            || envelope.product_seq != self.sequence.checked_add(1).ok_or_else(invalid_journal)?
-            || envelope.previous != self.head()?
-            || envelope.digest
-                != JournalEnvelope::calculate(
-                    envelope.product_seq,
-                    &envelope.previous,
-                    &envelope.fact,
-                )?
-        {
-            return Err(invalid_journal());
-        }
-        match &envelope.fact {
-            JournalFact::InstallationBound { install_id } => {
-                p::validate_product_id(install_id)?;
-                if self.install_id.is_some() || self.sequence != 0 {
-                    return Err(invalid_journal());
-                }
-                self.install_id = Some(install_id.clone());
-            }
-            JournalFact::InstallationVerified {
-                manifest_digest,
-                release_digest,
-            } => {
-                p::validate_product_digest(manifest_digest)?;
-                p::validate_product_digest(release_digest)?;
-                if self.install_id.is_none()
-                    || self.sequence != 1
-                    || self.installation_verification.is_some()
-                {
-                    return Err(invalid_journal());
-                }
-                self.installation_verification =
-                    Some((manifest_digest.clone(), release_digest.clone()));
-            }
-            JournalFact::Planned {
-                command,
-                references,
-                actor,
-                at,
-                network_contract,
-            } => {
-                command.validate()?;
-                references.validate(&command.kind)?;
-                if self.install_id.is_none()
-                    || command.expected_revision != self.sequence
-                    || *at >= command.requested_deadline
-                    || self.operations.contains_key(&command.operation_id)
-                    || self.commands.contains_key(&command.idempotency_key)
-                    || self.has_unfinished_operation()
-                    || *actor == p::MaintenanceActorClass::Setup && !command.kind.setup_allowed()
-                {
-                    return Err(invalid_journal());
-                }
-                let digest = command.bound_digest(references)?;
-                self.commands.insert(
-                    command.idempotency_key.clone(),
-                    (digest.clone(), command.operation_id.clone()),
-                );
-                self.operations.insert(
-                    command.operation_id.clone(),
-                    OperationState {
-                        command: command.as_ref().clone(),
-                        view: p::MaintenanceOperation {
-                            schema_version: p::SchemaVersion(1),
-                            operation_id: command.operation_id.clone(),
-                            command_digest: digest,
-                            revision: envelope.product_seq,
-                            stage: p::MaintenanceStage::Planned,
-                            pending_stage: None,
-                            original_release_ref: references.original_release_ref.clone(),
-                            target_release_ref: references.target_release_ref.clone(),
-                            data_candidate_ref: references.data_candidate_ref.clone(),
-                            backup_ref: references.backup_ref.clone(),
-                            receipts: Vec::new(),
-                            failure_ref: None,
-                            network_result: None,
-                        },
-                        network_contract: *network_contract == Some(1),
-                        network_progress: None,
-                    },
-                );
-            }
-            JournalFact::StageIntent {
-                operation_id,
-                stage,
-                actor,
-                at,
-            } => {
-                let state = self
-                    .operations
-                    .get_mut(operation_id)
-                    .ok_or_else(invalid_journal)?;
-                if state.view.pending_stage.is_some()
-                    || !state
-                        .view
-                        .stage
-                        .permits(*stage, state.command.kind.is_lifecycle_transaction())
-                    || *stage == p::MaintenanceStage::RecoveryRequired
-                    || *at >= state.command.requested_deadline
-                    || *actor == p::MaintenanceActorClass::Setup
-                        && !state.command.kind.setup_allowed()
-                {
-                    return Err(invalid_journal());
-                }
-                state.view.pending_stage = Some(*stage);
-                state.view.revision = envelope.product_seq;
-            }
-            JournalFact::StageReceipt {
-                operation_id,
-                stage,
-                receipts,
-                network_result,
-                ..
-            } => {
-                let state = self
-                    .operations
-                    .get_mut(operation_id)
-                    .ok_or_else(invalid_journal)?;
-                if matches!(
-                    state.view.stage,
-                    p::MaintenanceStage::RecoveryRequired | p::MaintenanceStage::Committed
-                ) || state.view.pending_stage != Some(*stage)
-                    || receipts.is_empty()
-                    || receipts.len() > 32
-                {
-                    return Err(invalid_journal());
-                }
-                for receipt in receipts {
-                    p::validate_product_digest(receipt)?;
-                }
-                network_journal::validate_stage_receipt(state, *stage, network_result.as_ref())?;
-                state.view.stage = *stage;
-                state.view.pending_stage = None;
-                state
-                    .view
-                    .receipts
-                    .extend(receipts.iter().map(|r| r.0.clone()));
-                if network_result.is_some() {
-                    state.view.network_result = network_result.clone();
-                }
-                state.view.revision = envelope.product_seq;
-            }
-            JournalFact::NetworkProgress {
-                operation_id,
-                progress,
-                ..
-            } => {
-                let state = self
-                    .operations
-                    .get_mut(operation_id)
-                    .ok_or_else(invalid_journal)?;
-                network_journal::apply_progress(state, progress, envelope.product_seq)?;
-            }
-            JournalFact::RecoveryRequired {
-                operation_id,
-                issue,
-                ..
-            } => {
-                p::validate_product_digest(issue)?;
-                let state = self
-                    .operations
-                    .get_mut(operation_id)
-                    .ok_or_else(invalid_journal)?;
-                if matches!(
-                    state.view.stage,
-                    p::MaintenanceStage::Committed | p::MaintenanceStage::RecoveryRequired
-                ) {
-                    return Err(invalid_journal());
-                }
-                state.view.stage = p::MaintenanceStage::RecoveryRequired;
-                // Retain pending stage: it may already have changed the host.
-                state.view.failure_ref = Some(issue.0.clone());
-                state.view.revision = envelope.product_seq;
-            }
-        }
-        self.sequence = envelope.product_seq;
-        self.head = Some(envelope.digest.clone());
-        Ok(())
-    }
-    fn has_unfinished_operation(&self) -> bool {
-        self.operations
-            .values()
-            .any(|op| op.view.stage != p::MaintenanceStage::Committed)
-    }
 }
 
 struct Writer {
@@ -336,7 +177,19 @@ impl ProductJournal {
             }
             let envelope: JournalEnvelope =
                 serde_json::from_slice(&bytes).map_err(|_| invalid_journal())?;
-            projection.fold(&envelope)?;
+            // Hash the original JSON fact. Re-serializing today's typed DTO
+            // would insert defaults absent from older, immutable records.
+            // Deserialize the closed DTO separately so duplicate/unknown fields
+            // still fail instead of being normalized away by Value.
+            let raw: PersistedFact<'_> =
+                serde_json::from_slice(&bytes).map_err(|_| invalid_journal())?;
+            let calculated = p::canonical_digest(&(
+                envelope.schema_version,
+                envelope.product_seq,
+                &envelope.previous,
+                raw.fact,
+            ))?;
+            projection.fold_with_digest(&envelope, calculated)?;
         }
         if projection
             .install_id
@@ -375,6 +228,18 @@ impl ProductJournal {
             return Err(storage_error());
         }
         Ok(writer.projection.sequence)
+    }
+
+    pub fn active_release(&self) -> p::Result<Option<(String, p::SchemaDigest)>> {
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        Ok(writer
+            .projection
+            .active_release
+            .as_ref()
+            .map(|release| (release.release_id.clone(), release.release_digest.clone())))
     }
 
     pub fn operation(&self, id: &str) -> p::Result<p::MaintenanceOperation> {

@@ -11,6 +11,8 @@ use windows_service::service::{
 };
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
+pub(super) mod release;
+
 /// Register only this daemon, without starting it. Existing registrations must
 /// match exactly; partial/foreign registrations need explicit administrator repair.
 pub fn register_windows_service(id: p::BuiltinServiceId, config: &Path) -> p::Result<()> {

@@ -3,6 +3,7 @@
 
 pub mod hostctl_data;
 pub mod hostctl_install;
+pub mod hostctl_release;
 pub mod hostctl_restore;
 
 use std::sync::atomic::{AtomicU64, Ordering};

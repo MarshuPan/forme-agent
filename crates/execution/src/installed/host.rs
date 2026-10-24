@@ -14,6 +14,10 @@ pub use host_network::PreparedOwnerNetwork;
 mod host_native;
 #[path = "host_operations.rs"]
 mod host_operations;
+#[path = "host_release.rs"]
+mod host_release;
+#[path = "host_release_state.rs"]
+mod host_release_state;
 #[path = "host_restore.rs"]
 mod host_restore;
 #[cfg(test)]
@@ -21,7 +25,8 @@ mod host_restore;
 mod host_restore_tests;
 
 use super::{
-    NativeServiceManager, ProductConfigStore, ProductJournal, ReleaseStager, SystemServiceManager,
+    NativeServiceManager, ProductConfigStore, ProductJournal, ReleaseStager, ReleaseWorkerProvider,
+    SystemServiceManager,
 };
 
 /// Credentials for the two product control planes. The maintenance and
@@ -162,11 +167,18 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     web_configuration_digest: Option<p::SchemaDigest>,
     product_config: Option<Arc<Mutex<ProductConfigStore>>>,
     release_stager: Option<Arc<ReleaseStager>>,
+    release_worker: Option<Arc<dyn ReleaseWorkerProvider>>,
     restore_worker: Option<Arc<dyn super::RestoreWorkerProvider>>,
     target: p::ProductTarget,
     install_id: String,
-    active_release: String,
+    active_release: std::sync::Mutex<ActiveReleaseState>,
     services: M,
+}
+
+#[derive(Clone)]
+struct ActiveReleaseState {
+    id: String,
+    digest: Option<p::SchemaDigest>,
 }
 
 impl ProductHostBroker<SystemServiceManager> {
@@ -220,6 +232,17 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         credentials.validate()?;
         p::validate_product_id(install_id)?;
         p::validate_release_id(&active_release)?;
+        let journal = ProductJournal::open(journal_path, install_id)?;
+        let active = journal
+            .active_release()?
+            .map(|(id, digest)| ActiveReleaseState {
+                id,
+                digest: Some(digest),
+            })
+            .unwrap_or(ActiveReleaseState {
+                id: active_release,
+                digest: None,
+            });
         let maintenance_digest = p::canonical_digest(&credentials.maintenance())?;
         let agent_digest = credentials
             .agent_execution()
@@ -230,7 +253,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .map(|value| p::canonical_digest(&value))
             .transpose()?;
         Ok(Self {
-            journal: ProductJournal::open(journal_path, install_id)?,
+            journal,
             maintenance_bearer: credentials.maintenance().to_owned(),
             maintenance_digest,
             agent_bearer: credentials.agent_execution().map(str::to_owned),
@@ -239,10 +262,11 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             web_configuration_digest,
             product_config,
             release_stager: None,
+            release_worker: None,
             restore_worker: None,
             target,
             install_id: install_id.into(),
-            active_release,
+            active_release: std::sync::Mutex::new(active),
             services,
         })
     }
@@ -278,27 +302,21 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         Ok(self)
     }
 
-    pub fn record_installation_verification(
-        &self,
-        manifest_digest: p::SchemaDigest,
-        release_digest: p::SchemaDigest,
-    ) -> p::Result<u64> {
-        if let Some(worker) = &self.restore_worker {
-            if worker.installation().digest()? != manifest_digest {
-                return Err(p::Error(
-                    "restore worker has a different installation manifest".into(),
-                ));
-            }
+    /// Attach the fixed updater/backup worker. The broker never constructs a
+    /// worker from request data or falls back to in-process release writes.
+    pub fn with_release_worker(
+        mut self,
+        worker: Arc<dyn ReleaseWorkerProvider>,
+    ) -> p::Result<Self> {
+        if worker.installation().install_id != self.install_id
+            || worker.installation().target != self.target
+        {
+            return Err(p::Error(
+                "release worker belongs to another installation".into(),
+            ));
         }
-        if let Some(stager) = &self.release_stager {
-            if stager.installation_digest()? != manifest_digest {
-                return Err(p::Error(
-                    "release worker has a different installation manifest".into(),
-                ));
-            }
-        }
-        self.journal
-            .record_installation_verification(manifest_digest, release_digest)
+        self.release_worker = Some(worker);
+        Ok(self)
     }
 
     fn verify_maintenance_auth(&self, auth: &HostAuth) -> p::Result<()> {
@@ -389,6 +407,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         if self.release_stager.is_some() {
             allowed_operations.extend(["stage_signed_release".into(), "uninstall_plan".into()]);
         }
+        if self.release_stager.is_some() && self.release_worker.is_some() {
+            allowed_operations.extend(["upgrade".into(), "rollback_compatible_release".into()]);
+        }
         if self
             .restore_worker
             .as_ref()
@@ -401,7 +422,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             install_id_safe_ref: self.install_id.clone(),
             product_state,
             core_health,
-            active_release: self.active_release.clone(),
+            active_release: self.active_release_id()?,
             active_config_revision: configuration
                 .as_ref()
                 .map_or(0, |view| view.active_revision),

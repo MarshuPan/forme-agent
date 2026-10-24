@@ -4,15 +4,20 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
-    Arc,
+    Arc, Mutex, Weak,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use ed25519_dalek::{Signer, SigningKey};
 use forme_execution::installed::{
     file_digest, HostCredentials, HostManagement, NativeServiceManager, ProductHostBroker,
-    ProductJournal, ReleaseStager, ReleaseStagingConfig, UninstallScope,
+    ProductJournal, ReleaseStager, ReleaseStagingConfig, ReleaseWorkerProvider,
+    ReleaseWorkerSession, UninstallScope,
 };
 use forme_protocol as p;
+
+#[path = "installed_release_staging/service_switch_cases.rs"]
+mod service_switch_cases;
 
 const TOKEN: &str = "release-maintenance-test-token-00000000000001";
 const RELEASE: &str = "0.0.2";
@@ -29,6 +34,112 @@ impl NativeServiceManager for NoServices {
     }
     fn apply(&self, _: p::ValidatedServiceChange) -> p::Result<p::NativeReceipt> {
         panic!("staging and scope planning must not change a service")
+    }
+}
+
+struct ReleaseWorkerFixture {
+    installation: p::InstallationManifest,
+    effects: Arc<ReleaseEffects>,
+}
+
+struct ReleaseSession {
+    request: p::ProductReleaseRequest,
+    effects: Arc<ReleaseEffects>,
+}
+
+struct ReleaseEffects {
+    calls: Mutex<Vec<p::ProductReleaseStep>>,
+    fail_at: Option<p::ProductReleaseStep>,
+    broker: Mutex<Weak<ProductHostBroker<NoServices>>>,
+    tamper_after_backup: Mutex<Option<PathBuf>>,
+}
+
+impl ReleaseWorkerProvider for ReleaseWorkerFixture {
+    fn installation(&self) -> &p::InstallationManifest {
+        &self.installation
+    }
+
+    fn preflight(&self, _request: &p::ProductReleaseRequest) -> p::Result<()> {
+        Ok(())
+    }
+
+    fn start(
+        &self,
+        request: p::ProductReleaseRequest,
+        _deadline: std::time::Instant,
+    ) -> p::Result<Box<dyn ReleaseWorkerSession>> {
+        Ok(Box::new(ReleaseSession {
+            request,
+            effects: self.effects.clone(),
+        }))
+    }
+}
+
+impl ReleaseSession {
+    fn response(
+        &self,
+        step: p::ProductReleaseStep,
+        result: p::ProductReleaseWorkerResult,
+    ) -> p::ProductReleaseWorkerResponse {
+        p::ProductReleaseWorkerResponse {
+            schema_version: p::SchemaVersion(1),
+            operation_id: self.request.operation_id.clone(),
+            command_digest: self.request.command_digest.clone(),
+            step,
+            result,
+        }
+    }
+}
+
+impl ReleaseWorkerSession for ReleaseSession {
+    fn step(
+        &mut self,
+        _request: &p::ProductReleaseRequest,
+        step: p::ProductReleaseStep,
+    ) -> p::Result<p::ProductReleaseWorkerResponse> {
+        if step == p::ProductReleaseStep::Release {
+            let broker = self.effects.broker.lock().unwrap().upgrade().unwrap();
+            let auth = broker.authenticate(TOKEN).unwrap();
+            assert_eq!(
+                broker
+                    .operation(&auth, &self.request.operation_id)
+                    .unwrap()
+                    .stage,
+                p::MaintenanceStage::Committed,
+                "work admission must follow the durable commit"
+            );
+        }
+        self.effects.calls.lock().unwrap().push(step);
+        if step == p::ProductReleaseStep::Backup {
+            if let Some(path) = self.effects.tamper_after_backup.lock().unwrap().take() {
+                fs::write(path, b"changed-after-plan-and-backup").unwrap();
+            }
+        }
+        if self.effects.fail_at == Some(step) {
+            return Err(p::Error(
+                "fixture release worker failed after intent".into(),
+            ));
+        }
+        let result = match step {
+            p::ProductReleaseStep::Quiesce => p::ProductReleaseWorkerResult::Quiesced {
+                fence_digest: p::canonical_digest(&"release-fence").unwrap(),
+            },
+            p::ProductReleaseStep::Backup => p::ProductReleaseWorkerResult::BackedUp {
+                backup_ref: self.request.backup_ref.clone(),
+                backup_digest: p::canonical_digest(&"release-backup").unwrap(),
+            },
+            p::ProductReleaseStep::Switch => p::ProductReleaseWorkerResult::Switched {
+                active_release_ref: self.request.target_release_ref.clone(),
+                active_release_digest: self.request.target_release_digest.clone(),
+            },
+            p::ProductReleaseStep::Check => p::ProductReleaseWorkerResult::Checked {
+                active_release_ref: self.request.target_release_ref.clone(),
+                active_release_digest: self.request.target_release_digest.clone(),
+                service_digest: p::canonical_digest(&"release-service").unwrap(),
+            },
+            p::ProductReleaseStep::Release => p::ProductReleaseWorkerResult::Released {},
+        };
+        Ok(self.response(step, result))
     }
 }
 
@@ -222,6 +333,38 @@ impl Fixture {
             2,
         )
     }
+    fn upgrade_request(&self, operation_id: &str, revision: u64) -> p::HostManagementRequest {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+        p::HostManagementRequest {
+            schema_version: p::SchemaVersion(1),
+            command: p::MaintenanceCommand {
+                schema_version: p::SchemaVersion(1),
+                operation_id: operation_id.into(),
+                idempotency_key: format!("{operation_id}-key"),
+                expected_revision: revision,
+                actor_proof: p::MaintenanceProofRef {
+                    schema_version: p::SchemaVersion(1),
+                    proof_ref: p::canonical_digest(&TOKEN).unwrap().0,
+                },
+                kind: p::MaintenanceKind::Upgrade {
+                    release_id: RELEASE.into(),
+                    release_digest: self.release.digest().unwrap(),
+                    backup_ref: "backup:release-fixture".into(),
+                },
+                requested_deadline: now + 60_000,
+            },
+            references: p::MaintenanceReferences {
+                schema_version: p::SchemaVersion(1),
+                original_release_ref: "0.0.1".into(),
+                target_release_ref: RELEASE.into(),
+                data_candidate_ref: None,
+                backup_ref: Some("backup:release-fixture".into()),
+            },
+        }
+    }
     fn destination(&self) -> PathBuf {
         self.installation.paths.releases.join(RELEASE)
     }
@@ -247,6 +390,316 @@ impl Fixture {
             .join("release-records")
             .join(format!("{}.json", &name.0[7..]))
     }
+}
+
+fn release_worker(
+    fixture: &Fixture,
+    fail_at: Option<p::ProductReleaseStep>,
+) -> (Arc<ReleaseWorkerFixture>, Arc<ReleaseEffects>) {
+    let effects = Arc::new(ReleaseEffects {
+        calls: Mutex::new(Vec::new()),
+        fail_at,
+        broker: Mutex::new(Weak::new()),
+        tamper_after_backup: Mutex::new(None),
+    });
+    let worker = Arc::new(ReleaseWorkerFixture {
+        installation: fixture.installation.clone(),
+        effects: effects.clone(),
+    });
+    (worker, effects)
+}
+
+#[test]
+fn typed_release_worker_commits_upgrade_and_replays_active_release() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let revision = journal.revision().unwrap();
+    drop(journal);
+
+    let (worker, effects) = release_worker(&fixture, None);
+    let broker = Arc::new(fixture.broker().with_release_worker(worker).unwrap());
+    *effects.broker.lock().unwrap() = Arc::downgrade(&broker);
+    let auth = broker.authenticate(TOKEN).unwrap();
+    let request = fixture.upgrade_request("upgrade-operation", revision);
+    let planned = broker
+        .plan(&auth, request, now_millis())
+        .expect("upgrade should be admitted after signed staging");
+    assert_eq!(planned.stage, p::MaintenanceStage::Planned);
+    let committed = broker
+        .execute(&auth, "upgrade-operation", now_millis())
+        .unwrap();
+    assert_eq!(
+        committed.stage,
+        p::MaintenanceStage::Committed,
+        "unexpected release operation state: {committed:?}"
+    );
+    assert_eq!(
+        *effects.calls.lock().unwrap(),
+        [
+            p::ProductReleaseStep::Quiesce,
+            p::ProductReleaseStep::Backup,
+            p::ProductReleaseStep::Switch,
+            p::ProductReleaseStep::Check,
+            p::ProductReleaseStep::Release,
+        ]
+    );
+    assert!(broker
+        .status(&auth)
+        .unwrap()
+        .allowed_operations
+        .contains(&"upgrade".into()));
+    assert_eq!(broker.status(&auth).unwrap().active_release, RELEASE);
+    drop(broker);
+
+    let reopened = fixture.broker();
+    let reopened_auth = reopened.authenticate(TOKEN).unwrap();
+    assert_eq!(
+        reopened.status(&reopened_auth).unwrap().active_release,
+        RELEASE
+    );
+}
+
+#[test]
+fn failed_release_worker_enters_recovery_and_never_replays_the_effect() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let revision = journal.revision().unwrap();
+    drop(journal);
+
+    let (worker, effects) = release_worker(&fixture, Some(p::ProductReleaseStep::Backup));
+    let broker = fixture.broker().with_release_worker(worker).unwrap();
+    let auth = broker.authenticate(TOKEN).unwrap();
+    broker
+        .plan(
+            &auth,
+            fixture.upgrade_request("failed-upgrade", revision),
+            now_millis(),
+        )
+        .unwrap();
+    let failed = broker
+        .execute(&auth, "failed-upgrade", now_millis())
+        .unwrap();
+    assert_eq!(failed.stage, p::MaintenanceStage::RecoveryRequired);
+    assert_eq!(failed.pending_stage, Some(p::MaintenanceStage::BackedUp));
+    let calls = effects.calls.lock().unwrap().clone();
+    assert_eq!(
+        calls,
+        [
+            p::ProductReleaseStep::Quiesce,
+            p::ProductReleaseStep::Backup,
+        ]
+    );
+    assert!(broker
+        .execute(&auth, "failed-upgrade", now_millis())
+        .is_err());
+    assert_eq!(*effects.calls.lock().unwrap(), calls);
+    assert_eq!(broker.status(&auth).unwrap().active_release, "0.0.1");
+    drop(broker);
+
+    let reopened = fixture.broker();
+    let reopened_auth = reopened.authenticate(TOKEN).unwrap();
+    assert_eq!(
+        reopened.status(&reopened_auth).unwrap().product_state,
+        p::ProductState::RecoveryRequired
+    );
+    assert_eq!(
+        reopened.status(&reopened_auth).unwrap().active_release,
+        "0.0.1"
+    );
+}
+
+#[test]
+fn initial_release_binding_is_usable_without_reopening_the_broker() {
+    let fixture = Fixture::new();
+    let (worker, _) = release_worker(&fixture, None);
+    let broker = fixture.broker().with_release_worker(worker).unwrap();
+    let auth = broker.authenticate(TOKEN).unwrap();
+    broker.plan(&auth, fixture.stage_request(), 1).unwrap();
+    let staged = broker.execute(&auth, OP, 2).unwrap();
+    assert!(broker
+        .plan(
+            &auth,
+            fixture.upgrade_request("same-process-upgrade", staged.revision),
+            now_millis()
+        )
+        .is_ok());
+}
+
+#[test]
+fn failed_admission_release_preserves_commit_and_does_not_replay_lifecycle() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let revision = journal.revision().unwrap();
+    drop(journal);
+    let (worker, effects) = release_worker(&fixture, Some(p::ProductReleaseStep::Release));
+    let broker = Arc::new(fixture.broker().with_release_worker(worker).unwrap());
+    *effects.broker.lock().unwrap() = Arc::downgrade(&broker);
+    let auth = broker.authenticate(TOKEN).unwrap();
+    broker
+        .plan(
+            &auth,
+            fixture.upgrade_request("release-failed", revision),
+            now_millis(),
+        )
+        .unwrap();
+    assert!(broker
+        .execute(&auth, "release-failed", now_millis())
+        .is_err());
+    let calls = effects.calls.lock().unwrap().clone();
+    assert_eq!(
+        broker
+            .execute(&auth, "release-failed", now_millis())
+            .unwrap()
+            .stage,
+        p::MaintenanceStage::Committed
+    );
+    assert_eq!(*effects.calls.lock().unwrap(), calls);
+}
+
+#[test]
+fn updater_manifest_must_match_the_initial_installation_verification() {
+    let fixture = Fixture::new();
+    let (mut worker, _) = release_worker(&fixture, None);
+    Arc::get_mut(&mut worker).unwrap().installation.created_at += 1;
+    let broker = fixture.broker().with_release_worker(worker).unwrap();
+    assert!(broker
+        .record_installation_verification(
+            fixture.installation.digest().unwrap(),
+            fixture.installation.release_digest.clone()
+        )
+        .is_err());
+}
+
+#[test]
+fn release_plan_without_worker_has_no_new_journal_fact() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let revision = journal.revision().unwrap();
+    drop(journal);
+
+    let broker = fixture.broker();
+    let auth = broker.authenticate(TOKEN).unwrap();
+    assert!(broker
+        .plan(
+            &auth,
+            fixture.upgrade_request("no-worker-upgrade", revision),
+            now_millis(),
+        )
+        .is_err());
+    drop(broker);
+    assert_eq!(
+        ProductJournal::open(&fixture.journal(), &fixture.installation.install_id)
+            .unwrap()
+            .revision()
+            .unwrap(),
+        revision
+    );
+}
+
+#[test]
+fn release_worker_with_matching_id_but_foreign_manifest_is_rejected_before_plan() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let revision = journal.revision().unwrap();
+    drop(journal);
+    let (mut worker, effects) = release_worker(&fixture, None);
+    Arc::get_mut(&mut worker).unwrap().installation.paths.logs =
+        fixture.root.path().join("foreign-logs");
+    let broker = fixture.broker().with_release_worker(worker).unwrap();
+    let auth = broker.authenticate(TOKEN).unwrap();
+    assert!(broker
+        .plan(
+            &auth,
+            fixture.upgrade_request("foreign-manifest", revision),
+            now_millis()
+        )
+        .is_err());
+    assert!(effects.calls.lock().unwrap().is_empty());
+    drop(broker);
+    assert_eq!(
+        ProductJournal::open(&fixture.journal(), &fixture.installation.install_id)
+            .unwrap()
+            .revision()
+            .unwrap(),
+        revision
+    );
+}
+
+#[test]
+fn release_rechecks_target_after_backup_before_any_switch_effect() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let revision = journal.revision().unwrap();
+    drop(journal);
+    let (worker, effects) = release_worker(&fixture, None);
+    let relative = &fixture.release.files[0].relative_path;
+    *effects.tamper_after_backup.lock().unwrap() = Some(fixture.destination().join(relative));
+    let broker = fixture.broker().with_release_worker(worker).unwrap();
+    let auth = broker.authenticate(TOKEN).unwrap();
+    broker
+        .plan(
+            &auth,
+            fixture.upgrade_request("changed-before-switch", revision),
+            now_millis(),
+        )
+        .unwrap();
+    let result = broker
+        .execute(&auth, "changed-before-switch", now_millis())
+        .unwrap();
+    assert_eq!(result.stage, p::MaintenanceStage::RecoveryRequired);
+    assert_eq!(
+        *effects.calls.lock().unwrap(),
+        [
+            p::ProductReleaseStep::Quiesce,
+            p::ProductReleaseStep::Backup
+        ]
+    );
+    assert_eq!(broker.status(&auth).unwrap().active_release, "0.0.1");
+    assert!(broker
+        .execute(&auth, "changed-before-switch", now_millis())
+        .is_err());
+    assert_eq!(effects.calls.lock().unwrap().len(), 2);
+}
+
+#[test]
+fn release_plan_rejects_stale_identity_digest_and_target_before_planning() {
+    let fixture = Fixture::new();
+    let journal = fixture.stage();
+    let revision = journal.revision().unwrap();
+    drop(journal);
+    let (worker, _effects) = release_worker(&fixture, None);
+    let broker = fixture.broker().with_release_worker(worker).unwrap();
+    let auth = broker.authenticate(TOKEN).unwrap();
+    let base = fixture.upgrade_request("invalid-upgrade", revision);
+
+    let mut stale = base.clone();
+    stale.references.original_release_ref = "0.0.9".into();
+    assert!(broker.plan(&auth, stale, now_millis()).is_err());
+
+    let mut wrong_digest = base.clone();
+    if let p::MaintenanceKind::Upgrade { release_digest, .. } = &mut wrong_digest.command.kind {
+        *release_digest = p::canonical_digest(&"wrong-release").unwrap();
+    }
+    assert!(broker.plan(&auth, wrong_digest, now_millis()).is_err());
+
+    let mut wrong_target = base;
+    wrong_target.references.target_release_ref = "0.0.3".into();
+    assert!(broker.plan(&auth, wrong_target, now_millis()).is_err());
+    drop(broker);
+    assert_eq!(
+        ProductJournal::open(&fixture.journal(), &fixture.installation.install_id)
+            .unwrap()
+            .revision()
+            .unwrap(),
+        revision
+    );
+}
+
+fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
 }
 
 #[test]

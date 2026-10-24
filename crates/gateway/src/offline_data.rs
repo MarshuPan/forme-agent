@@ -12,6 +12,9 @@ use std::{
 };
 mod restore;
 pub use restore::OfflineRestoreWorker;
+mod bindings;
+mod release;
+pub use release::OfflineReleaseWorker;
 #[cfg(test)]
 mod config_tests;
 
@@ -132,6 +135,9 @@ impl OfflineCoreMaintenance {
     }
     pub fn identity(&self) -> &OfflineBrainIdentity {
         self.inner.identity()
+    }
+    pub fn database_schema_version(&self) -> p::Result<u32> {
+        self.inner.database_schema_version()
     }
     pub fn backup(&self, target: &Path) -> p::Result<forme_harness::BackupVerification> {
         self.inner.backup(target)

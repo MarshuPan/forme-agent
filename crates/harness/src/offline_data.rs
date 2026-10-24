@@ -68,6 +68,9 @@ impl OfflineBrainMaintenance {
     pub fn identity(&self) -> &OfflineBrainIdentity {
         self.source.identity()
     }
+    pub fn database_schema_version(&self) -> p::Result<u32> {
+        self.source.database_schema_version()
+    }
     pub fn execution_fence_digest(&self) -> p::Result<Option<p::SchemaDigest>> {
         self.source.execution_fence_digest()
     }

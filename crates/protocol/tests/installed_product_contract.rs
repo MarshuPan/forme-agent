@@ -202,3 +202,58 @@ fn productization_keeps_brain_taxonomy_unchanged() {
         Some(&p::EventKind::DataLifecycleApplied)
     );
 }
+
+#[test]
+fn owner_maintenance_exposes_only_bound_release_lifecycle_actions() {
+    let digest = p::canonical_digest(&"release").unwrap();
+    for action in [
+        p::ProductMaintenanceAction::Upgrade {
+            release_id: "0.2.0".into(),
+            release_digest: digest.clone(),
+            backup_ref: "backup:upgrade".into(),
+        },
+        p::ProductMaintenanceAction::RollbackCompatibleRelease {
+            release_id: "0.1.0".into(),
+            release_digest: digest.clone(),
+            backup_ref: "backup:rollback".into(),
+        },
+    ] {
+        let kind = action.maintenance_kind();
+        assert!(kind.is_lifecycle_transaction());
+        assert!(kind.validate().is_ok());
+        let request = p::ProductMaintenanceRequest {
+            schema_version: p::SchemaVersion(1),
+            operation_id: "release-operation".into(),
+            expected_revision: 1,
+            owner: p::OwnerPrincipalRef("owner:fixture".into()),
+            action,
+            requested_deadline: 1000,
+        };
+        assert!(request.validate().is_ok());
+        assert!(request.digest().is_ok());
+    }
+}
+
+#[test]
+fn release_lifecycle_action_rejects_unbound_backup_or_release_values() {
+    let digest = p::canonical_digest(&"release").unwrap();
+    let mut action = p::ProductMaintenanceAction::Upgrade {
+        release_id: "0.2.0".into(),
+        release_digest: digest,
+        backup_ref: "backup:upgrade".into(),
+    };
+    let mut request = p::ProductMaintenanceRequest {
+        schema_version: p::SchemaVersion(1),
+        operation_id: "release-operation".into(),
+        expected_revision: 1,
+        owner: p::OwnerPrincipalRef("owner:fixture".into()),
+        action: action.clone(),
+        requested_deadline: 1000,
+    };
+    assert!(request.validate().is_ok());
+    if let p::ProductMaintenanceAction::Upgrade { backup_ref, .. } = &mut action {
+        *backup_ref = "../backup".into();
+    }
+    request.action = action;
+    assert!(request.validate().is_err());
+}

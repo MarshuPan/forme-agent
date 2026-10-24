@@ -111,6 +111,19 @@ impl OfflineBrainSource {
         &self.identity
     }
 
+    /// Observe the database schema while retaining the existing offline fence.
+    /// This is the actual SQLite version, not a manifest/DTO schema version.
+    pub fn database_schema_version(&self) -> p::Result<u32> {
+        self.require_unchanged()?;
+        let version = immutable_source(&self.path)?
+            .pragma_query_value(None, "user_version", |row| row.get::<_, u32>(0))
+            .map_err(|_| invalid())?;
+        if version == 0 {
+            return Err(invalid());
+        }
+        Ok(version)
+    }
+
     pub fn execution_fence_digest(&self) -> p::Result<Option<p::SchemaDigest>> {
         self.require_unchanged()?;
         crate::restoration_fence::read(&immutable_source(&self.path)?)?

@@ -58,17 +58,17 @@ fn installation(root: &Path) -> p::InstallationManifest {
         .collect(),
     }
 }
-struct RestoreFixture {
-    f: Fixture,
-    manifest: PathBuf,
-    core: PathBuf,
-    request: p::ProductRestoreRequest,
+pub(super) struct RestoreFixture {
+    pub(super) f: Fixture,
+    pub(super) manifest: PathBuf,
+    pub(super) core: PathBuf,
+    pub(super) request: p::ProductRestoreRequest,
     identity: WebIdentityStore,
     session: SessionCookie,
     template: p::ProductConfigTemplate,
 }
 impl RestoreFixture {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let mut f = Fixture::new();
         let install = installation(&f.root);
         f.config.store_path = install.paths.brain.join("forme.db");

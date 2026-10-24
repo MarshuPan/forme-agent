@@ -68,11 +68,16 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .operations(0)?
             .into_iter()
             .find(|operation| operation.operation_id == request.operation_id);
+        let active_release = self.active_release_id()?;
         let original = existing
             .as_ref()
-            .map_or(self.active_release.as_str(), |op| &op.original_release_ref);
+            .map_or(active_release.as_str(), |op| &op.original_release_ref);
         let target = match &request.action {
-            p::ProductMaintenanceAction::StageSignedRelease { release_id, .. } => release_id,
+            p::ProductMaintenanceAction::StageSignedRelease { release_id, .. }
+            | p::ProductMaintenanceAction::Upgrade { release_id, .. }
+            | p::ProductMaintenanceAction::RollbackCompatibleRelease { release_id, .. } => {
+                release_id
+            }
             _ => original,
         };
         let command = p::HostManagementRequest {
@@ -99,7 +104,13 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                     }
                     _ => None,
                 },
-                backup_ref: None,
+                backup_ref: match &request.action {
+                    p::ProductMaintenanceAction::Upgrade { backup_ref, .. }
+                    | p::ProductMaintenanceAction::RollbackCompatibleRelease {
+                        backup_ref, ..
+                    } => Some(backup_ref.clone()),
+                    _ => None,
+                },
             },
         };
         if existing.is_some() {
@@ -192,6 +203,8 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 | p::MaintenanceKind::RestartCore
                 | p::MaintenanceKind::ConfigureLan { .. }
                 | p::MaintenanceKind::StageSignedRelease { .. }
+                | p::MaintenanceKind::Upgrade { .. }
+                | p::MaintenanceKind::RollbackCompatibleRelease { .. }
                 | p::MaintenanceKind::UninstallPlan {
                     preserve_owner_data: true
                 }

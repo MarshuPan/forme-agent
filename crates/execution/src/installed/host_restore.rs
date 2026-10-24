@@ -46,7 +46,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             ));
         }
         let command = self.journal.command(id)?;
-        if now >= command.requested_deadline || op.original_release_ref != self.active_release {
+        if now >= command.requested_deadline
+            || op.original_release_ref != self.active_release_id()?
+        {
             return Err(unavailable());
         }
         let remaining = u64::try_from(command.requested_deadline.saturating_sub(now))

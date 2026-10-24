@@ -193,6 +193,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             return Err(p::Error("core activation authorization expired".into()));
         }
         store.validate_revision(request.expected_revision, &request.owner)?;
+        let active_release = self.active_release_id()?;
         let operation = self.journal.plan(
             p::MaintenanceCommand {
                 schema_version: p::SchemaVersion(1),
@@ -209,8 +210,8 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             auth.actor,
             p::MaintenanceReferences {
                 schema_version: p::SchemaVersion(1),
-                original_release_ref: self.active_release.clone(),
-                target_release_ref: self.active_release.clone(),
+                original_release_ref: active_release.clone(),
+                target_release_ref: active_release,
                 data_candidate_ref: None,
                 backup_ref: None,
             },

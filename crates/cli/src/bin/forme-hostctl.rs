@@ -20,6 +20,12 @@ fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args
         .first()
+        .is_some_and(|value| value == "maintenance-release-data")
+    {
+        return forme_cli::hostctl_release::run(&args[1..]);
+    }
+    if args
+        .first()
         .is_some_and(|value| value == "maintenance-restore")
     {
         return forme_cli::hostctl_restore::run(&args[1..]);

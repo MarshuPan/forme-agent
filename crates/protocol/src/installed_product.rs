@@ -15,6 +15,12 @@ mod worker;
 pub use worker::*;
 mod restore;
 pub use restore::*;
+mod release;
+pub use release::*;
+mod release_data;
+pub use release_data::*;
+mod release_services;
+pub use release_services::*;
 
 fn version(version: SchemaVersion) -> Result<()> {
     if version != SchemaVersion(1) {

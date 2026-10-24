@@ -16,6 +16,16 @@ pub enum ProductMaintenanceAction {
         release_id: String,
         release_digest: SchemaDigest,
     },
+    Upgrade {
+        release_id: String,
+        release_digest: SchemaDigest,
+        backup_ref: String,
+    },
+    RollbackCompatibleRelease {
+        release_id: String,
+        release_digest: SchemaDigest,
+        backup_ref: String,
+    },
     UninstallPlan {},
     CommitRestore {
         candidate_ref: String,
@@ -44,6 +54,24 @@ impl ProductMaintenanceAction {
             } => MaintenanceKind::StageSignedRelease {
                 release_id: release_id.clone(),
                 release_digest: release_digest.clone(),
+            },
+            Self::Upgrade {
+                release_id,
+                release_digest,
+                backup_ref,
+            } => MaintenanceKind::Upgrade {
+                release_id: release_id.clone(),
+                release_digest: release_digest.clone(),
+                backup_ref: backup_ref.clone(),
+            },
+            Self::RollbackCompatibleRelease {
+                release_id,
+                release_digest,
+                backup_ref,
+            } => MaintenanceKind::RollbackCompatibleRelease {
+                release_id: release_id.clone(),
+                release_digest: release_digest.clone(),
+                backup_ref: backup_ref.clone(),
             },
             Self::UninstallPlan {} => MaintenanceKind::UninstallPlan {
                 preserve_owner_data: true,
@@ -92,6 +120,21 @@ impl ProductMaintenanceRequest {
         {
             validate_release_id(release_id)?;
             validate_product_digest(release_digest)?;
+        }
+        if let ProductMaintenanceAction::Upgrade {
+            release_id,
+            release_digest,
+            backup_ref,
+        }
+        | ProductMaintenanceAction::RollbackCompatibleRelease {
+            release_id,
+            release_digest,
+            backup_ref,
+        } = &self.action
+        {
+            validate_release_id(release_id)?;
+            validate_product_digest(release_digest)?;
+            validate_product_id(backup_ref)?;
         }
         if let ProductMaintenanceAction::ConfigureLan {
             config_revision,

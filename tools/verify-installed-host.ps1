@@ -30,7 +30,9 @@ try {
         "manifest_paths_and_accounts_cannot_alias_privileged_domains",
         "lifecycle_cannot_skip_drain_backup_or_health_checks",
         "maintenance_authentication_can_renew_without_changing_bound_command_or_references",
-        "productization_keeps_brain_taxonomy_unchanged"
+        "productization_keeps_brain_taxonomy_unchanged",
+        "owner_maintenance_exposes_only_bound_release_lifecycle_actions",
+        "release_lifecycle_action_rejects_unbound_backup_or_release_values"
     )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_product_contract") $name }
 
     foreach ($name in @(
@@ -67,8 +69,49 @@ try {
         "verified_staged_release_uses_committed_facts_without_inbox_or_mutation",
         "verified_staged_release_refuses_uncommitted_or_misbound_installation",
         "verified_staged_release_rechecks_receipt_and_exact_content_before_switch",
-        "staged_compatibility_requires_observed_database_schema_and_real_migrator"
+        "staged_compatibility_requires_observed_database_schema_and_real_migrator",
+        "typed_release_worker_commits_upgrade_and_replays_active_release",
+        "failed_release_worker_enters_recovery_and_never_replays_the_effect",
+        "initial_release_binding_is_usable_without_reopening_the_broker",
+        "failed_admission_release_preserves_commit_and_does_not_replay_lifecycle",
+        "release_plan_without_worker_has_no_new_journal_fact",
+        "release_plan_rejects_stale_identity_digest_and_target_before_planning",
+        "updater_manifest_must_match_the_initial_installation_verification",
+        "release_worker_with_matching_id_but_foreign_manifest_is_rejected_before_plan",
+        "release_rechecks_target_after_backup_before_any_switch_effect",
+        "service_switch_cases::service_image_switch_preflights_all_three_and_durably_consumes_the_original_intent",
+        "service_switch_cases::failed_service_preflight_has_zero_effects_and_zero_claims",
+        "service_switch_cases::lost_native_switch_receipt_survives_restart_without_repeating_partial_effects",
+        "service_switch_cases::stale_expired_or_changed_configuration_plans_never_reach_native_effects"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") $name }
+
+    foreach ($name in @(
+        "historical_journal_hashes_preserve_absent_and_explicit_null_fields",
+        "active_release_projection_replays_after_a_complete_switch",
+        "active_release_change_rejects_stale_target_and_non_lifecycle_operations",
+        "active_release_change_requires_switching_intent"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::tests::$name" }
+
+    foreach ($name in @(
+        "release_data_identity_is_bound_to_owner_operation_and_real_schema_versions",
+        "release_data_protocol_is_closed_and_rejects_rebinding_and_unknown_versions",
+        "service_image_receipts_require_all_three_distinct_services_and_the_original_command"
+    )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_release_data_contract") $name }
+
+    foreach ($name in @(
+        "release_data_child_preserves_binding_and_consumes_backup_once",
+        "release_data_child_deadline_kills_waiting_process_and_does_not_retry_unknown_backup",
+        "release_data_child_rejects_bad_owner_oversize_nonzero_exit_and_replaced_installation"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_data_transport") $name }
+
+    foreach ($name in @(
+        "release_data_observes_real_schema_holds_store_and_creates_verified_backup_once",
+        "release_data_rejects_wrong_owner_revision_missing_keys_and_cross_operation_frames"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") "server::lifecycle_tests::installed_release::$name" }
+
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::release::tests::image_change_preserves_identity_startup_dependency_group_and_display"
+    }
 
     Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "tests::ordinary_http11_is_parsed_and_ambiguous_or_browser_requests_are_rejected"
     Invoke-NamedTest "forme-execution" @("--test", "installed_host_transport") "http_broker_authenticates_and_reuses_the_original_read_only_operation"

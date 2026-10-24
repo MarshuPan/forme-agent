@@ -49,12 +49,18 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 .journal
                 .plan(request.command, auth.actor, request.references, now);
         }
-        if request.references.original_release_ref != self.active_release {
+        if request.references.original_release_ref != self.active_release_id()? {
             return Err(p::Error(
                 "maintenance command is bound to a stale active release".into(),
             ));
         }
-        if !matches!(
+        if matches!(
+            &request.command.kind,
+            p::MaintenanceKind::Upgrade { .. }
+                | p::MaintenanceKind::RollbackCompatibleRelease { .. }
+        ) {
+            self.preflight_release(&request.command, &request.references)?;
+        } else if !matches!(
             &request.command.kind,
             p::MaintenanceKind::Inspect
                 | p::MaintenanceKind::StartCore
@@ -108,8 +114,15 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 .map_err(|_| p::Error("managed configuration is unavailable".into()))?;
             return self.execute_restore_locked(auth, operation_id, now, &mut config);
         }
+        if matches!(
+            command.kind,
+            p::MaintenanceKind::Upgrade { .. }
+                | p::MaintenanceKind::RollbackCompatibleRelease { .. }
+        ) {
+            return self.execute_release_authorized(auth, operation_id, now);
+        }
         if now >= command.requested_deadline
-            || operation.original_release_ref != self.active_release
+            || operation.original_release_ref != self.active_release_id()?
         {
             return Err(p::Error(
                 "maintenance plan expired or its active release changed".into(),
