@@ -5,7 +5,7 @@ mod support;
 use forme_cognition::{self as c, MemoryGraph};
 use forme_harness::*;
 use forme_protocol as p;
-use forme_store::EventStore;
+use forme_store::{BrainAuthorityStore, EventStore, SqliteEventStore, StoreOptions};
 use std::{fs, sync::atomic::Ordering};
 use support::{events, now, Fixture};
 
@@ -189,4 +189,77 @@ fn managed_preferences_drive_formal_runs_cognition_and_restart_without_env_fallb
         before,
         "missing routed credential cannot call a fallback"
     );
+}
+
+#[test]
+fn managed_store_entry_shares_composition_and_cannot_create_a_second_or_foreign_brain() {
+    let f = Fixture::new();
+    *f.answer.lock().unwrap() = "A durable managed composition answer".into();
+    let config = managed(&f);
+    let store = SqliteEventStore::open(&config.store_path, StoreOptions::default()).unwrap();
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build_with_store(store.clone())
+        .unwrap();
+    assert_eq!(f.calls.load(Ordering::SeqCst), 0);
+    let manifest = runtime.manifest().clone();
+    let first_run = turn(&runtime, "managed-store-entry");
+    let first_events = runtime
+        .services()
+        .store
+        .read_run(first_run)
+        .collect::<p::Result<Vec<_>>>()
+        .unwrap();
+    assert!(first_events.iter().any(|event| matches!(&event.payload,
+        p::EventPayload::SessionBound(binding)
+            if binding.workspace == config.workspace
+                && binding.composition_manifest.as_ref() == Some(&manifest.digest))));
+    assert_eq!(provider_model(&f, 0), "foreground");
+    assert_eq!(
+        runtime.services().model_registry.cognition_ref().0,
+        "model:background"
+    );
+    let calls = f.calls.load(Ordering::SeqCst);
+    let event_count = events(&runtime).len();
+    assert!(
+        ProductionRuntimeBuilder::from_managed_config(config.clone())
+            .unwrap()
+            .build()
+            .is_err()
+    );
+    assert!(
+        ProductionRuntimeBuilder::from_managed_config(config.clone())
+            .unwrap()
+            .build_with_store(store.clone())
+            .is_err()
+    );
+    let foreign = SqliteEventStore::open(
+        config.store_path.with_file_name("another-brain.db"),
+        StoreOptions::default(),
+    )
+    .unwrap();
+    assert!(
+        ProductionRuntimeBuilder::from_managed_config(config.clone())
+            .unwrap()
+            .build_with_store(foreign.clone())
+            .is_err()
+    );
+    assert!(foreign.brain_authority().unwrap().is_none());
+    assert!(foreign.run_ids().unwrap().is_empty());
+    assert_eq!(events(&runtime).len(), event_count);
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    drop(runtime);
+    drop(store);
+    drop(foreign);
+
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config)
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(runtime.manifest().store_identity, manifest.store_identity);
+    assert_eq!(runtime.manifest().aggregate_refs, manifest.aggregate_refs);
+    assert_eq!(runtime.manifest().digest, manifest.digest);
+    assert_eq!(f.calls.load(Ordering::SeqCst), calls);
+    turn(&runtime, "managed-store-restart");
+    assert_eq!(provider_model(&f, calls as usize), "foreground");
 }
