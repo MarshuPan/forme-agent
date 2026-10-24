@@ -277,6 +277,8 @@ broker 的认领权威使用独立、OS 排他锁保护的 append journal；记�
 
 Host 在同一 CAS/journal 中保存偏好、模型与凭据，materialize 到同一 `CoreServiceConfig.brain`，只有实际 core ack 后才算加载。snapshot 返回有效偏好与来源（安装模板或受管配置），不返回密钥。已发布旧 revision 的 JSON 与旧 operation digest 保持可核验；旧请求省略该字段时继续使用旧摘要算法，有新偏好时使用显式版本域摘要。配置恢复、模型保存和恢复脑接管均保留偏好；非法/陈旧/异义保存零发布，不调模型。受管启动不读取 shell env 覆盖路由。
 
+只有角色分工改变也必须改变正式 composition digest，不能仅依赖 profile 清单发现差异。按 architecture/09 §2.3 在既有 snapshot 摘要域绑定已消费的角色配置，不增加 manifest/EventKind 字段。未显式设置角色时保持原摘要；相同角色配置重启得到同一摘要。历史 SessionBound/审批不改写，默认恢复入口不能把旧角色上下文视作当前配置；只读 pending 与历史查询继续可用。至少验证前台单独变化、后台单独变化、同角色重启、缺省摘要兼容，以及旧 run 的原绑定不被新角色改写；读取/拒绝均零额外模型和工具调用。
+
 本增量只闭合上述有实际消费者的设置；能力、消息渠道、代理和网络分别按其 typed 生命周期实施，不能因本节通过而宣称 IP08/IP21 完成。
 
 ### 11.6 实施细化：配置发布与运行态的访问隔离

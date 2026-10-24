@@ -111,6 +111,7 @@ impl ProductionRuntimeBuilder {
 - Gateway daemon 持有 `Arc<ProductionRuntime>`；scheduler task 使用同一实例。
 - CLI 默认调用 Local Gateway。仅显式 embedded/test 模式可在进程内构建 runtime，但仍走同一 builder 与 manifest。
 - `CompositionManifest.digest` 对秘密值、绝对私有路径和易变时间不敏感；相同配置语义应稳定。
+- 已消费的模型角色也是装配语义。受管配置只改变 foreground/cognition 路由、而 profile 清单未变时，manifest 仍必须改变，防止用新的模型分工恢复旧的默认执行上下文。保持既有 manifest/SessionBound schema；有显式角色时将角色的版本化规范摘要合入现有 opaque capability snapshot 的摘要域，无显式角色则保持历史算法和摘要。角色摘要不含 credential、环境变量值或路径；相同角色配置跨重启稳定。旧审批/待决仍可只读显示，恢复继续以原 composition binding 核对，不自动改绑。
 
 ### 2.4 入口等价的事件证据
 
