@@ -326,3 +326,25 @@ Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。新
 规则名为 `forme.web.lan.` 加 `SHA256(rule_ref UTF-8)` 的小写 hex，产品 group 为 `forme.web.lan.v1`，description 绑定 `canonical_digest(("forme-native-web-rule-v1",rule_ref,bind,SCM Web executable))`。管理员规则限定到 SCM 核实的 Web 程序及 `forme-web` 服务。LAN allow 仅覆盖明确本机 IP/端口、入站 TCP、`LocalSubnet`、Domain/Private profile，禁用 edge traversal；不开放 Public 或路由映射，不操作其他规则。旧规则名不同时须在 PersistentStore/ActiveStore 均已不存在；同名换范围只接受唯一精确的新绑定。目标必须同时在持久规则和实际生效规则中核实地址、端口、应用、服务、方向、动作和 profile，命令退出成功不能替代该读回。`validate_firewall_reconciliation` 是只读 plan 前预检，默认 adapter 保持兼容；`reconcile_firewall` 在正式 Windows 适配中也只再次核验并生成绑定回执，不隐含 OS 写权限。
 
 测试将固定脚本的参数/读回算法与实际管理员防火墙验收分开。自建 cmdlet fixture、只读权限预检或编译成功不计原生防火墙 PASS；证书客户端信任、Web listener 健康、失败恢复和跨设备路径仍须单独完成，不能由该 adapter 的成功回执替代 IP09/IP24。
+
+### 11.10 设置协议 v2 与兼容读取
+
+owner 已确认扩展设置协议及 LAN/TLS 事务。公共 `ProductConfigView/Patch/Response` 的设置版本与 template、模型条目、owner binding、验证请求和 Host 私有 state schema 分开，不能把共用的 v1 常量整体改为 2。新设置协议使用 schema 2；已发布的 schema 1 请求仍校验原字段和原摘要，省略 brain/capabilities/network 继续保留已有值。未知版本、字段和不支持的写入零 staging、零密钥写入、零原生动作。
+
+`GET /api/v1/product/config?schema_version=2` 明确请求完整设置快照；未指定或显式 1 保留已发布的 v1 形状。v2 增加 typed 能力可用性投影，逐项标明模型、skills、MCP、plugin/package、消息渠道、代理和 LAN 管理是否有实际消费者及其阻断原因；不支持的设置只读展示，不能伪造已启用状态。模型与内层 DTO 沿用其各自 schema 1。写入响应跟随请求的设置 schema；同 operation 从 v1 改成 v2 是不同命令，不能静默复用授权。版本协商不降低 owner/CSRF、CAS、trust/permission 或执行隔离要求。
+
+v1/v2 共用同一 Host store 和恢复日志，不建第二套配置。新前端显式读取/提交 v2，并拒绝不能理解的响应版本；旧 patch、原日志字节、core 配置和凭据引用不因读取或升级而改写。设置可用性仅是配置/适配能力，不证明 provider、listener、客户端信任或任务质量。
+
+### 11.11 网络监听检查与有界失败回退
+
+服务管理器的 Running 回执不足以提交 `ConfigureLan`。Host 还必须连接批准的精确地址，检查实际 listener 的安装身份及已加载配置；不跟随 redirect、不使用环境代理、不解析任意外部 URL。检查是只读且有界的，允许在固定窗口内等待启动；不重发维护命令、不调用 core、模型或工具。
+
+Web 提供最小 `GET /api/v1/product/network/health?nonce=<64 hex>`，只接受有界随机 challenge，沿用精确 Host/Origin、默认拒绝 forwarded header、独立有界读配额及 no-store。回应仅含 schema、installation digest、listener 配置 digest、原 nonce 与用途隔离的 Ed25519 签名；不含 owner、路径、模型、账号、cookie 或诊断正文。签名复用安装预置的 Web assertion key，签名域与认领/登录/core assertion 完全不同。缺少受管 key 时不宣告该检查可用。Host 使用 template 中 pinned Web 公钥验证新 challenge，不能信任对端附带的公钥或通用 200 页面。
+
+listener digest 绑定实际加载的 bind、精确 Host 和 TLS 开关/配置；防火墙仍须独立只读核验。HTTPS 连接验证证书、名称和批准材料的指纹，不以跳过证书验证取得 PASS。Host 对安装材料的定点信任不代表另一台设备或浏览器已信任证书。不同安装、旧端口/旧配置、错 nonce、错误签名、过大响应、重定向或错误证书均不能提交成功。
+
+只有切换的 Stop/Start 均取得确切已知回执、但监听检查未通过时，才可执行同一已批准命令内的有限回退：先持久化回退 intent，再确切停止刚启动的 Web，发布安装模板的 loopback 配置，启动并验证该 loopback listener。不得回到旧 LAN、扩大监听范围、改防火墙或修改 desired 设置。用户授权的网络目标仍保留为待应用；回退只改变 published overlay。
+
+网络检查/回退结果使用产品 journal 的 additive 记录，绑定原 operation、command、目标/实际配置摘要和检查回执。只有目标检查通过，或 loopback 回退已完整验证，才可结束该事务；后者必须以明确 `RolledBack` 结果展示，不能显示目标应用成功。任何原生副作用不明、发布不明、签名/配置冲突或回退中断进入 `RecoveryRequired`，保留全局维护 fence，不能通过重启自动重放动作。journal 恢复只重建原事实；新记录不改变历史 envelope/hash 或现有生命周期分类。
+
+组件验收至少覆盖：真实独立 Web 进程的 HTTP/TLS challenge、错安装/nonce/签名/旧配置、没有 core 时的检查；成功切换只执行一次；健康失败后仅回退确切 loopback；Stop/Start Unknown 零后续发布/启动；回退的每个中断点及重启原号核实；旧日志混合回放及 v1/v2 配置兼容。原生 SCM、客户端证书信任与跨设备 IP09/IP24 另取证。

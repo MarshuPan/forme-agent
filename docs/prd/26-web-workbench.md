@@ -271,6 +271,10 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 ## 7. 配置与可观测
 
+设置页显式协商 prd/25 §11.10 的 schema 2；模型/skills 与 LAN 保存、应用及确认仍按各自事务区分。渠道、MCP、plugin/package 和代理没有真实受管消费者时显示服务端给出的不可用状态及原因，不提供假保存/启用按钮。旧 v1 客户端与新页面共用同一配置写者，版本切换不能清空已有值。
+
+网络应用按 prd/25 §11.11 展示原号检查结果。`Activated` 只表示 Host 已核实目标 listener；`RolledBack` 明确显示目标未生效、已回到经验证的本机入口，并保留待应用设置。`RecoveryRequired`/断线只查询原 operation，不自动重新提交。浏览器证书信任及 LAN 可达仍单独展示，不因 listener 签名或服务 Running 自报通过。
+
 前端 build 固定 asset base、CSP 配合、版本/schema compatibility 和许可清单；不接受运行时注入任意 upstream module/远程插件。release_info 显示 UI/backend 是否匹配，静态资源带 content hash，缓存更新不能混用旧新协议。
 
 交互指标仅包含去身份化延迟/断线/重连/gap/command result code，不默认上传内容。可由 owner 复制的诊断摘要只含安全 refs；敏感输入不得出现在 console、错误 boundary、URL 或 screenshot 自动采集。
