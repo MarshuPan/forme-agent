@@ -250,7 +250,7 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 看板引用现有权威统计：numerator/denominator/unverifiable 同时呈现，不将单一通过率作为成长承诺。设置通过后台版本事务落地；“已保存”“等待重启”“已生效”“失败待修复”区分。core-offline 模式不伪造脑数据，只显示可证实 host facts 与修复操作。
 
-装配诊断使用 prd/25 的只读 doctor 映射，展示原始状态类别及安全原因；ready 表示当前配置已装配，不表示 provider、MCP、消息渠道或 OS 沙箱已通过实时连接/执行验证。未配置、平台不支持和阻断分开显示；无实现的渠道不合成 ready/开关。读取失败、未知 schema/状态或 core 离线时不得把旧快照显示为当前正常；刷新只查询，不触发 tick、模型实测、安装或重启。此接入保持 ProductConfigView/Patch v1 不变，不以只读诊断代替后续渠道/能力/网络配置事务。
+装配诊断使用 prd/25 的只读 doctor 映射，展示原始状态类别及安全原因；ready 表示当前配置已装配，不表示 provider、MCP、消息渠道或 OS 沙箱已通过实时连接/执行验证。未配置、平台不支持和阻断分开显示；无实现的渠道不合成 ready/开关。读取失败、未知 schema/状态或 core 离线时不得把旧快照显示为当前正常；刷新只查询，不触发 tick、模型实测、安装或重启。设置页使用 ProductConfigView/Patch/Response 的 schema 2 外形，脑内层对象仍保持各自 schema 1；不以只读诊断代替后续渠道/能力/网络配置事务。
 
 首笔受管能力编辑按 prd/25 §11.7 接入 skills：与模型/工作空间/角色共用一个保存表单、配置版本和原操作号；启用和 owner 明确信任分别选择，默认不可信/禁用。列表正文只存在受认证页面内存，不进入 localStorage、URL、console 或浏览器恢复队列。编辑与移除只改变待保存草稿；保存结果不明时锁定整份原 body，显式核实同一操作，不能只重发技能子集。刷新以 Host 当前 revision 为准，已保存/待重启/核心已确认分开；原 scope 与版本可见。未接入的 MCP/plugin/package、消息渠道或隔离 backend 不提供假启用开关，本笔不关闭这些剩余设计。
 

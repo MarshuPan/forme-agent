@@ -162,7 +162,7 @@ run SSE 依 `stream_seq` 恢复；收件箱/多 run 列表使用服务端 opaque
 
 默认 loopback:8765；LAN 变更先预检绑定地址、Host allowlist、证书私钥、HTTPS、firewall 范围，再写操作 intent，切换并自检。原连接失效时提供已验证新地址和恢复说明；失败回到可达的 loopback 修复状态，不能全接口裸 HTTP 兜底。
 
-Web 传输配置使用可缺省的 `tls` 对象（`schema_version, certificate_path, private_key_path, allowed_hosts`）。未配置时只接受 loopback HTTP；配置后整个 listener 使用 TLS 1.2/1.3，不在同一端口嗅探/降级明文。证书与私钥由安装管理域配置为 Web 只读的绝对路径，拒绝链接、超限文件、无效 PEM 和不匹配的密钥。Host 白名单为有限、去重、含实际端口的精确 authority，拒绝通配、userinfo、模糊别名和代理头；mutation Origin 必须与实际 Host 的 HTTPS origin 一致。TLS 下所有认证 cookie 加 Secure，仍保持 HttpOnly、SameSite=Strict、host-only；不因 TLS 取消 CSRF 检查。握手并发、握手时间、已接受连接总数和连接存活时间均有界；慢握手不阻塞其他连接。成功加载证书不等于客户端信任、网络可达或防火墙配置成功；配置事务和 IP12 仍须分别验收。
+Web 传输配置使用可缺省的受管 `tls` 对象（`schema_version, material_ref, material_configured`）。浏览器只提交固定的 `material_ref=managed:web`，只读取 `material_configured` 状态，绝不上传、读取或指定证书/私钥路径；Host/安装管理域负责解析受保护材料并拒绝链接、超限文件、无效 PEM 和不匹配的密钥。未配置时只接受 loopback HTTP；配置后整个 listener 使用 TLS 1.2/1.3，不在同一端口嗅探/降级明文。Host 白名单为有限、去重、含实际端口的精确 authority，拒绝通配、userinfo、模糊别名和代理头；mutation Origin 必须与实际 Host 的 HTTPS origin 一致。TLS 下所有认证 cookie 加 Secure，仍保持 HttpOnly、SameSite=Strict、host-only；不因 TLS 取消 CSRF 检查。握手并发、握手时间、已接受连接总数和连接存活时间均有界；慢握手不阻塞其他连接。成功加载证书不等于客户端信任、网络可达或防火墙配置成功；配置事务和 IP12 仍须分别验收。
 
 管理 RPC 必须验证 OS peer/服务身份。core 不可达时，Web 可以显示状态、改配置、检查指定备份并请求受控恢复；不能在 Web 进程自己打开脑数据库补读。离线完整性/恢复委托获得 exclusive lock 的既有维护路径。
 
@@ -303,7 +303,7 @@ Host 在同一 CAS/journal 中保存偏好、模型与凭据，materialize 到�
 
 `ProductConfigPatch.network?: ProductNetworkConfig` 与模型、brain、skills 共用原 CAS/revision；省略保留，不能在普通保存、核心启动或恢复脑发布时激活网络。对象为 closed/versioned `{schema_version:1, bind, allowed_hosts, tls, firewall}`：bind 是带非零端口的明确 IP，禁止 unspecified/multicast；Host 是最多 16 项、无重复、小写且带实际端口的精确 authority，IPv6 必须带方括号。LAN 必须同时具备 HTTPS、Host 与 firewall binding。loopback 不保留 firewall rule。
 
-`tls` 为 `{schema_version:1, certificate_path, private_key_path}`，只能引用安装者指定的 `web_material_directory` 内的绝对普通文件，拒绝路径逃逸与链接；证书和私钥各至多 64 KiB。静态检查解析 PEM、验证证书与密钥匹配，不声称客户端信任或网络可达。`firewall` 为 `{schema_version:1, rule_ref}`，引用不能代替原生规则生效证明。
+公共设置 v2 的 `tls` 为 `{schema_version:1, material_ref:"managed:web"}`；响应只返回同一材料引用和 `material_configured`，不返回证书/私钥路径。Host 在受保护的 `web_material_directory` 内解析材料，拒绝路径逃逸、链接、超限文件、无效 PEM 和不匹配的密钥；证书和私钥各至多 64 KiB。静态检查解析 PEM、验证证书与密钥匹配，不声称客户端信任或网络可达。`firewall` 为 `{schema_version:1, rule_ref}`，引用不能代替原生规则生效证明。
 
 Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。新安装固定 `web_network_config_path`（`config/web-network/web-network.json`）及独立材料目录 `config/web-material`，浏览器不能改变投影路径。两个目录只允许管理域写入、Web 读取，Brain 不可读；网络发布目录在 Windows 继承只读服务 ACL，在 POSIX 使用 Web 专属 setgid group，使原子替换后的文件仍保持服务只读，不扩大整个 config 的权限。旧模板路径不静默迁移。不可变 revision 同时保留待应用配置和当前已发布网络投影；journal 的可选 `web_network_digest` 绑定后者。`network_active` 只表示两者一致，不等于运行中的 listener 已加载、客户端信任或跨设备可用；core acknowledgement 也不能代替网络维护回执。`pending_restart`/校验报告须同时覆盖 core 未确认与网络投影未应用。
 
