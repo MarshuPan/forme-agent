@@ -592,7 +592,6 @@ fn write_fact(writer: &mut Writer, expected: u64, fact: JournalFact) -> p::Resul
     writer.poisoned = false;
     Ok(())
 }
-
 fn invalid_journal() -> p::Error {
     p::Error("product journal requires recovery; no operation was replayed".into())
 }
