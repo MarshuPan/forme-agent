@@ -309,7 +309,7 @@ Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。新
 
 没有上述受管投影路径的旧安装模板继续支持原模型/brain/skills 保存；客户端回传未改变的默认网络值可兼容读写，但不同的网络目标须在任何 staging 前拒绝。不能通过设置页静默改写旧安装模板，也不能保存实际上没有输出路径的新网络配置。此类安装不宣告 ConfigureLan 可用，待显式安装升级处理。
 
-`ProductConfigValidationReport.network_validation_digest` 绑定待应用的 typed 配置和已解析证书指纹；私钥匹配复核但不回传私钥/其路径衍生秘密。`ConfigureLan{config_revision,validation_digest}` 仍经 `/product/maintenance`、owner、近期口令与 product revision。已知缺少 firewall adapter 时在 plan 前拒绝，不写假维护事务，Host 不宣告该切换可用。原生 firewall 接口 `reconcile_firewall(previous, desired)` 必须核实完整目标绑定，并撤销旧规则或同规则中的旧监听范围。receipt 绑定 `bind,rule_ref?,network_digest,enabled,removed_rule_refs`；LAN→loopback 也须证明旧规则已移除。adapter 已尝试后的错误绑定或不明结果 fail closed，原 operation 进入待恢复，不换 key 重试。
+`ProductConfigValidationReport.network_validation_digest` 绑定待应用的 typed 配置和已解析证书指纹；私钥匹配复核但不回传私钥/其路径衍生秘密。`ConfigureLan{config_revision,validation_digest}` 仍经 `/product/maintenance`、owner、近期口令与 product revision。已知缺少 firewall adapter 或管理员规则尚未满足时在 plan 前拒绝，不写假维护事务，Host 不宣告该切换可用。原生 firewall 接口 `reconcile_firewall(previous, desired)` 必须核实完整目标绑定，以及管理员已撤销旧规则或同规则中的旧监听范围；它不自动修改防火墙。receipt 绑定 `bind,rule_ref?,network_digest,enabled,removed_rule_refs`；LAN→loopback 也须证明旧规则已移除。adapter 已尝试后的错误绑定或不明结果 fail closed，原 operation 进入待恢复，不换 key 重试。
 
 网络切换采用先回执、后切换：Host 在配置锁内校验并持久化原 `Planned`，只有首次接纳者得到不可复制的进程内 dispatch ticket；HTTP 完整返回该操作并关闭内部响应流，让 Web 配置请求能先退出，再由同一受监督、计入 drain 的 Host connection worker 消费 ticket。不得在请求仍等待 host 时同步停止其所在 Web，也不得启动无监管后台线程。响应写入/关闭失败、重复 POST、原号查询或进程重启均不重新生成 ticket，不自动执行。执行时重新认证原 actor/owner、校验原 command digest、期限、当前 release、revision、已发布投影和证书材料，之后先落 durable stage intent 再做原生动作。首次回执仅是接纳，不等于切换完成；Web 保留原操作号和候选地址，断线后在新入口重新登录只核实原号。
 
