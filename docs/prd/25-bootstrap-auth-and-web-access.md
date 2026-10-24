@@ -349,4 +349,8 @@ listener digest 绑定实际加载的 bind、精确 Host 和 TLS 开关/配置�
 
 网络检查/回退结果使用产品 journal 的 additive 记录，绑定原 operation、command、目标/实际配置摘要和检查回执。只有目标检查通过，或 loopback 回退已完整验证，才可结束该事务；后者必须以明确 `RolledBack` 结果展示，不能显示目标应用成功。任何原生副作用不明、发布不明、签名/配置冲突或回退中断进入 `RecoveryRequired`，保留全局维护 fence，不能通过重启自动重放动作。journal 恢复只重建原事实；新记录不改变历史 envelope/hash 或现有生命周期分类。
 
+具体 wire 为 `ProductNetworkHealthProof{schema_version:1,installation_digest,listener_digest,nonce,signature}`；listener 摘要域绑定实际 bind、按序精确 Host 列表与 TLS 开关，证书身份另外由 TLS peer 证书与批准材料逐字节核实。每次尝试生成新的 32-byte OS challenge；签名摘要为用途域加 schema/安装/listener/nonce，不包含 signature 自身。健康窗口最多 8 秒，单次连接/读取受剩余总时限约束，响应最多 8 KiB；仅重新探测，不重放 mutation。
+
+`MaintenanceOperation.network_result?` 是 schema 1 的 additive 安全结果：`outcome(activated/rolled_back),active_bind,requested_listener_digest,active_listener_digest,health_receipt_digest`。历史对象省略该字段；历史 Committed 没有该字段时只能表示原维护已结束，不能补造健康证明。journal 增加 `NetworkProgress`，子阶段顺序只有 `TargetIntent -> TargetVerified` 或 `TargetIntent -> FallbackIntent -> FallbackVerified`；TargetIntent 固定目标和安装 loopback 摘要，FallbackIntent 绑定已知启停回执及健康失败摘要，Verified 绑定实际 proof。子阶段写入只在原 Checking intent 内、同一 ConfigureLan 命令下接受；结束后、跨命令或次序不对零追加。回退不新建 MaintenanceCommand，不改 Config revision 或 desired，只通过原配置写者发布明确 loopback snapshot。每一原生动作失败都停在该原操作，恢复查询不重建一次性执行权。
+
 组件验收至少覆盖：真实独立 Web 进程的 HTTP/TLS challenge、错安装/nonce/签名/旧配置、没有 core 时的检查；成功切换只执行一次；健康失败后仅回退确切 loopback；Stop/Start Unknown 零后续发布/启动；回退的每个中断点及重启原号核实；旧日志混合回放及 v1/v2 配置兼容。原生 SCM、客户端证书信任与跨设备 IP09/IP24 另取证。
