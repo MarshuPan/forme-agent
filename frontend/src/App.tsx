@@ -7,6 +7,7 @@ import { Settings } from './components/Views.tsx';
 import { BrainInbox, CognitionView } from './components/BrainViews.tsx';
 import { WorkspaceView } from './components/Workspace.tsx';
 import { mergeObservedRun } from './conversation-view.ts';
+import type { MaterialLifecycleTarget } from './memory-material.ts';
 
 const tabs = [ ['conversation', '对话'], ['workspace', '工作空间'], ['inbox', '收件箱'], ['cognition', '记忆与认知'], ['settings', '设置'] ] as const;
 type Tab = typeof tabs[number][0];
@@ -23,7 +24,9 @@ export function App() {
   const [tab, setTab] = useState<Tab>('conversation');
   const [menu, setMenu] = useState(false);
   const [issue, setIssue] = useState('');
-  const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setConversationPending(false); setEntry('login'); }, []);
+  const [materialTarget, setMaterialTarget] = useState<MaterialLifecycleTarget | null>(null);
+  const consumeMaterialTarget = useCallback(() => setMaterialTarget(null), []);
+  const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setEntry('login'); }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns((current) => items.map((run) => current.find((item) => item.run === run.run && item.last_stream_seq > run.last_stream_seq) ?? run)); }, [api]);
   const observeRun = useCallback((run: RunSummary) => { setRuns((items) => mergeObservedRun(items, run)); }, []);
@@ -81,8 +84,8 @@ export function App() {
       <div hidden={tab !== 'conversation'}><Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} observed={observeRun} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
       <div hidden={tab !== 'workspace'}><WorkspaceView api={api} runtime={runtime} open={open} /></div>
       {tab === 'inbox' && <BrainInbox api={api} open={open} />}
-      {tab === 'cognition' && <CognitionView api={api} open={open} />}
-      {tab === 'settings' && <Settings api={api} runtime={runtime} issue={issue} refresh={() => void refreshCore()} signedOut={clear} />}
+      {tab === 'cognition' && <CognitionView api={api} open={open} prepareForgetting={(target) => { setMaterialTarget(target); setTab('settings'); setMenu(false); }} />}
+      {tab === 'settings' && <Settings api={api} runtime={runtime} issue={issue} refresh={() => void refreshCore()} signedOut={clear} materialTarget={materialTarget} consumeMaterialTarget={consumeMaterialTarget} />}
     </main></div>}
   </>;
 }

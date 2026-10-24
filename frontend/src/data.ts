@@ -26,3 +26,21 @@ export interface DataOperations { schema_version: 1; kind: 'Operations'; digest:
 export type DataView = DataCatalog | DataOperations | { schema_version: 1; kind: 'Receipt'; receipt: DataReceipt | null } | ({ kind: 'Verification' } & DataBackup);
 export const dataPage = (offset = 0, snapshot: string | null = null): DataPage => ({ schema_version: 1, offset, limit: 50, snapshot });
 export const dataState = { Prepared: '等待确认计划', Confirmed: '操作已确认', Unknown: '结果待核实' };
+
+export interface DataLifecycleSelection { scope: string; subject: string; lifecycle_version?: number }
+
+/** A source-bound selection must not silently borrow a newer catalog version. */
+export function prepareLifecycleAction(selected: DataLifecycleSelection | null, catalog: DataCatalog | null,
+  operation: 'Retain' | 'Delete' | 'CryptoShred'): Extract<DataAction, { PrepareLifecycle: unknown }> {
+  if (!selected || !catalog || !selected.scope || !/^sha256:[0-9a-f]{64}$/.test(selected.subject)) {
+    throw new Error('请先选择需要管理的材料范围。');
+  }
+  if (!Number.isSafeInteger(catalog.version) || catalog.version < 0 || catalog.pending_cleanup) {
+    throw new Error('数据范围当前不可用，请先核实未完成操作并刷新。');
+  }
+  if (selected.lifecycle_version !== undefined && selected.lifecycle_version !== catalog.version) {
+    throw new Error('来源选择已过期，请回到记忆重新核对来源，或明确选择当前目录中的其他范围。');
+  }
+  return { PrepareLifecycle: { scope: selected.scope, subject: selected.subject, operation,
+    expected_version: selected.lifecycle_version ?? catalog.version } };
+}

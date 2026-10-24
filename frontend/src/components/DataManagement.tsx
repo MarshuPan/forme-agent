@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
-import { dataPage, dataState } from '../data.ts';
-import type { DataAction, DataCatalog, DataCommand, DataOperations, DataReceipt, DataSubject, RestoreCandidate } from '../data.ts';
+import { dataPage, dataState, prepareLifecycleAction } from '../data.ts';
+import type { DataAction, DataCatalog, DataCommand, DataLifecycleSelection, DataOperations, DataReceipt, RestoreCandidate } from '../data.ts';
+import type { MaterialLifecycleTarget } from '../memory-material.ts';
 import { RestoreActivation } from './RestoreActivation.tsx';
 
 function Receipt({ item, applicable, confirm, probe, activate, locked }: { item: DataReceipt; applicable: boolean; confirm: (item: DataReceipt) => void; probe: (key: string) => void; activate: (candidate: RestoreCandidate) => void; locked: boolean }) {
@@ -20,16 +21,24 @@ function Receipt({ item, applicable, confirm, probe, activate, locked }: { item:
   </article>;
 }
 
-export function DataManagement({ api, connected }: { api: WorkbenchClient; connected: boolean }) {
+export function DataManagement({ api, connected, materialTarget, consumeMaterialTarget }: { api: WorkbenchClient; connected: boolean; materialTarget: MaterialLifecycleTarget | null; consumeMaterialTarget: () => void }) {
   const [catalog, setCatalog] = useState<DataCatalog | null>(null), [operations, setOperations] = useState<DataOperations | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
   const [target, setTarget] = useState(''), [source, setSource] = useState(''), [password, setPassword] = useState('');
   const [mode, setMode] = useState<'Backup' | 'PrepareRestore' | 'PrepareLifecycle' | 'Apply'>('Backup');
-  const [selected, setSelected] = useState<DataSubject | null>(null), [operation, setOperation] = useState<'Retain' | 'Delete' | 'CryptoShred'>('Delete');
+  const [selected, setSelected] = useState<DataLifecycleSelection | null>(null), [operation, setOperation] = useState<'Retain' | 'Delete' | 'CryptoShred'>('Delete');
   const [prepared, setPrepared] = useState<DataReceipt | null>(null), [confirmed, setConfirmed] = useState(false);
   const [current, setCurrent] = useState<DataReceipt | null>(null);
   const [restoration, setRestoration] = useState<RestoreCandidate | null>(null), [restoreLocked, setRestoreLocked] = useState(false);
   const pending = useRef<DataCommand | null>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    if (!materialTarget) return;
+    setSelected(materialTarget); setMode('PrepareLifecycle'); setOperation('Delete');
+    setPrepared(null); setConfirmed(false); setPassword(''); setError(''); setNotice('');
+    consumeMaterialTarget(); heading.current?.focus();
+  }, [materialTarget, consumeMaterialTarget]);
 
   async function refresh() {
     if (!connected) return;
@@ -63,8 +72,7 @@ export function DataManagement({ api, connected }: { api: WorkbenchClient; conne
       if (mode === 'Backup') action = { Backup: { target } };
       else if (mode === 'PrepareRestore') action = { PrepareRestore: { source, target } };
       else if (mode === 'PrepareLifecycle') {
-        if (!selected || !catalog) throw new Error('请先选择需要管理的材料范围。');
-        action = { PrepareLifecycle: { scope: selected.scope, subject: selected.subject, operation, expected_version: catalog.version } };
+        action = prepareLifecycleAction(selected, catalog, operation);
       } else {
         if (!prepared?.plan || !confirmed) throw new Error('请明确确认已阅读计划范围与不可逆性。');
         action = { Apply: { prepared_by: prepared.command, plan_digest: prepared.plan.digest } };
@@ -103,9 +111,10 @@ export function DataManagement({ api, connected }: { api: WorkbenchClient; conne
   function selectPlan(item: DataReceipt) { setPrepared(item); setMode('Apply'); setConfirmed(false); }
   const applicable = (item: DataReceipt) => !operations?.operations.some((other) => other.prepared_by === item.command);
 
-  return <section aria-label="数据管理"><header className="view-header"><h2>数据、备份与遗忘</h2><button className="secondary-button" disabled={busy || !connected} onClick={() => void refresh().catch((problem: unknown) => setError(problem instanceof Error ? problem.message : '刷新失败。'))}>刷新数据状态</button></header>
+  return <section aria-label="数据管理"><header className="view-header"><h2 ref={heading} tabIndex={-1}>数据、备份与遗忘</h2><button className="secondary-button" disabled={busy || !connected} onClick={() => void refresh().catch((problem: unknown) => setError(problem instanceof Error ? problem.message : '刷新失败。'))}>刷新数据状态</button></header>
     {!connected && <p className="notice">主脑离线，个人数据操作暂不可用；账号与安装维护独立运行。</p>}
     <p className="muted">归档与永久删除不同。恢复只建立新的数据对象；切换主脑需要独立维护流程。</p>
+    {selected?.lifecycle_version !== undefined && <p className="notice">已从记忆核对来源范围，尚未执行清理。该范围可能含多条来源及派生对象，请先生成预览，再核对正式计划。若数据版本改变，须重新选择来源。</p>}
     {catalog?.pending_cleanup && <p className="notice">存在未完成清理，主脑数据读取已受保护性阻断。请核实原操作，不重复删除。</p>}
     {error && <p role="alert" className="form-error">{error}</p>}{notice && <p role="status">{notice}</p>}
     <div className="content-grid">{catalog?.subjects.map((subject) => <article className="surface" key={`${subject.scope}:${subject.subject}`}><h3>{subject.scope}</h3><p>{subject.objects} 个记录 / 已删除 {subject.deleted_objects} · {subject.state}</p><p className="muted small">投影：{subject.projections.join('、')}</p><details><summary>范围引用</summary><p>{subject.subject}</p></details><button type="button" className="secondary-button" disabled={busy || Boolean(pending.current) || subject.deleted_objects === subject.objects} onClick={() => { setSelected(subject); setMode('PrepareLifecycle'); setConfirmed(false); }}>准备保留或清理计划</button></article>)}</div>

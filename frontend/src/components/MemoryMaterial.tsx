@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { WorkbenchClient } from '../api/client.ts';
 import type { WorkbenchItem } from '../workbench.ts';
 import { materialMessages } from '../memory-material.ts';
-import type { MemoryMaterial as Material } from '../memory-material.ts';
+import type { MaterialLifecycleTarget, MemoryMaterial as Material } from '../memory-material.ts';
 
-export function MemoryMaterial({ api, item, snapshot }: {
-  api: WorkbenchClient; item: WorkbenchItem; snapshot: string;
+export function MemoryMaterial({ api, item, snapshot, prepareForgetting }: {
+  api: WorkbenchClient; item: WorkbenchItem; snapshot: string; prepareForgetting: (target: MaterialLifecycleTarget) => void;
 }) {
   const [material, setMaterial] = useState<Material | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -21,8 +21,19 @@ export function MemoryMaterial({ api, item, snapshot }: {
       if (active.current) setError(problem instanceof Error ? problem.message : '来源材料读取失败。');
     } finally { if (active.current) setBusy(false); }
   }
+  async function resolveLifecycle() {
+    if (busy) return;
+    setBusy(true); setError('');
+    try {
+      const target = await api.materialLifecycleTarget(item, snapshot);
+      if (active.current) prepareForgetting(target);
+    } catch (problem) {
+      if (active.current) setError(problem instanceof Error ? problem.message : '材料范围核对失败。');
+    } finally { if (active.current) setBusy(false); }
+  }
   return <div aria-busy={busy}>
     {!material && <button className="text-button" disabled={busy} onClick={() => void load()}>{busy ? '正在核对来源…' : '查看来源材料正文'}</button>}
+    <button className="text-button" disabled={busy} onClick={() => void resolveLifecycle()}>准备遗忘这条来源材料</button>
     {error && <p className="form-error" role="alert">{error}</p>}
     {material && <section aria-label="来源材料"><p className="muted small">{materialMessages[material.state]}</p>
       {material.state === 'Available' && <pre>{material.text}</pre>}

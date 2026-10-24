@@ -10,9 +10,10 @@ import { DataManagement } from './DataManagement.tsx';
 import { Maintenance } from './Maintenance.tsx';
 import { RuntimeDiagnostics } from './RuntimeDiagnostics.tsx';
 import { BrainPreferences } from './BrainPreferences.tsx';
+import type { MaterialLifecycleTarget } from '../memory-material.ts';
 
 
-export function Settings({ api, runtime, issue, refresh, signedOut }: { api: WorkbenchClient; runtime: RuntimeView | null; issue: string; refresh: () => void; signedOut: () => void }) {
+export function Settings({ api, runtime, issue, refresh, signedOut, materialTarget, consumeMaterialTarget }: { api: WorkbenchClient; runtime: RuntimeView | null; issue: string; refresh: () => void; signedOut: () => void; materialTarget: MaterialLifecycleTarget | null; consumeMaterialTarget: () => void }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [passwordUnknown, setPasswordUnknown] = useState(false);
   const passwordOperation = useRef<string | null>(null);
@@ -54,7 +55,7 @@ export function Settings({ api, runtime, issue, refresh, signedOut }: { api: Wor
       <label>新密码<input name="next" type="password" autoComplete="new-password" required minLength={12} maxLength={128} readOnly={busy || passwordUnknown} /></label>
       <label>确认新密码<input name="confirm" type="password" autoComplete="new-password" required minLength={12} maxLength={128} readOnly={busy || passwordUnknown} /></label>
       {error && <p role="alert" className="form-error">{error}</p>}<button className="primary-button" disabled={busy}>{busy ? '正在确认…' : passwordUnknown ? '使用原操作继续核实' : '更新密码并重新登录'}</button>
-    </form></article><Maintenance api={api} refresh={refresh} /></div><DataManagement api={api} connected={Boolean(runtime)} />
+    </form></article><Maintenance api={api} refresh={refresh} /></div><DataManagement api={api} connected={Boolean(runtime)} materialTarget={materialTarget} consumeMaterialTarget={consumeMaterialTarget} />
   </section>;
 }
 

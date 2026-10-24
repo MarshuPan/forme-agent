@@ -109,7 +109,7 @@ pub(super) async fn verify(
     )
     .await;
     assert_eq!(denied.status, 409);
-    let mut forged = query;
+    let mut forged = query.clone();
     forged["node"] = json!("memory:absent");
     let denied = request(
         address,
@@ -122,5 +122,157 @@ pub(super) async fn verify(
     assert_ne!(denied.status, 200);
     assert!(!denied.body.contains(text));
     assert_eq!(runtime.services().store.run_heads().unwrap(), heads);
+    assert_eq!(calls.load(Ordering::SeqCst), model_calls);
+
+    let target = request(
+        address,
+        "POST",
+        "/api/v1/brain/workbench/material-lifecycle",
+        mutation_headers(address, cookie, csrf, "material:target"),
+        query.to_string(),
+    )
+    .await;
+    assert_eq!(target.status, 200, "{}", target.body);
+    assert_eq!(target.json()["node"], node.0);
+    assert_eq!(target.json()["content_ref"], artifact.content_ref.0);
+    assert!(!target.body.contains(text));
+    let selected: p::WorkbenchMaterialLifecycleView = serde_json::from_str(&target.body).unwrap();
+    assert_eq!(
+        selected.subject,
+        runtime
+            .services()
+            .store
+            .protected_content_for_current_owner(&artifact.content_ref)
+            .unwrap()
+            .unwrap()
+            .subject_digest
+    );
+    for (name, proof, body, expected) in [
+        ("csrf", "wrong", query.clone(), 403),
+        ("stale", csrf, stale, 409),
+        ("forged", csrf, forged, 400),
+    ] {
+        let denied = request(
+            address,
+            "POST",
+            "/api/v1/brain/workbench/material-lifecycle",
+            mutation_headers(address, cookie, proof, &format!("material:target-{name}")),
+            body.to_string(),
+        )
+        .await;
+        if name == "forged" {
+            assert_ne!(denied.status, 200);
+        } else {
+            assert_eq!(denied.status, expected, "{}", denied.body);
+        }
+        assert!(!denied.body.contains(text));
+    }
+    assert_eq!(runtime.services().store.run_heads().unwrap(), heads);
+    assert_eq!(calls.load(Ordering::SeqCst), model_calls);
+    let action = json!({"PrepareLifecycle":{"scope":selected.scope,"subject":selected.subject,
+        "operation":"Delete","expected_version":selected.lifecycle_version}});
+    let denied = data_views::command(
+        address,
+        cookie,
+        csrf,
+        "material:bad-password",
+        action.clone(),
+        "wrong password",
+    )
+    .await;
+    assert_eq!(denied.status, 401);
+    assert_eq!(runtime.services().store.run_heads().unwrap(), heads);
+    let prepared =
+        data_views::command(address, cookie, csrf, "material:prepare", action, PASSWORD).await;
+    assert_eq!(prepared.status, 200, "{}", prepared.body);
+    assert_eq!(prepared.json()["state"], "Prepared");
+    assert_eq!(prepared.json()["plan"]["objects"], 3);
+    // Preview is not deletion; the body is still available until exact Apply.
+    assert_eq!(
+        runtime
+            .workbench_material(&owner, serde_json::from_value(query.clone()).unwrap())
+            .unwrap()
+            .text
+            .as_deref(),
+        Some(text)
+    );
+    let digest = prepared.json()["plan"]["digest"].clone();
+    let bad_apply = data_views::command(address, cookie, csrf, "material:bad-plan",
+        json!({"Apply":{"prepared_by":"material:prepare","plan_digest":format!("sha256:{}", "0".repeat(64))}}), PASSWORD).await;
+    assert_eq!(bad_apply.status, 409);
+    let apply = json!({"Apply":{"prepared_by":"material:prepare","plan_digest":digest}});
+    let applied = data_views::command(
+        address,
+        cookie,
+        csrf,
+        "material:apply",
+        apply.clone(),
+        PASSWORD,
+    )
+    .await;
+    assert_eq!(applied.status, 200, "{}", applied.body);
+    assert_eq!(applied.json()["state"], "Confirmed");
+    assert_eq!(applied.json()["lifecycle"]["operation"], "Delete");
+    assert!(
+        applied.json()["lifecycle"]["destroyed_keys"]
+            .as_u64()
+            .unwrap()
+            >= 3
+    );
+    assert!(runtime
+        .services()
+        .store
+        .protected_content_for_current_owner(&artifact.content_ref)
+        .unwrap()
+        .is_none());
+    let after_delete = runtime.services().store.run_heads().unwrap();
+    let repeated = data_views::command(
+        address,
+        cookie,
+        csrf,
+        "material:apply",
+        apply.clone(),
+        PASSWORD,
+    )
+    .await;
+    assert_eq!(repeated.json(), applied.json());
+    let second = data_views::command(
+        address,
+        cookie,
+        csrf,
+        "material:second-apply",
+        apply,
+        PASSWORD,
+    )
+    .await;
+    assert_eq!(second.status, 409);
+    let original = data_views::query(
+        address,
+        cookie,
+        csrf,
+        "material:receipt",
+        json!({"Inspect":{"command":"material:apply"}}),
+    )
+    .await;
+    assert_eq!(original.status, 200);
+    assert_eq!(original.json()["receipt"], applied.json());
+    let erased = request(
+        address,
+        "POST",
+        "/api/v1/brain/workbench/material-lifecycle",
+        mutation_headers(address, cookie, csrf, "material:erased-target"),
+        query.to_string(),
+    )
+    .await;
+    assert_ne!(erased.status, 200);
+    assert!(!erased.body.contains(text));
+    assert!(runtime
+        .read_workbench_artifact(
+            &owner,
+            &artifact.content_ref,
+            &p::SessionId("session:material-web".into())
+        )
+        .is_err());
+    assert_eq!(runtime.services().store.run_heads().unwrap(), after_delete);
     assert_eq!(calls.load(Ordering::SeqCst), model_calls);
 }

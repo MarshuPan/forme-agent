@@ -110,6 +110,25 @@ fn registered_text_survives_restart_and_reads_never_write_events_or_call_models(
     let first = runtime
         .workbench_material(&f.owner(), request.clone())
         .unwrap();
+    let target = runtime
+        .workbench_material_lifecycle_target(&f.owner(), request.clone())
+        .unwrap();
+    assert_eq!(target.node, request.node);
+    assert_eq!(target.run, request.run);
+    assert_eq!(target.event, request.event);
+    assert_eq!(target.content_ref, artifact.content_ref);
+    assert_eq!(target.scope, artifact.scope);
+    assert_eq!(target.lifecycle_version, 0);
+    assert_eq!(
+        target.subject,
+        runtime
+            .services()
+            .store
+            .protected_content_for_current_owner(&artifact.content_ref)
+            .unwrap()
+            .unwrap()
+            .subject_digest
+    );
     assert_eq!(first.state, p::WorkbenchMaterialState::Available);
     assert_eq!(first.text.as_deref(), Some(text));
     assert_eq!(first.bytes, Some(text.len() as u64));
@@ -118,6 +137,12 @@ fn registered_text_survives_restart_and_reads_never_write_events_or_call_models(
         Some(p::sha256_content_digest(text.as_bytes()))
     );
     for _ in 0..2 {
+        assert_eq!(
+            runtime
+                .workbench_material_lifecycle_target(&f.owner(), request.clone())
+                .unwrap(),
+            target
+        );
         assert_eq!(
             runtime
                 .workbench_material(&f.owner(), request.clone())
@@ -131,8 +156,16 @@ fn registered_text_survives_restart_and_reads_never_write_events_or_call_models(
     drop(runtime);
     let runtime = f.build();
     assert_eq!(
-        runtime.workbench_material(&f.owner(), request).unwrap(),
+        runtime
+            .workbench_material(&f.owner(), request.clone())
+            .unwrap(),
         first
+    );
+    assert_eq!(
+        runtime
+            .workbench_material_lifecycle_target(&f.owner(), request)
+            .unwrap(),
+        target
     );
     assert_eq!(key_entries(&f), keys);
     assert_eq!(f.calls.load(Ordering::SeqCst), 0);
@@ -154,6 +187,12 @@ fn stale_or_forged_memory_identity_scope_schema_and_owner_do_not_disclose_text()
     assert!(runtime
         .workbench_material(&p::VerifiedPrincipal("other-owner".into()), request.clone())
         .is_err());
+    assert!(runtime
+        .workbench_material_lifecycle_target(
+            &p::VerifiedPrincipal("other-owner".into()),
+            request.clone()
+        )
+        .is_err());
     for kind in 0..5 {
         let mut forged = request.clone();
         match kind {
@@ -163,7 +202,12 @@ fn stale_or_forged_memory_identity_scope_schema_and_owner_do_not_disclose_text()
             3 => forged.scope = Some(p::Scope("foreign-scope".into())),
             _ => forged.schema_version = p::SchemaVersion(2),
         }
-        assert!(runtime.workbench_material(&f.owner(), forged).is_err());
+        assert!(runtime
+            .workbench_material(&f.owner(), forged.clone())
+            .is_err());
+        assert!(runtime
+            .workbench_material_lifecycle_target(&f.owner(), forged)
+            .is_err());
     }
     let mut body = serde_json::to_value(&request).unwrap();
     body["content_ref"] = serde_json::json!(artifact.content_ref);
@@ -176,7 +220,12 @@ fn stale_or_forged_memory_identity_scope_schema_and_owner_do_not_disclose_text()
         artifact.scope.clone(),
     );
     assert!(runtime
-        .workbench_material(&f.owner(), request)
+        .workbench_material(&f.owner(), request.clone())
+        .unwrap_err()
+        .0
+        .contains("snapshot changed"));
+    assert!(runtime
+        .workbench_material_lifecycle_target(&f.owner(), request)
         .unwrap_err()
         .0
         .contains("snapshot changed"));
@@ -188,6 +237,9 @@ fn stale_or_forged_memory_identity_scope_schema_and_owner_do_not_disclose_text()
     );
     assert!(runtime
         .workbench_material(&f.owner(), query(&runtime, &f, "memory:wrong-scope"))
+        .is_err());
+    assert!(runtime
+        .workbench_material_lifecycle_target(&f.owner(), query(&runtime, &f, "memory:wrong-scope"))
         .is_err());
     assert_eq!(f.calls.load(Ordering::SeqCst), 0);
 }
@@ -215,6 +267,9 @@ fn metadata_is_not_original_content_or_context_and_uploaded_receipt_shaped_json_
         .unwrap();
     assert_eq!(view.state, p::WorkbenchMaterialState::ReferenceOnly);
     assert_eq!(view.text, None);
+    assert!(runtime
+        .workbench_material_lifecycle_target(&f.owner(), query(&runtime, &f, "memory:metadata"))
+        .is_err());
     assert!(runtime
         .read_workbench_artifact(
             &f.owner(),
@@ -272,6 +327,9 @@ fn metadata_is_not_original_content_or_context_and_uploaded_receipt_shaped_json_
         .put_protected_content(&f.owner(), internal)
         .unwrap();
     node(&runtime, "memory:opaque", private_ref, original.scope);
+    assert!(runtime
+        .workbench_material_lifecycle_target(&f.owner(), query(&runtime, &f, "memory:opaque"))
+        .is_err());
     assert_eq!(
         runtime
             .workbench_material(&f.owner(), query(&runtime, &f, "memory:opaque"))
@@ -303,6 +361,10 @@ fn binary_and_oversized_materials_have_no_partial_text() {
         let view = runtime
             .workbench_material(&f.owner(), query(&runtime, &f, name))
             .unwrap();
+        let target = runtime
+            .workbench_material_lifecycle_target(&f.owner(), query(&runtime, &f, name))
+            .unwrap();
+        assert_eq!(target.lifecycle_version, 0);
         assert_eq!(view.state, expected);
         assert_eq!(view.bytes, Some(bytes.len() as u64));
         assert_eq!(view.text, None);
@@ -323,23 +385,8 @@ fn real_source_deletion_does_not_recreate_original_or_companion_on_read_or_resta
         artifact.scope.clone(),
     );
     let request = query(&runtime, &f, "memory:erase");
-    let catalog = runtime
-        .services()
-        .store
-        .data_catalog(
-            &f.owner(),
-            &p::DataPageQuery {
-                schema_version: p::SchemaVersion(1),
-                offset: 0,
-                limit: 100,
-                snapshot: None,
-            },
-        )
-        .unwrap();
-    let subject = catalog
-        .subjects
-        .iter()
-        .find(|row| row.scope == artifact.scope)
+    let selected = runtime
+        .workbench_material_lifecycle_target(&f.owner(), request.clone())
         .unwrap();
     let execute = |key: &str, action| {
         runtime
@@ -356,10 +403,10 @@ fn real_source_deletion_does_not_recreate_original_or_companion_on_read_or_resta
     let prepared = execute(
         "erase:prepare",
         p::DataWorkbenchAction::PrepareLifecycle {
-            scope: subject.scope.clone(),
-            subject: subject.subject.clone(),
+            scope: selected.scope.clone(),
+            subject: selected.subject.clone(),
             operation: p::DataLifecycleOperation::Delete,
-            expected_version: catalog.version,
+            expected_version: selected.lifecycle_version,
         },
     );
     let plan = prepared.plan.unwrap();
@@ -377,6 +424,9 @@ fn real_source_deletion_does_not_recreate_original_or_companion_on_read_or_resta
     assert_eq!(receipt.state, p::DataCommandState::Confirmed);
     let heads = runtime.services().store.run_heads().unwrap();
     let keys = key_entries(&f);
+    assert!(runtime
+        .workbench_material_lifecycle_target(&f.owner(), request.clone())
+        .is_err());
     let redacted = runtime
         .workbench_material(&f.owner(), request.clone())
         .unwrap();
@@ -394,9 +444,72 @@ fn real_source_deletion_does_not_recreate_original_or_companion_on_read_or_resta
     drop(runtime);
     let runtime = f.build();
     assert_eq!(
-        runtime.workbench_material(&f.owner(), request).unwrap(),
+        runtime
+            .workbench_material(&f.owner(), request.clone())
+            .unwrap(),
         redacted
     );
+    assert!(runtime
+        .workbench_material_lifecycle_target(&f.owner(), request)
+        .is_err());
+    assert_eq!(key_entries(&f), keys);
+    assert_eq!(f.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn lifecycle_selection_version_must_be_resolved_again_after_a_real_lifecycle_change() {
+    let f = Fixture::new();
+    let runtime = f.build();
+    let artifact = upload(&runtime, &f, "upload:version", b"source remains retained");
+    node(
+        &runtime,
+        "memory:version",
+        artifact.content_ref,
+        artifact.scope,
+    );
+    let request = query(&runtime, &f, "memory:version");
+    let first = runtime
+        .workbench_material_lifecycle_target(&f.owner(), request.clone())
+        .unwrap();
+    let retained = runtime
+        .prepare_data_lifecycle(
+            &f.owner(),
+            first.scope.clone(),
+            first.subject.clone(),
+            p::DataLifecycleOperation::Retain,
+            first.lifecycle_version,
+        )
+        .unwrap();
+    runtime
+        .apply_data_operation(
+            &f.owner(),
+            retained.clone(),
+            forme_harness::DataOperationConfirmation {
+                schema_version: p::SchemaVersion(1),
+                plan_digest: retained.digest,
+                nonce: retained.nonce,
+                use_by: retained.expires_at,
+                approved: true,
+            },
+        )
+        .unwrap();
+    let heads = runtime.services().store.run_heads().unwrap();
+    let keys = key_entries(&f);
+    assert!(runtime
+        .prepare_data_lifecycle(
+            &f.owner(),
+            first.scope.clone(),
+            first.subject.clone(),
+            p::DataLifecycleOperation::Delete,
+            first.lifecycle_version
+        )
+        .is_err());
+    let current = runtime
+        .workbench_material_lifecycle_target(&f.owner(), request)
+        .unwrap();
+    assert_eq!(current.subject, first.subject);
+    assert_eq!(current.lifecycle_version, first.lifecycle_version + 1);
+    assert_eq!(runtime.services().store.run_heads().unwrap(), heads);
     assert_eq!(key_entries(&f), keys);
     assert_eq!(f.calls.load(Ordering::SeqCst), 0);
 }

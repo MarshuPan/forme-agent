@@ -388,6 +388,10 @@ fn allowlisted_core_path(
             "/v1/brain/workbench/material".to_owned(),
             RouteMethods::Post,
         ),
+        ["workbench", "material-lifecycle"] => (
+            "/v1/brain/workbench/material-lifecycle".to_owned(),
+            RouteMethods::Post,
+        ),
         ["workbench", "review"] => ("/v1/brain/workbench/review".to_owned(), RouteMethods::Post),
         ["workbench", "proposal"] => (
             "/v1/brain/workbench/proposal".to_owned(),

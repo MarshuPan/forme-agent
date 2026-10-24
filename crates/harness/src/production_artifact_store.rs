@@ -164,6 +164,50 @@ pub(super) struct MaterialBody {
     pub(super) text: Option<String>,
 }
 
+// Only a server-authored receipt at its deterministic address can identify a
+// material. A protected control companion by itself is never a source body.
+fn registered_material(
+    store: &SqliteEventStore,
+    id: &p::ContentRef,
+    scope: &p::Scope,
+) -> p::Result<Option<(MaterialReceipt, Option<ProtectedContentRecord>)>> {
+    let Some(metadata) = store.protected_content_for_current_owner(&receipt_ref(id))? else {
+        return Ok(None);
+    };
+    let protection = store
+        .content_protection()?
+        .ok_or_else(|| p::Error("material content protection is unavailable".into()))?;
+    let value = decode_receipt(&protection, &metadata)?;
+    if value.content_ref != *id || value.scope != *scope {
+        return Err(p::Error("memory material scope binding is invalid".into()));
+    }
+    let record = store.protected_content_for_current_owner(id)?;
+    if record
+        .as_ref()
+        .is_some_and(|record| record.scope != value.scope || record.subject_digest != value.subject)
+    {
+        return Err(p::Error(
+            "memory material content binding is invalid".into(),
+        ));
+    }
+    Ok(Some((value, record)))
+}
+
+/// Resolves metadata without decrypting the body, creating keys or writing.
+/// The caller holds the data fence and has bound the current owner memory row.
+pub(super) fn material_subject(
+    store: &SqliteEventStore,
+    id: &p::ContentRef,
+    scope: &p::Scope,
+) -> p::Result<p::SchemaDigest> {
+    let Some((receipt, Some(_))) = registered_material(store, id, scope)? else {
+        return Err(p::Error(
+            "memory material lifecycle source is unavailable".into(),
+        ));
+    };
+    Ok(receipt.subject)
+}
+
 /// The caller first binds this server-selected ref to an authorized memory row.
 pub(super) fn read_material(
     store: &SqliteEventStore,
@@ -176,25 +220,13 @@ pub(super) fn read_material(
         digest: None,
         text: None,
     };
-    let Some(metadata) = store.protected_content_for_current_owner(&receipt_ref(id))? else {
+    let Some((value, record)) = registered_material(store, id, scope)? else {
         return Ok(body);
     };
-    let protection = store
-        .content_protection()?
-        .ok_or_else(|| p::Error("material content protection is unavailable".into()))?;
-    let value = decode_receipt(&protection, &metadata)?;
-    if value.content_ref != *id || value.scope != *scope {
-        return Err(p::Error("memory material scope binding is invalid".into()));
-    }
-    let Some(record) = store.protected_content_for_current_owner(id)? else {
+    let Some(record) = record else {
         body.state = p::WorkbenchMaterialState::MissingOrErased;
         return Ok(body);
     };
-    if record.scope != value.scope || record.subject_digest != value.subject {
-        return Err(p::Error(
-            "memory material content binding is invalid".into(),
-        ));
-    }
     body.bytes = Some(value.bytes);
     body.digest = Some(value.content_digest.clone());
     if value.bytes > p::WORKBENCH_MATERIAL_MAX_BYTES as u64
@@ -203,7 +235,9 @@ pub(super) fn read_material(
         body.state = p::WorkbenchMaterialState::TooLarge;
         return Ok(body);
     }
-    let bytes = protection
+    let bytes = store
+        .content_protection()?
+        .ok_or_else(|| p::Error("material content protection is unavailable".into()))?
         .content_service()
         .decrypt(&record.envelope.binding(), &record.envelope)?;
     if value.bytes != bytes.len() as u64 || value.content_digest != p::sha256_content_digest(&bytes)

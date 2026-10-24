@@ -1,7 +1,13 @@
 //! Real HTTP data maintenance; only temporary fixture data is changed.
 use super::*;
 
-async fn query(address: SocketAddr, cookie: &str, csrf: &str, key: &str, query: Value) -> Reply {
+pub(super) async fn query(
+    address: SocketAddr,
+    cookie: &str,
+    csrf: &str,
+    key: &str,
+    query: Value,
+) -> Reply {
     request(
         address,
         "POST",
@@ -11,7 +17,7 @@ async fn query(address: SocketAddr, cookie: &str, csrf: &str, key: &str, query: 
     )
     .await
 }
-async fn command(
+pub(super) async fn command(
     address: SocketAddr,
     cookie: &str,
     csrf: &str,

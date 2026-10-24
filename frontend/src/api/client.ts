@@ -8,7 +8,7 @@ import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, Wo
 import type { DataCommand, DataRead, DataReceipt, DataView } from '../data.ts';
 import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 import { parseRuntimeDoctor } from '../runtime-diagnostics.ts';
-import { parseMemoryMaterial } from '../memory-material.ts';
+import { parseMaterialLifecycleTarget, parseMemoryMaterial } from '../memory-material.ts';
 import type { WorkbenchItem } from '../workbench.ts';
 
 export class ApiError extends Error {
@@ -205,6 +205,15 @@ export class WorkbenchClient {
     const material = await parseMemoryMaterial(value, item);
     this.current(generation);
     return material;
+  }
+  async materialLifecycleTarget(item: WorkbenchItem, snapshot: string, scope: string | null = null) {
+    const generation = this.generation;
+    const value = await this.json<unknown>('brain/workbench/material-lifecycle', 'POST', {
+      schema_version: 1, node: item.id, run: item.run, event: item.event, scope, snapshot,
+    }, newKey('material-lifecycle-view'));
+    const target = parseMaterialLifecycleTarget(value, item);
+    this.current(generation);
+    return target;
   }
   resolveWorkbenchProposal(command: WorkbenchProposal) {
     return this.json<WorkbenchReceipt>('brain/workbench/proposal', 'POST', command, command.command);

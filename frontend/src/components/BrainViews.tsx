@@ -5,6 +5,7 @@ import type { WorkbenchClient } from '../api/client.ts';
 import type { PendingWorkbenchProposals, ReviewDecision, ReviewState, WorkbenchItem, WorkbenchProposal, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
 import { inboxItemStatus, pendingProposalFor, reviewLabels, stateLabels } from '../workbench.ts';
 import { MemoryMaterial } from './MemoryMaterial.tsx';
+import type { MaterialLifecycleTarget } from '../memory-material.ts';
 
 function useBrainView(api: WorkbenchClient, section: WorkbenchSection) {
   const [snapshot, setSnapshot] = useState<WorkbenchSnapshot | null>(null);
@@ -67,7 +68,7 @@ function CandidateControl({ api, item, changed }: { api: WorkbenchClient; item: 
   </form>;
 }
 
-export function CognitionView({ api, open }: { api: WorkbenchClient; open: (run: string) => void }) {
+export function CognitionView({ api, open, prepareForgetting }: { api: WorkbenchClient; open: (run: string) => void; prepareForgetting: (target: MaterialLifecycleTarget) => void }) {
   const [section, setSection] = useState<WorkbenchSection>('Cognition');
   const view = useBrainView(api, section);
   return <section className="view"><header className="view-header"><div><p className="eyebrow">从记录到判断</p><h1>记忆与认知</h1></div><button className="secondary-button" onClick={view.refresh}>刷新</button></header>
@@ -77,7 +78,7 @@ export function CognitionView({ api, open }: { api: WorkbenchClient; open: (run:
     {view.busy && <p role="status">正在读取主脑投影…</p>}
     <div className="content-grid">{view.snapshot?.items.map((item) => <article className="surface" key={`${item.run}:${item.kind}:${item.id}`}><p className="eyebrow">{item.kind} · {stateLabels[item.state] ?? item.state}</p><h2>{item.summary}</h2>
       {item.content && <p className="muted">材料引用：{item.content}</p>}
-      {item.kind === 'Memory' && view.snapshot && <MemoryMaterial key={`${item.run}:${item.id}:${item.event}:${view.snapshot.digest}`} api={api} item={item} snapshot={view.snapshot.digest} />}
+      {item.kind === 'Memory' && view.snapshot && <MemoryMaterial key={`${item.run}:${item.id}:${item.event}:${view.snapshot.digest}`} api={api} item={item} snapshot={view.snapshot.digest} prepareForgetting={prepareForgetting} />}
       <Evidence item={item} open={open} />
       {item.reviews.length > 0 && <CandidateControl key={`${item.id}:${item.state}`} api={api} item={item} changed={view.refresh} />}
     </article>)}</div>

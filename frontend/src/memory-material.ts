@@ -6,6 +6,21 @@ export interface MemoryMaterial {
   schema_version: 1; node: string; run: string; event: string; scope: string; content_ref: string;
   state: MaterialState; bytes: number | null; content_digest: string | null; text: string | null;
 }
+export interface MaterialLifecycleTarget {
+  schema_version: 1; node: string; run: string; event: string; scope: string; content_ref: string;
+  subject: string; lifecycle_version: number;
+}
+
+export function parseMaterialLifecycleTarget(value: unknown, item: WorkbenchItem): MaterialLifecycleTarget {
+  if (!isRecord(value) || value.schema_version !== 1 || item.kind !== 'Memory'
+      || value.node !== item.id || value.run !== item.run || value.event !== item.event
+      || value.scope !== item.scope || typeof value.scope !== 'string' || !value.scope
+      || value.content_ref !== item.content || typeof value.content_ref !== 'string' || !value.content_ref
+      || typeof value.subject !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(value.subject)
+      || typeof value.lifecycle_version !== 'number' || !Number.isSafeInteger(value.lifecycle_version)
+      || value.lifecycle_version < 0) throw new Error('遗忘范围无法与当前记忆核对，请重新读取来源。');
+  return value as unknown as MaterialLifecycleTarget;
+}
 export const materialMessages: Record<MaterialState, string> = {
   Available: '来源材料正文',
   ReferenceOnly: '此记录只有材料引用，没有可验证的正文登记，或正文已受保留策略限制。',

@@ -66,3 +66,18 @@ pub struct WorkbenchMaterialView {
     pub content_digest: Option<SchemaDigest>,
     pub text: Option<String>,
 }
+
+/// Read-only selection for the existing, separately approved data lifecycle.
+/// A subject may include several source records and their derived objects.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkbenchMaterialLifecycleView {
+    pub schema_version: SchemaVersion,
+    pub node: NodeId,
+    pub run: RunId,
+    pub event: EventId,
+    pub scope: Scope,
+    pub content_ref: ContentRef,
+    pub subject: SchemaDigest,
+    pub lifecycle_version: u64,
+}

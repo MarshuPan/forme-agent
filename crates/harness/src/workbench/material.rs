@@ -9,9 +9,78 @@ impl ProductionRuntime {
     ) -> p::Result<p::WorkbenchMaterialView> {
         let _guard = self.data_read_guard()?;
         self.require_brain_owner(owner)?;
-        query.validate()?;
         let store = self.services().store.clone();
         let heads = store.run_heads()?;
+        let (scope, content_ref) = self.bound_memory_material(&query)?;
+        let material =
+            crate::production_artifact_store::read_material(&store, &content_ref, &scope)?;
+        if store.run_heads()? != heads {
+            return Err(p::Error(
+                "workbench snapshot changed; restart pagination".into(),
+            ));
+        }
+        Ok(p::WorkbenchMaterialView {
+            schema_version: p::SchemaVersion(1),
+            node: query.node,
+            run: query.run,
+            event: query.event,
+            scope,
+            content_ref,
+            state: material.state,
+            bytes: material.bytes,
+            content_digest: material.digest,
+            text: material.text,
+        })
+    }
+
+    /// Resolves a registered source for a later PrepareLifecycle command.
+    /// This read neither prepares nor approves a plan and never decrypts its body.
+    pub fn workbench_material_lifecycle_target(
+        &self,
+        owner: &p::VerifiedPrincipal,
+        query: p::WorkbenchMaterialQuery,
+    ) -> p::Result<p::WorkbenchMaterialLifecycleView> {
+        let _guard = self.data_read_guard()?;
+        self.require_brain_owner(owner)?;
+        let store = self.services().store.clone();
+        let heads = store.run_heads()?;
+        let (scope, content_ref) = self.bound_memory_material(&query)?;
+        let subject =
+            crate::production_artifact_store::material_subject(&store, &content_ref, &scope)?;
+        let catalog = store.data_catalog(
+            owner,
+            &p::DataPageQuery {
+                schema_version: p::SchemaVersion(1),
+                offset: 0,
+                limit: 1,
+                snapshot: None,
+            },
+        )?;
+        if store.run_heads()? != heads {
+            return Err(p::Error(
+                "workbench snapshot changed; restart pagination".into(),
+            ));
+        }
+        Ok(p::WorkbenchMaterialLifecycleView {
+            schema_version: p::SchemaVersion(1),
+            node: query.node,
+            run: query.run,
+            event: query.event,
+            scope,
+            content_ref,
+            subject,
+            lifecycle_version: catalog.version,
+        })
+    }
+
+    // Callers hold the read fence and enforce owner authentication. Both body
+    // disclosure and lifecycle selection use exactly the same source binding.
+    fn bound_memory_material(
+        &self,
+        query: &p::WorkbenchMaterialQuery,
+    ) -> p::Result<(p::Scope, p::ContentRef)> {
+        query.validate()?;
+        let store = &self.services().store;
         let (items, _) = self.workbench_items(&query.memory_query())?;
         let row = items
             .into_iter()
@@ -38,24 +107,6 @@ impl ProductionRuntime {
                 "memory material source no longer matches its row".into(),
             ));
         }
-        let material =
-            crate::production_artifact_store::read_material(&store, &content_ref, &scope)?;
-        if store.run_heads()? != heads {
-            return Err(p::Error(
-                "workbench snapshot changed; restart pagination".into(),
-            ));
-        }
-        Ok(p::WorkbenchMaterialView {
-            schema_version: p::SchemaVersion(1),
-            node: query.node,
-            run: query.run,
-            event: query.event,
-            scope,
-            content_ref,
-            state: material.state,
-            bytes: material.bytes,
-            content_digest: material.digest,
-            text: material.text,
-        })
+        Ok((scope, content_ref))
     }
 }

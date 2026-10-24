@@ -74,7 +74,7 @@ pub(super) fn bind_body(
         query.validate().map_err(|_| WebError::invalid())?;
         return serde_json::to_vec(&query).map_err(|_| WebError::invalid());
     }
-    if path == "workbench/material" {
+    if matches!(path, "workbench/material" | "workbench/material-lifecycle") {
         let query: p::WorkbenchMaterialQuery =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
         query.validate().map_err(|_| WebError::invalid())?;

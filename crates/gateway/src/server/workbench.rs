@@ -5,11 +5,30 @@ pub(super) fn routes() -> Router<Arc<HttpState>> {
     Router::new()
         .route("/v1/brain/workbench/query", post(query_workbench))
         .route("/v1/brain/workbench/material", post(read_material))
+        .route(
+            "/v1/brain/workbench/material-lifecycle",
+            post(material_lifecycle),
+        )
         .route("/v1/brain/workbench/review", post(review_workbench))
         .route(
             "/v1/brain/workbench/proposal",
             post(resolve_workbench_proposal),
         )
+}
+
+async fn material_lifecycle(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Json(query): Json<p::WorkbenchMaterialQuery>,
+) -> Result<Json<p::WorkbenchMaterialLifecycleView>, ApiError> {
+    state.authorize(&headers, false)?;
+    let runtime = state.runtime.clone();
+    let owner = state.owner.clone();
+    state
+        .blocking(move || runtime.workbench_material_lifecycle_target(&owner, query))
+        .await
+        .map(Json)
+        .map_err(classify)
 }
 
 async fn read_material(

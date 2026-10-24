@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "db2cd6d2a856741fbf93508f491ad1ee76dcf2fe339a57832dd9b781de6a5f0a",
+  "source_digest": "0084b017088996b549b8bf20c7291770431c1227c52c4821163fabf56c762345",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,11 +20,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "0a8e2a89c8a103a78066e8b16126a290c8d5cec8cf036863b596c08a541b09c7"
+      "sha256": "5694ad6d192fc5731a8815a5c0b40b9e0f3d3ffe53ca7291e1c36b6be745de47"
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "8a67dc2e699cff014a32de5b179240f6052a63d3fcdfe84b017fa13c7848b8de"
+      "sha256": "a70fa70cfc2324a32119c1499826461d91093afc8a7d17b70359c4d5ae015371"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -40,7 +40,7 @@
     },
     {
       "path": "frontend/src/components/BrainViews.tsx",
-      "sha256": "7da6b815e8c51fff7f37c18a05e9308e2ae0751ac9e463ba4e35f98a9e24ccb4"
+      "sha256": "08888e66a9f1ba3c87469991b92240bc8415fdcfb78ac76a1ccfe71fca4c606a"
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
@@ -52,7 +52,7 @@
     },
     {
       "path": "frontend/src/components/DataManagement.tsx",
-      "sha256": "61ddb453c129891d253449d55435d1f0bafd0f8d8f7ded1746ff8d5436d76bc6"
+      "sha256": "b61981630575d0640984ef528e78937b1c838629d8676ca0e79e4cc6d372c288"
     },
     {
       "path": "frontend/src/components/Entry.tsx",
@@ -64,7 +64,7 @@
     },
     {
       "path": "frontend/src/components/MemoryMaterial.tsx",
-      "sha256": "46c2551100f9b7aac39dd1f3197afac0d4c9908f817b2e485b2350c55e093a67"
+      "sha256": "9dd6435d7ba42473681e9b1ad4d874aef0fe7d2a9117c1c0b895e518f9c76a88"
     },
     {
       "path": "frontend/src/components/ProjectControls.tsx",
@@ -88,7 +88,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "34f961127378a51d70db275854ee7a9a84c7e89e897d6e27f80b75e0f84b14b1"
+      "sha256": "27ed9adc2e33e1da98079d1b554973608fd8979cd11195ceb38a5f8d4da2fce5"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -116,7 +116,7 @@
     },
     {
       "path": "frontend/src/data.ts",
-      "sha256": "3f72a4b2fa92e4d3f047f80405d44cabe40b6426ac5437f3176d79aa5a1a8bb1"
+      "sha256": "cf6157680930c17d99fdd39624d3179ff7ee3163147978ce66dea9d09e7f6177"
     },
     {
       "path": "frontend/src/events.ts",
@@ -136,7 +136,7 @@
     },
     {
       "path": "frontend/src/memory-material.ts",
-      "sha256": "95958873b9e194f55c923f57c1270282c960bba8bf68ae94dd49de65f4401a85"
+      "sha256": "fd5cc2626822c8074f7109b50741b7ebc9933c26935c9d0204256b3b0cc2bffb"
     },
     {
       "path": "frontend/src/project-routes.ts",
@@ -192,7 +192,7 @@
     },
     {
       "path": "frontend/src/tests/memory-material.test.ts",
-      "sha256": "b718dcdcbdffdcedc8cc3c2061e8a10faad4574a9176157110a528605ec83730"
+      "sha256": "aef42189ee027a003c8615ed432159d199e003778e877a513b83be18e7cdc9fd"
     },
     {
       "path": "frontend/src/tests/project-routes.test.ts",
@@ -229,14 +229,14 @@
   ],
   "files": [
     {
+      "path": "assets/index-BdkYm5fH.js",
+      "sha256": "46f200bc6aa6d3ae2bc43b38e576a6152cceabdf7aa16852913fdc5c993467c4",
+      "bytes": 345116
+    },
+    {
       "path": "assets/index-BmTcruJ3.css",
       "sha256": "cc042690597d648369f6322898b656ce7c3bcc3541b8bb21525fb9ac661e13e1",
       "bytes": 13853
-    },
-    {
-      "path": "assets/index-CEcO_GJz.js",
-      "sha256": "2c92f9adbf364b5568010974a82aa459597ec59fb9331577b3309070d3e0cc1d",
-      "bytes": 342755
     },
     {
       "path": "dependencies.json",
@@ -250,7 +250,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "606ddada513edac5ff2eed2d8b8cb2dcf79f2d12f89c48773210771749151366",
+      "sha256": "769d461fae996940454bda0cd7adf2252fc0ecbba66270605f5ada10544c7354",
       "bytes": 595
     },
     {
