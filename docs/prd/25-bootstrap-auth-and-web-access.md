@@ -305,7 +305,7 @@ Host 在同一 CAS/journal 中保存偏好、模型与凭据，materialize 到�
 
 `tls` 为 `{schema_version:1, certificate_path, private_key_path}`，只能引用安装者指定的 `web_material_directory` 内的绝对普通文件，拒绝路径逃逸与链接；证书和私钥各至多 64 KiB。静态检查解析 PEM、验证证书与密钥匹配，不声称客户端信任或网络可达。`firewall` 为 `{schema_version:1, rule_ref}`，引用不能代替原生规则生效证明。
 
-Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。安装者固定 `web_network_config_path`（`config/web-network.json`）及材料目录，浏览器不能改变投影路径。不可变 revision 同时保留待应用配置和当前已发布网络投影；journal 的可选 `web_network_digest` 绑定后者。`network_active` 只表示两者一致，不等于运行中的 listener 已加载、客户端信任或跨设备可用；core acknowledgement 也不能代替网络维护回执。`pending_restart`/校验报告须同时覆盖 core 未确认与网络投影未应用。
+Host state schema 6 保留旧 schema 2–5、旧请求摘要与 core bytes。新安装固定 `web_network_config_path`（`config/web-network/web-network.json`）及独立材料目录 `config/web-material`，浏览器不能改变投影路径。两个目录只允许管理域写入、Web 读取，Brain 不可读；网络发布目录在 Windows 继承只读服务 ACL，在 POSIX 使用 Web 专属 setgid group，使原子替换后的文件仍保持服务只读，不扩大整个 config 的权限。旧模板路径不静默迁移。不可变 revision 同时保留待应用配置和当前已发布网络投影；journal 的可选 `web_network_digest` 绑定后者。`network_active` 只表示两者一致，不等于运行中的 listener 已加载、客户端信任或跨设备可用；core acknowledgement 也不能代替网络维护回执。`pending_restart`/校验报告须同时覆盖 core 未确认与网络投影未应用。
 
 没有上述受管投影路径的旧安装模板继续支持原模型/brain/skills 保存；客户端回传未改变的默认网络值可兼容读写，但不同的网络目标须在任何 staging 前拒绝。不能通过设置页静默改写旧安装模板，也不能保存实际上没有输出路径的新网络配置。此类安装不宣告 ConfigureLan 可用，待显式安装升级处理。
 
