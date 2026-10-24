@@ -269,6 +269,16 @@ broker 的认领权威使用独立、OS 排他锁保护的 append journal；记�
 
 网页区分“保存”“静态检查”“请求启动/重启”“核心确认”，启动 OS receipt 不等于模型调用成功；已确认 revision 也不单独证明当前进程健康。模型真实测试仍只经正式 core 的 Run 路径。旧版已知配置只在 owner/模板/完整文件一致时迁移，无法核对则要求本机恢复，不能丢弃原配置。模型输入在凭据 staging/该命令 intent 之前被拒绝时，返回明确的 422/ConfigurationInvalid，允许编辑；任何发布或服务副作用不明不能映射成该错误，也不能换新 operation 自动重试。
 
+### 11.5.1 实施细化：默认工作空间与模型角色
+
+`ProductConfigPatch` 增加可选 typed `brain: ProductBrainPreferences`；省略表示保留原值，不能重置成安装默认值。该对象含 `schema_version=1`、`default_workspace: WorkspaceRef`、`model_routing: ProductModelRouting`。路由含 `schema_version=1` 及可空 `foreground`、`cognition` profile ref：前者为正式对话/任务模型选择的优先项，后者为后台认知相关性判断及其对照评估使用的模型。空值分别沿用既有确定性兼容选择与默认 profile，不展示尚无消费者的角色开关。现有无需模型的候选提取与维护不会因配置角色而新增模型调用。
+
+默认 workspace 只决定新的未显式绑定请求的上下文；既有会话的 workspace 绑定、项目和历史 `SessionBound` 不被批量迁移，也不因选择而创建项目私有脑。workspace 是非空有界不含控制字符的逻辑 ref，不接受文件路径。路由必须引用同一完整 patch 内的模型；删除仍被引用的模型拒绝整次事务。foreground 优先仅在上下文、工具 schema、能力强度等既有约束满足时生效；不满足时仍由原兼容排序选择，保留已有 fallback 组和 high-risk 限制。cognition 显式绑定的模型不可用时启动失败，不能静默调用默认模型并自报绑定项。
+
+Host 在同一 CAS/journal 中保存偏好、模型与凭据，materialize 到同一 `CoreServiceConfig.brain`，只有实际 core ack 后才算加载。snapshot 返回有效偏好与来源（安装模板或受管配置），不返回密钥。已发布旧 revision 的 JSON 与旧 operation digest 保持可核验；旧请求省略该字段时继续使用旧摘要算法，有新偏好时使用显式版本域摘要。配置恢复、模型保存和恢复脑接管均保留偏好；非法/陈旧/异义保存零发布，不调模型。受管启动不读取 shell env 覆盖路由。
+
+本增量只闭合上述有实际消费者的设置；能力、消息渠道、代理和网络分别按其 typed 生命周期实施，不能因本节通过而宣称 IP08/IP21 完成。
+
 ### 11.6 实施细化：配置发布与运行态的访问隔离
 
 新安装的路径/Windows ACL 采用 prd/24 §4.4。`brain/runtime` 在认领后由 core 首次启动按需创建；准备安装和赋权不往新脑目录预写占位文件/子目录，保持原“新脑候选必须为空”的检查。Host 创建的 `config/core` 和 `keys/model-credentials` 则可预建，未来发布/凭据 revision 继承只读授权。
