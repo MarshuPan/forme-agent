@@ -354,3 +354,9 @@ listener digest 绑定实际加载的 bind、精确 Host 和 TLS 开关/配置�
 `MaintenanceOperation.network_result?` 是 schema 1 的 additive 安全结果：`outcome(activated/rolled_back),active_bind,requested_listener_digest,active_listener_digest,health_receipt_digest`。历史对象省略该字段；历史 Committed 没有该字段时只能表示原维护已结束，不能补造健康证明。journal 增加 `NetworkProgress`，子阶段顺序只有 `TargetIntent -> TargetVerified` 或 `TargetIntent -> FallbackIntent -> FallbackVerified`；TargetIntent 固定目标和安装 loopback 摘要，FallbackIntent 绑定已知启停回执及健康失败摘要，Verified 绑定实际 proof。子阶段写入只在原 Checking intent 内、同一 ConfigureLan 命令下接受；结束后、跨命令或次序不对零追加。回退不新建 MaintenanceCommand，不改 Config revision 或 desired，只通过原配置写者发布明确 loopback snapshot。每一原生动作失败都停在该原操作，恢复查询不重建一次性执行权。
 
 组件验收至少覆盖：真实独立 Web 进程的 HTTP/TLS challenge、错安装/nonce/签名/旧配置、没有 core 时的检查；成功切换只执行一次；健康失败后仅回退确切 loopback；Stop/Start Unknown 零后续发布/启动；回退的每个中断点及重启原号核实；旧日志混合回放及 v1/v2 配置兼容。原生 SCM、客户端证书信任与跨设备 IP09/IP24 另取证。
+
+健康 transport 放在现有执行宿主，不新增 crate 或依赖边。`NativeServiceManager` 的 additive 默认方法 `probe_web_listener(network, nonce, timeout)` 使用真实有界 TCP/TLS；可替换的测试 adapter 只能提供传输回执，不能跳过 broker 的 pinned-key、安装、配置和 challenge 验证。错误明确分为普通不可达与不可信响应；证书、HTTP framing、签名及身份冲突归后者。TLS 以受管证书链作为定点信任材料，执行名称/有效期/链验证并核实实际 peer 链指纹；不使用系统代理、DNS 或宽松验证器。
+
+既有 ConfigureLan 生命周期分类不变，也不增加第二把全局维护锁。执行中每次发布或原生动作前按原 owner/revision/validation digest 重查，探测后再次核对 published/desired 与授权；并发设置保存使原命令过期时进入恢复，不覆盖新设置。8 秒探测窗口还受原命令剩余期限约束；授权到期后不能启动新的原生动作。网络子阶段另绑定目标与固定 loopback 的 bind，Verified 结果必须匹配对应 bind/digest。Checking 未持久化 Verified 时不能结束新网络子事务；历史没有子阶段的 Committed 保持原样，不补造证明。
+
+为区分历史事务与必须验证的新事务，新 ConfigureLan 的 Planned fact 带可选 `network_contract:1`，非网络事务及旧 wire 完全省略该字段。缺省不是当前代码创建新网络事务的选项；新 writer 固定写入该标记。回放旧 fact 时空值仍省略，保持原 hash。带标记的网络事务若缺少相应 Verified/结果，不能写 Checking receipt 或 Committed；无标记的历史终态可读，但永远没有健康结果。
