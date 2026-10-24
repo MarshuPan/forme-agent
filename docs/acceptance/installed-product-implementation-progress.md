@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-25 `639b2b4` 完成[发布离线数据与服务 image 组件](installed-product-release-data-and-images-20261025.md)：真实 SQLite schema/独占锁/一致性备份、有界私有 worker、签名 staging 重查、历史 journal 原字节校验，以及三服务完整预检和持久 one-shot image claim。最终统一门 965 Rust passed / 0 failed / 5 默认 ignored，前端 75/75、strict Clippy/合规及宿主 122 个命名场景 PASS。独立 updater 与新 Host Checking 接管仍未闭合，生产 Upgrade/Rollback 保持拒绝；原生/IP 验收未提升。下表以该记录及已有网络/恢复增量校准，不将组件状态写成整个模块完成。
+
 2026-10-24 `5cbe175` 完成 Windows `WindowsJobWorkerIsolation`：使用 Job Object 在 worker 首次执行前接管进程，启用 kill-on-close，取消和宿主退出可终止同一进程树；真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等，2/2 PASS。该提交只闭合 Windows 进程树生命周期 custody，不等于完整 sandbox；服务账户、ACL、逐 job 文件/网络/credential scope、会话 helper、原生安装和 IP10/IP24 仍开放。详见[Windows Job Object worker adapter 验收](installed-product-windows-job-object-acceptance.md)。
 
 2026-10-24 `780ec1e` 完成 Core→AgentExecution 的 typed driver 接缝：`WorkerExecutionSpec`、loopback-only `WorkerBrokerTransport`、job 专属 execution binding、精确 job/permit/plan 校验、Unknown/原 job probe-cancel 与进程入口传递已实现。协议专项 3/3、host transport 8/8、workspace check、strict Clippy、代码质量与合规门通过；workspace 全量 test 在 Windows 链接阶段因 C 盘空间不足（`No space left on device`）未完成，不能写成完整 workspace test PASS。该提交只闭合 wire/receipt/状态边界，不证明 ProductionRuntime 已接入真实平台隔离；普通 process worker、Windows/Linux/macOS 原生 sandbox、IP10/IP24、安装包和系统服务仍未完成。
@@ -54,8 +56,8 @@
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
 | 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 已有受管 Host、三个 daemon 的 SCM host 与 typed 注册/移除；`29984a4` 增加新安装路径分权、固定 Windows ACL helper 和实际临时 NTFS 组件验证；`5cbe175` 证明 Windows Job Object 的进程树 custody。真实服务账户 token/有效拒绝、逐 job 文件/网络/credential scope、会话 helper 仍未验收或完成，普通 worker 在生产继续 blocked。 |
-| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有可重复 bundle、精确签名/验签和三平台原生编译入口；POSIX 权限、新配置发布、首次安装/卸载失败边界已实现。2026-10-24 基于 `a53557f` 的 Windows Inno 候选已编译但未签名、未安装；其他原生编译器/管理员安装、完整生命周期事务、签名可发布原生包与跨平台验收未完成，详见[本轮候选报告](installed-product-windows-candidate-20261024.md)。 |
-| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、受管 core 文件配置、私有模型凭据 resolver、签名会话桥与持久 nonce/fence 之后，`01b77f9` 完成模型配置 journal/staging/CAS、不可变凭据、重启恢复、静态校验、口令绑定启停与 core acknowledgement。实际 host/web/core 进程验证认领、配置持久化、幂等和正式 Run；已认证浏览器验证设置页。旧脑/备份接管、OS 恢复、LAN TLS、完整能力/渠道配置和整机初始化仍待实施。 |
+| 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有 bundle/签名、原生编译入口、首次安装权限与失败边界、新路径恢复事务，以及 `639b2b4` 的离线检查/备份和 Windows service image one-shot 接缝。独立 updater/完整自更新仍未闭合；Windows Inno 候选未签名、未安装，其他原生编译/管理员/跨平台验收及可发布包仍开放。 |
+| 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、旧脑/备份候选、OS 本机恢复、模型/脑偏好/skills 公共设置 v2、LAN TLS 发布/健康/回退及恢复提交已有组件和实际临时进程证据。尚缺完整能力/渠道接入、管理员及客户端证书信任/跨设备证据和整机联合初始化验收；不能将组件通过等同完整 IP06/IP08/IP09/IP13/IP21/IP24。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、会话创建/列表/重命名/归档、对话/事件续接/审批/取消、附件加密上传与授权产物历史、pending/Unknown 原命令核实、会话 workspace 到后续 `SessionBound` 正式 run 上下文绑定、项目登记/路线规划/执行/取消、Charter 读写、权威项目监管快照与暂停/恢复、后续项目分段调整及长期意图取消、认知投影与处置、typed 活动运行 pending Inbox 投影、模型设置和受限维护。仍未闭合：剩余设置/维护/API、真实浏览器完整流程及 IP17–23/IP24 联合产品验收。普通建议 Unknown 刷新恢复已由 [普通建议恢复组件验收](installed-product-proposal-recovery-acceptance.md) 记录；组件门不替代原生服务和正式安装包证据。 |
 
 24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
