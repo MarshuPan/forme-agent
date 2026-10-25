@@ -168,9 +168,9 @@ broker 不签发新 permission；安装权限、登录、trust 或能力安装�
 
 Host 把经过验证的 spec 写入该 job 专属、受保护的运行目录，通过固定的 `FORME_WORKER_EXECUTION_PATH` 交给已注册 launch profile；子进程不得读取兄弟 job、brain、keys、管理 journal 或 Web 凭据。写入、启动或回执不明均保留原 job 为 `Unknown`，probe/cancel 只查原 job，不能换号重做。`WorkerBrokerTransport` 只负责 AgentExecution 的 admission/probe/cancel wire 调用，不拥有 permission、不重新规划、不调模型。
 
-这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；它仍不覆盖服务账户、ACL、逐 job 文件/网络/credential scope 或桌面会话。没有这些剩余门以及 Linux cgroup/systemd sandbox、macOS sandbox/账户和逐 job 文件/网络拒绝的完整真实 adapter 证据时，ProductionRuntime 仍不得把 worker capability 声明为可用；开发开关只允许验证 wire/receipt/Unknown 语义，IP10/IP24 仍需原生证据。
+这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux cgroup/systemd sandbox、macOS sandbox/账户和逐 job 文件/网络拒绝仍需各平台的真实 adapter 证据；IP10/IP24 仍需原生验收。
 
-24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。加载 worker 配置不能自动把普通子进程变成服务沙箱：Windows Job Object adapter 只证明进程树 custody，默认 managed service 仍在账户/ACL/网络/credential/session 门闭合前阻断 dispatch；仅显式前台开发开关可启用普通进程测试，SCM 服务路径不接受该开关。配置/路由细节见 prd/24 §4.1。原生 peer identity、独立账户/ACL 与每 job 文件/网络隔离仍需各平台的实际证据。
+24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。受管 Windows service 只有在固定 SCM/`LocalSystem` 身份和受保护 worker 配置同时成立时才进入 AppContainer/Job/overlay composition；缺少任一条件或仍处于前台开发模式时保持原有 fail-closed/测试边界，不能回退到普通高权限子进程。该 composition 仍不替代原生安装、core peer、服务账户/ACL、网络/credential/session 和 Linux/macOS 平台证据。配置/路由细节见 prd/24 §4.1。
 
 Windows managed Host 的 AgentExecution 不使用 loopback bearer-only 接口，而使用由 `install_id` 确定性派生的 `\\.\pipe\forme-agent-execution-v1-<install_digest>`。named pipe 的受保护 ACL 只允许 LocalSystem 与 `NT SERVICE\\forme-brain`，并拒绝远端客户端。Host 在 HTTP framing 之前绑定连接的 client PID、Brain Service SID 和安装清单当前 active release 的 `forme-gatewayd.exe` image path；这三项不能由请求内容自报或替换。应用层 bearer 仍保留，作为第二道校验。named pipe peer 证明失败时只拒绝该连接，不能降级到 TCP 或普通子进程；开发模式可以继续使用 loopback HTTP 做协议测试。该原生接缝只闭合 Brain→Host 的 OS peer 身份，不单独证明 IP10/IP24 或完整 worker sandbox。
 

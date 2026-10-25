@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-25 `0f6829a` 完成 [Windows managed worker composition 接入](installed-product-windows-managed-worker-composition-acceptance-20261025.md)：只有固定 SCM 入口传入的受管 Windows Host 才能加载 worker 配置并组合每 job AppContainer、Job Object 与私有 workspace overlay；打开隔离状态前额外核验当前进程确为 `LocalSystem`。前台/开发入口继续保持原行为，缺少 worker 配置、SCM 绑定或 LocalSystem 身份时 fail closed。workspace fmt/check/test、strict Clippy、代码质量与合规门通过；本机没有已注册 forme SCM 服务且当前用户不是 LocalSystem，因此没有真实服务身份/安装/IP10/IP24 证据，Linux/macOS 路径未因此关闭。
+
 2026-10-25 `b901dff` 完成 [Windows managed Host fail-closed 回归](installed-product-windows-agent-execution-peer-transport-acceptance-20261025.md)：在没有真实 `NT SERVICE\\forme-brain` 服务身份时，受管 Host 必须在打开 listener 前失败退出，不能回退 TCP，manifest 替换也不能绕过失败或创建管理 journal。`forme-execution` 134/134 非忽略测试通过；`verify-installed-host.ps1` 宿主永久门 PASS，IP01–IP24 仍明确为 NOT_RUN。
 
 2026-10-25 `2f5f6a9` 完成 [Windows AgentExecution peer transport](installed-product-windows-agent-execution-peer-transport-acceptance-20261025.md)：managed Host 的 AgentExecution 从 loopback bearer-only TCP 切换到安装绑定的 named pipe，校验 Brain Service SID、当前 active release image 和应用层 bearer；开发模式仍保留 TCP 协议测试路径。该组件不等于真实 SCM 服务、完整 worker sandbox 或 IP01–IP24 验收。
@@ -81,7 +83,7 @@
 | 顺序 | 交付 | 当前状态 |
 |---|---|---|
 | 24.1 | 宿主协议、安装清单、管理 journal、签名与兼容性校验、内置 OS 服务管理适配。 | 已实现并提交 `92802fe`；Rust 全量门、冻结 18-crate/99-kind 门、宿主专项门通过；不代表原生安装验收。 |
-| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 已有受管 Host、三个 daemon 的 SCM host 与 typed 注册/移除；`29984a4` 增加新安装路径分权，`5cbe175` 证明 Job Object 进程树 custody，`b0f5cfb` 完成私有 workspace/Host 回写及真实 Low worker 的文件/网络/子进程拒绝和宿主死亡恢复。真实 SCM Host/core peer、服务账户 token/Brain-Web-keys 有效拒绝与会话 helper 仍未验收或完成；生产 dispatch 继续 blocked。 |
+| 24.2 | 真正的系统 service host、受认证双域 broker、实际账户/ACL/逐 job worker 隔离与会话 helper。 | 已有受管 Host、三个 daemon 的 SCM host 与 typed 注册/移除；`29984a4` 增加新安装路径分权，`5cbe175` 证明 Job Object 进程树 custody，`b0f5cfb` 完成私有 workspace/Host 回写及真实 Low worker 的文件/网络/子进程拒绝和宿主死亡恢复，`0f6829a` 将该隔离组合接入固定 SCM/LocalSystem managed Host 路径。真实 SCM Host/core peer、服务账户 token/Brain-Web-keys 有效拒绝与会话 helper 仍未验收或完成；缺少受管配置或身份时 dispatch 继续 blocked，本机尚无真实服务/IP10/IP24 证据。 |
 | 24.3 | 原生包、受控停服/升级/恢复/卸载、签名供应链与原生平台演练。 | 已有 bundle/签名、原生编译入口、首次安装权限与失败边界、新路径恢复事务、`639b2b4` 离线检查/备份和 `cce9ea6` 独立 updater/live readiness 控制面。Windows SCM/管理员安装、签名 Inno、Linux/macOS 原生服务、完整隔离和可发布包仍开放；IP01–IP24 未因此关闭。 |
 | 25 | 无配置初始化、旧脑验证/认领、账号/session、typed config/secret resolver、内部身份与 Web API/TLS。 | 认证/认领、旧脑/备份候选、OS 本机恢复、模型/脑偏好/skills 公共设置 v2、LAN TLS 发布/健康/回退及恢复提交已有组件和实际临时进程证据。尚缺完整能力/渠道接入、管理员及客户端证书信任/跨设备证据和整机联合初始化验收；不能将组件通过等同完整 IP06/IP08/IP09/IP13/IP21/IP24。 |
 | 26 | 五个 Web 工作面、正式流/审批/续接、精确前端来源审查与安装包联调。 | 已有 React/TypeScript/Vite 静态前端、初始化/登录、会话创建/列表/重命名/归档、对话/事件续接/审批/取消、附件加密上传与授权产物历史、pending/Unknown 原命令核实、会话 workspace 到后续 `SessionBound` 正式 run 上下文绑定、项目登记/路线规划/执行/取消、Charter 读写、权威项目监管快照与暂停/恢复、后续项目分段调整及长期意图取消、认知投影与处置、typed 活动运行 pending Inbox 投影、模型设置和受限维护。仍未闭合：剩余设置/维护/API、真实浏览器完整流程及 IP17–23/IP24 联合产品验收。普通建议 Unknown 刷新恢复已由 [普通建议恢复组件验收](installed-product-proposal-recovery-acceptance.md) 记录；组件门不替代原生服务和正式安装包证据。 |
