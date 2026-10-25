@@ -17,6 +17,10 @@ A single-owner brain with a system service and browser workbench.
 
 %pre
 set -eu
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+[ "$(id -u)" -eq 0 ] || { echo 'forme: package preparation requires root' >&2; exit 1; }
 [ "$1" -eq 1 ] || { echo 'forme: use the authenticated lifecycle path for upgrades' >&2; exit 1; }
 . /etc/os-release
 [ "$ID" = rocky ] && [ "${VERSION_ID%%.*}" = 9 ] && [ "$(uname -m)" = x86_64 ] || exit 1
