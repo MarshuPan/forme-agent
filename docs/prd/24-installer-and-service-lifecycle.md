@@ -132,7 +132,7 @@ AppContainer 证据不代替 broker 身份与 worker token 的独立证据。Win
 
 补充持久性口径：有效回写 receipt 的 job/plan/intent/baseline/result 摘要必须在移除 job 目录前追加到同一个 sandbox lease journal，旧记录的 hash/序列不变；这保留已验证副作用的审计证据，不自动改变 brain/worker Unknown。Windows action 的路径须在最终计划形成前使用现有 ResourceRef 支持的盘符加 `/` 拼写，Host 不改已审批的参数或 digest。完成时分别重查原 spec 绑定与当前 permit 截止时间，不把原执行 timeout 当作重新 dispatch 的剩余预算。
 
-Windows 原生启动必需的 `SystemRoot` 是唯一额外环境项：由受审计 native adapter 的 `GetSystemWindowsDirectoryW` 查询 OS 安装目录，拒绝截断/失败，不读取或转发 Host 的同名环境变量。它是系统运行时定位信息，不授予网络、凭据或可写程序搜索路径；worker 的环境正反验收必须将此固定项纳入，仍拒绝 PATH、代理和 owner/model 密钥继承。
+Windows 原生启动必需环境只额外包含 OS 查询得到的 `SystemRoot` 和 profile 定位项 `LOCALAPPDATA`：受审计 adapter 用 `GetSystemWindowsDirectoryW`、`SHGetKnownFolderPath(FOLDERID_LocalAppData)` 查询，不读取或转发 Host 的同名环境变量，失败/截断拒绝启动。按 [Microsoft AppContainer 说明](https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer)，OS 可将 LOCALAPPDATA/TEMP/TMP 重定向到本 job 独有 package profile；这是由原 identity 回收的系统 profile 存储例外，不是对 owner AppData 的读写授权，也不作回写输入。`CoTaskMemFree` 的所有权封装仍只在限定 adapter。环境正反验收纳入这些固定系统项，仍拒绝 PATH、代理和 owner/model 密钥继承；不将整个父环境作为重试降级。
 
 本节为已授权方案的具体实现契约。句柄文件 identity/硬链接查询、Low label 设置与回读、按句柄删除、child-process restriction 的新增 Win32 调用仍只准在 §29.9 的两个 adapter 文件，安全状态机/副本/事务逻辑保持 `forbid(unsafe_code)`。真实 Low worker 的读写、原路径拒绝、子进程/网络拒绝、冲突、取消和崩溃恢复各自取证；没有安装身份与完整平台证据前，不切换生产默认 adapter，不提升 IP10/IP24。
 
