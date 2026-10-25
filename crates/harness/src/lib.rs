@@ -38,8 +38,7 @@ use forme_models::{
 };
 use forme_policy::{
     ActionMatcher, ArgMatcher, DefaultPolicyEngine, DelegationGrant, DelegationSubject,
-    EnvelopeDecision, PolicyContext, PolicyEngine, PolicyEvaluation, PolicyLayer,
-    PolicyLayerSource, PolicyRule,
+    EnvelopeDecision, PolicyContext, PolicyEngine, PolicyLayer, PolicyLayerSource, PolicyRule,
 };
 use forme_protocol as p;
 use forme_store::{
@@ -47,6 +46,7 @@ use forme_store::{
     SqliteEventStore, StoreOptions,
 };
 
+mod action_policy;
 mod brain_charter;
 mod brain_evolution;
 mod brain_evolution_seed;
@@ -87,6 +87,12 @@ mod production_artifact_store;
 mod production_artifacts;
 mod production_config;
 mod production_data;
+
+use action_policy::{
+    apply_policy_floors, delivery_disclosure_is_bound, is_external_action,
+    required_intervention_level, requires_competence_gate, requires_one_shot_approval,
+    validate_competence_snapshot,
+};
 pub use forme_eval::{
     CognitiveDashboardMetrics, CognitiveDashboardProjection, CognitiveDashboardSnapshot,
     DashboardWindow, MetricRatio,
@@ -5049,245 +5055,6 @@ fn evidence_is_resolved(
             }
             _ => false,
         })
-}
-
-fn requires_competence_gate(intent: &p::ActionIntent) -> bool {
-    matches!(intent.source, p::Source::ProactiveJob | p::Source::Schedule)
-        || intent.expected_effect == p::ExpectedEffect::Outward
-}
-
-fn required_intervention_level(
-    intent: &p::ActionIntent,
-    rollback_boundary: &p::RollbackBoundary,
-) -> cognition::InterventionLevel {
-    if requires_one_shot_approval(intent, rollback_boundary) {
-        cognition::InterventionLevel::L5HighImpact
-    } else if intent.backend_hint == p::BackendKind::Notification
-        && intent.risk_hint == p::Risk::Low
-    {
-        cognition::InterventionLevel::L1Suggest
-    } else {
-        cognition::InterventionLevel::L3ActWithApproval
-    }
-}
-
-fn is_external_action(intent: &p::ActionIntent) -> bool {
-    matches!(
-        intent.backend_hint,
-        p::BackendKind::Browser
-            | p::BackendKind::Computer
-            | p::BackendKind::Pty
-            | p::BackendKind::AppApi
-    ) || (intent.expected_effect == p::ExpectedEffect::Outward
-        && !is_owner_local_notification(intent))
-}
-
-fn delivery_disclosure_is_bound(
-    request: &p::RunRequest,
-    intent: &p::ActionIntent,
-    prelude: &[IngressEvent],
-    authority: &IngressAuthority,
-) -> bool {
-    let p::ActionParameters::AppApi(spec) = &intent.parameters else {
-        return false;
-    };
-    let (Some(expected_request), Some(expected_representation), Some(expected_participant)) = (
-        &spec.disclosure_request,
-        spec.representation,
-        &spec.participant,
-    ) else {
-        return false;
-    };
-    let p::AppApiOperation::Mutation {
-        body: Some(p::ExternalInput::Content(expected_content)),
-        ..
-    } = &spec.operation
-    else {
-        return false;
-    };
-    prelude.iter().any(|event| {
-        event.is_authorized_by(authority)
-            && event.provenance().source == p::Source::Communication
-            && event.provenance().actor == p::Actor::System
-            && event.provenance().trust_tier == p::TrustTier::VerifiedProcess
-            && matches!(
-                event.payload(),
-                p::EventPayload::DisclosurePolicyApplied(disclosure)
-                    if &disclosure.request == expected_request
-                        && disclosure.representation == expected_representation
-                        && matches!(
-                            disclosure.outcome,
-                            p::DisclosureOutcome::Answer | p::DisclosureOutcome::Approve
-                        )
-                        && disclosure.binding.as_ref().is_some_and(|binding| {
-                            binding.schema_version.0 > 0
-                                && binding.session.0 == request.session.0
-                                && &binding.participant == expected_participant
-                                && binding.purpose.0 == intent.goal.0
-                                && &binding.content_ref == expected_content
-                                && !binding.category.trim().is_empty()
-                                && (!(binding.sensitive
-                                    || !binding.confirmed
-                                    || binding.high_impact)
-                                    || intent.risk_hint == p::Risk::High)
-                        })
-            )
-    })
-}
-
-fn is_owner_local_notification(intent: &p::ActionIntent) -> bool {
-    matches!(
-        &intent.parameters,
-        p::ActionParameters::Notification {
-            surface,
-            target,
-            ..
-        } if intent.backend_hint == p::BackendKind::Notification
-            && surface.0.starts_with("surface:local")
-            && target.0 == "owner"
-    )
-}
-
-fn requires_one_shot_approval(
-    intent: &p::ActionIntent,
-    rollback_boundary: &p::RollbackBoundary,
-) -> bool {
-    let rollback = rollback_boundary.0.trim().to_ascii_lowercase();
-    is_external_action(intent)
-        && (intent.risk_hint == p::Risk::High
-            || intent.action_type == p::ActionType::ExternalCommit
-            || rollback.is_empty()
-            || rollback == "none"
-            || rollback.contains("not-retractable")
-            || rollback.contains("unknown"))
-}
-
-fn external_policy_floor(
-    intent: &p::ActionIntent,
-    rollback_boundary: Option<&p::RollbackBoundary>,
-    policy: p::PolicyDecision,
-    envelope: Option<&p::AutonomyEnvelope>,
-    inputs: &cognition::CompetenceInputs,
-    competence: &(dyn cognition::CompetenceGate + Send + Sync),
-) -> p::PolicyDecision {
-    if policy == p::PolicyDecision::Deny || !is_external_action(intent) {
-        return policy;
-    }
-    let Some(rollback_boundary) = rollback_boundary else {
-        return p::PolicyDecision::Ask;
-    };
-    if requires_one_shot_approval(intent, rollback_boundary) {
-        return p::PolicyDecision::Ask;
-    }
-    let evidence_present =
-        !inputs.capability_evidence.is_empty() || !inputs.verification.is_empty();
-    let narrow_scope = !intent.scope.0.trim().is_empty()
-        && intent.scope.0 != "*"
-        && !intent.scope.0.eq_ignore_ascii_case("all");
-    let explicit_l4 = envelope.is_some_and(|envelope| {
-        envelope.approval_rule == p::ApprovalRule::Allow
-            && envelope.risk_limit == p::Risk::Low
-            && envelope.rollback.required
-            && envelope.rollback.boundary.as_ref() == Some(rollback_boundary)
-            && scope_within(&intent.scope, &envelope.scope)
-            && envelope
-                .capability
-                .capabilities
-                .contains(&intent.capability_ref)
-            && intent
-                .requested_permissions
-                .iter()
-                .all(|permission| envelope.capability.permissions.contains(permission))
-    });
-    let ceiling = competence.ceiling(intent.scope.clone(), intent.risk_hint, inputs);
-    if policy == p::PolicyDecision::Allow
-        && intent.risk_hint == p::Risk::Low
-        && evidence_present
-        && narrow_scope
-        && explicit_l4
-        && ceiling >= cognition::InterventionLevel::L4Autonomous
-    {
-        p::PolicyDecision::Allow
-    } else {
-        p::PolicyDecision::Ask
-    }
-}
-
-fn apply_policy_floors(
-    mut evaluation: PolicyEvaluation,
-    intent: &p::ActionIntent,
-    plan: Option<&ExecutionPlan>,
-    context: &PolicyContext,
-    inputs: &cognition::CompetenceInputs,
-    competence: &(dyn cognition::CompetenceGate + Send + Sync),
-) -> PolicyEvaluation {
-    let external_floor = external_policy_floor(
-        intent,
-        plan.map(|plan| &plan.rollback_boundary),
-        evaluation.decision,
-        context.envelope.as_ref(),
-        inputs,
-        competence,
-    );
-    let effective_decision = untrusted_ingress_policy_floor(intent, external_floor);
-    if effective_decision != evaluation.decision {
-        let external_floor_changed = external_floor != evaluation.decision;
-        evaluation.decision = effective_decision;
-        if external_floor_changed {
-            evaluation.rule_source = p::RuleSourceRef("external-action-floor".into());
-            evaluation.reason = p::ReasonRef(
-                "external action requires plan-bound approval under canonical section 24".into(),
-            );
-        } else {
-            evaluation.rule_source = p::RuleSourceRef("untrusted-ingress-floor".into());
-            evaluation.reason = p::ReasonRef(
-                "an action derived from untrusted communication requires owner approval".into(),
-            );
-        }
-    }
-    evaluation
-}
-
-fn untrusted_ingress_policy_floor(
-    intent: &p::ActionIntent,
-    policy: p::PolicyDecision,
-) -> p::PolicyDecision {
-    if intent.source == p::Source::Communication && policy == p::PolicyDecision::Allow {
-        p::PolicyDecision::Ask
-    } else {
-        policy
-    }
-}
-
-fn validate_competence_snapshot(snapshot: &cognition::CompetenceInputs) -> p::Result<()> {
-    let references_are_present =
-        snapshot
-            .capability_evidence
-            .iter()
-            .all(|item| item.schema_version.0 > 0 && !item.reference.0.trim().is_empty())
-            && snapshot
-                .verification
-                .iter()
-                .all(|item| item.schema_version.0 > 0 && !item.reference.0.trim().is_empty())
-            && snapshot
-                .failure
-                .iter()
-                .all(|item| item.schema_version.0 > 0 && !item.reference.0.trim().is_empty())
-            && snapshot.map_confidence.as_ref().is_none_or(|item| {
-                item.schema_version.0 > 0 && !item.reference.0.trim().is_empty()
-            })
-            && snapshot.self_model.as_ref().is_none_or(|item| {
-                item.schema_version.0 > 0 && !item.reference.0.trim().is_empty()
-            })
-            && snapshot.trust.as_ref().is_none_or(|item| {
-                item.schema_version.0 > 0 && !item.reference.0.trim().is_empty()
-            });
-    if snapshot.schema_version.0 == 0 || !references_are_present {
-        return Err(p::Error(
-            "competence evidence snapshot is incomplete".into(),
-        ));
-    }
-    Ok(())
 }
 
 fn is_external_observation(payload: &p::EventPayload) -> bool {
