@@ -8,6 +8,8 @@
 
 2026-10-25 `f2560da` 完成 [Linux systemd 受管 worker adapter](installed-product-linux-systemd-worker-acceptance-20261025.md)：受管 Host 仅在 root、`forme-host.service`、固定 `systemd-run/systemctl` 和 `forme-exec` 执行账户均可验证时加载 Linux adapter；每个 job 使用独立 workspace 副本，worker 只能写副本，Host 按原始树身份/内容、最终执行规格、变更范围和 durable intent/receipt 核验后回写，冲突、回写失败、控制命令超时和状态不明均保持 `Unknown`，不盲目重试。Linux 目标交叉 `cargo check`、workspace 全量 `cargo test --workspace --all-targets`、fmt、strict Clippy、代码质量和合规门通过；当前 Windows 主机未运行真实 root/systemd/`forme-exec`/安装服务，因此不提升 Linux 原生服务、IP10/IP24 或 IP01–IP24 状态，macOS 原生验收仍未完成。
 
+2026-10-26 `beba3e6` 补齐 Linux `.deb`/`.rpm` 安装钩子的 `forme-exec` 专用系统组/账户创建，并在 POSIX 打包测试中锁定两种包格式的账户参数；这修复了真实安装后 Linux worker 因执行账户不存在而无法准入的静态缺口。`node --test` 打包套件 27/27、workspace check/test、fmt、strict Clippy、代码质量和合规门通过；当前仍没有 Linux 原生 root/systemd、账户、安装包或回写运行证据，因此不提升 Linux IP10/IP24 或 IP01–IP24 状态。
+
 2026-10-25 `0f6829a` 完成 [Windows managed worker composition 接入](installed-product-windows-managed-worker-composition-acceptance-20261025.md)：只有固定 SCM 入口传入的受管 Windows Host 才能加载 worker 配置并组合每 job AppContainer、Job Object 与私有 workspace overlay；打开隔离状态前额外核验当前进程确为 `LocalSystem`。前台/开发入口继续保持原行为，缺少 worker 配置、SCM 绑定或 LocalSystem 身份时 fail closed。workspace fmt/check/test、strict Clippy、代码质量与合规门通过；本机没有已注册 forme SCM 服务且当前用户不是 LocalSystem，因此没有真实服务身份/安装/IP10/IP24 证据，Linux/macOS 路径未因此关闭。
 
 2026-10-25 `b901dff` 完成 [Windows managed Host fail-closed 回归](installed-product-windows-agent-execution-peer-transport-acceptance-20261025.md)：在没有真实 `NT SERVICE\\forme-brain` 服务身份时，受管 Host 必须在打开 listener 前失败退出，不能回退 TCP，manifest 替换也不能绕过失败或创建管理 journal。`forme-execution` 134/134 非忽略测试通过；`verify-installed-host.ps1` 宿主永久门 PASS，IP01–IP24 仍明确为 NOT_RUN。
