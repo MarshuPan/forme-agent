@@ -1,5 +1,5 @@
 //! Host-management storage and platform adapters, independent of brain state.
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 pub mod bootstrap;
 #[cfg(windows)]
@@ -23,6 +23,14 @@ mod restore_worker;
 mod sandbox_lease;
 mod service;
 mod web_health;
+#[cfg(windows)]
+mod windows_appcontainer;
+#[cfg(windows)]
+mod windows_appcontainer_acl;
+#[cfg(windows)]
+mod windows_appcontainer_native;
+#[cfg(windows)]
+mod windows_appcontainer_support;
 #[cfg(windows)]
 mod windows_worker;
 mod worker;
@@ -51,6 +59,8 @@ pub use release_worker::*;
 pub use restore_worker::*;
 pub use sandbox_lease::*;
 pub use service::*;
+#[cfg(windows)]
+pub use windows_appcontainer::*;
 #[cfg(windows)]
 pub use windows_worker::*;
 pub use worker::*;

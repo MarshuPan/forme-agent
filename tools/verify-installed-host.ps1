@@ -171,6 +171,18 @@ try {
             "native_registration_rejects_foreign_command_account_or_startup",
             "native_registration_has_fixed_identity_and_finite_recovery"
         )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::tests::$name" }
+        foreach ($name in @(
+            "installed::windows_appcontainer::tests::profile_identity_is_deterministic_and_plan_bound",
+            "installed::windows_appcontainer::tests::job_object_name_is_closed_and_bound_to_the_appcontainer_identity",
+            "installed::windows_appcontainer::tests::environment_block_is_deterministic_and_scoped",
+            "installed::windows_appcontainer::tests::an_unowned_lease_blocks_new_admission_without_sandbox_side_effects",
+            "installed::windows_appcontainer::tests::startup_recovery_revokes_an_unacknowledged_grant_and_is_idempotent",
+            "installed::windows_appcontainer_acl::tests::failed_file_opens_never_become_owned_handles",
+            "installed::windows_appcontainer_acl::tests::real_acl_grant_and_revoke_match_the_lease_readback_contract",
+            "installed::windows_appcontainer_native::tests::native_failure_handles_are_rejected_and_empty_capabilities_need_no_array",
+            "installed::windows_appcontainer_native::tests::worker_integrity_requires_the_exact_low_mandatory_sid",
+            "installed::windows_appcontainer_native::tests::empty_job_recovery_uses_accounting_without_synchronize_access"
+        )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
     }
     else {
         Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::config::tests::broad_credential_permissions_are_refused"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tomllib
@@ -12,6 +13,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSIONS = {".rs", ".ts", ".tsx", ".js", ".mjs", ".css", ".py", ".ps1", ".psm1", ".iss", ".sh"}
 ROOTS = ("crates/", "frontend/", "tools/", "packaging/")
+NATIVE_UNSAFE_BOUNDARIES = {
+    "crates/execution/src/installed/windows_appcontainer_acl.rs",
+    "crates/execution/src/installed/windows_appcontainer_native.rs",
+}
+NATIVE_UNSAFE_DENY_BOUNDARIES = {
+    "crates/execution/src/lib.rs",
+    "crates/execution/src/installed/mod.rs",
+}
 ALLOWED = {
     "protocol": set(), "store": {"protocol"}, "config": {"protocol"},
     "models": {"protocol"}, "policy": {"protocol"},
@@ -104,8 +113,34 @@ def dependency_errors(root: Path) -> list[str]:
                     elif isinstance(specification, dict) and "path" in specification:
                         errors.append(f"{name}: unrecognized local dependency {alias}")
         for source in rust_entrypoints(manifest.parent):
-            if "#![forbid(unsafe_code)]" not in source.read_text(encoding="utf-8"):
+            text = source.read_text(encoding="utf-8")
+            relative = source.relative_to(root).as_posix()
+            required = (
+                "#![deny(unsafe_code)]"
+                if relative in NATIVE_UNSAFE_DENY_BOUNDARIES
+                else "#![forbid(unsafe_code)]"
+            )
+            if required not in text:
                 errors.append(f"{source.relative_to(root).as_posix()}: missing unsafe prohibition")
+    for path in NATIVE_UNSAFE_DENY_BOUNDARIES:
+        source = root / path
+        if not source.is_file() or "#![deny(unsafe_code)]" not in source.read_text(encoding="utf-8-sig"):
+            errors.append(f"{path}: audited native exception requires deny(unsafe_code)")
+    for path in source_paths(root):
+        if not path.endswith(".rs"):
+            continue
+        text = (root / path).read_text(encoding="utf-8-sig")
+        has_unsafe_syntax = re.search(
+            r"\bunsafe\s+(?:\{|fn\b|impl\b|trait\b|extern\b)", text
+        ) is not None
+        has_unsafe_override = re.search(
+            r"\b(?:allow|expect)\s*\([^)]*\bunsafe_code\b", text
+        ) is not None
+        if path in NATIVE_UNSAFE_BOUNDARIES:
+            if "#![allow(unsafe_code)]" not in text:
+                errors.append(f"{path}: native unsafe boundary is not explicitly scoped")
+        elif has_unsafe_syntax or has_unsafe_override:
+            errors.append(f"{path}: unsafe code is outside the audited native boundary")
     return errors
 
 

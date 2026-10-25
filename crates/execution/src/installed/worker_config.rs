@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
-#[cfg(windows)]
-use super::WindowsJobWorkerIsolation;
 use super::{
     reject_linked_ancestors, ProcessWorkerIsolation, WorkerExecutorHost, WorkerLaunchRegistry,
     WorkerLaunchSpec,
 };
+#[cfg(windows)]
+use super::{WindowsAppContainerWorkerIsolation, WindowsJobWorkerIsolation};
 
 const MAX_WORKER_CONFIG_BYTES: u64 = 4 * 1024 * 1024;
 
@@ -235,6 +235,39 @@ impl WorkerRuntimeConfig {
             })
             .collect::<p::Result<Vec<_>>>()?;
         let isolation = WindowsJobWorkerIsolation::open(
+            self.runtime_root.clone(),
+            WorkerLaunchRegistry::from_specs(launches)?,
+            self.workspace_roots.clone(),
+        )?;
+        WorkerExecutorHost::open_with_isolation(
+            &self.journal_path,
+            agent_credential_digest,
+            self.authority_epoch,
+            self.allowed_scopes.iter().cloned().collect(),
+            isolation,
+        )
+    }
+
+    /// Explicit Windows AppContainer composition. This is a platform adapter,
+    /// not a claim that the surrounding installation/service gates passed.
+    #[cfg(windows)]
+    pub fn open_windows_appcontainer_host(
+        &self,
+        agent_credential_digest: p::SchemaDigest,
+    ) -> p::Result<WorkerExecutorHost<WindowsAppContainerWorkerIsolation>> {
+        self.validate()?;
+        let launches = self
+            .launch_profiles
+            .iter()
+            .map(|profile| {
+                WorkerLaunchSpec::new(
+                    profile.sandbox_profile_ref.clone(),
+                    profile.program.clone(),
+                    profile.args.clone(),
+                )
+            })
+            .collect::<p::Result<Vec<_>>>()?;
+        let isolation = WindowsAppContainerWorkerIsolation::open(
             self.runtime_root.clone(),
             WorkerLaunchRegistry::from_specs(launches)?,
             self.workspace_roots.clone(),

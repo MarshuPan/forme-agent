@@ -1,5 +1,5 @@
 //! Bounded Shell, File, and MCP execution backends (prd/08).
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 
 mod app_api;
 mod artifact;

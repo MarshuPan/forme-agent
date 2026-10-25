@@ -38,6 +38,7 @@ class CodeQualityTests(unittest.TestCase):
     def test_alias_and_target_dependency_cannot_evade_the_graph(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
             crate = root / "crates/gateway"
             crate.mkdir(parents=True)
             (crate / "Cargo.toml").write_text(
@@ -52,6 +53,7 @@ class CodeQualityTests(unittest.TestCase):
     def test_every_rust_binary_entrypoint_requires_unsafe_prohibition(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
             crate = root / "crates/gateway"
             (crate / "src/bin/nested").mkdir(parents=True)
             (crate / "Cargo.toml").write_text(
@@ -63,6 +65,36 @@ class CodeQualityTests(unittest.TestCase):
             errors = dependency_errors(root)
             self.assertIn("crates/gateway/src/bin/tool.rs: missing unsafe prohibition", errors)
             self.assertIn("crates/gateway/src/bin/nested/main.rs: missing unsafe prohibition", errors)
+
+    def test_native_exception_is_confined_and_cannot_be_added_to_a_third_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            for relative in _quality.NATIVE_UNSAFE_DENY_BOUNDARIES:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("#![deny(unsafe_code)]\n", encoding="utf-8")
+            for relative in _quality.NATIVE_UNSAFE_BOUNDARIES:
+                path = root / relative
+                path.write_text("#![allow(unsafe_code)]\n", encoding="utf-8")
+            forbidden = "crates/execution/src/installed/foreign.rs"
+            path = root / forbidden
+            for text in ["#![allow(unsafe_code)]\n", "#![ allow ( unsafe_code ) ]\n",
+                         "#![expect(unsafe_code)]\n", "unsafe fn escape() {}\n",
+                         "unsafe impl Send for Escaped {}\n"]:
+                with self.subTest(source=text):
+                    path.write_text(text, encoding="utf-8")
+                    errors = dependency_errors(root)
+                    self.assertIn(
+                        f"{forbidden}: unsafe code is outside the audited native boundary", errors,
+                    )
+                    for approved in _quality.NATIVE_UNSAFE_BOUNDARIES:
+                        self.assertFalse(any(error.startswith(approved + ":") for error in errors))
+            approved = next(iter(_quality.NATIVE_UNSAFE_BOUNDARIES))
+            (root / approved).write_text("fn missing_scope() {}\n", encoding="utf-8")
+            self.assertIn(
+                f"{approved}: native unsafe boundary is not explicitly scoped", dependency_errors(root),
+            )
 
     def test_frontend_and_build_scripts_are_checked_but_vendor_output_is_not(self):
         with tempfile.TemporaryDirectory() as directory:
