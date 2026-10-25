@@ -90,7 +90,33 @@ fn run_foreground(launch: Launch) -> p::Result<()> {
             ))
         }
     };
-    run_host(None, true, runtime, || Ok(()), || Ok(()))
+    run_host(foreground_shutdown()?, true, runtime, || Ok(()), || Ok(()))
+}
+
+#[cfg(unix)]
+fn foreground_shutdown() -> p::Result<Option<Receiver<()>>> {
+    use signal_hook::{
+        consts::{SIGINT, SIGTERM},
+        iterator::Signals,
+    };
+
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let mut signals = Signals::new([SIGINT, SIGTERM])
+        .map_err(|_| p::Error("host shutdown signal registration failed".into()))?;
+    std::thread::Builder::new()
+        .name("forme-host-signal".into())
+        .spawn(move || {
+            if signals.forever().next().is_some() {
+                let _ = sender.send(());
+            }
+        })
+        .map_err(|_| p::Error("host shutdown signal worker could not start".into()))?;
+    Ok(Some(receiver))
+}
+
+#[cfg(not(unix))]
+fn foreground_shutdown() -> p::Result<Option<Receiver<()>>> {
+    Ok(None)
 }
 
 fn run_host(

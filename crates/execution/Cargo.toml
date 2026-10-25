@@ -29,6 +29,9 @@ win-custody = "=0.1.1"
 xcap = "=0.9.6"
 windows-service = "=0.8.1"
 
+[target.'cfg(unix)'.dependencies]
+signal-hook = "=0.4.5"
+
 [[bin]]
 name = "forme-pty-fixture"
 path = "tests/fixtures/pty_fixture.rs"
