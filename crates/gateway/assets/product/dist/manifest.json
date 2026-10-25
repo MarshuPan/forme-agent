@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "8bba6443d41cda85a6f96949b8e24a06a80e1603a0bb7a348cf7b6410bdd92e2",
+  "source_digest": "7587dbc3befd857adbd8cd6e1c00c4485fa257f734b9d14ff7bf4da05f7de672",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,7 +20,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "5694ad6d192fc5731a8815a5c0b40b9e0f3d3ffe53ca7291e1c36b6be745de47"
+      "sha256": "3f0d27af6a293d2a7968519a451813eb8511b2d9774669432d38531618d093d0"
     },
     {
       "path": "frontend/src/api/client.ts",
@@ -29,6 +29,10 @@
     {
       "path": "frontend/src/artifacts.ts",
       "sha256": "9f9c365507cfb2057f9fd52459a48c734a922e44963b49deb20c99dc30a14c44"
+    },
+    {
+      "path": "frontend/src/auth-sync.ts",
+      "sha256": "01b45ad179786755002393c5f99a8950b3b285c3f02fe3b333faf3a602c27243"
     },
     {
       "path": "frontend/src/components/Approval.tsx",
@@ -187,6 +191,10 @@
       "sha256": "db0cdce98396162a1b21f888f94a0dedd88c1cf600992018714a698d21cf69ff"
     },
     {
+      "path": "frontend/src/tests/auth-sync.test.ts",
+      "sha256": "a4355fbfba0734a88ce4eeb1c4ff7389ce732e941bf65fe3a6b14d166eab198c"
+    },
+    {
       "path": "frontend/src/tests/client.test.ts",
       "sha256": "0abd83fe309c9ae3f80798e6ce37da686fba39c442b204abbfa9d18f61dee550"
     },
@@ -270,9 +278,9 @@
       "bytes": 14336
     },
     {
-      "path": "assets/index-DwVPkOB9.js",
-      "sha256": "c91dcf19c84001bc762670bb800295f456dab6dfe2c7b839e0b49aee53e680fa",
-      "bytes": 366779
+      "path": "assets/index-DMzYvTAN.js",
+      "sha256": "8991ccf590cb5da136f3c88aae8c45cbca8cc784646663d78ed0edb7b611cf5c",
+      "bytes": 367777
     },
     {
       "path": "dependencies.json",
@@ -286,7 +294,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "3dcb4b0a0bba60faba02a3fbcecca10e758de555476b859aa39b09c7462a9293",
+      "sha256": "c0d9101dc19aa13f2d3eb2f376c0801dd18cd50b07fd5c885873f53c652bec2e",
       "bytes": 595
     },
     {

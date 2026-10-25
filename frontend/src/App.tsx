@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, WorkbenchClient } from './api/client.ts';
 import type { RunSummary, RuntimeView, SessionResponse, SessionView, WorkbenchSessionRecord } from './types.ts';
 import { Entry } from './components/Entry.tsx';
@@ -8,6 +8,7 @@ import { BrainInbox, CognitionView } from './components/BrainViews.tsx';
 import { WorkspaceView } from './components/Workspace.tsx';
 import { mergeObservedRun } from './conversation-view.ts';
 import type { MaterialLifecycleTarget } from './memory-material.ts';
+import { createAuthInvalidationSync } from './auth-sync.ts';
 
 const tabs = [ ['conversation', '对话'], ['workspace', '工作空间'], ['inbox', '收件箱'], ['cognition', '记忆与认知'], ['settings', '设置'] ] as const;
 type Tab = typeof tabs[number][0];
@@ -25,8 +26,12 @@ export function App() {
   const [menu, setMenu] = useState(false);
   const [issue, setIssue] = useState('');
   const [materialTarget, setMaterialTarget] = useState<MaterialLifecycleTarget | null>(null);
+  const authSync = useRef<ReturnType<typeof createAuthInvalidationSync> | null>(null);
   const consumeMaterialTarget = useCallback(() => setMaterialTarget(null), []);
-  const clear = useCallback(() => { setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setEntry('login'); }, []);
+  const clear = useCallback((notifyPeers = true) => {
+    if (notifyPeers) authSync.current?.notifyInvalidated();
+    setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setEntry('login');
+  }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns((current) => items.map((run) => current.find((item) => item.run === run.run && item.last_stream_seq > run.last_stream_seq) ?? run)); }, [api]);
   const observeRun = useCallback((run: RunSummary) => { setRuns((items) => mergeObservedRun(items, run)); }, []);
@@ -36,6 +41,18 @@ export function App() {
     catch (problem) { setRuntime(null); setTab('settings'); setIssue(problem instanceof Error ? problem.message : '主脑服务暂不可用。'); }
   }, [api, refreshRuns]);
   function authenticated(view: SessionResponse) { setSession(view.session); setEntry('ready'); }
+
+  useEffect(() => {
+    const sync = createAuthInvalidationSync(() => {
+      api.clear();
+      clear(false);
+    });
+    authSync.current = sync;
+    return () => {
+      sync.close();
+      if (authSync.current === sync) authSync.current = null;
+    };
+  }, [api, clear]);
 
   useEffect(() => {
     let closed = false;
@@ -55,7 +72,7 @@ export function App() {
   useEffect(() => {
     if (entry !== 'ready') return;
     let checking = false;
-    const verify = async () => { if (checking || document.hidden) return; checking = true; try { await api.session(); } catch { clear(); } finally { checking = false; } };
+    const verify = async () => { if (checking || document.hidden) return; checking = true; try { await api.session(); } catch { clear(false); } finally { checking = false; } };
     // Revalidate before showing cached content restored by BFCache or another tab.
     const hide = () => { document.documentElement.classList.add('privacy-hidden'); };
     const show = () => { hide(); void verify().finally(() => document.documentElement.classList.remove('privacy-hidden')); };
