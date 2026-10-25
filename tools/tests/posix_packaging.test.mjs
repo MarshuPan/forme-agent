@@ -37,6 +37,22 @@ test('native package hooks establish a bounded administrator environment', async
   assert.match(rpm, /-x \/usr\/bin\/systemctl/);
 });
 
+test('Linux package hooks provision the managed worker execution account', async () => {
+  const deb = await readFile(join(root, 'packaging/linux/forme.postinst'), 'utf8');
+  const rpm = await readFile(join(root, 'packaging/linux/forme.spec'), 'utf8');
+  for (const [name, source, shell] of [
+    ['deb', deb, '/usr/sbin/nologin'],
+    ['rpm', rpm, '/sbin/nologin'],
+  ]) {
+    assert.match(source, /getent group forme-exec\s+>\/dev\/null \|\| groupadd --system forme-exec/, name);
+    assert.match(
+      source,
+      new RegExp(`getent passwd forme-exec\\s+>\\/dev\\/null \\|\\| useradd --system --gid forme-exec --home-dir /var/lib/forme/exec --shell ${shell.replaceAll('/', '\\/')} forme-exec`),
+      name,
+    );
+  }
+});
+
 async function removal(fail = '') {
   let source = await readFile(join(root, 'packaging/linux/forme.prerm'), 'utf8');
   // Shim only the OS boundary; execute the original script and its fail/stop

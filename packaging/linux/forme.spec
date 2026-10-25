@@ -47,6 +47,8 @@ if [ "$1" -ge 1 ]; then
     getent passwd forme-brain >/dev/null || useradd --system --gid forme-brain --home-dir /var/lib/forme/brain --shell /sbin/nologin forme-brain
     getent group forme-web >/dev/null || groupadd --system forme-web
     getent passwd forme-web >/dev/null || useradd --system --gid forme-web --home-dir /var/lib/forme/web-auth --shell /sbin/nologin forme-web
+    getent group forme-exec >/dev/null || groupadd --system forme-exec
+    getent passwd forme-exec >/dev/null || useradd --system --gid forme-exec --home-dir /var/lib/forme/exec --shell /sbin/nologin forme-exec
     getent group forme-bridge >/dev/null || groupadd --system forme-bridge
     /bin/sh /opt/forme/packaging/posix/service-access.sh linux prepare
     /opt/forme/bin/forme-hostctl prepare-installation \
