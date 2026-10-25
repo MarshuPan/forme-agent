@@ -226,6 +226,7 @@ fn router(state: Arc<WebState>) -> Router {
                 .post(configuration::write)
                 .layer(DefaultBodyLimit::max(256 * 1024)),
         )
+        .route("/api/v1/product/status", get(configuration::status))
         .route("/api/v1/product/network/health", get(network::health))
         .route(
             "/api/v1/product/config/validate",

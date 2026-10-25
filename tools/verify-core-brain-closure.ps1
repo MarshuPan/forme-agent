@@ -24,6 +24,7 @@ $temporaryCArtifactRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("forme-co
 $temporaryReleaseRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("forme-core-release-gate-" + [Guid]::NewGuid().ToString("N"))
 $gateExitCode = 1
 Push-Location $repoRoot
+. (Join-Path $PSScriptRoot 'build-resources.ps1')
 try {
     $script:scenarioReceipts = [System.Collections.Generic.List[object]]::new()
     if ($RuntimeOnly -and $Wave -cne "D") {
@@ -38,6 +39,7 @@ try {
         )
 
         Write-Host "==> $Label"
+        if ($Program -eq 'cargo') { Assert-FormeBuildSpace $repoRoot }
         & $Program @Arguments
         if ($LASTEXITCODE -ne 0) {
             $script:gateExitCode = if ($LASTEXITCODE -eq 2) { 2 } else { 1 }
@@ -284,7 +286,7 @@ try {
                 @{ Id = $group.Id; Package = $group.Package; Target = @("--test", $group.Target); Test = $test }
             }
         }
-        @{ Id = "C16-final-output"; Package = "forme-harness"; Target = @("--lib"); Test = "brain_orchestration::tests::c16_final_verification_ignores_old_answers_and_unfinished_calls" }
+        @{ Id = "C16-final-output"; Package = "forme-harness"; Target = @("--lib"); Test = "brain_orchestration::support::tests::c16_final_verification_ignores_old_answers_and_unfinished_calls" }
     )
 
     $dGroups = @(

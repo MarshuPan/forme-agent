@@ -6,3 +6,9 @@ members = ["crates/*"]
 edition = "2021"
 publish = false
 license = "MIT"
+
+# Test inherits dev: keep useful backtraces without full variable/type debug data.
+# Reuse unchanged Cargo artifacts while avoiding a second incremental cache.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false

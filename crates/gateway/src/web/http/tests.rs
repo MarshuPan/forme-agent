@@ -339,6 +339,17 @@ fn web_login_logout_and_reauth_revoke_enforce_live_sessions() {
 fn web_host_origin_forwarding_and_csrf_rejections_preserve_the_session() {
     let fixture = Fixture::new(true);
     let (cookie, csrf) = fixture.login();
+    assert_eq!(
+        fixture
+            .request(
+                "GET",
+                "/api/v1/product/status",
+                &[("Cookie", cookie.clone())],
+                ""
+            )
+            .status,
+        503
+    );
     for headers in [
         vec![("Host", "attacker.invalid".into())],
         vec![("Origin", "https://attacker.invalid".into())],

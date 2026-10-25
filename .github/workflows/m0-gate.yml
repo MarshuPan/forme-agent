@@ -50,8 +50,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: m0-gate-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
-          restore-keys: m0-gate-${{ runner.os }}-
+          key: m0-gate-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: m0-gate-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'rust-toolchain.toml') }}-
 
       # The copy-detection corpus is a local, never-published snapshot, so hosted CI reports
       # that scope as SKIP; upstream isolation and license checks remain blocking here.

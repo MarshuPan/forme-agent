@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
-import type { ProductBrainPreferences, ProductCapabilitySettings, ProductConfigView, ProductModelProfilePatch, ProductNetworkConfig, RuntimeView } from '../types.ts';
+import type { CoreHealth, HostStatus, ProductBrainPreferences, ProductCapabilitySettings, ProductConfigView, ProductModelProfilePatch, ProductNetworkConfig, RuntimeView } from '../types.ts';
 import { draftFromConfig, emptyModel, patchFromDraft } from '../configuration.ts';
 import type { ModelDraft } from '../configuration.ts';
 import { capabilitiesFromDraft, draftFromCapabilities } from '../skills.ts';
@@ -25,6 +25,8 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
   const passwordOperation = useRef<string | null>(null);
   const [config, setConfig] = useState<ProductConfigView | null>(null), [configError, setConfigError] = useState('');
   const [configLoading, setConfigLoading] = useState(true), [configBusy, setConfigBusy] = useState(false);
+  const [productStatus, setProductStatus] = useState<HostStatus | null>(null), [productStatusError, setProductStatusError] = useState('');
+  const [productStatusLoading, setProductStatusLoading] = useState(true);
   async function loadConfig() {
     setConfigLoading(true); setConfigError('');
     try { setConfig(await api.productConfig()); }
@@ -32,6 +34,13 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
     finally { setConfigLoading(false); }
   }
   useEffect(() => { void loadConfig(); }, [api]);
+  async function loadProductStatus() {
+    setProductStatusLoading(true); setProductStatusError('');
+    try { setProductStatus(await api.productStatus()); }
+    catch (problem) { setProductStatus(null); setProductStatusError(problem instanceof Error ? problem.message : '产品状态读取失败。'); }
+    finally { setProductStatusLoading(false); }
+  }
+  useEffect(() => { void loadProductStatus(); }, [api]);
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return;
     const form = event.currentTarget, data = new FormData(form);
@@ -49,8 +58,12 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
     }
     finally { setBusy(false); }
   }
-  return <section className="view"><header className="view-header"><div><p className="eyebrow">这台 forme 的运行情况</p><h1>设置与维护</h1></div><button className="secondary-button" onClick={refresh}>重新检查连接</button></header>
-    <div className="settings-grid"><article className="surface"><h2>主脑服务</h2><p className="status-pill">{runtime ? '已连接正式运行时' : '主脑不可用'}</p><p className="muted">{issue || '页面与已授权后台任务分别运行。'}</p>
+  return <section className="view"><header className="view-header"><div><p className="eyebrow">这台 forme 的运行情况</p><h1>设置与维护</h1></div><button className="secondary-button" onClick={() => { refresh(); void loadProductStatus(); }}>重新检查连接</button></header>
+    <div className="settings-grid"><article className="surface"><h2>产品服务</h2>
+      {productStatusLoading && <p className="loading" role="status">正在读取产品状态…</p>}
+      {productStatusError && <p className="form-error" role="alert">{productStatusError}</p>}
+      {productStatus && <><p className="status-pill">{productStateLabel(productStatus.product_state)} · {coreHealthLabel(productStatus.core_health)}</p><dl><div><dt>当前版本</dt><dd>{productStatus.active_release}</dd></div><div><dt>配置版本</dt><dd>{productStatus.active_config_revision} · 主脑确认 {productStatus.acknowledged_config_revision ?? '无'}</dd></div><div><dt>可用维护操作</dt><dd>{productStatus.allowed_operations.length} 项</dd></div></dl>{productStatus.issue_refs.length > 0 && <p className="notice">存在待处理状态：{productStatus.issue_refs.join('、')}</p>}</>}
+      <h2>主脑服务</h2><p className="status-pill">{runtime ? '已连接正式运行时' : '主脑不可用'}</p><p className="muted">{issue || '页面与已授权后台任务分别运行。'}</p>
       {runtime && <><dl><div><dt>工作空间</dt><dd>{runtime.workspace}</dd></div><div><dt>可用模型配置</dt><dd>{runtime.model_profiles.join('、')}</dd></div></dl><ul className="service-list">{runtime.service_states.map((service) => <li key={service.name}><span>{service.name}</span><span>{service.status}</span></li>)}</ul></>}
       {!runtime && <p className="notice">账号服务仍可使用。请检查本机主脑服务和安装配置；这里不会另建一个空主脑。</p>}
     </article><RuntimeDiagnostics api={api} runtime={runtime} /><article className="surface"><h2>主脑与入口配置</h2><p className="muted">密钥只写入本机受保护存储，不会回显到页面、浏览器存储或日志。</p>
@@ -65,6 +78,14 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
       {error && <p role="alert" className="form-error">{error}</p>}<button className="primary-button" disabled={busy}>{busy ? '正在确认…' : passwordUnknown ? '使用原操作继续核实' : '更新密码并重新登录'}</button>
     </form></article><Maintenance api={api} refresh={refresh} /></div><DataManagement api={api} connected={Boolean(runtime)} materialTarget={materialTarget} consumeMaterialTarget={consumeMaterialTarget} />
   </section>;
+}
+
+function productStateLabel(state: HostStatus['product_state']) {
+  return ({ unclaimed: '尚未认领', configuration_required: '需要配置', starting: '正在启动', ready: '已就绪', degraded: '部分受限', maintenance: '维护中', recovery_required: '需要恢复', stopped: '已停止' } satisfies Record<HostStatus['product_state'], string>)[state];
+}
+
+function coreHealthLabel(state: CoreHealth) {
+  return ({ unconfigured: '主脑未配置', stopped: '主脑已停止', starting: '主脑启动中', ready: '主脑就绪', degraded: '主脑受限', unreachable: '主脑不可达' } satisfies Record<CoreHealth, string>)[state];
 }
 
 function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBusy, onError, onSaved }: {

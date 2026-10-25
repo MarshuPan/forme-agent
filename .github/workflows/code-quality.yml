@@ -41,7 +41,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: quality-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          key: quality-${{ runner.os }}-${{ hashFiles('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml') }}
       - name: Run the same complete source gate as local development
         shell: pwsh
         # Only the unpublished local copy corpus is absent on hosted CI.

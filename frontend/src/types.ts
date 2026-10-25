@@ -35,6 +35,13 @@ export interface RuntimeView {
   service_states: { schema_version: 1; name: string; status: string; reason: string | null }[];
   digest: string;
 }
+export type ProductState = 'unclaimed' | 'configuration_required' | 'starting' | 'ready' | 'degraded' | 'maintenance' | 'recovery_required' | 'stopped';
+export type CoreHealth = 'unconfigured' | 'stopped' | 'starting' | 'ready' | 'degraded' | 'unreachable';
+export interface HostStatus {
+  schema_version: 1; install_id_safe_ref: string; product_state: ProductState; core_health: CoreHealth;
+  active_release: string; active_config_revision: number; acknowledged_config_revision: number | null;
+  issue_refs: string[]; allowed_operations: string[];
+}
 export type RuntimeCheckStatus = 'ready' | 'disabled' | 'unsupported' | 'blocking';
 export interface RuntimeCheck {
   schema_version: 1; name: string; status: RuntimeCheckStatus; reason: string | null;

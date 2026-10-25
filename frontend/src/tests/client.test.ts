@@ -16,6 +16,24 @@ test('native browser transport is called without a client receiver', async () =>
   assert.equal(calls, 1);
 });
 
+test('product status stays on the authenticated same-origin read route', async () => {
+  let call: { path: string; request: RequestInit } | undefined;
+  const api = new WorkbenchClient(async (input, request) => {
+    call = { path: String(input), request: request! };
+    return Response.json({
+      schema_version: 1, install_id_safe_ref: 'installation:fixture', product_state: 'ready', core_health: 'ready',
+      active_release: '0.1.0', active_config_revision: 3, acknowledged_config_revision: 3,
+      issue_refs: [], allowed_operations: ['inspect'],
+    });
+  });
+  const status = await api.productStatus();
+  assert.equal(status.product_state, 'ready');
+  assert.equal(call?.path, '/api/v1/product/status');
+  assert.equal(call?.request.method, 'GET');
+  assert.equal(call?.request.body, undefined);
+  assert.equal(call?.request.credentials, 'same-origin');
+});
+
 test('unknown mutation outcomes never auto-retry or replace the original key', async () => {
   const calls: RequestInit[] = [];
   const transport: typeof fetch = async (_path, request) => { calls.push(request!); throw new TypeError('fixture disconnect'); };

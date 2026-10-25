@@ -1,7 +1,7 @@
 import { isRecord, versioned } from '../types.ts';
 import type { ArtifactCatalogView } from '../types.ts';
 import type { ProjectSupervisionCommand, WorkspaceControlSnapshot } from '../types.ts';
-import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, OrchestrationLedger, PendingApproval, ProductModelProfilePatch, ProductNetworkConfig, ProductNetworkConfigPatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, HostStatus, OrchestrationLedger, PendingApproval, ProductModelProfilePatch, ProductNetworkConfig, ProductNetworkConfigPatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductBrainPreferences, ProductCapabilitySettings, ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
 import { isWorkbenchProposal } from '../workbench.ts';
 import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
@@ -129,6 +129,7 @@ export class WorkbenchClient {
   async productConfig() {
     return parseProductSettings(await this.json<unknown>('product/config?schema_version=2', 'GET', undefined, undefined, 2));
   }
+  productStatus() { return this.json<HostStatus>('product/status'); }
   async saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config'), brain?: ProductBrainPreferences, capabilities?: ProductCapabilitySettings, network?: ProductNetworkConfig) {
     const networkPatch: ProductNetworkConfigPatch | undefined = network && {
       schema_version: network.schema_version,

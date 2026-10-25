@@ -311,7 +311,9 @@ fn authenticate_request(
             !is_agent_path(&request.path) && !is_configuration_path(&request.path)
         }
         EndpointDomain::AgentExecution => is_agent_path(&request.path),
-        EndpointDomain::Configuration => is_configuration_path(&request.path),
+        EndpointDomain::Configuration => {
+            is_configuration_path(&request.path) || is_configuration_status_path(&request.path)
+        }
     };
     if !valid_route {
         return Err(p::Error(
@@ -344,6 +346,23 @@ fn is_configuration_path(path: &str) -> bool {
             | "/v1/host/configuration/maintenance"
     ) || path.starts_with("/v1/host/configuration/operations/")
         || path.starts_with("/v1/host/configuration/maintenance/operations/")
+}
+
+fn is_configuration_status_path(path: &str) -> bool {
+    path == "/v1/host/status"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_configuration_path, is_configuration_status_path};
+
+    #[test]
+    fn configuration_domain_allows_only_the_safe_host_status_projection() {
+        assert!(is_configuration_status_path("/v1/host/status"));
+        assert!(!is_configuration_path("/v1/host/status"));
+        assert!(!is_configuration_path("/v1/host/plan"));
+        assert!(!is_configuration_path("/v1/host/operations/inspect"));
+    }
 }
 
 fn worker_id<'a>(path: &'a str, prefix: &str, suffix: &str) -> p::Result<&'a str> {

@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "minimum_free_gib": 20,
+  "cache_budget_gib": 64
+}

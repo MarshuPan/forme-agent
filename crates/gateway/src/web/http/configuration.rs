@@ -153,6 +153,18 @@ pub(super) async fn read(
     }
 }
 
+pub(super) async fn status(
+    State(state): State<Arc<WebState>>,
+    headers: HeaderMap,
+) -> Result<Response, WebError> {
+    client(&state)?;
+    let _owner = owner(&state, &headers, false).await?;
+    let status = state
+        .configuration_call(|configuration| configuration.status())
+        .await?;
+    Ok(Json(status).into_response())
+}
+
 pub(super) async fn write(
     State(state): State<Arc<WebState>>,
     headers: HeaderMap,

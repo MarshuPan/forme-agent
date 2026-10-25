@@ -53,6 +53,10 @@ impl LocalConfigurationClient {
         self.request("GET", "/v1/host/configuration/v2", None::<&()>)
     }
 
+    pub(super) fn status(&self) -> p::Result<p::HostStatus> {
+        self.request("GET", "/v1/host/status", None::<&()>)
+    }
+
     pub(super) fn bind_owner(
         &self,
         operation_id: &str,
@@ -136,7 +140,8 @@ impl LocalConfigurationClient {
     ) -> p::Result<T> {
         if !matches!(
             (method, path),
-            ("GET", "/v1/host/configuration")
+            ("GET", "/v1/host/status")
+                | ("GET", "/v1/host/configuration")
                 | ("GET", "/v1/host/configuration/v2")
                 | ("POST", "/v1/host/configuration")
                 | ("POST", "/v1/host/configuration/owner")

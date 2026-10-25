@@ -27,6 +27,7 @@ $previousM3BArtifactRoot = $env:FORME_M3_B_ARTIFACT_DIR
 $previousM3CArtifactRoot = $env:FORME_M3_C_ARTIFACT_DIR
 
 Push-Location $repoRoot
+. (Join-Path $PSScriptRoot 'build-resources.ps1')
 try {
     function Invoke-Checked {
         param(
@@ -36,6 +37,7 @@ try {
         )
 
         Write-Host "==> $Label"
+        if ($Program -eq 'cargo') { Assert-FormeBuildSpace $repoRoot }
         & $Program @Arguments
         if ($LASTEXITCODE -ne 0) {
             throw "$Label failed with exit code $LASTEXITCODE"

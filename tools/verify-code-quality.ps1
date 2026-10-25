@@ -4,12 +4,15 @@ param([switch]$AllowMissingCorpus)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'build-resources.ps1')
 
 function Invoke-QualityStep {
     param([string]$Label, [string]$Program, [string[]]$Arguments)
     Write-Host "Quality: $Label"
+    if ($Program -eq 'cargo') { Assert-FormeBuildSpace $repoRoot }
     & $Program @Arguments
     if ($LASTEXITCODE -ne 0) { throw "Quality step failed: $Label (exit $LASTEXITCODE)" }
+    if ($Program -eq 'cargo' -and $Arguments[0] -ne 'fmt') { Invoke-FormeBuildResources report $repoRoot }
 }
 
 Push-Location $repoRoot
@@ -21,7 +24,7 @@ try {
         $python = 'python3'
         $pythonArguments = @()
     }
-    Invoke-QualityStep 'structure and exact-byte checkout regressions' $python ($pythonArguments + @('-m', 'unittest', 'tools.tests.test_code_quality', 'tools.tests.test_web_asset_checkout'))
+    Invoke-QualityStep 'structure, cache safety and exact-byte checkout regressions' $python ($pythonArguments + @('-m', 'unittest', 'tools.tests.test_code_quality', 'tools.tests.test_build_resources', 'tools.tests.test_web_asset_checkout'))
     Invoke-QualityStep 'crate boundaries and size ratchet' $python ($pythonArguments + @('tools/code-quality.py'))
     Invoke-QualityStep 'Rust formatting' 'cargo' @('fmt', '--all', '--', '--check')
     Invoke-QualityStep 'all Rust targets' 'cargo' @('check', '--locked', '--workspace', '--all-targets')

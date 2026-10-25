@@ -21,6 +21,7 @@ $previousM5Executor = $env:FORME_M5_EXECUTORD_BIN
 $previousM5Registry = $env:FORME_M5_REGISTRYD_BIN
 
 Push-Location $repoRoot
+. (Join-Path $PSScriptRoot 'build-resources.ps1')
 try {
     function Invoke-Checked {
         param(
@@ -30,6 +31,7 @@ try {
         )
 
         Write-Host "==> $Label"
+        if ($Program -eq 'cargo') { Assert-FormeBuildSpace $repoRoot }
         & $Program @Arguments
         if ($LASTEXITCODE -ne 0) {
             throw "$Label failed with exit code $LASTEXITCODE"
