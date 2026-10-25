@@ -13,6 +13,8 @@ use crate::{
 };
 mod worker;
 pub use worker::*;
+mod desktop_session;
+pub use desktop_session::*;
 mod restore;
 pub use restore::*;
 mod release;
