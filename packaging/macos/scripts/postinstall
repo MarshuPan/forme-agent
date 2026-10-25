@@ -84,6 +84,7 @@ done
 command -v dscl >/dev/null 2>&1 || { echo "forme: dscl is unavailable" >&2; exit 1; }
 ensure_service_account _formeweb 450
 ensure_service_account _formebrain 451
+ensure_service_account _formeexec 453
 if ! dscl . -read /Groups/_formebridge >/dev/null 2>&1; then
   if dscl . -search /Groups PrimaryGroupID 452 2>/dev/null | grep -q .; then
     echo 'forme: bridge GID is already in use' >&2; exit 1

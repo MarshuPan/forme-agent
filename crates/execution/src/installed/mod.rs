@@ -8,12 +8,16 @@ mod host;
 mod journal;
 #[cfg(target_os = "linux")]
 mod linux_worker;
-#[cfg(target_os = "linux")]
-mod linux_worker_fs;
-#[cfg(target_os = "linux")]
-mod linux_worker_overlay;
+#[cfg(target_os = "macos")]
+mod mac_worker;
+#[cfg(target_os = "macos")]
+mod mac_worker_sandbox;
 mod maintenance_pipe;
 mod paths;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod posix_worker_fs;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod posix_worker_overlay;
 mod process;
 mod product_config;
 #[cfg(windows)]
@@ -53,6 +57,8 @@ pub use host::*;
 pub use journal::*;
 #[cfg(target_os = "linux")]
 pub use linux_worker::*;
+#[cfg(target_os = "macos")]
+pub use mac_worker::*;
 pub use paths::*;
 pub use process::*;
 pub use product_config::*;

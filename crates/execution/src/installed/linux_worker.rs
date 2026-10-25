@@ -14,8 +14,8 @@ use std::time::{Duration, Instant};
 
 use forme_protocol as p;
 
-use super::linux_worker_fs::{chown_readonly, set_group_directory};
-use super::linux_worker_overlay::PreparedOverlay;
+use super::posix_worker_fs::{chown_readonly, set_group_directory};
+use super::posix_worker_overlay::PreparedOverlay;
 use super::process::{
     validate_scope_key, write_private_json, WorkerLaunchRegistry, WorkerLaunchSpec,
 };
@@ -65,7 +65,7 @@ impl LinuxSystemdWorkerIsolation {
         reject_linked_ancestors(&runtime_root)?;
         fs::create_dir_all(&runtime_root)
             .map_err(|_| p::Error("Linux worker runtime directory cannot be created".into()))?;
-        set_group_directory(&runtime_root)?;
+        set_group_directory(&runtime_root, EXEC_USER)?;
         let runtime_identity = fs::canonicalize(&runtime_root)
             .map_err(|_| p::Error("Linux worker runtime directory cannot be resolved".into()))?;
         for (scope, path) in &workspace_roots {
@@ -111,7 +111,7 @@ impl LinuxSystemdWorkerIsolation {
         reject_linked_ancestors(&path)?;
         fs::create_dir(&path)
             .map_err(|_| p::Error("Linux worker job directory cannot be created".into()))?;
-        set_group_directory(&path)?;
+        set_group_directory(&path, EXEC_USER)?;
         Ok(path)
     }
 

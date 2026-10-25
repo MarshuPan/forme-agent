@@ -1,4 +1,4 @@
-#![cfg(target_os = "linux")]
+#![cfg(any(target_os = "linux", target_os = "macos"))]
 #![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -8,9 +8,9 @@ use std::path::{Component, Path, PathBuf};
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
-use super::linux_worker_fs::{
-    chown_recursive, copy_bounded, private_file, read_record, same_contents, write_record, Entry,
-    FileIdentity, Tree,
+use super::posix_worker_fs::{
+    chown_recursive, copy_bounded, execution_account, private_file, read_record, same_contents,
+    write_record, Entry, FileIdentity, Tree,
 };
 use super::reject_linked_ancestors;
 
@@ -62,7 +62,7 @@ impl PreparedOverlay {
     ) -> p::Result<Self> {
         permit.validate_for(job, now)?;
         let execution = execution
-            .ok_or_else(|| p::Error("Linux managed worker requires an execution spec".into()))?;
+            .ok_or_else(|| p::Error("POSIX managed worker requires an execution spec".into()))?;
         execution.validate_for(job, permit, now)?;
         reject_linked_ancestors(run_dir)?;
         let source = Tree::capture(original)?;
@@ -80,7 +80,7 @@ impl PreparedOverlay {
             entries: source.entries.clone(),
         };
         write_record(&run_dir.join("overlay-baseline.json"), &baseline)?;
-        chown_recursive(&workspace, "forme-exec")?;
+        chown_recursive(&workspace, execution_account())?;
         Ok(Self {
             run_dir: run_dir.to_path_buf(),
             baseline,
@@ -96,13 +96,13 @@ impl PreparedOverlay {
         let receipt_path = self.run_dir.join("overlay-writeback-receipt.json");
         if intent_path.exists() || receipt_path.exists() {
             return Err(p::Error(
-                "Linux workspace writeback already has an outcome boundary".into(),
+                "POSIX workspace writeback already has an outcome boundary".into(),
             ));
         }
         let baseline: Baseline = read_record(&self.run_dir.join("overlay-baseline.json"))?;
         if baseline != self.baseline || baseline.job != *job {
             return Err(p::Error(
-                "Linux workspace baseline binding is invalid".into(),
+                "POSIX workspace baseline binding is invalid".into(),
             ));
         }
         baseline.permit.validate_for(job, now)?;
@@ -114,12 +114,12 @@ impl PreparedOverlay {
             || !same_contents(&original.entries, &baseline.entries)
         {
             return Err(p::Error(
-                "Linux workspace changed while the worker was running".into(),
+                "POSIX workspace changed while the worker was running".into(),
             ));
         }
         let overlay = Tree::capture(&self.workspace())?;
         if overlay.identity != baseline.overlay_identity {
-            return Err(p::Error("Linux worker overlay identity changed".into()));
+            return Err(p::Error("POSIX worker overlay identity changed".into()));
         }
         let changes = changed_entries(&baseline.entries, &overlay.entries)?;
         validate_write_scope(&baseline.execution.intent.parameters, &changes)?;
@@ -182,7 +182,7 @@ fn validate_write_scope(
                     Ok(())
                 } else {
                     Err(p::Error(
-                        "Linux worker read action changed its workspace".into(),
+                        "POSIX worker read action changed its workspace".into(),
                     ))
                 };
             }
@@ -191,7 +191,7 @@ fn validate_write_scope(
         p::ActionParameters::Shell { cwd, network, .. } => {
             if *network {
                 return Err(p::Error(
-                    "Linux worker shell network access is not admitted".into(),
+                    "POSIX worker shell network access is not admitted".into(),
                 ));
             }
             (false, normalize_relative(cwd.as_deref().unwrap_or(""))?)
@@ -199,7 +199,7 @@ fn validate_write_scope(
         p::ActionParameters::Pty(spec) => (false, normalize_relative(&spec.cwd)?),
         _ => {
             return Err(p::Error(
-                "Linux worker backend has no writeback contract".into(),
+                "POSIX worker backend has no writeback contract".into(),
             ))
         }
     };
@@ -213,7 +213,7 @@ fn validate_write_scope(
         Ok(())
     } else {
         Err(p::Error(
-            "Linux worker changed a path outside its approved scope".into(),
+            "POSIX worker changed a path outside its approved scope".into(),
         ))
     }
 }
@@ -227,11 +227,11 @@ fn normalize_relative(value: &str) -> p::Result<String> {
         match component {
             Component::Normal(part) => parts.push(
                 part.to_str()
-                    .ok_or_else(|| p::Error("Linux worker path is not valid UTF-8".into()))?,
+                    .ok_or_else(|| p::Error("POSIX worker path is not valid UTF-8".into()))?,
             ),
             _ => {
                 return Err(p::Error(
-                    "Linux worker path must be relative and normalized".into(),
+                    "POSIX worker path must be relative and normalized".into(),
                 ))
             }
         }
@@ -277,7 +277,7 @@ fn apply_changes(
         if let Some(previous) = baseline.entries.get(key) {
             let current = fs::symlink_metadata(&target).map_err(|_| writeback_error())?;
             if current.is_dir()
-                || super::linux_worker_fs::file_identity(&target)? != previous.identity
+                || super::posix_worker_fs::file_identity(&target)? != previous.identity
             {
                 return Err(writeback_error());
             }
@@ -337,5 +337,5 @@ fn validate_receipt(
 }
 
 fn writeback_error() -> p::Error {
-    super::linux_worker_fs::writeback_error()
+    super::posix_worker_fs::writeback_error()
 }
