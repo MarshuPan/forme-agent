@@ -153,6 +153,8 @@ brain 路由的 command/control/approval 都保留既有 idempotency/CAS/final-p
 
 worker 仅获得 scoped workspace、临时目录、显式 credential slots/代理能力和必要输入；不继承 brain/Web/admin env。按 OS 能力采用独立账户、进程组/job/cgroup、受限句柄、文件 ACL 与网络范围。同一低权限执行账户仍不足以隔离并发项目，必须逐 job 限定实际文件/网络访问，防止读取其他 worker 的 workspace/credential；隔离要求无法满足时对应工具能力不可用，不能悄悄降为 brain 用户 shell。
 
+Windows scoped workspace 使用 owner 已选择的 per-job 私有副本/overlay（prd/24 §4.1.3），只有副本设置 Low integrity；原根不授予 worker。Host 按 baseline、原文件句柄、最终计划/permit 与完整变更集验证后才回写，冲突在写前拒绝；回写 intent 后失败保留证据为 Unknown，恢复不得清理副本或重复回写。单 worker 子进程在 OS 层拒绝，不能以可改写的文件 ACL 单独证明 writable-but-not-executable；该限制和原生安装/IP 证据分别验收。
+
 broker 有两个隔离接口：
 
 1. **OwnerMaintenance**：只信任本机管理身份或已验证的近期 owner operation；操作仅有配置提交、内置服务启停、固定签名 release staging/切换、网络设置、指定备份/恢复等。无任意 shell、SQL、路径覆盖或字符串命令。

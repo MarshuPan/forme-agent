@@ -702,4 +702,5 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - Windows AppContainer adapter 只允许在 `crates/execution/src/installed/windows_appcontainer_acl.rs` 与 `windows_appcontainer_native.rs` 使用受审计的 `windows-sys` FFI。`execution` 根和 `installed` 模块使用 `deny(unsafe_code)`；仓库质量门拒绝其他源文件的 `unsafe` 或 `allow(unsafe_code)`。该例外只覆盖句柄、SID、token、ACL、挂起启动与 Job Object 的边界封装，不允许向业务层泄漏裸句柄或绕过既有 typed worker permit。
 - AppContainer identity、ACL mutation、token readback、Job custody 和 cleanup 都必须绑定同一个 `WorkerJob`/`plan_digest`，按独立 sandbox lease journal 记录。进程创建时原子加入确定性命名的 kill-on-close Job Object，完成 AppContainer token/ACL/Job 回读前不得 resume；启动恢复只操作原命名 Job 和原 lease，ACL/profile/目录清理均须可幂等重试，任何身份、路径或恢复不确定都保持 blocked/Unknown。细节见 prd/24 §4.1.2。
 - 该代码实现只表示 adapter 组件已存在，不表示服务账户、安装 ACL、网络拒绝、重启回收和真实 IP10/IP24 通过。产品门仍以真实 Windows service identity 和正反访问证据为准。
+- owner 已选择 Windows 每 job 私有副本/overlay + Host 核验回写（prd/24 §4.1.3）：仅副本降低完整性，原 workspace 不授予 worker、不改变标签；baseline/最终计划/permit 精确绑定、原句柄 custody、冲突整批拒绝和 durable writeback intent/receipt 是承重条件。回写不明保留原副本并阻断恢复，不盲重试；不增加脑 EventKind。新增 Low label/文件 identity/按句柄删除/child-process restriction FFI 仍仅限上述两个文件。
 

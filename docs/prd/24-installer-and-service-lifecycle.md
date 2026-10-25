@@ -106,7 +106,7 @@ Job Object 名称由同一 lease identity 确定性派生，使用服务会话�
 
 路径授权只来自 Host 已验证的配置和 Worker DTO：
 
-- 精确 `workspace_scope` 的已解析目录允许读写，但不允许从该可写目录启动可执行文件；其他 workspace、brain/event 数据、model credentials、Web auth、管理 journal、发布目录和备份不得授予 worker。
+- 精确 `workspace_scope` 的原目录不直接授予 worker。Windows 使用 owner 已选择的每 job 私有副本/overlay，按 §4.1.3 核验后由 Host 回写；只有该副本允许读写，不允许从可写目录启动可执行文件。其他 workspace、brain/event 数据、model credentials、Web auth、管理 journal、发布目录和备份不得授予 worker。
 - 本 job 的 job/permit/execution 描述只读；注册的 worker 程序与确需的固定运行时只读/执行。任意环境变量、PATH 搜索、请求提供的程序路径、handle 继承与 Secret 值均拒绝。
 - Windows AppContainer 不授予 `internetClient`、`privateNetworkClientServer` 或 loopback exemption；当前冻结的 Worker DTO 没有网络/credential grant，因此 worker 的直接网络和 credential 能力保持拒绝。不得从宿主环境或共享代理变量继承网络权限。未来增加某类能力必须先变更协议/PRD并形成独立的 exact-scope grant，不能由 launch profile 暗中放行。
 - 临时目录必须位于受保护的 runtime 根下且按 job 分离；worker 不能修改 Host 的授权材料。关闭网页/桌面会话不改变隔离身份或 worker 生命周期。
@@ -118,6 +118,19 @@ OS ACL 变更必须有独立于脑事件的、单写者、有界、可恢复的�
 AppContainer 证据不代替 broker 身份与 worker token 的独立证据。Windows `forme-hostd` 是安装清单绑定的特权 `LocalSystem` broker；必须核对 SCM image/config/account 与当前 Host 进程身份，不能要求 broker 自身为非 SYSTEM，也不能把 AgentExecution bearer 当作 OS peer identity。AgentExecution 对端必须独立证明为已安装的 core 服务，并且只能提交 Harness 绑定的 typed job/permit；交互用户、Web 与 OwnerMaintenance 域均拒绝 dispatch。每个 worker 则必须在首次指令执行前以本 job 的 AppContainer SID 和低完整性受限 token 创建，并先纳入 kill-on-close Job Object；核对有效 token 的 AppContainer 身份、能力/特权集合和句柄继承边界，再以真实文件访问正反断言证明它不具备 SYSTEM/管理员效果，只能访问精确 workspace 与本 job 输入。不能仅凭 `TokenUser`、父进程身份或 API 返回成功作此证明。服务/peer 身份、worker 有效权限、安装 ACL、会话 helper 和 OS 生命周期各自单独验收；任何生产门未通过前，SCM managed service 继续拒绝 dispatch，保留维护与状态查询。AppContainer、Job Object、development process worker 或受控测试均不能单独登记为完整 sandbox 或 IP10 PASS。
 
 默认配置加载**不启用普通进程 adapter**。即使 Windows AppContainer/Job Object adapter 已存在，只要实际 service identity、有效 ACL 正反断言、重启撤权恢复、无网络/无凭据、会话 helper 等平台门未全部通过，服务仍提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，Job Object、AppContainer 单项或开发进程证据都不得单独登记为完整安全沙箱或 IP10 PASS。
+
+#### 4.1.3 Windows 私有副本与受治理回写（owner 已选择 A）
+
+本节改变 Windows worker 的直接写入时机，不改变脑协议、最终计划或权限范围。原 workspace 的完整性标签、owner/ACL 不降低、不复制到私有文件，也不把副本当作新的记忆/事实源。
+
+1. **准备与绑定**：Host 在 lease 已落盘的 `job_directory/workspace` 创建普通文件副本；Host 私有的 `overlay-baseline.json` 以 schema 1 绑定原 job、plan、permit/execution 摘要、authority epoch/nonce/deadline、规范原根与文件 identity、完整 baseline 清单及其摘要。最多 1024 个条目、32 层目录、64 MiB 主数据流、单文件 16 MiB、单清单 4 MiB；超限、非 Unicode/非规范文件名、reparse/symlink、多硬链接、设备/非普通文件或读取期间变更均拒绝。读取与回写使用 Windows 打开句柄的共享模式和文件 identity 保持 custody；不能只做字符串前缀检查后再以 SYSTEM 按路径写入。
+2. **隔离**：仅对本 job 私有副本逐项设置并回读可继承的 Low mandatory label；Host 的 baseline/intent/receipt、job/permit/execution 输入不变成 worker 可写。worker 的 cwd 与 `FORME_WORKER_WORKSPACE_PATH` 指向副本，输入中的原路径仅用于与最终计划核对，由固定 driver 映射到副本，不重写原授权对象。首版 adapter 以 OS child-process restriction 阻止 worker 创建任何子进程，从而也禁止运行副本内新建的程序；需要派生进程的 profile 不声明可用，不能依赖可被文件 owner 改写的 DACL 来声称“可写但不可执行”。多 worker 仍由 Host 分 job 创建，不继承 package/句柄。
+3. **回写范围**：必须有与原 job/permit 一致的 `WorkerExecutionSpec`。File 仅允许其精确路径及原 Read/Write/Delete 操作；Write 的最终 bytes 必须与批准参数相同。Shell 仅接受 `network=false` 且有明确 cwd，PTY 仅接受明确 cwd；可回写范围为 cwd 在原 workspace 内对应的子树。其他 backend/无 spec/无法明确归一化的路径拒绝，不能把 cwd 外的修改、绝对路径、参数字符串或 profile 解释成扩大授权。副本可提供该 job 的 workspace 读取视图，最终写集合始终重新检查。
+4. **前置核验**：只有正常 root exit 0、整个 Job 已空、未取消/未超时、同一 authority epoch 与原 permit 仍有效时才能尝试回写。先稳定打开原根、祖先/受影响目录及文件，拒绝 reparse/硬链接，核对原 file identity 与 baseline 内容；任何原目录结构/文件变化均视为冲突，整批在写前拒绝，不覆盖 owner/其他 job 的更新。不同副本可以并发计算；Host 串行提交并按 baseline 作乐观冲突检测。
+5. **持久化与副作用**：Host 独占写者是 runtime 的 sandbox lease lock；同一 job 的 Host 私有 `overlay-writeback-intent.json` 使用 create-new、限长和 flush，绑定 baseline 摘要、原 job/plan/permit、变更集合与最终内容摘要，先于第一次原目录副作用。新文件使用 create-new，既有文件经锁定原句柄写入，删除经该句柄标记；目录只在受 custody 的父目录内创建/删除，不覆盖新出现的文件。写完 flush、重新核验最终清单后，才落同样绑定的 `overlay-writeback-receipt.json`；Completed 不能只依据 worker 自报或 exit 0。
+6. **冲突、失败与恢复**：前置冲突/无权限/失效 permit/非法变更无回写；正常失败或取消只废弃副本。intent 之后的任何错误、receipt 缺失或损坏均为原 job 的 Unknown；保留整个副本、baseline、intent 与已观察证据，不自动重做、不自动回滚、不换号。启动恢复仍先终止原树、撤 ACL、删除 AppContainer identity，但有未闭合 intent 时禁止删除 job 目录、禁止新 worker admission，等待原操作核验/owner 裁决。receipt 与原意图不一致同样阻断；清理不能销毁 Unknown 证据。没有 intent 的旧 lease 按原清理协议兼容处理；不改旧 hash/序列。
+
+本节为已授权方案的具体实现契约。句柄文件 identity/硬链接查询、Low label 设置与回读、按句柄删除、child-process restriction 的新增 Win32 调用仍只准在 §29.9 的两个 adapter 文件，安全状态机/副本/事务逻辑保持 `forbid(unsafe_code)`。真实 Low worker 的读写、原路径拒绝、子进程/网络拒绝、冲突、取消和崩溃恢复各自取证；没有安装身份与完整平台证据前，不切换生产默认 adapter，不提升 IP10/IP24。
 
 ### 4.2 Core 停服接缝（24.2 增量）
 
