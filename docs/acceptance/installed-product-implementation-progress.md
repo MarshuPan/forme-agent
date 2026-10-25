@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 `89bec64` 完成 Windows 桌面 helper dispatch 的受治理 Host 边界：桌面 grant/capability/plan digest 精确绑定，拒绝过期 grant 与能力不匹配，helper 在动作开始后失联则保留 Unknown 且不重试；`installed_worker_contract` 11/11 通过。`68cca5a` 将三个 desktop-helper 场景加入并通过宿主永久门。当前生产仍使用 `UnavailableDesktopHelper`，ProductionRuntime 尚未接入正式 worker driver，也没有真实登录会话 helper、SCM/LocalSystem 安装运行证据或 IP01–IP24 通过；详见[桌面 helper dispatch 组件验收](installed-product-desktop-helper-dispatch-acceptance-20261026.md)。本轮完整 M5 场景/质量门均通过；首次 `verify-m5.ps1` 仅因当时工作树未提交而在 S99 退出，随后提交后单独重验当前树 M5 release audit 通过，最终当前树回执比较见 M5 验收报告 §10。
+
 2026-10-25 完成[产品化验收脚本与 fixture 边界校准]：配置门按当前源码执行 62 个配置/激活 Rust 场景、4 个网络场景、3 个脑偏好场景和 2 个 managed skills 场景，均 PASS；Web identity 25/25、Web ingress 10/10、认知纠正组件门 PASS。当前 Windows 未注册 `NT SERVICE\\forme-brain`，因此 `verify-product-configuration.ps1` 与 `verify-workbench-correction.ps1` 将受管 Host/Web/core 进程桥、安装 daemon 重启和原生服务/IP01–IP24 明确记为 `NOT_RUN`，不以组件测试或交互 Host 替代真实 SCM 身份。Windows fixture 的 brain image 已改为读取安装清单中的 `manifest.paths.releases/bin` 后创建，避免错误路径造成假阴性。该批只修正验收边界与 fixture，不改变生产隔离语义；原生安装、真实 provider 和完整 IP01–IP24 仍未关闭。
 
 2026-10-25 `558c7e7` 完成 [macOS LaunchDaemon 受管 worker adapter](installed-product-macos-launchd-worker-acceptance-20261025.md)：受管 Host 仅在 root、固定 `com.forme.host` LaunchDaemon、`launchctl`、`sandbox-exec` 和 `_formeexec` 执行账户均可验证时加载 macOS adapter；每个 job 使用独立 LaunchDaemon、sandbox、workspace/tmp 副本，worker 只能写副本，Host 按原始树身份/内容、最终执行规格、变更范围和 durable intent/receipt 核验后回写，冲突、回写失败、控制命令超时和状态不明均保持 `Unknown`，不盲目重试。Windows 主机上的 execution crate 测试、fmt、strict Clippy、代码质量和合规门通过；macOS target 未安装且没有 macOS 原生运行证据，因此不提升 macOS 原生服务、IP10/IP24 或 IP01–IP24 状态。
