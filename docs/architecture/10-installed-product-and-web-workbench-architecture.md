@@ -43,7 +43,7 @@ core 的前台信号与未来原生服务控制共用 Gateway 的可信停止接
 | 平台 | 服务/账户 | 程序与配置 | 持久数据、运行态 |
 |---|---|---|---|
 | Windows | SCM；Web/Brain 独立虚拟服务账户与 service SID；broker 为受限接口的 LocalSystem 服务，执行使用另一个低权限身份。 | `%ProgramFiles%\ForMe\releases\<release_id>`；`%ProgramData%\ForMe\config`。 | `%ProgramData%\ForMe\{brain,web-auth,host-state,keys,logs,backups,workspaces}`；命名管道按服务 SID 设 DACL。 |
-| macOS | 系统 LaunchDaemon；`_formeweb`、`_formebrain`、执行账户分离；broker root。 | `/Library/ForMe/releases/<release_id>`；`/Library/Application Support/ForMe/config`。 | `/Library/Application Support/ForMe/{brain,web-auth,host-state,keys,logs,backups,workspaces}`；受保护本地 socket 目录。 |
+| macOS | 系统 LaunchDaemon；`_formeweb`、`_formebrain`、`_formeexec` 执行账户分离；broker root。 | `/Library/ForMe/releases/<release_id>`；`/Library/Application Support/ForMe/config`。 | `/Library/Application Support/ForMe/{brain,web-auth,host-state,keys,logs,backups,workspaces}`；受保护本地 socket 目录。 |
 | Linux | 系统 systemd；`forme-web`、`forme-brain`、`forme-exec`；broker root。 | `/opt/forme/releases/<release_id>`；`/etc/forme`。 | `/var/lib/forme/{brain,web-auth,host-state,keys,backups,workspaces}`；`/var/log/forme`；`/run/forme` sockets。 |
 
 路径由安装 manifest 固定并规范化为绝对路径，不能依赖调用 shell 的 cwd。分区磁盘、外置 workspace 可由 owner 选择；必须防 symlink/reparse-point 跳转，验证身份/ACL/容量和最终真实路径后才接管。
@@ -168,7 +168,7 @@ broker 不签发新 permission；安装权限、登录、trust 或能力安装�
 
 Host 把经过验证的 spec 写入该 job 专属、受保护的运行目录，通过固定的 `FORME_WORKER_EXECUTION_PATH` 交给已注册 launch profile；子进程不得读取兄弟 job、brain、keys、管理 journal 或 Web 凭据。写入、启动或回执不明均保留原 job 为 `Unknown`，probe/cancel 只查原 job，不能换号重做。`WorkerBrokerTransport` 只负责 AgentExecution 的 admission/probe/cancel wire 调用，不拥有 permission、不重新规划、不调模型。
 
-这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux 已加入 `LinuxSystemdWorkerIsolation`：受管 Host 先验证 root、固定 `forme-host.service`、systemd 控制面和 `forme-exec`，每个 job 使用私有 workspace 副本并由 Host 核验回写；当前仅有目标交叉检查和通用回归，尚无 Linux 原生服务/账户/回写运行证据。macOS sandbox/账户和逐 job 文件/网络拒绝仍需原生 adapter 证据；IP10/IP24 仍需原生验收。
+这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux 已加入 `LinuxSystemdWorkerIsolation`：受管 Host 先验证 root、固定 `forme-host.service`、systemd 控制面和 `forme-exec`，每个 job 使用私有 workspace 副本并由 Host 核验回写；当前仅有目标交叉检查和通用回归，尚无 Linux 原生服务/账户/回写运行证据。macOS 已接入 `MacOsLaunchdWorkerIsolation` 的代码路径：受管 Host 先验证 root、固定 `com.forme.host` LaunchDaemon、`launchctl`、`sandbox-exec` 和 `_formeexec`，每个 job 使用私有 workspace 副本，由 Host 核验回写，网络 shell 在当前无 scoped adapter 时拒绝；当前没有 macOS 主机上的 LaunchDaemon、账户、sandbox、TCC、安装包或回写运行证据，IP10/IP24 仍需原生验收。
 
 24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。受管 Windows service 只有在固定 SCM/`LocalSystem` 身份和受保护 worker 配置同时成立时才进入 AppContainer/Job/overlay composition；缺少任一条件或仍处于前台开发模式时保持原有 fail-closed/测试边界，不能回退到普通高权限子进程。该 composition 仍不替代原生安装、core peer、服务账户/ACL、网络/credential/session 和 Linux/macOS 平台证据。配置/路由细节见 prd/24 §4.1。
 
