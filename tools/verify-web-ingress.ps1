@@ -9,10 +9,12 @@ try {
         "web_login_logout_and_reauth_revoke_enforce_live_sessions",
         "web_host_origin_forwarding_and_csrf_rejections_preserve_the_session",
         "web_password_change_revokes_old_cookies_without_changing_owner",
+        "web_password_change_rejects_reusing_an_operation_key_for_another_password",
         "web_read_quota_is_separate_and_rate_rejections_have_retry_after",
         "web_configuration_rejects_plaintext_lan_and_malformed_secret_bodies_are_not_echoed",
         "web_cancelled_request_keeps_password_capacity_until_real_work_finishes",
-        "web_idle_socket_capacity_is_bounded_and_recovers_when_a_connection_closes"
+        "web_idle_socket_capacity_is_bounded_and_recovers_when_a_connection_closes",
+        "proposals::web_unknown_proposal_preserves_exact_command_and_only_explicit_verification_forwards"
     )
     $ErrorActionPreference = "Continue"
     $output = @(& cargo test -p forme-gateway --lib web::http::tests:: -- --test-threads=2 2>&1 | ForEach-Object { "$_" })

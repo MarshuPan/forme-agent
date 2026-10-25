@@ -21,8 +21,15 @@ try {
         "identity_known_schema_upgrade_preserves_existing_account_and_session",
         "identity_setup_scope_is_distinct_and_candidate_binding_survives_restart",
         "identity_invalid_setup_proof_can_be_discarded_without_touching_claim_intent",
+        "identity_password_change_key_reuses_only_its_bound_candidate",
+        "identity_tampered_fence_outbox_requires_local_recovery",
         "product_operation_confirmation_consumes_only_exact_password_bound_proof",
-        "revoked_session_cannot_confirm_product_operation_even_with_correct_password"
+        "revoked_session_cannot_confirm_product_operation_even_with_correct_password",
+        "proposal_cases::proposal_recovery_rejects_corrupt_payload_and_mismatched_terminal_receipts",
+        "proposal_cases::proposal_recovery_survives_installed_session_fence_and_requires_fresh_login",
+        "proposal_cases::proposal_recovery_upgrades_v8_without_replacing_account_or_active_sessions",
+        "proposal_recovery_capacity_fails_before_accepting_a_257th_operation",
+        "proposal_recovery_is_exact_owner_bound_and_survives_identity_restart"
     )
     $ErrorActionPreference = "Continue"
     $output = @(& cargo test -p forme-gateway --lib web::identity::tests:: -- --test-threads=2 2>&1 | ForEach-Object { "$_" })

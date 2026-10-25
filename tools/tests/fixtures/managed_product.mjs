@@ -87,6 +87,7 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
     const host = await readJson(prepared.host_config_path);
     Object.assign(host, { host_bind: hostAddress, agent_execution_bind: agentAddress, configuration_bind: configurationAddress });
     await writeJson(prepared.host_config_path, host);
+    const installationManifest = await readJson(host.installation_manifest_path);
     const web = await readJson(prepared.web_config_path);
     web.bind = webAddress; web.bootstrap_bridge.address = hostAddress;
     web.configuration_bridge.address = configurationAddress; web.core_bridge.address = coreAddress;
@@ -99,6 +100,11 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
         allowed_hosts: [], tls: null, firewall: null });
     }
     await writeJson(host.product_config_template_path, template);
+    if (process.platform === 'win32') {
+      const image = path.join(installationManifest.paths.releases, 'bin', 'forme-gatewayd.exe');
+      await fs.mkdir(path.dirname(image), { recursive: true });
+      await fs.writeFile(image, Buffer.from('managed brain image fixture'));
+    }
     const cookieJar = new Map();
     let csrf;
     const origin = `http://${webAddress}`;
