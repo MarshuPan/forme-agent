@@ -1,6 +1,6 @@
 # macOS LaunchDaemon 受管 worker 验收记录
 
-日期：2026-10-25  
+日期：2026-10-25
 实现提交：`558c7e7`  保障分支：`shu/installed-product`
 
 ## 1. 本次闭合范围
