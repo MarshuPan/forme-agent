@@ -168,7 +168,7 @@ broker 不签发新 permission；安装权限、登录、trust 或能力安装�
 
 Host 把经过验证的 spec 写入该 job 专属、受保护的运行目录，通过固定的 `FORME_WORKER_EXECUTION_PATH` 交给已注册 launch profile；子进程不得读取兄弟 job、brain、keys、管理 journal 或 Web 凭据。写入、启动或回执不明均保留原 job 为 `Unknown`，probe/cancel 只查原 job，不能换号重做。`WorkerBrokerTransport` 只负责 AgentExecution 的 admission/probe/cancel wire 调用，不拥有 permission、不重新规划、不调模型。
 
-这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux cgroup/systemd sandbox、macOS sandbox/账户和逐 job 文件/网络拒绝仍需各平台的真实 adapter 证据；IP10/IP24 仍需原生验收。
+这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux 已加入 `LinuxSystemdWorkerIsolation`：受管 Host 先验证 root、固定 `forme-host.service`、systemd 控制面和 `forme-exec`，每个 job 使用私有 workspace 副本并由 Host 核验回写；当前仅有目标交叉检查和通用回归，尚无 Linux 原生服务/账户/回写运行证据。macOS sandbox/账户和逐 job 文件/网络拒绝仍需原生 adapter 证据；IP10/IP24 仍需原生验收。
 
 24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。受管 Windows service 只有在固定 SCM/`LocalSystem` 身份和受保护 worker 配置同时成立时才进入 AppContainer/Job/overlay composition；缺少任一条件或仍处于前台开发模式时保持原有 fail-closed/测试边界，不能回退到普通高权限子进程。该 composition 仍不替代原生安装、core peer、服务账户/ACL、网络/credential/session 和 Linux/macOS 平台证据。配置/路由细节见 prd/24 §4.1。
 
