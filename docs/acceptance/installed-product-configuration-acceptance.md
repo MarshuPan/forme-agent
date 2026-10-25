@@ -1,6 +1,19 @@
 # 受管模型配置与主脑启停增量验收
 
-日期：2026-10-22。分支：`shu/installed-product`。设计说明为 `3577c8b`，受验实现为 `01b77f9`。本记录承接 `prd/25 §11.4–11.5`、`prd/26` 与工程质量规范；不改写 M0–M5/C1–C24 历史回执，不宣布 IP01–IP24 或整个独立部署产品完成。
+日期：2026-10-22（历史组件记录；状态校正于 2026-10-25）。分支：`shu/installed-product`。设计说明为 `3577c8b`，受验实现为 `01b77f9`。本记录承接 `prd/25 §11.4–11.5`、`prd/26` 与工程质量规范；不改写 M0–M5/C1–C24 历史回执，不宣布 IP01–IP24 或整个独立部署产品完成。
+
+## 0. 当前状态校正（2026-10-25）
+
+本报告第 2、3 节保留 2026-10-22 的历史进程证据，不能覆盖当前机器的原生身份条件。针对现有源码重新运行验收脚本后，当前边界如下：
+
+| 当前检查 | 结果 |
+|---|---|
+| `verify-product-configuration.ps1` | PASS：配置/激活 62 个 Rust 场景、网络 4 个、脑偏好 3 个、managed skills 2 个，并成功构建正式 binary；组件状态通过。 |
+| 受管 Host/Web/core 进程桥 | `NOT_RUN`：当前 Windows 没有 `NT SERVICE\\forme-brain` Service SID，脚本按 fail-closed 契约不伪造或绕过 SCM 身份。 |
+| `verify-web-identity.ps1` / `verify-web-ingress.ps1` | PASS：25/25、10/10 命名场景；原生服务、真实 provider 与 IP01–IP24 仍为 `NOT_RUN`。 |
+| `verify-workbench-correction.ps1` | PASS：原子纠正、正式桥接组件与认证测试通过；安装 daemon 重启进程证据为 `NOT_RUN`。 |
+
+因此，本报告当前可证明的是配置/认证/网络/纠正组件契约，而不是已注册的 Windows 服务、真实服务身份下的跨进程链路或完整安装产品。测试 fixture 的 Windows brain image 现依据安装清单的 `manifest.paths.releases/bin` 创建，避免把 fixture 写入错误的目录；该修复不构成原生安装证据。
 
 ## 1. 本次闭合的路径
 
@@ -22,10 +35,10 @@
 | `pwsh -File tools/verify-code-quality.ps1 -AllowMissingCorpus` | PASS。结构检查器 6/6；433 个源文件，63 处既有规模债务未增长；fmt、workspace check/test、strict Clippy、前端与资源、bundle、合规及 whitespace 均通过。 |
 | `cargo test --locked --workspace --all-targets`（上门内执行） | 749 passed / 0 failed / 5 默认 ignored；统计来自 146 个测试 suite 的汇总，不包括后续定向门重复执行。 |
 | 前端与 bundle（上门内执行） | strict TypeScript、14/14 前端行为测试、7/7 bundle 回归；70 个锁定依赖，`npm audit --audit-level=moderate` 为 0 漏洞；7 个嵌入资源可重复校验。 |
-| `pwsh -File tools/verify-product-configuration.ps1` | PASS。精确执行 16 个配置/激活 Rust 测试，构建四个正式 binary，并执行 1 个实际 host/web/core 进程综合场景。服务管理动作的计数由受控 adapter 验证。 |
+| `pwsh -File tools/verify-product-configuration.ps1` | **历史记录**：PASS。精确执行 16 个配置/激活 Rust 测试，构建四个正式 binary，并执行 1 个实际 host/web/core 进程综合场景。服务管理动作的计数由受控 adapter 验证；当前重跑结果见 §0。 |
 | `pwsh -File tools/verify-installed-host.ps1` | PASS，70 个命名场景；包含宿主、worker 控制面与受控停止组件，不是原生安装验收。 |
-| `pwsh -File tools/verify-web-identity.ps1` | PASS，18 个命名测试；新增口令/proof 摘要绑定、一次消费、撤销 session 拒绝。 |
-| `pwsh -File tools/verify-web-ingress.ps1` | PASS，8 个命名场景及实际 webd 空环境/kill/restart/独立认证库 smoke。 |
+| `pwsh -File tools/verify-web-identity.ps1` | **历史记录**：PASS，18 个命名测试；当前已扩展为 25 个，结果见 §0。 |
+| `pwsh -File tools/verify-web-ingress.ps1` | **历史记录**：PASS，8 个命名场景及实际 webd 空环境/kill/restart/独立认证库 smoke；当前已扩展为 10 个，结果见 §0。 |
 | `pwsh -File tools/verify-web-workbench.ps1` | PASS，8 个命名场景，使用计数模型 fixture。 |
 | `pwsh -File tools/verify-core-brain-workspace-contract.ps1` | PASS。冻结 crate 图、精确依赖版本、97-kind strict prefix 与仅两个 additive 事件保持。 |
 | `bash tools/compliance-doctor.sh` | 按默认参数另跑 PASS，未借 `AllowMissingCorpus` 代替本地完整合规检查。 |
@@ -64,7 +77,7 @@
 
 execution/gateway 直接精确声明已有锁定依赖 `tempfile = "=3.27.0"`，仅使用公开原子文件 API；没有新增 registry 包或内部依赖边。来源/许可审查与 NOTICE 同步更新。没有导入第三方内核、插件、prompt 或 fixture。
 
-## 5. 仍需实施与验收
+## 5. 当时仍需实施与验收（当前进度以总记录为准）
 
 - 原生服务账户/ACL、逐 job 强隔离、会话 helper 与 core 到隔离 worker 的正式工具接入；缺少隔离时生产执行继续 blocked。
 - 将本机安装准备接入完整安装、升级、恢复、卸载事务；跨平台原生包、签名、冷启动与保留数据演练。
