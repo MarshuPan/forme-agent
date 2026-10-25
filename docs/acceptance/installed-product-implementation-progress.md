@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-25 `d0fb681` 完成[Windows AppContainer adapter 组件](installed-product-windows-appcontainer-adapter-acceptance-20261025.md)：owner 已批准的 Win32 边界见 `2a0c289`；限定两个 FFI 文件、per-job identity、创建时 Job custody、token 检查、真实 DACL grant/revoke、原 lease 恢复与准入阻断已实现。专项 10 passed / 0 failed / 1 ignored，installed-host 147 个命名场景及统一源码质量门 PASS；M5 长链在 S68 浏览器 fixture 失败，同源码单独复跑 S68 通过，长链不记 PASS。owner 已选择 A（每 job 私有副本/overlay 后由 Host 核验回写），该后续实现尚待完成；原目录完整性标签不降低。生产仍使用 `UnavailableWorkerIsolation`，IP10/IP24 未通过。
+
 2026-10-25 `277f551` 完成[原生包事务入口加固](installed-product-package-hook-hardening-20261025.md)：Linux/macOS 包 hook 固定管理员环境、`umask` 与 root/systemd 前置检查，卸载 fixture 显式模拟 root 后 POSIX 8/8 场景通过；workspace 与质量/合规门通过。该批不执行真实包管理器、systemd/launchd、管理员安装或签名，不提升 IP01–IP24，worker/AppContainer 与原生平台验收仍开放。
 
 2026-10-25 `8936975` 完成[Windows 固定服务 Service SID 边界](installed-product-service-sid-acceptance.md)：四个固定 forme 服务在注册、既有配置复核和 updater 接管前均强制核验 `ServiceSidType::Unrestricted`，未知服务名与 SID 漂移 fail closed。workspace fmt/check/test、strict Clippy、代码质量与合规门通过；当前主机非管理员且未注册 SCM 服务，本组件不提升原生安装、worker 隔离或 IP01–IP24 状态。
