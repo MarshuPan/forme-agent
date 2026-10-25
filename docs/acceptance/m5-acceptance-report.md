@@ -114,6 +114,8 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 本节只追加当前产品增量的回归记录，不改写上文 M5 历史验收，也不宣称 IP01–IP24 已通过。产品实施状态仍以 `installed-product-implementation-progress.md` 为准。
 
+2026-10-26，在 `shu/installed-product@93f501e` 上完整复跑 `tools/verify-m5.ps1`，终线为 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、V1 C1–C24 回归、18 crates、97 EventKinds、严格 Clippy、workspace/Python tests、合规及 M5 当前树发布回执生成、独立验证和比较均通过；当前回执摘要为 `sha256:0f0579703789d601d3d5480f808668ce52fa099cb85722bf92be820f519e99ec`。工作树干净。该次默认全量测试中 3 个真实 Windows AppContainer 集成测试因需要显式原生环境而 ignored；其余另有按命令行/浏览器/多进程条件显式运行的 goldens 已由验收脚本执行。故此结果证明当前源码和受控回归门通过，不证明真实 SCM 安装或 IP10/IP24 平台验收通过。
+
 2026-10-26，`shu/installed-product` 当前实施快照 `c76794c` 的 S99 M5 release audit 为 PASS，回执 `sha256:f788bcc3189d7644655418c3b47c1304ab2b51b5b4107c9bea8308057ea438c5` 已生成、独立验证，并与仓库 current-tree 回执比较 PASS。此次完整 `verify-m5.ps1` 在提交 Host 永久门更新前运行，S1–S99、C1–C24、workspace、strict Clippy、Python 89 tests、代码质量和合规均通过，最终只因工作树未提交在 S99 被 `RELEASE_TREE_DIRTY` 拒绝；提交 `68cca5a` 后单独重跑 S99 当前树审计通过。该回执不表示真实 SCM/LocalSystem 安装、交互桌面 helper、Linux/macOS 原生服务或 IP01–IP24 已验收。
 
 2026-10-21，分支 `shu/installed-product` 的 Web 入口 `49674b7`、审计定位修复 `57e34b8` 与宿主拆分 `26ce4b4` 已通过 688 passed / 0 failed / 5 默认 ignored、strict Clippy、合规、质量和宿主组件门。Python 工具 72 项中 1 项按平台跳过，其余通过；当前 341 个源文件、65 处历史规模债务。
