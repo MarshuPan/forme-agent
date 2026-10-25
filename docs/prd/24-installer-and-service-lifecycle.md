@@ -136,6 +136,8 @@ Windows 原生启动必需环境只额外包含 OS 查询得到的 `SystemRoot` 
 
 本节为已授权方案的具体实现契约。句柄文件 identity/硬链接查询、Low label 设置与回读、按句柄删除、child-process restriction 的新增 Win32 调用仍只准在 §29.9 的两个 adapter 文件，安全状态机/副本/事务逻辑保持 `forbid(unsafe_code)`。真实 Low worker 的读写、原路径拒绝、子进程/网络拒绝、冲突、取消和崩溃恢复各自取证；没有安装身份与完整平台证据前，不切换生产默认 adapter，不提升 IP10/IP24。
 
+进程仍挂起时，adapter 用 `AdjustTokenPrivileges(SE_PRIVILEGE_REMOVED)` 移除本 job token 中除 `SeChangeNotifyPrivilege` 外的特权，再重新查询证明剩余集合只有空集或该项；不把“当前 disabled”当作已移除。只允许操作刚创建并已在本 job 内的目标 token，不修改 Host token；查询/移除/回读失败时终止原树，绝不 resume 或放宽 allowlist。
+
 ### 4.2 Core 停服接缝（24.2 增量）
 
 `gateway` 增加 `GatewayLifecycleConfig`（版本、`drain_timeout`）与可注入可信停止信号的 `serve_environment_until` 外观；原 `serve_environment` 保持签名并委托同一实现。它仍创建唯一 ProductionRuntime，不是另一套运行时，也不新增 Web/Agent 停服路由。默认停止信号为前台 Ctrl+C；Unix 同时响应 SIGTERM。SCM/其他原生 service host 后续通过同一接缝提供 OS 控制信号，不能另设重启监管者。
