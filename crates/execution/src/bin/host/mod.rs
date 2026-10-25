@@ -15,6 +15,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use config::*;
+#[cfg(windows)]
+use forme_execution::installed::WindowsAgentExecutionListener;
 use forme_execution::installed::{ProductConfigStore, ProductHostBroker};
 use forme_protocol as p;
 use http::handle_connection;
@@ -186,11 +188,33 @@ fn run_host(
         runtime.development_workers,
         &runtime.worker_protected_paths,
     )?;
+    #[cfg(windows)]
+    let mut agent_pipe = if has_agent && runtime.managed {
+        Some(WindowsAgentExecutionListener::bind(
+            &runtime.install_id,
+            runtime
+                .core_image_path
+                .as_deref()
+                .ok_or_else(|| p::Error("managed Brain image binding is unavailable".into()))?,
+        )?)
+    } else {
+        None
+    };
+    #[cfg(windows)]
+    let agent_pipe_connections = Arc::new(AtomicUsize::new(0));
     let mut endpoints = vec![HostEndpoint::bind(
         runtime.host_bind,
         EndpointDomain::Maintenance,
     )?];
+    #[cfg(not(windows))]
     if has_agent {
+        endpoints.push(HostEndpoint::bind(
+            runtime.agent_execution_bind,
+            EndpointDomain::AgentExecution,
+        )?);
+    }
+    #[cfg(windows)]
+    if has_agent && !runtime.managed {
         endpoints.push(HostEndpoint::bind(
             runtime.agent_execution_bind,
             EndpointDomain::AgentExecution,
@@ -216,6 +240,10 @@ fn run_host(
                     .local_addr()
                     .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
             );
+        }
+        #[cfg(windows)]
+        if let Some(pipe) = agent_pipe.as_ref() {
+            println!("FORME_AGENT_EXECUTION_PIPE={}", pipe.name());
         }
         if let Some(path) = token_path().filter(|_| !runtime.managed) {
             println!("FORME_HOST_TOKEN_PATH={}", path.display());
@@ -265,6 +293,41 @@ fn run_host(
                 Err(_) => return Err(p::Error("host broker accept failed".into())),
             }
         }
+        #[cfg(windows)]
+        if let Some(pipe) = agent_pipe.as_mut() {
+            match pipe.try_accept() {
+                Ok(Some(stream)) => {
+                    accepted = true;
+                    if agent_pipe_connections.fetch_add(1, Ordering::AcqRel) >= 16 {
+                        agent_pipe_connections.fetch_sub(1, Ordering::AcqRel);
+                        drop(stream);
+                    } else {
+                        let broker = broker.clone();
+                        let bootstrap = bootstrap.clone();
+                        let worker = worker.clone();
+                        let connections = agent_pipe_connections.clone();
+                        std::thread::spawn(move || {
+                            struct ConnectionGuard(Arc<AtomicUsize>);
+                            impl Drop for ConnectionGuard {
+                                fn drop(&mut self) {
+                                    self.0.fetch_sub(1, Ordering::AcqRel);
+                                }
+                            }
+                            let _guard = ConnectionGuard(connections);
+                            let _ = handle_connection(
+                                stream,
+                                broker,
+                                worker,
+                                bootstrap,
+                                EndpointDomain::AgentExecution,
+                            );
+                        });
+                    }
+                }
+                Ok(None) => {}
+                Err(_) => return Err(p::Error("AgentExecution named pipe accept failed".into())),
+            }
+        }
         if !accepted {
             // A single supervisor owns both listeners and shutdown. Domain
             // connection budgets remain independent.
@@ -273,7 +336,9 @@ fn run_host(
     }
     // Stop admitting connections before draining operations that already own
     // journal/worker locks. A callback returning is not proof they finished.
-    let connections: Vec<_> = endpoints.iter().map(|e| e.connections.clone()).collect();
+    let mut connections: Vec<_> = endpoints.iter().map(|e| e.connections.clone()).collect();
+    #[cfg(windows)]
+    connections.push(agent_pipe_connections);
     drop(endpoints);
     on_stopping()?;
     let deadline = std::time::Instant::now() + Duration::from_secs(60);

@@ -36,8 +36,48 @@ pub trait WorkerBrokerTransport: Send + Sync {
 /// The endpoint and credential are installation facts. This type does not
 /// accept arbitrary paths, headers, credentials, or caller-selected domains.
 pub struct WorkerBrokerClient {
-    address: SocketAddr,
+    endpoint: AgentExecutionEndpoint,
     credential: Zeroizing<String>,
+}
+
+enum AgentExecutionEndpoint {
+    Tcp(SocketAddr),
+    #[cfg(windows)]
+    NamedPipe(String),
+}
+
+enum AgentExecutionStream {
+    Tcp(TcpStream),
+    #[cfg(windows)]
+    NamedPipe(std::fs::File),
+}
+
+impl Read for AgentExecutionStream {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.read(buffer),
+            #[cfg(windows)]
+            Self::NamedPipe(stream) => stream.read(buffer),
+        }
+    }
+}
+
+impl Write for AgentExecutionStream {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Tcp(stream) => stream.write(buffer),
+            #[cfg(windows)]
+            Self::NamedPipe(stream) => stream.write(buffer),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Tcp(stream) => stream.flush(),
+            #[cfg(windows)]
+            Self::NamedPipe(stream) => stream.flush(),
+        }
+    }
 }
 
 impl WorkerBrokerClient {
@@ -50,7 +90,25 @@ impl WorkerBrokerClient {
         }
         let credential = read_credential(credential_path)?;
         Ok(Self {
-            address,
+            endpoint: AgentExecutionEndpoint::Tcp(address),
+            credential,
+        })
+    }
+
+    /// Connects through the managed Windows named pipe. The server verifies
+    /// the calling process's Brain Service SID and installed image; the
+    /// bearer remains a separate application-layer proof.
+    #[cfg(windows)]
+    pub fn connect_named_pipe(pipe_name: &str, credential_path: &Path) -> p::Result<Self> {
+        if !pipe_name.starts_with(r"\\.\pipe\forme-agent-execution-v1-")
+            || pipe_name.len() > 256
+            || pipe_name.chars().any(char::is_control)
+        {
+            return Err(p::Error("agent execution pipe name is invalid".into()));
+        }
+        let credential = read_credential(credential_path)?;
+        Ok(Self {
+            endpoint: AgentExecutionEndpoint::NamedPipe(pipe_name.to_owned()),
             credential,
         })
     }
@@ -70,15 +128,27 @@ impl WorkerBrokerClient {
             return Err(p::Error("agent execution request is invalid".into()));
         }
 
-        let mut stream = TcpStream::connect_timeout(&self.address, REQUEST_TIMEOUT)
-            .map_err(|_| operation.transport_error())?;
-        stream
-            .set_read_timeout(Some(REQUEST_TIMEOUT))
-            .and_then(|_| stream.set_write_timeout(Some(REQUEST_TIMEOUT)))
-            .map_err(|_| operation.transport_error())?;
+        let (mut stream, host) = match &self.endpoint {
+            AgentExecutionEndpoint::Tcp(address) => {
+                let stream = TcpStream::connect_timeout(address, REQUEST_TIMEOUT)
+                    .map_err(|_| operation.transport_error())?;
+                stream
+                    .set_read_timeout(Some(REQUEST_TIMEOUT))
+                    .and_then(|_| stream.set_write_timeout(Some(REQUEST_TIMEOUT)))
+                    .map_err(|_| operation.transport_error())?;
+                (AgentExecutionStream::Tcp(stream), address.to_string())
+            }
+            #[cfg(windows)]
+            AgentExecutionEndpoint::NamedPipe(name) => (
+                AgentExecutionStream::NamedPipe(
+                    super::windows_agent_execution_native::open_agent_execution_pipe(name)?,
+                ),
+                "forme-agent-execution".to_owned(),
+            ),
+        };
         let header = format!(
             "{method} {path} HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nAccept: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            self.address,
+            host,
             self.credential.as_str(),
             body.len()
         );

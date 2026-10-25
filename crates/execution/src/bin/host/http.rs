@@ -11,21 +11,54 @@ use forme_protocol as p;
 const MAX_REQUEST: usize = 4 * 1024 * 1024;
 const MAX_HEADERS: usize = 16_384;
 
-pub(super) fn handle_connection(
-    mut stream: TcpStream,
+pub(super) trait HostConnection: Read + Write {
+    fn prepare(&mut self) -> p::Result<()>;
+    fn local_authority(&self) -> Option<String>;
+    fn release_before_dispatch(&mut self) -> p::Result<()>;
+}
+
+impl HostConnection for TcpStream {
+    fn prepare(&mut self) -> p::Result<()> {
+        self.set_nonblocking(false)
+            .and_then(|_| self.set_read_timeout(Some(Duration::from_secs(10))))
+            .and_then(|_| self.set_write_timeout(Some(Duration::from_secs(10))))
+            .map_err(|_| p::Error("host broker socket limits could not be applied".into()))
+    }
+
+    fn local_authority(&self) -> Option<String> {
+        self.local_addr().ok().map(|address| address.to_string())
+    }
+
+    fn release_before_dispatch(&mut self) -> p::Result<()> {
+        self.shutdown(std::net::Shutdown::Both)
+            .map_err(|_| p::Error("network response closure is unconfirmed".into()))
+    }
+}
+
+#[cfg(windows)]
+impl HostConnection for std::fs::File {
+    fn prepare(&mut self) -> p::Result<()> {
+        Ok(())
+    }
+
+    fn local_authority(&self) -> Option<String> {
+        None
+    }
+
+    fn release_before_dispatch(&mut self) -> p::Result<()> {
+        self.flush()
+            .map_err(|_| p::Error("AgentExecution pipe response could not be flushed".into()))
+    }
+}
+
+pub(super) fn handle_connection<S: HostConnection>(
+    mut stream: S,
     broker: Arc<ProductHostBroker>,
     worker: Arc<dyn IsolatedExecutorHost>,
     bootstrap: Option<Arc<forme_execution::installed::bootstrap::BootstrapAuthority>>,
     domain: EndpointDomain,
 ) -> p::Result<()> {
-    // Windows accepts inherit the listener's nonblocking mode. Each admitted
-    // handler owns a blocking connection with bounded IO; otherwise a delayed
-    // header/body produces WouldBlock and can abort a valid request.
-    stream
-        .set_nonblocking(false)
-        .and_then(|_| stream.set_read_timeout(Some(Duration::from_secs(10))))
-        .and_then(|_| stream.set_write_timeout(Some(Duration::from_secs(10))))
-        .map_err(|_| p::Error("host broker socket limits could not be applied".into()))?;
+    stream.prepare()?;
     let request = match read_request(&mut stream) {
         Ok(request) => request,
         Err(error) => {
@@ -33,17 +66,15 @@ pub(super) fn handle_connection(
             return Ok(());
         }
     };
-    let expected_host = stream
-        .local_addr()
-        .map_err(|_| p::Error("host broker endpoint is unavailable".into()))?
-        .to_string();
-    if request.header("host") != Some(expected_host.as_str()) {
-        write_error(
-            &mut stream,
-            400,
-            p::Error("host request authority is invalid".into()),
-        )?;
-        return Ok(());
+    if let Some(expected_host) = stream.local_authority() {
+        if request.header("host") != Some(expected_host.as_str()) {
+            write_error(
+                &mut stream,
+                400,
+                p::Error("host request authority is invalid".into()),
+            )?;
+            return Ok(());
+        }
     }
     if super::bootstrap::handles(&request.path) {
         let (status, body) =
@@ -97,8 +128,8 @@ pub(super) fn handle_connection(
     }
 }
 
-fn release_response(
-    stream: &mut TcpStream,
+fn release_response<S: HostConnection>(
+    stream: &mut S,
     broker: &ProductHostBroker,
     auth: &forme_execution::installed::HostAuth,
     request: p::ProductMaintenanceRequest,
@@ -117,8 +148,8 @@ fn release_response(
     })
 }
 
-fn network_response(
-    stream: &mut TcpStream,
+fn network_response<S: HostConnection>(
+    stream: &mut S,
     broker: &ProductHostBroker,
     auth: &forme_execution::installed::HostAuth,
     request: p::ProductMaintenanceRequest,
@@ -137,8 +168,8 @@ fn network_response(
     })
 }
 
-fn respond_before_dispatch(
-    stream: &mut TcpStream,
+fn respond_before_dispatch<S: HostConnection>(
+    stream: &mut S,
     body: &[u8],
     dispatch: impl FnOnce() -> p::Result<()>,
 ) -> p::Result<()> {
@@ -146,9 +177,7 @@ fn respond_before_dispatch(
     // LocalConfigurationClient reads to EOF. Closing the response releases its
     // Web request before stopping Web; this supervised worker remains counted
     // until dispatch finishes. A failed response must never trigger native IO.
-    stream
-        .shutdown(std::net::Shutdown::Both)
-        .map_err(|_| p::Error("network response closure is unconfirmed".into()))?;
+    stream.release_before_dispatch()?;
     dispatch()
 }
 
@@ -490,7 +519,7 @@ pub(crate) fn read_request(stream: &mut impl Read) -> p::Result<Request> {
     })
 }
 
-fn write_response(stream: &mut TcpStream, status: u16, body: &[u8]) -> p::Result<()> {
+fn write_response(stream: &mut impl Write, status: u16, body: &[u8]) -> p::Result<()> {
     let reason = match status {
         200 => "OK",
         400 => "Bad Request",
@@ -509,7 +538,7 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &[u8]) -> p::Result
         .map_err(|_| p::Error("host response could not be written".into()))
 }
 
-fn write_error(stream: &mut TcpStream, status: u16, error: p::Error) -> p::Result<()> {
+fn write_error(stream: &mut impl Write, status: u16, error: p::Error) -> p::Result<()> {
     let body = serde_json::to_vec(&serde_json::json!({
         "error": "host_request_rejected",
         "message": error.0,

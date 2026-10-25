@@ -209,6 +209,7 @@ pub(crate) struct HostRuntimeConfig {
     pub host_bind: SocketAddr,
     pub agent_execution_bind: SocketAddr,
     pub configuration_bind: SocketAddr,
+    pub core_image_path: Option<PathBuf>,
     pub has_agent_endpoint: bool,
     pub development_workers: bool,
     pub protected_paths: Vec<PathBuf>,
@@ -347,6 +348,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         host_bind,
         agent_execution_bind,
         configuration_bind,
+        core_image_path: None,
         has_agent_endpoint,
         development_workers,
         worker_protected_paths: protected_paths.clone(),
@@ -365,6 +367,14 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         .transpose()?
         .map(std::sync::Arc::new);
     let worker_protected_paths = config.preflight_references(path)?;
+    let core_image_path = Some(manifest.paths.releases.join("bin").join(format!(
+        "forme-gatewayd{}",
+        if manifest.target == p::ProductTarget::WindowsX86_64 {
+            ".exe"
+        } else {
+            ""
+        }
+    )));
     // Validate all trust/layout inputs before opening credentials or any journal.
     let release_stager = config
         .release_staging_config_path
@@ -421,6 +431,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         host_bind: config.host_bind,
         agent_execution_bind: config.agent_execution_bind,
         configuration_bind: config.configuration_bind,
+        core_image_path,
         has_agent_endpoint: true,
         development_workers: false,
         protected_paths,

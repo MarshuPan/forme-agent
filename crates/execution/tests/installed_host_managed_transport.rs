@@ -1,6 +1,12 @@
 //! Managed daemon is exercised without registering services or owner data.
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+#[cfg(not(windows))]
+use std::io::Read;
+use std::io::Write;
+#[cfg(not(windows))]
+use std::io::{BufRead, BufReader};
+use std::net::TcpListener;
+#[cfg(not(windows))]
+use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -128,6 +134,14 @@ impl Fixture {
             "created_at": 1
         });
         std::fs::create_dir_all(self.root.join("config")).unwrap();
+        if cfg!(windows) {
+            std::fs::create_dir_all(self.root.join("releases/bin")).unwrap();
+            std::fs::write(
+                self.root.join("releases/bin/forme-gatewayd.exe"),
+                b"managed brain image fixture",
+            )
+            .unwrap();
+        }
         std::fs::write(
             self.root.join("config/installation.json"),
             serde_json::to_vec(&manifest).unwrap(),
@@ -140,6 +154,7 @@ impl Fixture {
         .unwrap();
     }
 
+    #[cfg(not(windows))]
     fn start(&mut self) -> Vec<String> {
         self.child = Some(self.command().spawn().unwrap());
         let output = self.child.as_mut().unwrap().stdout.take().unwrap();
@@ -172,6 +187,7 @@ impl Drop for Fixture {
     }
 }
 
+#[cfg(not(windows))]
 fn status(address: SocketAddr, path: &str, token: &str) -> u16 {
     let mut socket = TcpStream::connect_timeout(&address, Duration::from_secs(5)).unwrap();
     socket
@@ -184,6 +200,7 @@ fn status(address: SocketAddr, path: &str, token: &str) -> u16 {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
     let mut fixture = Fixture::new();
     fixture.configure();
@@ -194,17 +211,17 @@ fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
         .unwrap()
         .parse()
         .unwrap();
-    let agent: SocketAddr = lines[1]
-        .strip_prefix("FORME_AGENT_EXECUTION_URL=http://")
-        .unwrap()
-        .parse()
-        .unwrap();
     assert_eq!(status(host, "/healthz", MAINTENANCE), 200);
     assert_eq!(
         status(host, "/healthz", "wrong-environment-credential"),
         401
     );
     assert_eq!(status(host, "/healthz", AGENT), 401);
+    let agent: SocketAddr = lines[1]
+        .strip_prefix("FORME_AGENT_EXECUTION_URL=http://")
+        .unwrap()
+        .parse()
+        .unwrap();
     // Health belongs to maintenance, even a correct agent token cannot cross.
     assert_eq!(status(agent, "/healthz", AGENT), 401);
     let probe = "/v1/agent/workers/managed-test-missing";
@@ -218,6 +235,7 @@ fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn managed_host_binds_installation_verification_once_and_rejects_manifest_replacement() {
     let mut fixture = Fixture::new();
     fixture.configure();
