@@ -172,6 +172,22 @@ impl Fixture {
             .expect("managed host did not settle")
     }
 
+    #[cfg(windows)]
+    fn start(&mut self) -> Vec<String> {
+        self.child = Some(self.command().spawn().unwrap());
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            if self.child.as_mut().unwrap().try_wait().unwrap().is_some() {
+                return Vec::new();
+            }
+            assert!(
+                Instant::now() < deadline,
+                "managed host did not fail closed"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
     fn stop(&mut self) {
         if let Some(child) = &mut self.child {
             let _ = child.kill();
@@ -235,6 +251,29 @@ fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
 }
 
 #[test]
+#[cfg(windows)]
+fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
+    // The repository fixture deliberately has no registered Brain Service SID.
+    // A managed Windows Host must therefore fail before opening either TCP
+    // fallback or the named pipe; this is the platform-side negative proof.
+    let mut fixture = Fixture::new();
+    fixture.configure();
+    assert!(fixture.start().is_empty());
+    assert!(!fixture
+        .child
+        .as_mut()
+        .unwrap()
+        .try_wait()
+        .unwrap()
+        .unwrap()
+        .success());
+    assert!(!fixture
+        .root
+        .join("environment-must-not-exist.jsonl")
+        .exists());
+}
+
+#[test]
 #[cfg(not(windows))]
 fn managed_host_binds_installation_verification_once_and_rejects_manifest_replacement() {
     let mut fixture = Fixture::new();
@@ -284,6 +323,44 @@ fn managed_host_binds_installation_verification_once_and_rejects_manifest_replac
             .count(),
         1
     );
+}
+
+#[test]
+#[cfg(windows)]
+fn managed_host_binds_installation_verification_once_and_rejects_manifest_replacement() {
+    // Without an installed service identity the managed listener remains
+    // fail-closed. Replacing the manifest does not create a TCP fallback or a
+    // second management journal fact.
+    let mut fixture = Fixture::new();
+    fixture.configure();
+    assert!(fixture.start().is_empty());
+    assert!(!fixture
+        .child
+        .as_mut()
+        .unwrap()
+        .try_wait()
+        .unwrap()
+        .unwrap()
+        .success());
+    let manifest_path = fixture.root.join("config/installation.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&manifest_path).unwrap()).unwrap();
+    manifest["release_digest"] = serde_json::json!(format!("sha256:{}", "c".repeat(64)));
+    std::fs::write(&manifest_path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    fixture.child = None;
+    assert!(fixture.start().is_empty());
+    assert!(!fixture
+        .child
+        .as_mut()
+        .unwrap()
+        .try_wait()
+        .unwrap()
+        .unwrap()
+        .success());
+    assert!(!fixture
+        .root
+        .join("environment-must-not-exist.jsonl")
+        .exists());
 }
 
 #[test]
