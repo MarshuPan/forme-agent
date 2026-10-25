@@ -130,6 +130,8 @@ AppContainer 证据不代替 broker 身份与 worker token 的独立证据。Win
 5. **持久化与副作用**：Host 独占写者是 runtime 的 sandbox lease lock；同一 job 的 Host 私有 `overlay-writeback-intent.json` 使用 create-new、限长和 flush，绑定 baseline 摘要、原 job/plan/permit、变更集合与最终内容摘要，先于第一次原目录副作用。新文件使用 create-new，既有文件经锁定原句柄写入，删除经该句柄标记；目录只在受 custody 的父目录内创建/删除，不覆盖新出现的文件。写完 flush、重新核验最终清单后，才落同样绑定的 `overlay-writeback-receipt.json`；Completed 不能只依据 worker 自报或 exit 0。
 6. **冲突、失败与恢复**：前置冲突/无权限/失效 permit/非法变更无回写；正常失败或取消只废弃副本。intent 之后的任何错误、receipt 缺失或损坏均为原 job 的 Unknown；保留整个副本、baseline、intent 与已观察证据，不自动重做、不自动回滚、不换号。启动恢复仍先终止原树、撤 ACL、删除 AppContainer identity，但有未闭合 intent 时禁止删除 job 目录、禁止新 worker admission，等待原操作核验/owner 裁决。receipt 与原意图不一致同样阻断；清理不能销毁 Unknown 证据。没有 intent 的旧 lease 按原清理协议兼容处理；不改旧 hash/序列。
 
+补充持久性口径：有效回写 receipt 的 job/plan/intent/baseline/result 摘要必须在移除 job 目录前追加到同一个 sandbox lease journal，旧记录的 hash/序列不变；这保留已验证副作用的审计证据，不自动改变 brain/worker Unknown。Windows action 的路径须在最终计划形成前使用现有 ResourceRef 支持的盘符加 `/` 拼写，Host 不改已审批的参数或 digest。完成时分别重查原 spec 绑定与当前 permit 截止时间，不把原执行 timeout 当作重新 dispatch 的剩余预算。
+
 本节为已授权方案的具体实现契约。句柄文件 identity/硬链接查询、Low label 设置与回读、按句柄删除、child-process restriction 的新增 Win32 调用仍只准在 §29.9 的两个 adapter 文件，安全状态机/副本/事务逻辑保持 `forbid(unsafe_code)`。真实 Low worker 的读写、原路径拒绝、子进程/网络拒绝、冲突、取消和崩溃恢复各自取证；没有安装身份与完整平台证据前，不切换生产默认 adapter，不提升 IP10/IP24。
 
 ### 4.2 Core 停服接缝（24.2 增量）
