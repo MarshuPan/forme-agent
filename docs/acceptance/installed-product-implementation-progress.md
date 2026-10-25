@@ -4,7 +4,7 @@
 
 2026-10-25 `85b59f5` 完成 [SCM Host 当前进程绑定](installed-product-scm-browser-hardening-20261025.md)：受管 Host 在加载凭据/开放 listener 前核对固定 SCM 注册；上报 Running 后要求 OWN_PROCESS、Running 与当前 PID 精确一致，并在两次 PID 观察之间复核注册。永久宿主门已扩展并通过 163/163 命名场景；该证据仍不等于 LocalSystem token、core peer、管理员安装或 IP10/IP24。
 
-2026-10-25 `a8ac11b` 完成 [真实浏览器 fixture framing 修复](installed-product-scm-browser-hardening-20261025.md)：完整请求头、有界读取、idle preconnection 隔离和不完整请求零 mutation。真实 S38、S68 均通过，真实 Windows AppContainer/overlay 3/3 通过；M5 总门此前仅因 NOTICE 缺少 `windows-sys 0.61.2` 被 release audit 阻断，已补齐并等待当前树审计回执重验。
+2026-10-25 `a8ac11b` 完成 [真实浏览器 fixture framing 修复](installed-product-scm-browser-hardening-20261025.md)：完整请求头、有界读取、idle preconnection 隔离和不完整请求零 mutation。真实 S38、S68 均通过，真实 Windows AppContainer/overlay 3/3 通过；M5 总门此前仅因 NOTICE 缺少 `windows-sys 0.61.2` 被 release audit 阻断，已补齐，当前树独立 release audit 已 PASS（仓库回执随后写入）。
 
 2026-10-25 `b0f5cfb` 完成 owner 选择的 [Windows 私有副本/overlay 与 Host 核验回写](installed-product-windows-private-workspace-acceptance-20261025.md)：原 workspace 不降低完整性或授予 worker，精确计划绑定、句柄 custody、整批冲突拒绝、durable intent/receipt、Unknown 保留与启动恢复已实现。最新源码质量门为 171 suites、1018 Rust passed / 0 failed / 9 默认 ignored，前端 77/77、strict Clippy/完整合规 PASS；宿主永久门 161 个命名场景和显式真实 AppContainer 3/3 PASS。三个场景使用临时数据与当前交互 Host，不代替 SCM 服务身份、真实 Brain/Web/keys ACL、会话 helper 或原生安装验收；生产仍为 `UnavailableWorkerIsolation`，IP10/IP24 未通过。此前 `d0fb681` 的 A 待实施描述是当时状态，由本条更新；完整 M5/current-tree release receipt 继续重验，不沿用旧回执。
 
