@@ -215,6 +215,10 @@ pub struct WorkerExecutionSpec {
     pub normalized_action_digest: SchemaDigest,
     pub timeout: DurationMs,
     pub output_budget_bytes: u64,
+    /// Optional placement binding for a user desktop session. The Host owns
+    /// the helper admission; this field cannot create permission by itself.
+    #[serde(default)]
+    pub desktop_session: Option<super::DesktopSessionBinding>,
 }
 
 impl WorkerExecutionSpec {
@@ -248,6 +252,14 @@ impl WorkerExecutionSpec {
         }
         if now >= job.deadline || now >= permit.deadline {
             return Err(Error("worker execution spec has expired".into()));
+        }
+        if let Some(binding) = &self.desktop_session {
+            binding.validate_for(job, permit, now)?;
+            if !matches!(self.backend, BackendKind::Computer | BackendKind::Pty) {
+                return Err(Error(
+                    "desktop session binding requires a computer or PTY backend".into(),
+                ));
+            }
         }
         let encoded = serde_json::to_vec(self)
             .map_err(|_| Error("worker execution spec cannot be encoded".into()))?;

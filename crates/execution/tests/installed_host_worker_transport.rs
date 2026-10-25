@@ -278,6 +278,7 @@ fn typed_execution_request(job_id: &str, deadline: p::Timestamp) -> p::WorkerDis
         normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
         timeout: p::DurationMs(5_000),
         output_budget_bytes: 4 * 1024,
+        desktop_session: None,
     });
     request
 }

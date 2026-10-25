@@ -13,6 +13,8 @@ pub(super) struct WorkerExecutionBinding {
     normalized_action_digest: p::SchemaDigest,
     timeout: p::DurationMs,
     output_budget_bytes: u64,
+    #[serde(default)]
+    desktop_session: Option<p::DesktopSessionBinding>,
 }
 
 impl WorkerExecutionBinding {
@@ -24,6 +26,7 @@ impl WorkerExecutionBinding {
             normalized_action_digest: spec.normalized_action_digest.clone(),
             timeout: spec.timeout,
             output_budget_bytes: spec.output_budget_bytes,
+            desktop_session: spec.desktop_session.clone(),
         }
     }
 
@@ -46,6 +49,9 @@ impl WorkerExecutionBinding {
             return Err(p::Error(
                 "worker journal execution binding is invalid".into(),
             ));
+        }
+        if let Some(binding) = &self.desktop_session {
+            binding.validate_for(job, permit, at)?;
         }
         Ok(())
     }

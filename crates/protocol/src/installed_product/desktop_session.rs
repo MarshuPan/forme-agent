@@ -4,7 +4,7 @@
 //! policy, credentials, or the EventStore.
 use std::collections::BTreeSet;
 
-use super::{validate_product_digest, validate_product_id};
+use super::{validate_product_digest, validate_product_id, WorkerJob, WorkerPermit};
 use crate::{
     ActionId, AuthorityEpoch, Error, Nonce, PlanDigest, SchemaDigest, SchemaVersion, Timestamp,
     VerifiedPrincipal,
@@ -143,6 +143,30 @@ impl DesktopSessionBinding {
         self.validate()?;
         if now < self.issued_at || now >= self.expires_at {
             return Err(Error("desktop session grant is not currently valid".into()));
+        }
+        Ok(())
+    }
+
+    pub fn validate_for(
+        &self,
+        job: &WorkerJob,
+        permit: &WorkerPermit,
+        now: Timestamp,
+    ) -> crate::Result<()> {
+        self.validate_at(now)?;
+        if self.owner_ref != job.owner_ref
+            || self.action_ref != job.action_ref
+            || self.plan_digest != job.plan_digest
+            || self.plan_digest != permit.plan_digest
+            || self.authority_epoch != job.authority_epoch
+            || self.authority_epoch != permit.authority_epoch
+            || self.nonce != job.nonce
+            || self.nonce != permit.nonce
+            || self.expires_at > job.deadline
+        {
+            return Err(Error(
+                "desktop session grant is not bound to the exact job".into(),
+            ));
         }
         Ok(())
     }

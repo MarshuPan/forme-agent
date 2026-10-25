@@ -67,6 +67,7 @@ fn request(now: p::Timestamp) -> p::WorkerDispatchRequest {
         normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
         timeout: p::DurationMs(5_000),
         output_budget_bytes: 4 * 1024,
+        desktop_session: None,
     };
     p::WorkerDispatchRequest {
         schema_version: p::SchemaVersion(1),

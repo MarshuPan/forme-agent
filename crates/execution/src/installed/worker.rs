@@ -27,6 +27,11 @@ enum WorkerFact {
         #[serde(default)]
         execution_binding: Option<WorkerExecutionBinding>,
     },
+    DesktopObservation {
+        job_id: String,
+        binding: Box<p::DesktopSessionBinding>,
+        observation: Box<p::DesktopSessionObservation>,
+    },
     Started {
         job_id: String,
         at: p::Timestamp,
@@ -73,6 +78,8 @@ struct WorkerRecord {
     job: p::WorkerJob,
     permit: p::WorkerPermit,
     execution_binding: Option<WorkerExecutionBinding>,
+    desktop_binding: Option<p::DesktopSessionBinding>,
+    desktop_observation: Option<p::DesktopSessionObservation>,
     state: p::WorkerState,
     receipt: Option<p::WorkerReceipt>,
     cancel_receipt: Option<p::WorkerCancelReceipt>,
@@ -133,12 +140,39 @@ impl WorkerProjection {
                         job: *job.clone(),
                         permit: *permit.clone(),
                         execution_binding: execution_binding.clone(),
+                        desktop_binding: None,
+                        desktop_observation: None,
                         state: p::WorkerState::Pending,
                         receipt: None,
                         cancel_receipt: None,
                         reason_ref: None,
                     },
                 );
+            }
+            WorkerFact::DesktopObservation {
+                job_id,
+                binding,
+                observation,
+            } => {
+                validate_worker_id(job_id)?;
+                let record = self.jobs.get_mut(job_id).ok_or_else(invalid_journal)?;
+                if !matches!(
+                    record.state,
+                    p::WorkerState::Pending | p::WorkerState::Running
+                ) {
+                    return Err(invalid_journal());
+                }
+                binding.validate_for(&record.job, &record.permit, observation.observed_at)?;
+                observation.validate()?;
+                if observation.state == p::DesktopSessionState::Ready {
+                    observation.validate_for(binding)?;
+                } else if observation.helper_ref != binding.helper_ref
+                    || observation.platform != binding.platform
+                {
+                    return Err(invalid_journal());
+                }
+                record.desktop_binding = Some(*binding.clone());
+                record.desktop_observation = Some(*observation.clone());
             }
             WorkerFact::Started { job_id, at } => {
                 validate_worker_id(job_id)?;
@@ -392,6 +426,54 @@ impl WorkerJournal {
         Ok(observation(record, now))
     }
 
+    pub fn record_desktop_observation(
+        &self,
+        job_id: &str,
+        binding: p::DesktopSessionBinding,
+        observation: p::DesktopSessionObservation,
+        now: p::Timestamp,
+    ) -> p::Result<()> {
+        validate_worker_id(job_id)?;
+        let mut writer = self.writer.lock().map_err(|_| storage_error())?;
+        let record = writer
+            .projection
+            .jobs
+            .get(job_id)
+            .ok_or_else(|| p::Error("worker job does not exist".into()))?;
+        if !matches!(
+            record.state,
+            p::WorkerState::Pending | p::WorkerState::Running
+        ) {
+            return Err(p::Error(
+                "desktop session observation is not current".into(),
+            ));
+        }
+        binding.validate_for(&record.job, &record.permit, now)?;
+        observation.validate()?;
+        if observation.observed_at > now {
+            return Err(p::Error(
+                "desktop session observation is from the future".into(),
+            ));
+        }
+        if observation.state == p::DesktopSessionState::Ready {
+            observation.validate_for(&binding)?;
+        } else if observation.helper_ref != binding.helper_ref
+            || observation.platform != binding.platform
+        {
+            return Err(p::Error(
+                "desktop session observation is not bound to the grant".into(),
+            ));
+        }
+        append_fact(
+            &mut writer,
+            WorkerFact::DesktopObservation {
+                job_id: job_id.into(),
+                binding: Box::new(binding),
+                observation: Box::new(observation),
+            },
+        )
+    }
+
     pub fn record_cancel_receipt(
         &self,
         receipt: p::WorkerCancelReceipt,
@@ -474,6 +556,20 @@ impl WorkerJournal {
             .get(job_id)
             .ok_or_else(|| p::Error("worker job does not exist".into()))?;
         Ok(observation(record, now))
+    }
+
+    pub fn existing_observation(
+        &self,
+        job_id: &str,
+        now: p::Timestamp,
+    ) -> p::Result<Option<p::WorkerObservation>> {
+        validate_worker_id(job_id)?;
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        Ok(writer
+            .projection
+            .jobs
+            .get(job_id)
+            .map(|record| observation(record, now)))
     }
 
     pub fn job(&self, job_id: &str) -> p::Result<p::WorkerJob> {

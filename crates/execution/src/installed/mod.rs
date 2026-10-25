@@ -2,6 +2,7 @@
 #![deny(unsafe_code)]
 
 pub mod bootstrap;
+mod desktop_helper;
 #[cfg(windows)]
 mod firewall_windows;
 mod host;
@@ -53,6 +54,7 @@ mod worker_client;
 mod worker_config;
 mod worker_host;
 
+pub use desktop_helper::{DesktopHelperAdapter, UnavailableDesktopHelper};
 pub use host::*;
 pub use journal::*;
 #[cfg(target_os = "linux")]

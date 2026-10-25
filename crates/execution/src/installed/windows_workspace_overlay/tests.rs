@@ -90,6 +90,7 @@ impl Fixture {
             normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
             timeout: p::DurationMs(10_000),
             output_budget_bytes: 4096,
+            desktop_session: None,
         };
         Self {
             _temporary: temporary,

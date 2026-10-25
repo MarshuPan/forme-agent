@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use forme_execution::installed::{
-    HostCredentials, HostManagement, IsolatedExecutorHost, NativeServiceManager, ProductHostBroker,
-    WorkerExecutorHost, WorkerIsolation,
+    DesktopHelperAdapter, HostCredentials, HostManagement, IsolatedExecutorHost,
+    NativeServiceManager, ProductHostBroker, WorkerExecutorHost, WorkerIsolation,
 };
 use forme_protocol as p;
 
@@ -90,6 +90,86 @@ impl WorkerIsolation for FakeIsolation {
     }
 }
 
+#[derive(Clone)]
+struct FakeDesktopHelper {
+    observations: Arc<AtomicU64>,
+    executions: Arc<AtomicU64>,
+    lose_after_first_observation: bool,
+}
+
+impl FakeDesktopHelper {
+    fn live_observation(
+        binding: &p::DesktopSessionBinding,
+        now: p::Timestamp,
+    ) -> p::DesktopSessionObservation {
+        p::DesktopSessionObservation {
+            schema_version: p::DESKTOP_SESSION_SCHEMA_VERSION,
+            helper_ref: binding.helper_ref.clone(),
+            grant_ref: Some(binding.grant_ref.clone()),
+            state: p::DesktopSessionState::Ready,
+            liveness: p::DesktopSessionLiveness::Live,
+            os_user_ref: Some(binding.os_user_ref.clone()),
+            os_session_ref: Some(binding.os_session_ref.clone()),
+            session_generation: Some(binding.session_generation),
+            platform: binding.platform,
+            desktop_ref: Some(binding.desktop_ref.clone()),
+            peer_ref: Some("peer:desktop".into()),
+            receipt_ref: None,
+            reason_ref: None,
+            observed_at: now,
+        }
+    }
+}
+
+impl DesktopHelperAdapter for FakeDesktopHelper {
+    fn observe(
+        &self,
+        binding: &p::DesktopSessionBinding,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopSessionObservation> {
+        let call = self.observations.fetch_add(1, Ordering::SeqCst) + 1;
+        if self.lose_after_first_observation && call > 1 {
+            return Ok(p::DesktopSessionObservation {
+                schema_version: p::DESKTOP_SESSION_SCHEMA_VERSION,
+                helper_ref: binding.helper_ref.clone(),
+                grant_ref: None,
+                state: p::DesktopSessionState::Unavailable,
+                liveness: p::DesktopSessionLiveness::Lost,
+                os_user_ref: None,
+                os_session_ref: None,
+                session_generation: None,
+                platform: binding.platform,
+                desktop_ref: None,
+                peer_ref: None,
+                receipt_ref: None,
+                reason_ref: Some("reason:desktop-session-lost".into()),
+                observed_at: now,
+            });
+        }
+        Ok(Self::live_observation(binding, now))
+    }
+
+    fn execute(
+        &self,
+        request: &p::DesktopActionRequest,
+        _intent: &p::ActionIntent,
+    ) -> p::Result<p::DesktopActionReceipt> {
+        self.executions.fetch_add(1, Ordering::SeqCst);
+        Ok(p::DesktopActionReceipt {
+            schema_version: p::DESKTOP_SESSION_SCHEMA_VERSION,
+            job_id: request.job_id.clone(),
+            permit_ref: request.permit_ref.clone(),
+            action_ref: request.binding.action_ref.clone(),
+            plan_digest: request.binding.plan_digest.clone(),
+            nonce: request.binding.nonce.clone(),
+            normalized_action_digest: request.normalized_action_digest.clone(),
+            outcome: p::DesktopActionOutcome::Committed,
+            result_ref: Some("result:desktop".into()),
+            observed_at: request.deadline - 1,
+        })
+    }
+}
+
 fn auths(
     temp: &Temp,
 ) -> (
@@ -145,6 +225,79 @@ fn make_job(deadline: p::Timestamp) -> (p::WorkerJob, p::WorkerPermit) {
         issued_at: 1,
     };
     (job, permit)
+}
+
+fn desktop_execution(
+    job: &mut p::WorkerJob,
+    permit: &mut p::WorkerPermit,
+) -> p::WorkerExecutionSpec {
+    let intent = p::ActionIntent {
+        schema_version: p::SchemaVersion(1),
+        intent_id: job.action_ref.clone(),
+        source: p::Source::Internal,
+        goal: p::GoalRef("goal:desktop".into()),
+        backend_hint: p::BackendKind::Computer,
+        capability_ref: p::CapabilityRef("computer:desktop".into()),
+        action_type: p::ActionType::Execute,
+        scope: job.workspace_scope.clone(),
+        risk_hint: p::Risk::Low,
+        expected_effect: p::ExpectedEffect::Internal,
+        rollback_expectation: p::RollbackBoundary("none".into()),
+        parameters: p::ActionParameters::Computer(p::ComputerActionSpec {
+            schema_version: p::SchemaVersion(1),
+            driver: p::ProviderId("driver:desktop-fixture".into()),
+            surface: p::SurfaceRef("surface:desktop".into()),
+            bounds: p::CoordinateBounds {
+                schema_version: p::SchemaVersion(1),
+                min_x: 0,
+                min_y: 0,
+                max_x_exclusive: 800,
+                max_y_exclusive: 600,
+            },
+            operation: p::ComputerOperation::Click {
+                x: 20,
+                y: 30,
+                button: p::PointerButton::Primary,
+            },
+            artifact_scope: job.workspace_scope.clone(),
+        }),
+        requested_permissions: Vec::new(),
+        requested_at: 2,
+        estimated_output_bytes: 128,
+        estimated_duration: p::DurationMs(50),
+    };
+    let resources = p::affected_resources_for(&intent);
+    job.affected_resources = resources.clone();
+    permit.affected_resources = resources.clone();
+    p::WorkerExecutionSpec {
+        schema_version: p::SchemaVersion(1),
+        plan_digest: job.plan_digest.clone(),
+        intent: intent.clone(),
+        backend: p::BackendKind::Computer,
+        scope: job.workspace_scope.clone(),
+        affected_resources: resources,
+        normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
+        timeout: p::DurationMs(100),
+        output_budget_bytes: 4 * 1024,
+        desktop_session: Some(p::DesktopSessionBinding {
+            schema_version: p::DESKTOP_SESSION_SCHEMA_VERSION,
+            helper_ref: "helper:desktop".into(),
+            grant_ref: "grant:desktop".into(),
+            owner_ref: job.owner_ref.clone(),
+            os_user_ref: "os-user:desktop".into(),
+            os_session_ref: "os-session:desktop".into(),
+            session_generation: 4,
+            platform: p::DesktopPlatform::Windows,
+            desktop_ref: "desktop:primary".into(),
+            action_ref: job.action_ref.clone(),
+            plan_digest: job.plan_digest.clone(),
+            authority_epoch: job.authority_epoch,
+            nonce: job.nonce.clone(),
+            capabilities: [p::DesktopCapability::PointerClick].into_iter().collect(),
+            issued_at: 1,
+            expires_at: 900,
+        }),
+    }
 }
 
 fn host<I: WorkerIsolation>(temp: &Temp, isolation: I) -> WorkerExecutorHost<I> {
@@ -422,4 +575,147 @@ fn cancellation_waits_for_admission_to_finish_before_touching_the_platform() {
         .unwrap()
         .validate()
         .unwrap();
+}
+
+#[test]
+fn desktop_helper_dispatch_is_exact_and_terminal_receipt_is_idempotent() {
+    let temp = Temp::new();
+    let (_broker, maintenance, agent) = auths(&temp);
+    let helper = FakeDesktopHelper {
+        observations: Arc::new(AtomicU64::new(0)),
+        executions: Arc::new(AtomicU64::new(0)),
+        lose_after_first_observation: false,
+    };
+    let host = WorkerExecutorHost::open_with_adapters(
+        &temp.worker_journal(),
+        p::canonical_digest(&AGENT_TOKEN).unwrap(),
+        p::AuthorityEpoch(1),
+        [p::Scope("workspace:one".into())].into_iter().collect(),
+        FakeIsolation::default(),
+        helper.clone(),
+    )
+    .unwrap();
+    let (mut job, mut permit) = make_job(1_000);
+    let execution = desktop_execution(&mut job, &mut permit);
+    let first = host
+        .dispatch_with_execution(
+            &agent,
+            job.clone(),
+            permit.clone(),
+            Some(execution.clone()),
+            10,
+        )
+        .unwrap();
+    assert_eq!(first.state, p::WorkerState::Completed);
+    assert_eq!(first.outcome, Some(p::WorkerOutcome::Completed));
+    assert_eq!(helper.executions.load(Ordering::SeqCst), 1);
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 2);
+
+    let duplicate = host
+        .dispatch_with_execution(
+            &agent,
+            job.clone(),
+            permit.clone(),
+            Some(execution.clone()),
+            11,
+        )
+        .unwrap();
+    assert_eq!(duplicate.receipt_ref, first.receipt_ref);
+    assert_eq!(helper.executions.load(Ordering::SeqCst), 1);
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 2);
+
+    let mut changed = execution;
+    changed.desktop_session.as_mut().unwrap().session_generation = 5;
+    assert!(host
+        .dispatch_with_execution(&agent, job.clone(), permit.clone(), Some(changed), 11)
+        .is_err());
+    assert_eq!(helper.executions.load(Ordering::SeqCst), 1);
+
+    assert!(host
+        .dispatch_with_execution(&maintenance, job, permit, None, 12)
+        .is_err());
+}
+
+#[test]
+fn desktop_helper_loss_after_start_is_unknown_and_never_retried() {
+    let temp = Temp::new();
+    let (_broker, _maintenance, agent) = auths(&temp);
+    let helper = FakeDesktopHelper {
+        observations: Arc::new(AtomicU64::new(0)),
+        executions: Arc::new(AtomicU64::new(0)),
+        lose_after_first_observation: true,
+    };
+    let host = WorkerExecutorHost::open_with_adapters(
+        &temp.worker_journal(),
+        p::canonical_digest(&AGENT_TOKEN).unwrap(),
+        p::AuthorityEpoch(1),
+        [p::Scope("workspace:one".into())].into_iter().collect(),
+        FakeIsolation::default(),
+        helper.clone(),
+    )
+    .unwrap();
+    let (mut job, mut permit) = make_job(1_000);
+    let execution = desktop_execution(&mut job, &mut permit);
+    assert!(host
+        .dispatch_with_execution(
+            &agent,
+            job.clone(),
+            permit.clone(),
+            Some(execution.clone()),
+            10
+        )
+        .is_err());
+    let unknown = host.probe(&agent, &job.job_id, 11).unwrap();
+    assert_eq!(unknown.state, p::WorkerState::Unknown);
+    assert_eq!(unknown.outcome, Some(p::WorkerOutcome::Unknown));
+    assert_eq!(helper.executions.load(Ordering::SeqCst), 0);
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 2);
+
+    let retry = host
+        .dispatch_with_execution(&agent, job, permit, Some(execution), 12)
+        .unwrap();
+    assert_eq!(retry.state, p::WorkerState::Unknown);
+    assert_eq!(helper.executions.load(Ordering::SeqCst), 0);
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn desktop_grant_expiry_and_capability_mismatch_are_rejected_before_helper_call() {
+    let temp = Temp::new();
+    let (_broker, _maintenance, agent) = auths(&temp);
+    let helper = FakeDesktopHelper {
+        observations: Arc::new(AtomicU64::new(0)),
+        executions: Arc::new(AtomicU64::new(0)),
+        lose_after_first_observation: false,
+    };
+    let host = WorkerExecutorHost::open_with_adapters(
+        &temp.worker_journal(),
+        p::canonical_digest(&AGENT_TOKEN).unwrap(),
+        p::AuthorityEpoch(1),
+        [p::Scope("workspace:one".into())].into_iter().collect(),
+        FakeIsolation::default(),
+        helper.clone(),
+    )
+    .unwrap();
+
+    let (mut job, mut permit) = make_job(1_000);
+    let mut expired = desktop_execution(&mut job, &mut permit);
+    expired.desktop_session.as_mut().unwrap().expires_at = 9;
+    assert!(host
+        .dispatch_with_execution(&agent, job.clone(), permit.clone(), Some(expired), 10)
+        .is_err());
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 0);
+
+    let (mut job, mut permit) = make_job(1_000);
+    let mut wrong_capability = desktop_execution(&mut job, &mut permit);
+    wrong_capability
+        .desktop_session
+        .as_mut()
+        .unwrap()
+        .capabilities = [p::DesktopCapability::Screenshot].into_iter().collect();
+    assert!(host
+        .dispatch_with_execution(&agent, job, permit, Some(wrong_capability), 10)
+        .is_err());
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 0);
+    assert_eq!(helper.executions.load(Ordering::SeqCst), 0);
 }
