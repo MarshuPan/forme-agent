@@ -17,7 +17,7 @@
 2. **事件是大脑模块间唯一事实交换**:`EventKind` 只活在 `forme-protocol`;所有稳定脑状态变更必须落事件(append 只经 `forme-store` 单写者);新增事件类型必须先改 architecture §2.1.1 再改代码。安装/认证/服务管理事实按 canonical §29 独立持久化，不属于脑事件，也不得写脑表或推进 run。
 3. **PRD 里的 trait 签名与协议对象是冻结契约**:实现它,不重设计;要改先提文档变更,经确认后代码跟进。
 4. **原创性(canonical §12)**:严禁复制第三方项目的源码、prompt、错误文案、命名体系、目录结构、测试 fixture；唯一限定例外为 owner 已授权的 DeepSeek 前端 UI，严格按 `docs/compliance/frontend-reuse-policy.md` 逐文件审查/白名单/NOTICE，不含其内核、插件框架、服务端、prompt 或 fixture。`research/upstreams/` 永不引用;每次提交前 `bash tools/compliance-doctor.sh` 必须 PASS。
-5. **默认禁止 unsafe**:每 crate 使用 `#![forbid(unsafe_code)]`；唯一获准例外是 canonical §29.9 明列的两个 Windows AppContainer Win32 adapter 文件。`execution` crate 根与 `installed` 模块仅因此使用 `#![deny(unsafe_code)]`，两个 adapter 文件必须各自显式 `#![allow(unsafe_code)]`；质量门拒绝任何第三个例外。每个协议对象带 `SchemaVersion`(canonical §9)。
+5. **默认禁止 unsafe**:每 crate 使用 `#![forbid(unsafe_code)]`；唯一获准例外是 canonical §29.9 明列的三个 Windows 原生边界文件：两个 AppContainer adapter 与一个 AgentExecution peer transport adapter。`execution` crate 根与 `installed` 模块仅因此使用 `#![deny(unsafe_code)]`，三个 adapter 文件必须各自显式 `#![allow(unsafe_code)]`；质量门拒绝未审计的其他例外。每个协议对象带 `SchemaVersion`(canonical §9)。
 6. **治理不变量不得绕过**(architecture §6):harness-first、执行前重查、能力门在出口、候选先于稳定、trust 不覆盖 permission、审批绑定 plan digest(防 TOCTOU)、`stream_seq` 为排序权威、副作用不明绝不盲重试。
 7. **V1 闭合不是 M6**:不新增内核/crate/依赖边；前 97 EventKinds strict prefix，只允许 `WorkspaceCharterChanged`、`DataLifecycleApplied` 末尾 additive；C1–C24 不是 S100+。
 8. **历史 M0 边界**:M0 当时的薄化指引（激活扩散/签名学习/自动提升留在后续）只描述历史基线；V1 闭合按 `prd/23` 明确激活的能力实施，不得用历史 M0 口径阻断 B/C/D，也不得借闭合之名回退 M0 治理。

@@ -74,7 +74,7 @@
 - cookie HttpOnly、Host/Origin/CSRF、登录/注销/epoch、近期重认证在服务器 enforce。敏感 UI 缓存只在内存；退出、失效、BFCache 恢复先重新核验身份。
 - 密码使用成熟 Argon2id；随机秘密来自 OS entropy；摘要/签名/AEAD 使用成熟库。禁止自研加密或把数据 key 派生自唯一登录口令。
 - 安装及管理与 AgentExecution 分域；所有平台操作有限 allowlist、绝对程序路径、闭合参数、最小环境。未验证强隔离时 blocked，不以普通子进程冒充沙箱。
-- Rust crate 默认保持 `#![forbid(unsafe_code)]`。唯一例外是 `crates/execution/src/installed/windows_appcontainer_acl.rs` 与 `windows_appcontainer_native.rs` 的审计 Win32 adapter：`execution` 根和 `installed` 模块改用 `deny(unsafe_code)`，这两个文件只允许围绕 `windows-sys` FFI 的最小封装。新增 Win32 调用、第三个 `allow(unsafe_code)` 文件或把例外扩到整个 crate 都是阻断项；该 adapter 仍须通过 token/ACL/Job/恢复证据，不能仅因存在代码而宣称 IP10/IP24。
+- Rust crate 默认保持 `#![forbid(unsafe_code)]`。唯一例外是 `crates/execution/src/installed/windows_appcontainer_acl.rs`、`windows_appcontainer_native.rs` 与独立的 `windows_agent_execution_native.rs` 审计 Win32 adapter：`execution` 根和 `installed` 模块改用 `deny(unsafe_code)`，三个文件只允许围绕各自的 `windows-sys` FFI 边界做最小封装。未列入 canonical §29.9 的 Win32 调用、第四个 `allow(unsafe_code)` 文件或把例外扩到整个 crate 都是阻断项；这些 adapter 仍须通过对应的 token/ACL/Job/pipe/恢复证据，不能仅因存在代码而宣称 IP10/IP24。
 - 第三方前端仅按 `frontend-reuse-policy.md` 逐文件准入；依赖 exact pin、lockfile、NOTICE/SBOM 与漏洞审计。不得批量复制上游再扩大豁免。
 - 组件提供 loading/empty/error/conflict/offline/unknown；键盘、窄屏、色彩对比与 reduced motion 需真实浏览器检查。
 
