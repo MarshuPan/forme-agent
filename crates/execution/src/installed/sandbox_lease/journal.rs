@@ -11,7 +11,8 @@ use super::projection::{
 use super::{
     SandboxAclMutation, SandboxAclOperation, SandboxAclReadback, SandboxFileIdentity,
     SandboxLeaseBinding, SandboxLeaseRecoveryView, SandboxProcessTreeTermination,
-    SandboxRecoveryStage, SandboxTargetAccess, JOURNAL_FILE, MAX_JOURNAL_BYTES, MAX_RECORD_BYTES,
+    SandboxRecoveryStage, SandboxTargetAccess, SandboxWritebackReceipt, JOURNAL_FILE,
+    MAX_JOURNAL_BYTES, MAX_RECORD_BYTES,
 };
 use forme_protocol as p;
 
@@ -284,6 +285,24 @@ impl SandboxLeaseJournal {
         self.append(LeaseFact::CleanupReceipt {
             lease_id: lease_id.to_owned(),
         })
+    }
+
+    /// Retains exact-plan writeback evidence before directory removal starts.
+    /// Same evidence is idempotent; conflicting or late evidence is rejected.
+    pub fn record_writeback_receipt(
+        &self,
+        lease_id: &str,
+        receipt: SandboxWritebackReceipt,
+    ) -> p::Result<()> {
+        self.append(LeaseFact::WorkspaceWritebackVerified {
+            lease_id: lease_id.to_owned(),
+            receipt,
+        })
+    }
+
+    /// Reads the retained proof without changing the original job outcome.
+    pub fn writeback_receipt(&self, lease_id: &str) -> p::Result<Option<SandboxWritebackReceipt>> {
+        Ok(self.lease(lease_id)?.writeback_receipt)
     }
 
     /// Returns every lease whose cleanup receipt has not been durably recorded.

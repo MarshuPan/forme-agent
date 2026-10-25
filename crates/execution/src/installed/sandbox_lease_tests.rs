@@ -160,11 +160,30 @@ fn cleanup_requires_tree_termination_and_exact_acl_revocation() {
         .journal
         .begin_job_directory_removal(&fixture.lease_id)
         .unwrap();
+    let late_proof = super::SandboxWritebackReceipt {
+        schema_version: p::SchemaVersion(1),
+        job_id: "job-1".into(),
+        plan_digest: p::canonical_digest(&"plan").unwrap(),
+        intent_digest: p::canonical_digest(&"intent").unwrap(),
+        baseline_digest: p::canonical_digest(&"baseline").unwrap(),
+        result_digest: p::canonical_digest(&"result").unwrap(),
+    };
+    let path = fixture.root.join(JOURNAL_FILE);
+    let before = fs::metadata(&path).unwrap().len();
+    assert!(fixture
+        .journal
+        .record_writeback_receipt(&fixture.lease_id, late_proof.clone())
+        .is_err());
+    assert_eq!(fs::metadata(&path).unwrap().len(), before);
     fs::remove_dir(&fixture.job_directory).unwrap();
     fixture
         .journal
         .record_job_directory_removed(&fixture.lease_id)
         .unwrap();
+    assert!(fixture
+        .journal
+        .record_writeback_receipt(&fixture.lease_id, late_proof)
+        .is_err());
     fixture
         .journal
         .record_cleanup_receipt(&fixture.lease_id)
@@ -295,4 +314,57 @@ fn active_leases_cannot_share_job_directory_path_or_identity() {
     .unwrap();
     assert!(fixture.journal.begin_lease(same_identity).is_err());
     assert_eq!(fixture.journal.pending_cleanup().unwrap().len(), 1);
+}
+
+#[test]
+fn writeback_evidence_is_bound_to_terminal_job_and_replays_without_duplication() {
+    let fixture = setup();
+    let proof = super::SandboxWritebackReceipt {
+        schema_version: p::SchemaVersion(1),
+        job_id: "job-1".into(),
+        plan_digest: p::canonical_digest(&"plan").unwrap(),
+        intent_digest: p::canonical_digest(&"intent").unwrap(),
+        baseline_digest: p::canonical_digest(&"baseline").unwrap(),
+        result_digest: p::canonical_digest(&"result").unwrap(),
+    };
+    let path = fixture.root.join(JOURNAL_FILE);
+    let before = fs::metadata(&path).unwrap().len();
+    assert!(fixture
+        .journal
+        .record_writeback_receipt(&fixture.lease_id, proof.clone())
+        .is_err());
+    assert_eq!(fs::metadata(&path).unwrap().len(), before);
+    fixture
+        .journal
+        .record_process_tree_terminated(&fixture.lease_id, termination())
+        .unwrap();
+    let mut foreign = proof.clone();
+    foreign.job_id = "job-2".into();
+    assert!(fixture
+        .journal
+        .record_writeback_receipt(&fixture.lease_id, foreign)
+        .is_err());
+    fixture
+        .journal
+        .record_writeback_receipt(&fixture.lease_id, proof.clone())
+        .unwrap();
+    let saved = fs::metadata(&path).unwrap().len();
+    fixture
+        .journal
+        .record_writeback_receipt(&fixture.lease_id, proof.clone())
+        .unwrap();
+    assert_eq!(fs::metadata(&path).unwrap().len(), saved);
+    let mut conflicting = proof.clone();
+    conflicting.result_digest = p::canonical_digest(&"other-result").unwrap();
+    assert!(fixture
+        .journal
+        .record_writeback_receipt(&fixture.lease_id, conflicting)
+        .is_err());
+    drop(fixture.journal);
+    let journal = SandboxLeaseJournal::open(&path).unwrap();
+    assert_eq!(
+        journal.writeback_receipt(&fixture.lease_id).unwrap(),
+        Some(proof)
+    );
+    assert_eq!(fs::metadata(&path).unwrap().len(), saved);
 }

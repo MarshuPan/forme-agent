@@ -33,6 +33,8 @@ mod windows_appcontainer_native;
 mod windows_appcontainer_support;
 #[cfg(windows)]
 mod windows_worker;
+#[cfg(windows)]
+mod windows_workspace_overlay;
 mod worker;
 mod worker_binding;
 mod worker_client;

@@ -3,7 +3,6 @@
 
 use std::ffi::c_void;
 use std::mem::{size_of, size_of_val};
-use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 use std::ptr::{null, null_mut};
 use std::time::{Duration, Instant};
@@ -15,11 +14,12 @@ use windows_sys::Win32::Foundation::{
     WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Security::{
-    EqualSid, GetSidIdentifierAuthority, GetSidSubAuthority, GetSidSubAuthorityCount,
-    GetTokenInformation, LookupPrivilegeValueW, TokenAppContainerSid, TokenCapabilities,
-    TokenIntegrityLevel, TokenIsAppContainer, TokenPrivileges, LUID_AND_ATTRIBUTES,
-    SECURITY_CAPABILITIES, SECURITY_MANDATORY_LABEL_AUTHORITY, SE_CHANGE_NOTIFY_NAME,
-    SID_AND_ATTRIBUTES, TOKEN_MANDATORY_LABEL, TOKEN_QUERY,
+    AdjustTokenPrivileges, EqualSid, GetSidIdentifierAuthority, GetSidSubAuthority,
+    GetSidSubAuthorityCount, GetTokenInformation, LookupPrivilegeValueW, TokenAppContainerSid,
+    TokenCapabilities, TokenIntegrityLevel, TokenIsAppContainer, TokenPrivileges,
+    LUID_AND_ATTRIBUTES, SECURITY_CAPABILITIES, SECURITY_MANDATORY_LABEL_AUTHORITY,
+    SE_CHANGE_NOTIFY_NAME, SE_PRIVILEGE_REMOVED, SID_AND_ATTRIBUTES, TOKEN_ADJUST_PRIVILEGES,
+    TOKEN_MANDATORY_LABEL, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
 use windows_sys::Win32::System::JobObjects::{
     CreateJobObjectW, JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
@@ -33,14 +33,16 @@ use windows_sys::Win32::System::SystemServices::{
 use windows_sys::Win32::System::Threading::{
     CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
     InitializeProcThreadAttributeList, OpenProcessToken, ResumeThread, TerminateProcess,
-    UpdateProcThreadAttribute, WaitForSingleObject, CREATE_NO_WINDOW, CREATE_SUSPENDED,
-    CREATE_UNICODE_ENVIRONMENT, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
-    PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_JOB_LIST,
-    PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, STARTUPINFOEXW,
+    UpdateProcThreadAttribute, WaitForSingleObject, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT,
+    DETACHED_PROCESS, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
+    PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY,
+    PROC_THREAD_ATTRIBUTE_JOB_LIST, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, STARTUPINFOEXW,
 };
 
 use super::windows_appcontainer_acl::Profile;
-use super::windows_appcontainer_support::{environment_block, quote_windows_arg};
+use super::windows_appcontainer_support::{
+    environment_block, quote_windows_arg, wide, WorkerEnvironment,
+};
 
 mod runtime;
 pub(crate) use runtime::{CancelState, LaunchRequest, NativeWorker, SetupResources};
@@ -157,12 +159,16 @@ fn launch_suspended(
     let application = wide(program);
     let directory = wide(current_dir);
     let environment = environment_block(
-        request.job_path,
-        request.permit_path,
-        request.workspace,
-        request.execution_path,
-        request.workspace_scope,
-        request.deadline,
+        WorkerEnvironment {
+            job_path: request.job_path,
+            permit_path: request.permit_path,
+            workspace: request.workspace,
+            execution_path: request.execution_path,
+            workspace_scope: request.workspace_scope,
+            deadline: request.deadline,
+        },
+        &system_windows_directory()?,
+        &super::windows_appcontainer_acl::local_app_data()?,
     )?;
     let mut capabilities = SECURITY_CAPABILITIES {
         AppContainerSid: profile.raw_sid(),
@@ -172,7 +178,7 @@ fn launch_suspended(
     };
     let mut attribute_bytes = 0usize;
     unsafe {
-        InitializeProcThreadAttributeList(null_mut(), 2, 0, &mut attribute_bytes);
+        InitializeProcThreadAttributeList(null_mut(), 3, 0, &mut attribute_bytes);
     }
     if attribute_bytes == 0 {
         return Err(native_error(
@@ -182,7 +188,7 @@ fn launch_suspended(
     let word_count = attribute_bytes.div_ceil(size_of::<usize>());
     let mut attribute_storage = vec![0usize; word_count];
     let attributes = attribute_storage.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST;
-    if unsafe { InitializeProcThreadAttributeList(attributes, 2, 0, &mut attribute_bytes) } == 0 {
+    if unsafe { InitializeProcThreadAttributeList(attributes, 3, 0, &mut attribute_bytes) } == 0 {
         return Err(native_error(
             "AppContainer process attributes could not be initialized",
         ));
@@ -222,6 +228,27 @@ fn launch_suspended(
             "worker could not be atomically assigned to its Job Object",
         ));
     }
+    // PROCESS_CREATION_CHILD_PROCESS_RESTRICTED. A file creator can choose its
+    // own DACL, so an inheritable execute-deny ACE alone is not an execution
+    // boundary for a writable copy. Block child creation in the OS instead.
+    let child_policy: u32 = 1;
+    if unsafe {
+        UpdateProcThreadAttribute(
+            attributes,
+            0,
+            PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY as usize,
+            &child_policy as *const _ as *const c_void,
+            size_of_val(&child_policy),
+            null_mut(),
+            null(),
+        )
+    } == 0
+    {
+        unsafe { DeleteProcThreadAttributeList(attributes) };
+        return Err(native_error(
+            "worker child-process restriction could not be applied",
+        ));
+    }
     let mut startup = STARTUPINFOEXW::default();
     startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
     startup.lpAttributeList = attributes;
@@ -236,18 +263,19 @@ fn launch_suspended(
             CREATE_SUSPENDED
                 | EXTENDED_STARTUPINFO_PRESENT
                 | CREATE_UNICODE_ENVIRONMENT
-                | CREATE_NO_WINDOW,
+                | DETACHED_PROCESS,
             environment.as_ptr() as *const c_void,
             directory.as_ptr(),
             &startup.StartupInfo,
             &mut info,
         )
     };
+    let creation_error = unsafe { GetLastError() };
     unsafe { DeleteProcThreadAttributeList(attributes) };
     if created == 0 {
-        return Err(native_error(
-            "AppContainer worker process could not be created suspended",
-        ));
+        return Err(p::Error(format!(
+            "AppContainer worker process could not be created suspended (Win32 {creation_error})"
+        )));
     }
     let process = owned_handle(info.hProcess, "worker process handle is invalid")?;
     let thread = match owned_handle(info.hThread, "worker thread handle is invalid") {
@@ -261,12 +289,30 @@ fn launch_suspended(
     Ok((process, thread))
 }
 
+fn system_windows_directory() -> p::Result<std::path::PathBuf> {
+    use windows_sys::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
+    let mut buffer = vec![0u16; 32_768];
+    let length =
+        unsafe { GetSystemWindowsDirectoryW(buffer.as_mut_ptr(), buffer.len() as u32) } as usize;
+    if length == 0 || length >= buffer.len() {
+        return Err(native_error("Windows runtime directory is unavailable"));
+    }
+    let text = String::from_utf16(&buffer[..length])
+        .map_err(|_| native_error("Windows runtime path is invalid"))?;
+    let path = std::path::PathBuf::from(text);
+    if !path.is_absolute() {
+        return Err(native_error("Windows runtime path is not absolute"));
+    }
+    Ok(path)
+}
+
 fn verify_worker_token(
     process: HANDLE,
     expected_sid: windows_sys::Win32::Security::PSID,
 ) -> p::Result<()> {
     let mut token = null_mut();
-    if unsafe { OpenProcessToken(process, TOKEN_QUERY, &mut token) } == 0 {
+    if unsafe { OpenProcessToken(process, TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &mut token) } == 0
+    {
         return Err(native_error(
             "worker token could not be opened for verification",
         ));
@@ -320,39 +366,58 @@ fn is_low_integrity_sid(authority: [u8; 6], subauthority_count: u8, rid: u32) ->
 }
 
 fn verify_worker_privileges(token: &OwnedHandle) -> p::Result<()> {
-    let storage = token_information(token, TokenPrivileges)?;
-    if size_of_val(storage.as_slice()) < size_of::<u32>() {
-        return Err(p::Error("worker token privilege list is truncated".into()));
-    }
-    let count = unsafe { (storage.as_ptr() as *const u32).read_unaligned() } as usize;
-    let entries_bytes = count
-        .checked_mul(size_of::<LUID_AND_ATTRIBUTES>())
-        .and_then(|length| length.checked_add(size_of::<u32>()))
-        .ok_or_else(|| p::Error("worker token privilege list is invalid".into()))?;
-    if entries_bytes > size_of_val(storage.as_slice()) || count > 1 {
-        return Err(p::Error(
-            "worker token privilege list is unexpected or truncated".into(),
-        ));
-    }
-    if count == 0 {
-        return Ok(());
-    }
-
     let mut change_notify = LUID::default();
     if unsafe { LookupPrivilegeValueW(null(), SE_CHANGE_NOTIFY_NAME, &mut change_notify) } == 0 {
         return Err(native_error(
             "safe worker privilege identity cannot be resolved",
         ));
     }
-    let entry = unsafe {
-        ((storage.as_ptr() as *const u8).add(size_of::<u32>()) as *const LUID_AND_ATTRIBUTES)
-            .read_unaligned()
-    };
-    if entry.Luid.LowPart != change_notify.LowPart || entry.Luid.HighPart != change_notify.HighPart
-    {
-        return Err(p::Error(
-            "worker token contains an unapproved privilege".into(),
-        ));
+    // The process is still suspended. Remove, then independently re-read;
+    // disabled privileges must not be re-enabled by a compromised worker.
+    for remove in [true, false] {
+        let storage = token_information(token, TokenPrivileges)?;
+        let count = read_struct::<u32>(&storage)? as usize;
+        let bytes = count
+            .checked_mul(size_of::<LUID_AND_ATTRIBUTES>())
+            .and_then(|n| n.checked_add(size_of::<u32>()))
+            .ok_or_else(|| native_error("worker privilege list is invalid"))?;
+        if count > 64 || bytes > size_of_val(storage.as_slice()) {
+            return Err(native_error(
+                "worker privilege list is unbounded or truncated",
+            ));
+        }
+        for index in 0..count {
+            let entry = unsafe {
+                ((storage.as_ptr() as *const u8)
+                    .add(size_of::<u32>() + index * size_of::<LUID_AND_ATTRIBUTES>())
+                    as *const LUID_AND_ATTRIBUTES)
+                    .read_unaligned()
+            };
+            if entry.Luid.LowPart == change_notify.LowPart
+                && entry.Luid.HighPart == change_notify.HighPart
+            {
+                continue;
+            }
+            if !remove {
+                return Err(native_error(
+                    "worker token contains an unapproved privilege",
+                ));
+            }
+            let restricted = TOKEN_PRIVILEGES {
+                PrivilegeCount: 1,
+                Privileges: [LUID_AND_ATTRIBUTES {
+                    Luid: entry.Luid,
+                    Attributes: SE_PRIVILEGE_REMOVED,
+                }],
+            };
+            unsafe { SetLastError(0) };
+            let changed = unsafe {
+                AdjustTokenPrivileges(raw(token), 0, &restricted, 0, null_mut(), null_mut())
+            };
+            if changed == 0 || unsafe { GetLastError() } != 0 {
+                return Err(native_error("worker privilege could not be removed"));
+            }
+        }
     }
     Ok(())
 }
@@ -470,13 +535,6 @@ fn owned_handle(handle: HANDLE, message: &'static str) -> p::Result<OwnedHandle>
 
 fn raw(handle: &OwnedHandle) -> HANDLE {
     handle.as_raw_handle() as HANDLE
-}
-
-fn wide(value: &str) -> Vec<u16> {
-    std::ffi::OsStr::new(value)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect()
 }
 
 fn native_error(message: &str) -> p::Error {

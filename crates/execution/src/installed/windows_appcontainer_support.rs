@@ -9,15 +9,37 @@ use forme_protocol as p;
 
 use super::sandbox_lease::SandboxAclMutation;
 
+pub(super) struct WorkerEnvironment<'a> {
+    pub job_path: &'a Path,
+    pub permit_path: &'a Path,
+    pub workspace: &'a Path,
+    pub execution_path: Option<&'a Path>,
+    pub workspace_scope: &'a str,
+    pub deadline: p::Timestamp,
+}
+
 pub(super) fn environment_block(
-    job_path: &Path,
-    permit_path: &Path,
-    workspace: &Path,
-    execution_path: Option<&Path>,
-    workspace_scope: &str,
-    deadline: p::Timestamp,
+    input: WorkerEnvironment<'_>,
+    system_root: &Path,
+    local_app_data: &Path,
 ) -> p::Result<Vec<u16>> {
+    let WorkerEnvironment {
+        job_path,
+        permit_path,
+        workspace,
+        execution_path,
+        workspace_scope,
+        deadline,
+    } = input;
     let mut values = BTreeMap::from([
+        (
+            "LOCALAPPDATA",
+            path_string(local_app_data, "Windows profile directory")?,
+        ),
+        (
+            "SystemRoot",
+            path_string(system_root, "Windows system directory")?,
+        ),
         ("FORME_WORKER_PROTOCOL_VERSION", "1".to_owned()),
         (
             "FORME_WORKER_JOB_PATH",
@@ -105,6 +127,13 @@ pub(super) fn quote_windows_arg(value: &str) -> String {
     result.extend(std::iter::repeat_n('\\', slashes * 2));
     result.push('"');
     result
+}
+
+pub(super) fn wide(value: &str) -> Vec<u16> {
+    std::ffi::OsStr::new(value)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 pub(super) fn same_target(left: &SandboxAclMutation, right: &SandboxAclMutation) -> bool {

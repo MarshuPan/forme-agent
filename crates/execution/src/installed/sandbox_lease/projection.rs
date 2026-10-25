@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     SandboxAclMutation, SandboxAclOperation, SandboxAclReadback, SandboxFileIdentity,
     SandboxLeaseBinding, SandboxLeaseRecoveryView, SandboxProcessTreeTermination,
-    SandboxRecoveryStage,
+    SandboxRecoveryStage, SandboxWritebackReceipt,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +49,10 @@ pub(super) enum LeaseFact {
     CleanupReceipt {
         lease_id: String,
     },
+    WorkspaceWritebackVerified {
+        lease_id: String,
+        receipt: SandboxWritebackReceipt,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +91,7 @@ pub(super) struct LeaseRecord {
     pub(super) job_directory_removal_intent: bool,
     pub(super) job_directory_removed: bool,
     pub(super) cleanup_complete: bool,
+    pub(super) writeback_receipt: Option<SandboxWritebackReceipt>,
 }
 
 impl LeaseRecord {
@@ -108,6 +113,7 @@ impl LeaseRecord {
             job_directory_removal_intent: self.job_directory_removal_intent,
             job_directory_removed: self.job_directory_removed,
             cleanup_complete: self.cleanup_complete,
+            writeback_receipt: self.writeback_receipt.clone(),
         }
     }
 
@@ -190,6 +196,7 @@ impl Projection {
                         job_directory_removal_intent: false,
                         job_directory_removed: false,
                         cleanup_complete: false,
+                        writeback_receipt: None,
                     },
                 );
             }
@@ -337,6 +344,18 @@ impl Projection {
                     return Err(invalid_journal());
                 }
                 record.cleanup_complete = true;
+            }
+            LeaseFact::WorkspaceWritebackVerified { lease_id, receipt } => {
+                let record = self.leases.get_mut(lease_id).ok_or_else(invalid_journal)?;
+                receipt.validate_for(&record.binding)?;
+                if record.process_tree_termination.is_none()
+                    || record.job_directory_removal_intent
+                    || record.cleanup_complete
+                    || record.writeback_receipt.is_some()
+                {
+                    return Err(invalid_journal());
+                }
+                record.writeback_receipt = Some(receipt.clone());
             }
         }
 

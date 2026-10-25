@@ -2,6 +2,7 @@
 #![allow(unsafe_code)]
 
 use std::ffi::c_void;
+use std::fs::File;
 use std::mem::MaybeUninit;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
@@ -11,18 +12,23 @@ use std::ptr::{null, null_mut};
 use forme_protocol as p;
 use windows_sys::Win32::Foundation::{ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE};
 use windows_sys::Win32::Security::Authorization::{
-    BuildTrusteeWithSidW, GetEffectiveRightsFromAclW, GetSecurityInfo, SetEntriesInAclW,
-    SetSecurityInfo, EXPLICIT_ACCESS_W, GRANT_ACCESS, REVOKE_ACCESS, SE_FILE_OBJECT, TRUSTEE_W,
+    BuildTrusteeWithSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
+    GetEffectiveRightsFromAclW, GetSecurityInfo, SetEntriesInAclW, SetSecurityInfo,
+    EXPLICIT_ACCESS_W, GRANT_ACCESS, REVOKE_ACCESS, SE_FILE_OBJECT, TRUSTEE_W,
 };
 use windows_sys::Win32::Security::Isolation::{
     CreateAppContainerProfile, DeleteAppContainerProfile, DeriveAppContainerSidFromAppContainerName,
 };
-use windows_sys::Win32::Security::{DACL_SECURITY_INFORMATION, PSID};
+use windows_sys::Win32::Security::{
+    EqualSid, GetAce, GetSecurityDescriptorSacl, ACL, DACL_SECURITY_INFORMATION,
+    LABEL_SECURITY_INFORMATION, PSID, SYSTEM_MANDATORY_LABEL_ACE,
+};
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_NORMAL,
-    FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+    CreateFileW, FileDispositionInfo, GetFileInformationByHandle, SetFileInformationByHandle,
+    BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_REPARSE_POINT,
+    FILE_DISPOSITION_INFO, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
     FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
-    READ_CONTROL, WRITE_DAC,
+    READ_CONTROL, WRITE_DAC, WRITE_OWNER,
 };
 
 use super::sandbox_lease::{
@@ -287,8 +293,16 @@ fn open_acl_target(path: &Path) -> p::Result<OwnedHandle> {
 }
 
 fn file_identity_for_handle(handle: &OwnedHandle) -> p::Result<SandboxFileIdentity> {
+    inspect_raw(raw(handle)).map(|(identity, _)| identity)
+}
+
+pub(crate) fn inspect_file(file: &File) -> p::Result<(SandboxFileIdentity, u32)> {
+    inspect_raw(file.as_raw_handle() as HANDLE)
+}
+
+fn inspect_raw(handle: HANDLE) -> p::Result<(SandboxFileIdentity, u32)> {
     let mut info = MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::zeroed();
-    if unsafe { GetFileInformationByHandle(raw(handle), info.as_mut_ptr()) } == 0 {
+    if unsafe { GetFileInformationByHandle(handle, info.as_mut_ptr()) } == 0 {
         return Err(native_error("sandbox target file identity cannot be read"));
     }
     let info = unsafe { info.assume_init() };
@@ -298,15 +312,157 @@ fn file_identity_for_handle(handle: &OwnedHandle) -> p::Result<SandboxFileIdenti
     let mut file_id = [0u8; 16];
     file_id[..4].copy_from_slice(&info.nFileIndexHigh.to_le_bytes());
     file_id[4..8].copy_from_slice(&info.nFileIndexLow.to_le_bytes());
-    SandboxFileIdentity::new(info.dwVolumeSerialNumber as u64, file_id)
+    Ok((
+        SandboxFileIdentity::new(info.dwVolumeSerialNumber as u64, file_id)?,
+        info.nNumberOfLinks,
+    ))
+}
+
+/// The caller owns the original delete-capable handle and has already made
+/// the exact writeback intent durable. No mutable path is reopened here.
+pub(crate) fn mark_deleted(file: &File) -> p::Result<()> {
+    let disposition = FILE_DISPOSITION_INFO { DeleteFile: true };
+    if unsafe {
+        SetFileInformationByHandle(
+            file.as_raw_handle() as HANDLE,
+            FileDispositionInfo,
+            &disposition as *const _ as *const c_void,
+            std::mem::size_of_val(&disposition) as u32,
+        )
+    } == 0
+    {
+        return Err(native_error(
+            "workspace handle deletion could not be verified",
+        ));
+    }
+    Ok(())
+}
+
+/// Only the brand-new private copy may be passed here. WRITE_OWNER is enough
+/// for a Low mandatory label; the original workspace is never relabelled.
+pub(crate) fn set_low_integrity(path: &Path) -> p::Result<()> {
+    let path = path
+        .to_str()
+        .ok_or_else(|| native_error("private workspace path is invalid"))?;
+    let handle = unsafe {
+        CreateFileW(
+            wide(path).as_ptr(),
+            WRITE_OWNER | READ_CONTROL | FILE_READ_ATTRIBUTES,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            null(),
+            OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+            null_mut(),
+        )
+    };
+    let handle = owned_handle(handle, "private workspace label target cannot be opened")?;
+    file_identity_for_handle(&handle)?;
+    let mut descriptor = null_mut();
+    if unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            wide("S:(ML;OICI;NW;;;LW)").as_ptr(),
+            1,
+            &mut descriptor,
+            null_mut(),
+        )
+    } == 0
+    {
+        return Err(native_error(
+            "private workspace Low label cannot be constructed",
+        ));
+    }
+    let mut present = 0;
+    let mut defaulted = 0;
+    let mut expected = null_mut();
+    let got = unsafe {
+        GetSecurityDescriptorSacl(descriptor, &mut present, &mut expected, &mut defaulted)
+    };
+    let result = if got != 0 && present != 0 && !expected.is_null() {
+        let status = unsafe {
+            SetSecurityInfo(
+                raw(&handle),
+                SE_FILE_OBJECT,
+                LABEL_SECURITY_INFORMATION,
+                null_mut(),
+                null_mut(),
+                null(),
+                expected,
+            )
+        };
+        if status == ERROR_SUCCESS {
+            verify_label(&handle, expected)
+        } else {
+            Err(native_error("private workspace Low label could not be set"))
+        }
+    } else {
+        Err(native_error("private workspace Low label is unavailable"))
+    };
+    free_local(descriptor);
+    result
+}
+
+fn verify_label(handle: &OwnedHandle, expected: *mut ACL) -> p::Result<()> {
+    let mut descriptor = null_mut();
+    let mut observed = null_mut();
+    let status = unsafe {
+        GetSecurityInfo(
+            raw(handle),
+            SE_FILE_OBJECT,
+            LABEL_SECURITY_INFORMATION,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            &mut observed,
+            &mut descriptor,
+        )
+    };
+    let result = if status == ERROR_SUCCESS && !observed.is_null() {
+        let mut actual_ace = null_mut();
+        let mut expected_ace = null_mut();
+        // Both ACLs are OS-returned valid security descriptors, kept alive
+        // throughout GetAce/EqualSid. LABEL_SECURITY_INFORMATION filters the
+        // SACL to mandatory labels, so an additional ACE is a mismatch.
+        let valid = unsafe {
+            (*observed).AceCount == 1
+                && GetAce(observed, 0, &mut actual_ace) != 0
+                && GetAce(expected, 0, &mut expected_ace) != 0
+        };
+        if valid {
+            let actual = actual_ace as *const SYSTEM_MANDATORY_LABEL_ACE;
+            let expected = expected_ace as *const SYSTEM_MANDATORY_LABEL_ACE;
+            let matches = unsafe {
+                (*actual).Header.AceType == (*expected).Header.AceType
+                    && (*actual).Mask == (*expected).Mask
+                    && EqualSid(
+                        std::ptr::addr_of!((*actual).SidStart) as PSID,
+                        std::ptr::addr_of!((*expected).SidStart) as PSID,
+                    ) != 0
+            };
+            if matches {
+                Ok(())
+            } else {
+                Err(native_error("private workspace Low label readback differs"))
+            }
+        } else {
+            Err(native_error(
+                "private workspace Low label readback is invalid",
+            ))
+        }
+    } else {
+        Err(native_error("private workspace Low label cannot be read"))
+    };
+    free_local(descriptor);
+    result
 }
 
 fn access_mask(access: SandboxTargetAccess) -> u32 {
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        DELETE, FILE_DELETE_CHILD, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
     };
     match access {
-        SandboxTargetAccess::WorkspaceReadWrite => FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+        SandboxTargetAccess::WorkspaceReadWrite => {
+            FILE_GENERIC_READ | FILE_GENERIC_WRITE | DELETE | FILE_DELETE_CHILD
+        }
         SandboxTargetAccess::JobInputReadOnly => FILE_GENERIC_READ,
         SandboxTargetAccess::RegisteredProgramReadExecute
         | SandboxTargetAccess::FixedRuntimeReadExecute => FILE_GENERIC_READ | FILE_GENERIC_EXECUTE,
@@ -354,88 +510,36 @@ fn native_error(message: &str) -> p::Error {
     p::Error(message.into())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::super::sandbox_lease::{
-        SandboxLeaseBinding, SandboxLeaseJournal, SandboxProcessTreeTermination,
-    };
-    use super::*;
-
-    #[test]
-    fn failed_file_opens_never_become_owned_handles() {
-        assert!(owned_handle(null_mut(), "invalid").is_err());
-        assert!(owned_handle(INVALID_HANDLE_VALUE, "invalid").is_err());
-        let directory = tempfile::tempdir().unwrap();
-        assert!(file_identity(&directory.path().join("missing")).is_err());
+pub(crate) fn local_app_data() -> p::Result<std::path::PathBuf> {
+    use windows_sys::Win32::UI::Shell::{FOLDERID_LocalAppData, SHGetKnownFolderPath};
+    let mut path = null_mut();
+    if unsafe { SHGetKnownFolderPath(&FOLDERID_LocalAppData, 0, null_mut(), &mut path) } < 0
+        || path.is_null()
+    {
+        return Err(native_error("Windows profile directory cannot be resolved"));
     }
-
-    #[test]
-    fn real_acl_grant_and_revoke_match_the_lease_readback_contract() {
-        let directory = tempfile::tempdir().unwrap();
-        let runtime = directory.path().join("runtime");
-        let run = runtime.join("job");
-        let workspace = directory.path().join("workspace");
-        std::fs::create_dir_all(&run).unwrap();
-        std::fs::create_dir(&workspace).unwrap();
-        let plan = p::canonical_digest(&"acl-native-roundtrip").unwrap();
-        let identity = super::super::windows_appcontainer_support::profile_name_for(
-            runtime.to_str().unwrap(),
-            "job-acl",
-            &p::PlanDigest(plan.0.clone()),
-        )
-        .unwrap();
-        // Deriving a SID does not create a profile or change any real workspace.
-        let profile = resolve_profile(&identity).unwrap();
-        let journal = SandboxLeaseJournal::open(&runtime.join("sandbox-leases.jsonl")).unwrap();
-        let lease = journal
-            .begin_lease(
-                SandboxLeaseBinding::new(
-                    "job-acl",
-                    plan,
-                    identity,
-                    &run,
-                    file_identity(&run).unwrap(),
-                )
-                .unwrap(),
-            )
-            .unwrap();
-        let grant = journal
-            .begin_acl_grant(
-                &lease,
-                &workspace,
-                file_identity(&workspace).unwrap(),
-                SandboxTargetAccess::WorkspaceReadWrite,
-            )
-            .unwrap();
-        let granted = apply_acl(&grant, &profile).unwrap();
-        assert!(granted.target_access_effective);
-        journal.record_acl_readback(&grant, granted).unwrap();
-        // No process is launched in this DACL-only test. Revocation still has
-        // to respect the journal's process-tree-before-cleanup ordering.
-        journal
-            .record_process_tree_terminated(
-                &lease,
-                SandboxProcessTreeTermination {
-                    schema_version: p::SchemaVersion(1),
-                    job_id: grant.job_id.clone(),
-                    plan_digest: grant.plan_digest.clone(),
-                    appcontainer_identity: grant.appcontainer_identity.clone(),
-                    root_exit_observed: true,
-                    active_processes: 0,
-                    observed_at: 1,
-                },
-            )
-            .unwrap();
-        let revoke = journal
-            .begin_acl_revoke(&lease, &grant.operation_id)
-            .unwrap();
-        let revoked = apply_acl(&revoke, &profile).unwrap();
-        assert!(!revoked.target_access_effective);
-        journal.record_acl_readback(&revoke, revoked).unwrap();
-        assert!(
-            !apply_acl(&revoke, &profile)
-                .unwrap()
-                .target_access_effective
-        );
-    }
+    // The API owns a NUL-terminated, CoTaskMem-allocated UTF-16 string.
+    // Bound the scan and free it on every decoding result.
+    let result = (|| {
+        let mut length = 0;
+        while length < 32_768 && unsafe { *path.add(length) } != 0 {
+            length += 1;
+        }
+        if length == 32_768 {
+            return Err(native_error("Windows profile path is unbounded"));
+        }
+        let text = String::from_utf16(unsafe { std::slice::from_raw_parts(path, length) })
+            .map_err(|_| native_error("Windows profile path is invalid"))?;
+        let path = std::path::PathBuf::from(text);
+        if !path.is_absolute() {
+            return Err(native_error("Windows profile path is not absolute"));
+        }
+        Ok(path)
+    })();
+    unsafe { windows_sys::Win32::System::Com::CoTaskMemFree(path as *const c_void) };
+    result
 }
+
+#[cfg(test)]
+#[path = "windows_appcontainer_acl_tests.rs"]
+mod tests;

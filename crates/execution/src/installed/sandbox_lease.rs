@@ -164,6 +164,40 @@ pub struct SandboxLeaseRecoveryView {
     pub job_directory_removal_intent: bool,
     pub job_directory_removed: bool,
     pub cleanup_complete: bool,
+    pub writeback_receipt: Option<SandboxWritebackReceipt>,
+}
+
+/// Verified side-effect digests retained after a successful overlay is removed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SandboxWritebackReceipt {
+    pub schema_version: p::SchemaVersion,
+    pub job_id: String,
+    pub plan_digest: p::SchemaDigest,
+    pub intent_digest: p::SchemaDigest,
+    pub baseline_digest: p::SchemaDigest,
+    pub result_digest: p::SchemaDigest,
+}
+
+impl SandboxWritebackReceipt {
+    fn validate_for(&self, binding: &SandboxLeaseBinding) -> p::Result<()> {
+        if self.schema_version != p::SchemaVersion(1)
+            || self.job_id != binding.job_id
+            || self.plan_digest != binding.plan_digest
+        {
+            return Err(p::Error(
+                "workspace receipt is not bound to the original lease".into(),
+            ));
+        }
+        for digest in [
+            &self.intent_digest,
+            &self.baseline_digest,
+            &self.result_digest,
+        ] {
+            p::validate_product_digest(digest)?;
+        }
+        Ok(())
+    }
 }
 
 fn canonical_existing_path(path: &Path) -> p::Result<String> {

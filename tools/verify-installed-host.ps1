@@ -99,7 +99,8 @@ try {
         "second_writer_and_torn_journal_fail_closed",
         "hash_chain_tampering_is_rejected",
         "appcontainer_identity_and_cleanup_directory_are_bound_to_lease",
-        "active_leases_cannot_share_job_directory_path_or_identity"
+        "active_leases_cannot_share_job_directory_path_or_identity",
+        "writeback_evidence_is_bound_to_terminal_job_and_replays_without_duplication"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::sandbox_lease::tests::$name" }
 
     foreach ($name in @(
@@ -177,12 +178,27 @@ try {
             "installed::windows_appcontainer::tests::environment_block_is_deterministic_and_scoped",
             "installed::windows_appcontainer::tests::an_unowned_lease_blocks_new_admission_without_sandbox_side_effects",
             "installed::windows_appcontainer::tests::startup_recovery_revokes_an_unacknowledged_grant_and_is_idempotent",
+            "installed::windows_appcontainer::tests::startup_recovery_preserves_unknown_overlay_after_revoking_access",
             "installed::windows_appcontainer_acl::tests::failed_file_opens_never_become_owned_handles",
             "installed::windows_appcontainer_acl::tests::real_acl_grant_and_revoke_match_the_lease_readback_contract",
+            "installed::windows_appcontainer_acl::tests::low_labels_are_only_applied_to_a_private_test_copy",
             "installed::windows_appcontainer_native::tests::native_failure_handles_are_rejected_and_empty_capabilities_need_no_array",
             "installed::windows_appcontainer_native::tests::worker_integrity_requires_the_exact_low_mandatory_sid",
             "installed::windows_appcontainer_native::tests::empty_job_recovery_uses_accounting_without_synchronize_access"
         )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
+        foreach ($name in @(
+            "copy_is_private_and_verified_writeback_handles_creates_edits_and_deletes",
+            "owner_changes_reject_the_whole_writeback_without_an_intent",
+            "exact_file_action_rejects_parameter_substitution_and_sibling_changes",
+            "file_read_cannot_write_and_exact_delete_is_supported",
+            "changed_binding_or_expired_permit_never_writes",
+            "original_identity_replacement_is_a_conflict_even_with_identical_content",
+            "snapshot_rejects_hardlinks_and_oversized_files",
+            "original_handles_block_concurrent_write_and_ancestor_rename",
+            "interrupted_writeback_preserves_intent_and_does_not_retry_partial_effects",
+            "malformed_receipt_blocks_cleanup_instead_of_destroying_evidence",
+            "missing_spec_network_or_foreign_cwd_cannot_create_a_copy"
+        )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::windows_workspace_overlay::tests::$name" }
     }
     else {
         Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::config::tests::broad_credential_permissions_are_refused"

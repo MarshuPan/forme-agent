@@ -15,8 +15,9 @@ use super::sandbox_lease::{SandboxLeaseBinding, SandboxLeaseJournal, SandboxTarg
 use super::windows_appcontainer_acl as acl;
 use super::windows_appcontainer_native as native;
 #[cfg(test)]
-use super::windows_appcontainer_support::environment_block;
+use super::windows_appcontainer_support::{environment_block, WorkerEnvironment};
 use super::windows_appcontainer_support::{job_object_name, profile_name_for, recovery_timestamp};
+use super::windows_workspace_overlay::{Completion, PreparedOverlay};
 use super::{reject_linked_ancestors, WorkerIsolation};
 
 #[path = "windows_appcontainer_recovery.rs"]
@@ -26,7 +27,7 @@ mod recovery;
 /// Win32 calls remain behind the audited native adapters.
 ///
 /// Explicit component composition only: production dispatch stays unavailable
-/// until the workspace MIC contract and installed-platform evidence close.
+/// until the installed-platform evidence closes.
 /// This adapter never lowers an existing workspace's integrity label.
 pub struct WindowsAppContainerWorkerIsolation {
     runtime_root: PathBuf,
@@ -42,6 +43,7 @@ struct RunningWorker {
     lease_id: String,
     run_dir: PathBuf,
     started_at: p::Timestamp,
+    overlay: PreparedOverlay,
 }
 
 impl WindowsAppContainerWorkerIsolation {
@@ -137,8 +139,8 @@ impl WindowsAppContainerWorkerIsolation {
         if spec.sandbox_profile_ref != permit.sandbox_profile_ref {
             return Err(p::Error("worker launch profile is not permit-bound".into()));
         }
-        let workspace = self.workspace(&job.workspace_scope)?.to_path_buf();
-        reject_linked_ancestors(&workspace)?;
+        let original = self.workspace(&job.workspace_scope)?.to_path_buf();
+        reject_linked_ancestors(&original)?;
         let run_dir = self.run_dir(job)?;
         let profile_name = self.profile_name(job)?;
         let run_dir_identity = acl::file_identity(&run_dir)?;
@@ -157,6 +159,11 @@ impl WindowsAppContainerWorkerIsolation {
             let profile = resources
                 .profile()
                 .ok_or_else(|| p::Error("AppContainer profile is not available".into()))?;
+
+            let overlay =
+                PreparedOverlay::prepare(&run_dir, &original, job, permit, execution, now)?;
+            overlay.prepare_low_integrity()?;
+            let workspace = overlay.workspace();
 
             let job_path = run_dir.join("job.json");
             let permit_path = run_dir.join("permit.json");
@@ -215,6 +222,7 @@ impl WindowsAppContainerWorkerIsolation {
                 lease_id: lease_id.clone(),
                 run_dir: run_dir.clone(),
                 started_at: now,
+                overlay,
             })
         })();
 
@@ -411,6 +419,11 @@ impl WindowsAppContainerWorkerIsolation {
             return Ok(None);
         }
         let exit_code = worker.native.exit_code()?;
+        let committed = if exit_code == 0 && !orphaned_children {
+            worker.overlay.complete(job, now)? == Completion::Committed
+        } else {
+            false
+        };
         recovery::cleanup_lease(
             &self.journal,
             &worker.lease_id,
@@ -420,7 +433,7 @@ impl WindowsAppContainerWorkerIsolation {
             now,
         )?;
         let started_at = worker.started_at;
-        let outcome = if exit_code == 0 && !orphaned_children {
+        let outcome = if committed {
             p::WorkerOutcome::Completed
         } else {
             p::WorkerOutcome::Failed
@@ -439,11 +452,15 @@ impl WindowsAppContainerWorkerIsolation {
             safe_result_ref: Some(format!("worker-result-{digest}")),
             ground_truth_refs: if orphaned_children {
                 vec![
+                    format!("worker-exit-code-{exit_code}"),
                     format!("worker-exit-{digest}"),
                     format!("worker-orphaned-child-tree-{digest}"),
                 ]
             } else {
-                vec![format!("worker-exit-{digest}")]
+                vec![
+                    format!("worker-exit-{digest}"),
+                    format!("worker-exit-code-{exit_code}"),
+                ]
             },
             started_at,
             finished_at: Some(now),

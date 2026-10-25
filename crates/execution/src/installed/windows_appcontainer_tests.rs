@@ -39,12 +39,16 @@ fn job_object_name_is_closed_and_bound_to_the_appcontainer_identity() {
 #[test]
 fn environment_block_is_deterministic_and_scoped() {
     let block = environment_block(
-        Path::new(r"C:\forme\run\job.json"),
-        Path::new(r"C:\forme\run\permit.json"),
-        Path::new(r"C:\forme\workspace"),
-        Some(Path::new(r"C:\forme\run\execution.json")),
-        "workspace:demo",
-        42,
+        WorkerEnvironment {
+            job_path: Path::new(r"C:\forme\run\job.json"),
+            permit_path: Path::new(r"C:\forme\run\permit.json"),
+            workspace: Path::new(r"C:\forme\workspace"),
+            execution_path: Some(Path::new(r"C:\forme\run\execution.json")),
+            workspace_scope: "workspace:demo",
+            deadline: 42,
+        },
+        Path::new(r"C:\Windows"),
+        Path::new(r"C:\Users\fixture\AppData\Local"),
     )
     .expect("valid Windows paths should encode");
     let text = String::from_utf16_lossy(&block);
@@ -181,6 +185,74 @@ fn fixture_job() -> (p::WorkerJob, p::WorkerPermit) {
         issued_at: 1,
     };
     (job, permit)
+}
+
+#[test]
+fn startup_recovery_preserves_unknown_overlay_after_revoking_access() {
+    let temporary = tempfile::tempdir().unwrap();
+    let runtime = temporary.path().join("runtime");
+    let run_dir = runtime.join("interrupted-job");
+    let copy = run_dir.join("workspace");
+    std::fs::create_dir_all(&copy).unwrap();
+    std::fs::write(copy.join("result"), b"unresolved").unwrap();
+    std::fs::write(
+        run_dir.join("overlay-writeback-intent.json"),
+        b"unknown intent",
+    )
+    .unwrap();
+    let plan = p::SchemaDigest(fixture_job().0.plan_digest.0);
+    let identity = profile_name_for(
+        runtime.to_str().unwrap(),
+        "unknown-job",
+        &p::PlanDigest(plan.0.clone()),
+    )
+    .unwrap();
+    let profile = acl::resolve_profile(&identity).unwrap();
+    let path = runtime.join("sandbox-leases.jsonl");
+    let journal = SandboxLeaseJournal::open(&path).unwrap();
+    let lease = journal
+        .begin_lease(
+            SandboxLeaseBinding::new(
+                "unknown-job",
+                plan,
+                identity,
+                &run_dir,
+                acl::file_identity(&run_dir).unwrap(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let grant = journal
+        .begin_acl_grant(
+            &lease,
+            &copy,
+            acl::file_identity(&copy).unwrap(),
+            SandboxTargetAccess::WorkspaceReadWrite,
+        )
+        .unwrap();
+    let readback = acl::apply_acl(&grant, &profile).unwrap();
+    journal.record_acl_readback(&grant, readback).unwrap();
+    drop(journal);
+    let journal = SandboxLeaseJournal::open(&path).unwrap();
+    assert!(recovery::recover_pending(&journal).is_err());
+    let pending = journal.pending_cleanup().unwrap();
+    assert_eq!(pending.len(), 1);
+    assert!(pending[0].appcontainer_removed);
+    assert!(!pending[0].job_directory_removal_intent);
+    assert!(pending[0]
+        .acl_mutations
+        .iter()
+        .any(|state| state.mutation.operation
+            == super::super::sandbox_lease::SandboxAclOperation::Revoke
+            && state
+                .readback
+                .as_ref()
+                .is_some_and(|r| !r.target_access_effective)));
+    assert!(journal.verify_startup_recovery_complete().is_err());
+    assert_eq!(std::fs::read(copy.join("result")).unwrap(), b"unresolved");
+    let saved = std::fs::metadata(&path).unwrap().len();
+    assert!(recovery::recover_pending(&journal).is_err());
+    assert_eq!(std::fs::metadata(&path).unwrap().len(), saved);
 }
 
 #[test]
