@@ -107,7 +107,7 @@ Job Object 名称由同一 lease identity 确定性派生，使用服务会话�
 路径授权只来自 Host 已验证的配置和 Worker DTO：
 
 - 精确 `workspace_scope` 的原目录不直接授予 worker。Windows 使用 owner 已选择的每 job 私有副本/overlay，按 §4.1.3 核验后由 Host 回写；只有该副本允许读写，不允许从可写目录启动可执行文件。其他 workspace、brain/event 数据、model credentials、Web auth、管理 journal、发布目录和备份不得授予 worker。
-- 本 job 的 job/permit/execution 描述只读；注册的 worker 程序与确需的固定运行时只读/执行。任意环境变量、PATH 搜索、请求提供的程序路径、handle 继承与 Secret 值均拒绝。
+- 本 job 的 job/permit/execution 描述只读；注册的 worker 程序与确需的固定运行时只读/执行。任意环境变量、PATH 搜索、请求提供的程序路径、handle 继承与 Secret 值均拒绝。非交互 worker 使用 `DETACHED_PROCESS`，不继承或初始化控制台；不以隐藏窗口的控制台替代该语义，也不为控制台宿主放开 child-process restriction。
 - Windows AppContainer 不授予 `internetClient`、`privateNetworkClientServer` 或 loopback exemption；当前冻结的 Worker DTO 没有网络/credential grant，因此 worker 的直接网络和 credential 能力保持拒绝。不得从宿主环境或共享代理变量继承网络权限。未来增加某类能力必须先变更协议/PRD并形成独立的 exact-scope grant，不能由 launch profile 暗中放行。
 - 临时目录必须位于受保护的 runtime 根下且按 job 分离；worker 不能修改 Host 的授权材料。关闭网页/桌面会话不改变隔离身份或 worker 生命周期。
 
