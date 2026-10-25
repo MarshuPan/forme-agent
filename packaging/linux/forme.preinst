@@ -1,6 +1,13 @@
 #!/bin/sh
 # Package extraction must never overwrite a running or retained installation.
 set -eu
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+[ "$(id -u)" -eq 0 ] || {
+  echo 'forme: package preparation requires root' >&2
+  exit 1
+}
 case "${1:-}" in
   install|upgrade)
     for root in /opt/forme /etc/forme /var/lib/forme; do

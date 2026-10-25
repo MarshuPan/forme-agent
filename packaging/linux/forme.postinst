@@ -1,6 +1,18 @@
 #!/bin/sh
 set -eu
 
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+[ "$(id -u)" -eq 0 ] || {
+  echo 'forme: package configuration requires root' >&2
+  exit 1
+}
+[ -x /usr/bin/systemctl ] || {
+  echo 'forme: systemd service manager is unavailable' >&2
+  exit 1
+}
+
 case "${1:-}" in
   configure)
     if [ -r /etc/os-release ]; then

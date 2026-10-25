@@ -21,11 +21,30 @@ test('all original POSIX install hooks have valid shell syntax', async () => {
   }
 });
 
+test('native package hooks establish a bounded administrator environment', async () => {
+  for (const script of scripts) {
+    const source = await readFile(join(root, script), 'utf8');
+    assert.match(source, /PATH=\/usr\/sbin:\/usr\/bin:\/sbin:\/bin/);
+    assert.match(source, /umask 077/);
+  }
+  for (const script of ['packaging/linux/forme.postinst', 'packaging/linux/forme.prerm']) {
+    const source = await readFile(join(root, script), 'utf8');
+    assert.match(source, /\$\(id -u\).*-eq 0/);
+    assert.match(source, /-x \/usr\/bin\/systemctl/);
+  }
+  const rpm = await readFile(join(root, 'packaging/linux/forme.spec'), 'utf8');
+  assert.match(rpm, /\$\(id -u\).*-eq 0/);
+  assert.match(rpm, /-x \/usr\/bin\/systemctl/);
+});
+
 async function removal(fail = '') {
   let source = await readFile(join(root, 'packaging/linux/forme.prerm'), 'utf8');
   // Shim only the OS boundary; execute the original script and its fail/stop
   // branches. The fixture never controls a host systemctl or writes /etc.
-  source = `systemctl() {
+  source = `id() {
+  if [ "$1" = -u ]; then printf '0\\n'; else command id "$@"; fi
+}
+systemctl() {
   printf 'ACTION:%s\n' "$*" >&2
   if [ "$*" = '${fail}' ]; then return 7; fi
   if [ "$1" = show ]; then printf '%s\n' inactive; fi

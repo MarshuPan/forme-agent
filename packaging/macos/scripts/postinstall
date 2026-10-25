@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "forme: macOS installation must run as root" >&2

@@ -1,5 +1,8 @@
 #!/bin/sh
 set -eu
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
 [ "$(id -u)" -eq 0 ] || exit 1
 [ "$(uname -s)" = Darwin ] || exit 1
 command -v sw_vers >/dev/null 2>&1 || exit 1

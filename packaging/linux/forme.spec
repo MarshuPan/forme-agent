@@ -33,6 +33,11 @@ done
 
 %post
 set -eu
+umask 077
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+[ "$(id -u)" -eq 0 ] || { echo 'forme: package configuration requires root' >&2; exit 1; }
+[ -x /usr/bin/systemctl ] || { echo 'forme: systemd service manager is unavailable' >&2; exit 1; }
 if [ "$1" -ge 1 ]; then
     getent group forme-brain >/dev/null || groupadd --system forme-brain
     getent passwd forme-brain >/dev/null || useradd --system --gid forme-brain --home-dir /var/lib/forme/brain --shell /sbin/nologin forme-brain
@@ -57,6 +62,8 @@ fi
 
 %preun
 set -eu
+[ "$(id -u)" -eq 0 ] || { echo 'forme: package removal requires root' >&2; exit 1; }
+[ -x /usr/bin/systemctl ] || { echo 'forme: systemd service manager is unavailable' >&2; exit 1; }
 if [ "$1" -eq 0 ]; then
     /bin/sh /opt/forme/packaging/linux/forme.prerm remove
 else
