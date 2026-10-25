@@ -86,6 +86,8 @@
 
 ## 7. 执行门与维护债务
 
+构建资源与缓存生命周期见 [build-resources.md](build-resources.md)。默认 dev/test 配置、卷剩余空间检查和缓存预算报告与本节执行门配套；资源维护不减少测试集合或放宽验收。
+
 本地和 CI 运行 `py -3 tools/code-quality.py`；它检查冻结依赖图、源文件规模棘轮、crate unsafe 禁令和 scope，不取代 Rust 编译器/Clippy/合规门。`py -3 -m unittest tools.tests.test_code_quality` 验证检查器自身的拒绝路径。
 
 每次实现提交仍须 `cargo fmt --all -- --check`、`cargo check --workspace --all-targets`、`cargo test --workspace --all-targets`、`bash tools/compliance-doctor.sh`；strict Clippy 与相应永久/产品门按 AGENTS 执行。新增工具不会跳过任何已有门。

@@ -34,4 +34,6 @@ M0-M5 及 `prd/23` 的 **A 默认装配(C1-C6)** → **B 持续认知(C7-C12)** 
 
 代码维护遵守 `docs/engineering/code-quality.md`；每次实现提交增加 `py -3 tools/code-quality.py`。新增生产文件原则上 ≤600 行，测试 ≤1200 行；现有超限文件按 `tools/quality-baseline.json` 不增长棘轮，不得自动刷新基线或用 include 拼接规避。拆分先保持 public API/事件/事务/恢复行为，产品化不得继续堆进巨型 lib.rs。
 
+构建资源遵守 `docs/engineering/build-resources.md`：沿用根 dev/test 节省空间配置，每个工作树复用固定 target，不反复新建时间戳 target。构建前运行 `py -3 tools/build_resources.py check`；整轮任务结束后保存空间报告。临时/已结束任务的缓存只在无占用且证据已保存时，通过该工具显式预览/应用清理；不得直接整 target 删除或在每个测试后清空。
+
 conventional commits、按 crate scoped；文档与代码分开提交。每个实现提交前：`cargo fmt --all -- --check && cargo check --workspace --all-targets && cargo test --workspace --all-targets && bash tools/compliance-doctor.sh`；波次门另跑 strict clippy、`tools/verify-m5.ps1` 和对应 closure gate。
