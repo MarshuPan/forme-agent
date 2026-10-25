@@ -112,6 +112,22 @@ fn native_registration_has_fixed_identity_and_finite_recovery() {
 }
 
 #[test]
+fn service_sid_policy_is_closed_to_the_installed_service_set() {
+    for name in [
+        "forme-host",
+        "forme-web",
+        "forme-brain",
+        "forme-release-updater",
+    ] {
+        assert_eq!(
+            expected_service_sid_type(std::ffi::OsStr::new(name)).unwrap(),
+            ServiceSidType::Unrestricted
+        );
+    }
+    assert!(expected_service_sid_type(std::ffi::OsStr::new("other-service")).is_err());
+}
+
+#[test]
 fn recovery_policy_rejects_unbounded_or_non_monotonic_schedules() {
     let mut policy = p::ServiceRecoveryPolicy::product_default();
     policy.restart_delays[1] = policy.restart_delays[0];

@@ -41,6 +41,7 @@ fn policy() -> ServiceFailureActions {
     }
 }
 fn verify(service: &Service, info: &ServiceInfo) -> p::Result<()> {
+    verify_service_sid(service, &info.name).map_err(|_| invalid())?;
     let actual = service.query_config().map_err(|_| invalid())?;
     let recovery = service.get_failure_actions().map_err(|_| invalid())?;
     let non_crash = service
@@ -93,6 +94,7 @@ pub fn register(installation: &p::InstallationManifest, config: &Path) -> p::Res
     let access = ServiceAccess::QUERY_CONFIG | ServiceAccess::CHANGE_CONFIG;
     match manager.create_service(&info, access) {
         Ok(service) => {
+            ensure_service_sid(&service, std::ffi::OsStr::new(RELEASE_UPDATER_SERVICE))?;
             service
                 .update_failure_actions(policy())
                 .map_err(|_| invalid())?;
@@ -103,8 +105,12 @@ pub fn register(installation: &p::InstallationManifest, config: &Path) -> p::Res
         }
         Err(windows_service::Error::Winapi(error)) if error.raw_os_error() == Some(1073) => {
             let service = manager
-                .open_service(RELEASE_UPDATER_SERVICE, ServiceAccess::QUERY_CONFIG)
+                .open_service(
+                    RELEASE_UPDATER_SERVICE,
+                    ServiceAccess::QUERY_CONFIG | ServiceAccess::CHANGE_CONFIG,
+                )
                 .map_err(|_| invalid())?;
+            ensure_service_sid(&service, std::ffi::OsStr::new(RELEASE_UPDATER_SERVICE))?;
             verify(&service, &info)
         }
         Err(_) => Err(invalid()),

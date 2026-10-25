@@ -7,7 +7,7 @@ use forme_protocol as p;
 use windows_service::service::{
     Service, ServiceAccess, ServiceAction, ServiceActionType, ServiceConfig, ServiceDependency,
     ServiceErrorControl, ServiceFailureActions, ServiceFailureResetPeriod, ServiceInfo,
-    ServiceStartType, ServiceState, ServiceType,
+    ServiceSidType, ServiceStartType, ServiceState, ServiceType,
 };
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
@@ -23,6 +23,7 @@ pub fn register_windows_service(id: p::BuiltinServiceId, config: &Path) -> p::Re
     let access = ServiceAccess::QUERY_CONFIG | ServiceAccess::CHANGE_CONFIG | ServiceAccess::START;
     match manager.create_service(&info, access) {
         Ok(service) => {
+            ensure_service_sid(&service, std::ffi::OsStr::new(id.service_name()))?;
             service.update_failure_actions(recovery()).map_err(|_| {
                 p::Error("service registered but recovery policy requires repair".into())
             })?;
@@ -35,8 +36,12 @@ pub fn register_windows_service(id: p::BuiltinServiceId, config: &Path) -> p::Re
         }
         Err(windows_service::Error::Winapi(error)) if error.raw_os_error() == Some(1073) => {
             let service = manager
-                .open_service(&info.name, ServiceAccess::QUERY_CONFIG)
+                .open_service(
+                    &info.name,
+                    ServiceAccess::QUERY_CONFIG | ServiceAccess::CHANGE_CONFIG,
+                )
                 .map_err(|_| p::Error("existing service cannot be inspected".into()))?;
+            ensure_service_sid(&service, std::ffi::OsStr::new(id.service_name()))?;
             verify(&service, &info)
         }
         Err(_) => Err(p::Error("native service registration failed".into())),
@@ -217,6 +222,7 @@ fn validate_path(path: &Path) -> p::Result<()> {
 }
 
 fn verify(service: &Service, expected: &ServiceInfo) -> p::Result<()> {
+    verify_service_sid(service, &expected.name)?;
     let actual = service
         .query_config()
         .map_err(|_| p::Error("existing service configuration is unavailable".into()))?;
@@ -241,6 +247,48 @@ fn verify(service: &Service, expected: &ServiceInfo) -> p::Result<()> {
         return Err(p::Error("existing service recovery policy differs".into()));
     }
     Ok(())
+}
+
+/// The ACL plan uses the fixed `NT SERVICE\\forme-*` identities. Keep the
+/// corresponding service SID enabled and verifiable in SCM, rather than
+/// treating an account-name string as proof that the process token contains
+/// the identity used by the file boundary.
+pub(super) fn ensure_service_sid(service: &Service, name: &std::ffi::OsStr) -> p::Result<()> {
+    let expected = expected_service_sid_type(name)?;
+    let actual = service
+        .get_config_service_sid_info()
+        .map_err(|_| p::Error("service SID configuration cannot be inspected".into()))?;
+    if actual != expected {
+        service
+            .set_config_service_sid_info(expected)
+            .map_err(|_| p::Error("service SID configuration could not be applied".into()))?;
+    }
+    verify_service_sid(service, name)
+}
+
+pub(super) fn verify_service_sid(service: &Service, name: &std::ffi::OsStr) -> p::Result<()> {
+    let expected = expected_service_sid_type(name)?;
+    let actual = service
+        .get_config_service_sid_info()
+        .map_err(|_| p::Error("service SID configuration cannot be inspected".into()))?;
+    if actual != expected {
+        return Err(p::Error(
+            "service SID configuration differs; refusing the native boundary".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn expected_service_sid_type(name: &std::ffi::OsStr) -> p::Result<ServiceSidType> {
+    match name.to_str() {
+        Some("forme-host")
+        | Some("forme-web")
+        | Some("forme-brain")
+        | Some("forme-release-updater") => Ok(ServiceSidType::Unrestricted),
+        _ => Err(p::Error(
+            "service name is outside the fixed forme set".into(),
+        )),
+    }
 }
 
 fn matches_config(actual: &ServiceConfig, expected: &ServiceInfo) -> bool {
