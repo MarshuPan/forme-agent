@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-25 `277f551` 完成[原生包事务入口加固](installed-product-package-hook-hardening-20261025.md)：Linux/macOS 包 hook 固定管理员环境、`umask` 与 root/systemd 前置检查，卸载 fixture 显式模拟 root 后 POSIX 8/8 场景通过；workspace 与质量/合规门通过。该批不执行真实包管理器、systemd/launchd、管理员安装或签名，不提升 IP01–IP24，worker/AppContainer 与原生平台验收仍开放。
+
 2026-10-25 `8936975` 完成[Windows 固定服务 Service SID 边界](installed-product-service-sid-acceptance.md)：四个固定 forme 服务在注册、既有配置复核和 updater 接管前均强制核验 `ServiceSidType::Unrestricted`，未知服务名与 SID 漂移 fail closed。workspace fmt/check/test、strict Clippy、代码质量与合规门通过；当前主机非管理员且未注册 SCM 服务，本组件不提升原生安装、worker 隔离或 IP01–IP24 状态。
 
 2026-10-25 `82493ea` 完成[Windows sandbox lease journal 持久化与恢复底座](installed-product-windows-sandbox-lease-acceptance-20261025.md)：固定路径、有界 append-only/hash-chain、单 writer、逐步 intent/readback、启动恢复阻断，以及活动 lease 的 job 目录路径/file identity 唯一性。7 个 lease 专项场景、installed-host 永久门、workspace fmt/check/test/strict Clippy、代码质量与合规门通过。此组件不执行真实 ACL/AppContainer 操作、不提供 token 或文件访问正反断言，也未接入生产 dispatch；worker 仍 blocked，IP01–IP24（含 IP10/IP24）未通过。早期 M5 S99 clean-tree release audit 因其他未提交改动而报 `RELEASE_TREE_DIRTY`，不记作 release PASS。

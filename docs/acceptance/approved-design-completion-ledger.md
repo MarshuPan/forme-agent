@@ -26,7 +26,7 @@
 
 | 设计/验收 | 已有实现 | 未闭合义务 |
 |---|---|---|
-| P01 / IP01 / prd24：完整原生包 | bundle、资源/签名验证、三平台模板、Windows 有限 ACL 安装入口 | 原生构建/签名/清单及失败恢复工具链；各目标实际安装证据。 |
+| P01 / IP01 / prd24：完整原生包 | bundle、资源/签名验证、三平台模板、Windows 有限 ACL 安装入口；`277f551` 加固 POSIX 包事务的固定环境、root/systemd 前置检查与卸载 fixture | 原生构建/签名/清单及失败恢复工具链；各目标实际安装证据。 |
 | P02–03 / IP02–03：常驻、唯一主脑 | 三 daemon、SCM host、有限退避、core drain、独占 writer | 无桌面冷启动、故障/注销后任务持续、双启动与 Unknown 恢复原生证据。 |
 | P09 / IP10：实际分权与 worker | 双域 broker、exact permit、持久 job receipt；普通进程生产 blocked；Windows 新安装 ACL；`8936975` 固定服务 Service SID 核验 | 逐 job 文件/网络/进程隔离、正式 core→broker 原生 peer、独立实际账户；每个平台有效拒绝。Service SID 组件不等于 worker sandbox 或 IP10 PASS。 |
 | P09 / IP11：会话桥 | 核心 desktop grant/driver 治理基线 | 指定 OS 会话的有限 helper、TTL/liveness/锁屏/注销/TCC/Wayland 行为与平台证据。 |
