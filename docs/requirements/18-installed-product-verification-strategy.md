@@ -22,7 +22,7 @@
 | IP08 配置生效 | P07 / 25 | 保存→校验→应用有版本与结果；重启后仍加载同一 profile；记录实际 provider；环境覆盖可见。 | 保存失败不覆盖好配置；改模型不改变治理；密钥不回显、不进日志/事件/诊断包。 |
 | IP09 LAN 边界 | P08 / 25 | 默认仅本地；启用 LAN 后正确 HTTPS/Host/Origin/firewall，跨设备登录可用。 | HTTP、未信任证书、DNS rebinding、CSRF、错误 Host、未授权网卡不被静默放行；不默认开公网。 |
 | IP10 权限分离 | P09 / 24 | 检查服务账户/ACL；经审批 typed system action 可执行且有完整事件/permit/receipt。 | 模型、Web、shell worker 无权改服务二进制/配置/brain DB/keys；缺权限、陈旧审批、重放许可 driver=0。 |
-| IP11 交互会话桥 | P09 / 24 | 登录会话 helper 绑定 OS 用户/会话，许可有效时桌面动作可执行。 | 注销、锁屏、TCC 拒绝、会话切换明确不可用；不退回高权限服务直接点桌面。 |
+| IP11 交互会话桥 | P09 / 24 | 真实登录会话 helper 绑定 OS 用户、session generation、desktop grant、exact plan/permit 与受保护 peer；许可有效时完成一次桌面动作并返回原 job receipt。 | 注销、锁屏、TCC/portal 拒绝、会话切换、过期/重放 nonce、参数或 plan digest 替换、helper 失联均阻断；`Started` 无终态进入 Unknown；不退回高权限服务直接点桌面。 |
 | IP12 数据与密钥 | P10 / 24/25 | 绝对路径、服务 ACL、应用层加密、无交互重启读写、备份与恢复演练一致。 | 普通执行账户不能读原文/keys；改密码或注销不丢密钥；敏感数据不进静态资源/缓存。 |
 | IP13 旧脑接管 | P04/P10 / 24/25 | 检测历史配置/owner/store；首次认领前绑定已验证原脑/恢复候选，备份、显式迁移、保留原件与切换证据。 | 错误 key、历史明文、owner 不匹配、占用库均不能新建空脑替代；不能先造 owner 再暗换身份，不能修饰历史保护状态。 |
 | IP14 升级事务 | P11 / 24 | 签名→预检→排空→一致性备份→切换→健康探测→恢复任务；升级中 Web 显示维护进度。 | 断电/磁盘满/迁移失败可定位阶段；不覆盖旧好版本，不丢事件、不重复外部动作。 |
@@ -49,6 +49,12 @@
 | Rocky Linux 9 x86_64 | `.rpm`、systemd、SELinux 与 firewall 规则、升级卸载。 | `.deb` 通过不证明 RPM/SELinux 路径。 |
 
 未能取得的平台记录 NOT_RUN/UNVERIFIABLE，不扩大支持声明。平台能力可明确降级，例如 headless host 没有交互桌面；基础安装、认证、对话和维护不能因此被标成不适用。
+
+### IP11 交互会话桥的证据细则
+
+正向证据必须同时包含：真实 OS 用户与 session generation 的独立探测、Host/helper peer 身份、签发的 desktop grant 与 TTL、原 `WorkerJob`/`WorkerPermit`/`plan_digest`/nonce 绑定、一次真实有限桌面动作、helper receipt 与 core 终态的对应关系。仅能证明 helper 进程运行、服务拥有管理员权限或动作在 mock driver 中成功，不算正向通过。
+
+反向证据至少覆盖：未登录、锁屏、注销、会话切换、Windows 非目标 session、macOS TCC 拒绝、Linux Wayland portal/X11 authority 缺失、过期 grant、nonce 重放、参数/digest 替换、Web 直连 helper、helper 失联以及动作已 started 但没有终态。每个反向场景都必须证明 driver/桌面副作用次数为零；最后一种必须证明状态唯一为 `Unknown` 且恢复不产生第二 dispatch。
 
 ## 4. 三类联合正确性
 

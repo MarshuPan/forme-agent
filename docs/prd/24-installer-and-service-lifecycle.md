@@ -320,6 +320,35 @@ Checking 失败由持有唯一 writer 的新 Host 写 RecoveryRequired；新 Hos
 
 持久 readiness 文件只是配置加载证据，不能独自证明当前进程仍已就绪。Checking/补开放还须向固定 core listener 发送 closed `ProductReleaseReadinessProbe` v1（install、每次新 nonce、signature），取得 `ProductReleaseReadinessProof` v1（同 nonce、当前内存 readiness、signature）。两方向签名分别绑定 domain；Ed25519 seed 由既有高熵 core-owner credential 按固定 SHA-256 domain 派生，验证公钥由两端同源计算，绝不把 bearer/seed 发到 listener。双方核对签名、installation、nonce、exact binding/config/data/image；伪造 listener、旧文件、重放响应不能通过。该内部只读端点仅在受管 release runtime 存在时提供，不开放新脑命令，不消费工作准入，使用独立限流与有界 IO；同时继续核对实际 SCM 服务目标与状态。
 
+### 4.11 交互桌面会话 helper
+
+交互 helper 是 Host 管理的低权限执行单元，不是服务、Agent、策略引擎或第二个大脑。它只接受由 Core/Harness 经过最终 recheck 后、绑定现有 `WorkerJob`/`WorkerPermit` 的 exact desktop action；Web、模型和浏览器不能直接访问 helper。
+
+#### 4.11.1 绑定与接口
+
+跨进程协议使用版本化 closed DTO：
+
+- `DesktopSessionBinding`：`schema_version`、`grant_ref`、`owner_ref`、`os_user_ref`、`os_session_ref`、`session_generation`、`desktop_ref`、`action_ref`、`plan_digest`、`authority_epoch`、`nonce`、`capability_set`、`issued_at`、`expires_at`。
+- `DesktopSessionObservation`：helper/product 状态、liveness、实际 OS user/session generation、receipt/reason ref 和观察时间。
+- `DesktopActionRequest`：原 `WorkerJob`/`WorkerPermit` 引用、binding、规范化 action digest、有限 desktop operation 和 deadline；不携带解析 secret、任意程序路径、环境变量、cookie、brain path 或新的 permission。
+- `DesktopActionReceipt`：原 job/action/plan/nonce 摘要、`Committed/Failed/Cancelled/Unknown`、有界结果引用和观察时间。`Started` 后失去可信终态必须是 `Unknown`。
+
+Host 在 admission、helper call 前和回执落盘前分别重查：owner/authority epoch、plan digest、permit/nonce、TTL、真实 OS peer、OS user/session generation、桌面 liveness、锁屏/注销/TCC/portal 状态和 capability allowlist。Web payload 只能请求能力，不能指定可信的 session、display、PID、token 或 helper endpoint。session token 只在受保护 Host↔helper IPC 存在，不写 Web、EventStore、模型上下文、日志或诊断包。
+
+helper 明确没有 brain DB、keys、EventStore、model client、policy/config mutation、安装管理、任意 shell 或 grant 签发权；它只能执行 Host 已验证的有限 `Computer`/交互 PTY 子动作并返回 receipt。helper/session/grant/liveness/receipt 元数据归产品 worker/session journal，`ActionStarted`/终态/Unknown 仍由 core 既有事件事实源产生。
+
+#### 4.11.2 生命周期与平台语义
+
+helper 生命周期为 `Absent -> Starting -> Ready -> Revoked/Expired/Unavailable -> Stopped`。注销、锁屏、会话切换、TCC/portal 拒绝、peer 失效或 TTL 到期立即阻断新动作；旧 session generation 的 grant/nonce 不得复用。已启动动作在 helper/Host/OS 失去可信终态时进入 Unknown，启动恢复只查原 receipt/probe 或等待 owner 裁决，不换 job、不盲重试、不把 Unknown 猜成 Cancelled/Completed。
+
+- Windows：Host 运行于 LocalSystem 也不能直接控制用户桌面；helper 必须绑定真实登录用户的 OS session/token 与受保护 peer。服务无用户登录时交互能力不可用，非交互工作继续。
+- macOS：LaunchDaemon 不直接操作 GUI；helper 在登录用户会话运行并受 TCC 授权。锁屏、注销、TCC 拒绝和无用户 session 均为 Unavailable，不得以 root 回退。
+- Linux：helper 绑定真实用户 session，并明确使用 Wayland portal 或 X11 display/authority；锁屏、注销、会话切换、无可验证 display/portal 均为 Unavailable，不得以 root 伪造 GUI。
+
+#### 4.11.3 恢复、升级与卸载
+
+撤销 grant、排空 helper、核对原 receipt 后才能升级/恢复/卸载。清理 helper 不删除 Unknown 的 job、副本、receipt 或 session journal；恢复不得复活旧 grant/session generation/nonce。helper 不可用只阻断交互动作，不阻断 Web 登录、脑运行或非交互任务。详细 IP11 证据要求见 requirements/18。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
@@ -343,6 +372,8 @@ OS 监管配置必须通过 `ServiceRecoveryPolicy` 表达延迟/退避/崩溃�
 worker 使用独立低权限身份启动；最小 env/handles，仅装载本 plan 的 workspace、临时目录与已单独授权的能力。同一执行账户的不同 job 也须互相隔离，不能读写兄弟 workspace/credential。Windows 要满足 §4.1.2 的 per-job AppContainer、ACL 与 lease recovery 契约；Linux systemd sandbox/cgroup/账户、macOS 可用的账户/文件与进程限制也必须逐平台验证。进程组或 Job Object 本身不证明文件/网络隔离。不可满足强制限制则该 backend blocked，不能回退到 brain 用户执行。
 
 会话 helper 仅在 owner 指定的 OS 会话启动，受 grant/TTL/会话 liveness 约束。OS 注销后撤销桌面执行能力，broker/core 仍常驻。会话 helper 不能获得私有 keys、brain DB 或安装管理 API。
+
+交互动作必须同时满足 §4.11 的 binding、真实 OS peer 和当前 session generation；helper 只执行一次性 exact action。浏览器不能把 `os_session_ref`、display、PID、token 或 helper 地址写入请求来扩大权限。锁屏、注销、TCC/portal 拒绝和会话切换只返回 `Unavailable`/`Unknown`，不转为高权限服务执行。
 
 特权动作经 Harness 最终 recheck、ActionStarted 与 one-shot 授权进入 broker；broker 还检查本地 typed-operation allowlist/permit binding。接收后失联只查原 job receipt；核心死亡、超时或 worker 无终态均保留 Unknown，不生成第二 job 盲重试。
 

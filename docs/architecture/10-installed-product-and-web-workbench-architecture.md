@@ -176,6 +176,25 @@ Windows managed Host 的 AgentExecution 不使用 loopback bearer-only 接口，
 
 Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session id、OS user、desktop grant 和 TTL；不从 Web payload 指定任意桌面。锁屏/注销/TCC/Wayland 能力缺失会改变可用性；在另一台常开服务器上运行大脑，不自动赋予操作用户电脑的权限，跨机继续复用 M4 executor 治理。
 
+### 7.2 交互会话 helper 协议
+
+交互 helper 是 `AgentExecution` 的一个 placement adapter，不是第四个服务大脑。Host 负责创建、绑定、撤销和回收；helper 不拥有 policy、model、brain store、keys、EventStore 或安装管理能力。协议对象均为产品侧 DTO，带 `schema_version`，由 Host 的 session journal 单写者保存，不新增 brain `EventKind`。
+
+一次桌面动作的完整链路固定为：
+
+1. Harness 根据当前 `Computer`/交互 PTY intent 生成最终 plan，并执行 policy、permission、AutonomyEnvelope、CompetenceGate、approval/nonce 和 `plan_digest` recheck。
+2. Core 通过现有 `WorkerJob`/`WorkerPermit` 向 Host 发出 exact dispatch；其中附加的 session binding 只能引用已验证的 `desktop_grant`，不能携带浏览器自报 OS session 或替代参数。
+3. Host 校验 `owner_ref/action_ref/plan_digest/authority_epoch/nonce/deadline`、grant、OS peer、真实用户 session、session generation、liveness、锁屏/注销/TCC/portal 状态和 helper capability allowlist，然后才向 helper 发 exact one-shot action。
+4. helper 只执行已允许的有限动作并返回 `Committed/Failed/Cancelled/Unknown` receipt；Host 将其绑定到原 job。任何写入/启动/回执不明均保留原 job 和原 session journal，core 看到的是既有 Unknown 语义。
+
+`DesktopSessionBinding` 至少包含 `schema_version, grant_ref, owner_ref, os_user_ref, os_session_ref, session_generation, desktop_ref, action_ref, plan_digest, authority_epoch, nonce, capability_set, issued_at, expires_at`；`DesktopSessionObservation` 至少包含 `state, liveness, observed_os_user, observed_session_generation, receipt_ref, reason_ref, observed_at`。不传 secret、任意程序路径、环境变量、原始 cookie、brain path 或可扩大 scope 的字符串。
+
+状态迁移是受约束的：`Absent -> Starting -> Ready -> Revoked/Expired/Unavailable -> Stopped`；动作则是 `Pending -> Started -> terminal`，`Started` 后若 helper/Host/OS 失去可信终态，只能是 `Unknown`。`Unknown` 不可由 lease 到期、服务重启或重新登录自动改成 `Cancelled`/`Completed`，也不可自动重新 dispatch。新登录会话产生新 generation，旧 grant/nonce 全部失效。
+
+平台实现边界：Windows 用真实登录用户的 session/token 与受保护 desktop peer；LocalSystem Host 不能直接输入用户桌面。macOS 由登录用户会话中的 helper 承担 GUI/TCC，LaunchDaemon 不越权操作 GUI。Linux 绑定用户 session，并明确 Wayland portal 或 X11 display/authority；无桌面、锁屏、注销、会话切换、TCC/portal 不满足时，交互能力是 `Unavailable`，非交互任务继续。helper 启动/注册、liveness、grant/revoke 和 receipt 记录在产品 journal，脑事件仍只由 core EventStore 写入。
+
+IP11 的正向证据必须同时证明真实 OS 用户/session、真实 peer、exact plan/permit、桌面动作和 receipt；反向证据必须覆盖注销、锁屏、会话切换、TCC/portal 拒绝、过期/重放 nonce、参数/digest 替换、helper 失联以及 `Started` 后无终态。受控 fixture 或服务运行截图不能单独关闭 IP11。
+
 ## 8. 数据、密钥与已有数据接管
 
 数据保护复用 architecture/09 §11 与 canonical §28.7：成熟 AEAD、内容引用、安全 resolver、真实删除和一致性备份。Windows 使用适于服务身份的 OS 密钥保护与 ACL；macOS 使用服务可访问的系统级 key protection；Linux 基线为 root/brain 限定的 key storage，可选 TPM/硬件密封。单纯文件权限不应宣传成抵御 root 或整机磁盘被盗，相关风险与全盘加密建议必须如实显示。

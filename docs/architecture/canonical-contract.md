@@ -704,3 +704,17 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - 该代码实现只表示 adapter 组件已存在，不表示服务账户、安装 ACL、网络拒绝、重启回收和真实 IP10/IP24 通过。产品门仍以真实 Windows service identity 和正反访问证据为准。
 - owner 已选择 Windows 每 job 私有副本/overlay + Host 核验回写（prd/24 §4.1.3）：仅副本降低完整性，原 workspace 不授予 worker、不改变标签；baseline/最终计划/permit 精确绑定、原句柄 custody、冲突整批拒绝和 durable writeback intent/receipt 是承重条件。回写不明保留原副本并阻断恢复，不盲重试；不增加脑 EventKind。新增 Low label/文件 identity/按句柄删除/child-process restriction FFI 仍仅限上述两个文件。
 
+### 29.10 交互桌面会话 helper
+
+交互桌面是执行能力的一个受限 placement，不是新的大脑、Agent、策略面或事实源。`forme-hostd` 是唯一 broker；helper 只是绑定到真实 OS 登录会话的执行单元。Web、浏览器、模型和 helper 都不能直接调用彼此的桌面 API。
+
+- **绑定链不可缩短**：`Web AuthContext -> ProductionRuntime/Harness -> 最终 ExecutionPlan/permit -> WorkerJob -> Host -> session helper`。每一跳都保留 `owner_ref`、`action_ref`、`plan_digest`、`authority_epoch`、一次性 `nonce`、`deadline` 和允许的 desktop capability。浏览器提交的 OS 用户、session id、display、窗口或 helper 地址一律不是可信输入。
+- **绑定对象**：会话标识、OS 用户标识、桌面/显示面标识、登录会话世代、真实 OS peer、desktop grant、计划/动作摘要和 TTL。session id 不能只用用户名、主机名、PID、cookie 或 wall-clock 推导；同一用户重登录必须生成新的 session generation。原始 token 只在 Host 与 helper 的受保护 IPC 中出现，不能进 Web DTO、URL、日志、脑事件、模型上下文或诊断包。
+- **职责与权限**：helper 只执行已准入的 `Computer`/交互 PTY 子动作并返回有界 receipt；没有 brain DB、keys、memory/cognition、policy mutation、安装管理、任意 shell、模型 client 或 EventStore 写入权。它不能自行规划、提升 L0-L5、签发 grant、替换 plan 参数或把“当前桌面可用”写成长期事实。
+- **生命周期**：`Absent -> Starting -> Ready -> Revoked/Expired/Unavailable -> Stopped`。每次动作前 Host 重新核对 grant、session liveness、OS peer、锁屏/注销状态、plan digest 和 deadline；helper 只接受同一 grant 的 exact action。注销、锁屏、会话切换、TCC/portal 拒绝、peer 失效和 TTL 到期立即阻断新动作；已 `Started` 而没有可信终态的动作进入唯一 `Unknown`，只能查原 receipt、做只读 probe 或等待 owner 裁决，绝不换 job 或盲重试。
+- **产品事实与脑事实分离**：helper/session 的注册、liveness、grant、撤销和 receipt 元数据写入产品侧 worker/session journal；真正的 `ActionStarted`、`ActionCompleted`、`ActionOutcomeUnknown` 仍由现有 brain EventStore 单写者产生。helper 不增加 EventKind，不推进 Run，也不创建 workspace 私有 cognition。
+- **平台边界**：Windows 必须以真实登录用户的 OS session/token 和受保护 desktop peer 绑定，服务的 LocalSystem 权限不能代替用户桌面；macOS 的 LaunchDaemon 不能直接越过用户 GUI/TCC，helper 必须运行在登录用户会话并显式获得对应 TCC；Linux 必须绑定具体用户 session 与 Wayland portal 或 X11 display/authority，root 服务不能伪造 GUI。锁屏、注销、无桌面/远程 headless、Wayland/X11 或 TCC 不满足时，状态是 `Unavailable`，后台非交互任务继续运行。
+- **卸载、升级与恢复**：停止/升级/恢复/卸载先撤销 grants、排空 helper、核对原 receipt，再移除 helper 注册；未知动作证据和 session journal 不能因清理 helper 被删除。恢复不得复活旧 grant、旧 session generation 或旧 nonce；新登录会话必须重新绑定。
+
+这一契约只定义跨平台边界和数据绑定，不宣称任何平台已经完成原生安装或 IP11。完整 DTO/状态机/测试与平台取证要求见 `architecture/10` §7.2、`prd/24` §4.11 和 `requirements/18` IP11。
+
