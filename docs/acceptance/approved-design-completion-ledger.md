@@ -28,7 +28,7 @@
 |---|---|---|
 | P01 / IP01 / prd24：完整原生包 | bundle、资源/签名验证、三平台模板、Windows 有限 ACL 安装入口 | 原生构建/签名/清单及失败恢复工具链；各目标实际安装证据。 |
 | P02–03 / IP02–03：常驻、唯一主脑 | 三 daemon、SCM host、有限退避、core drain、独占 writer | 无桌面冷启动、故障/注销后任务持续、双启动与 Unknown 恢复原生证据。 |
-| P09 / IP10：实际分权与 worker | 双域 broker、exact permit、持久 job receipt；普通进程生产 blocked；Windows 新安装 ACL | 逐 job 文件/网络/进程隔离、正式 core→broker driver、独立实际账户；每个平台有效拒绝。 |
+| P09 / IP10：实际分权与 worker | 双域 broker、exact permit、持久 job receipt；普通进程生产 blocked；Windows 新安装 ACL；`8936975` 固定服务 Service SID 核验 | 逐 job 文件/网络/进程隔离、正式 core→broker 原生 peer、独立实际账户；每个平台有效拒绝。Service SID 组件不等于 worker sandbox 或 IP10 PASS。 |
 | P09 / IP11：会话桥 | 核心 desktop grant/driver 治理基线 | 指定 OS 会话的有限 helper、TTL/liveness/锁屏/注销/TCC/Wayland 行为与平台证据。 |
 | P10 / IP12–13：数据与接管 | AEAD/backup/restore/data lifecycle 核心；新脑认领；旧安装 template 原位保留 | 旧脑/备份离线验证、候选绑定、显式迁移与新路径切换、恢复材料；不接管错误 owner/key/占用库。 |
 | P11 / IP14–15：升级回滚恢复 | product journal、release trust/compatibility、服务 adapter；`5b99ac5` 已实现恢复水位、活动数据 CAS、完整 CommitRestore 与提交后准入；`e36b5b9` 增加独立 Web 激活与已暂存发布的重新认证 | 恢复的原生 SCM 联调；签名 Upgrade/Rollback/self-update 的排空→备份→程序切换→健康验证与断电/磁盘失败恢复。不以恢复组件/禁用状态截图代替原生升级验收。 |
