@@ -132,6 +132,8 @@ AppContainer 证据不代替 broker 身份与 worker token 的独立证据。Win
 
 补充持久性口径：有效回写 receipt 的 job/plan/intent/baseline/result 摘要必须在移除 job 目录前追加到同一个 sandbox lease journal，旧记录的 hash/序列不变；这保留已验证副作用的审计证据，不自动改变 brain/worker Unknown。Windows action 的路径须在最终计划形成前使用现有 ResourceRef 支持的盘符加 `/` 拼写，Host 不改已审批的参数或 digest。完成时分别重查原 spec 绑定与当前 permit 截止时间，不把原执行 timeout 当作重新 dispatch 的剩余预算。
 
+Windows 原生启动必需的 `SystemRoot` 是唯一额外环境项：由受审计 native adapter 的 `GetSystemWindowsDirectoryW` 查询 OS 安装目录，拒绝截断/失败，不读取或转发 Host 的同名环境变量。它是系统运行时定位信息，不授予网络、凭据或可写程序搜索路径；worker 的环境正反验收必须将此固定项纳入，仍拒绝 PATH、代理和 owner/model 密钥继承。
+
 本节为已授权方案的具体实现契约。句柄文件 identity/硬链接查询、Low label 设置与回读、按句柄删除、child-process restriction 的新增 Win32 调用仍只准在 §29.9 的两个 adapter 文件，安全状态机/副本/事务逻辑保持 `forbid(unsafe_code)`。真实 Low worker 的读写、原路径拒绝、子进程/网络拒绝、冲突、取消和崩溃恢复各自取证；没有安装身份与完整平台证据前，不切换生产默认 adapter，不提升 IP10/IP24。
 
 ### 4.2 Core 停服接缝（24.2 增量）
