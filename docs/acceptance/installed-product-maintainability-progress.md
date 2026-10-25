@@ -4,6 +4,8 @@
 
 本记录对应 owner 要求的工程规范与大模块维护，不代表安装器、五面 Web 或全部历史技术债已经完成。规范入口为 [code-quality.md](../engineering/code-quality.md)，产品范围仍按 prd/24–26。
 
+2026-10-26 `ece53be` 将 `AgentHarness`、`GatewayControl`、`Observability` 的实现移入 `crates/harness/src/gateway_control.rs`，根级新增公开控制 trait 契约测试。该提交只移动实现并保留原 API/行为；没有新增 crate、依赖边或 EventKind。`cargo test --workspace --all-targets`、fmt、workspace check、strict Clippy、结构门及其单测、代码质量门和 compliance doctor 均通过；结构门扫描 719 个文件，63 处既有规模债务未增长。当前 `verify-m5.ps1` 已完成 S1–S99、C1–C24、Rust/Python 与合规检查；临时 S99 回执独立验证通过，但仓库回执仍绑定前一源码，比较失败。故本记录不把首次总命令记作 M5 PASS；回执刷新和 clean-tree 复跑状态见 [M5 验收记录 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。本次不改变安装、worker 或 IP01–IP24 验收状态。
+
 | 提交 | 结果 |
 |---|---|
 | `3236e50` | 固定 Rust API/格式、错误、并发与恢复、Web/宿主、测试/审查规范，说明规模阈值是仓库维护约定。 |
@@ -64,3 +66,7 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 最终统一门 `pwsh -NoProfile -File tools/verify-code-quality.ps1` PASS：161 suites、868 Rust tests passed / 0 failed / 5 默认 ignored；strict Clippy、前端 54/54、bundle 9/9、打包输入 15/15、真实 Rust 签名验证 5/5、临时 NTFS 7/7、完整默认合规和 diff 检查通过。结构门 593 文件/63 处既有债务。验证启动后未修改源码；日志 `target/installed-product-evidence/composition-extraction-20261024/code-quality.log` 的 SHA-256 为 `BE865AA58DF22F117C23F0A17475C05C10194FDC5E4F428EAC01332AC86FBC87`。
 
 本次只完成维护拆分与其边界证据，不改变 IP 或发布状态；已确认的模型角色摘要绑定按独立行为变更继续实施，不能用本次纯拆分的回归代替其验收。
+
+## 9. Gateway 控制实现拆分（2026-10-26）
+
+`ece53be` 将 `AgentHarness`、`GatewayControl` 与 `Observability` 的生产实现集中到职责明确的 `gateway_control.rs`；`lib.rs` 只保留入口与重导出。移动前后的实现文本保持一致，并新增根级测试确认原公开 trait 仍由正式 Harness 实现。文件行数为 300，符合新增生产文件上限。提交前完整 workspace tests、fmt、check、strict Clippy、Python 结构门及其回归、`py -3 tools/code-quality.py` 与 `bash tools/compliance-doctor.sh` 均通过；没有扩大 63 项历史规模债务。M5 第一次当前树复跑中，所有行为与质量检查通过，唯一失败是仓库 S99 回执仍对应旧源码；该次不记作完整 M5 PASS，后续刷新与最终状态见 M5 报告 §10。
