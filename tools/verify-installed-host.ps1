@@ -173,6 +173,10 @@ try {
             "native_registration_has_fixed_identity_and_finite_recovery"
         )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::tests::$name" }
         foreach ($name in @(
+            "host_process_proof_requires_running_own_process_with_the_exact_nonzero_pid",
+            "registration_recheck_cannot_hide_a_changed_or_unqueryable_running_process"
+        )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::process::tests::$name" }
+        foreach ($name in @(
             "installed::windows_appcontainer::tests::profile_identity_is_deterministic_and_plan_bound",
             "installed::windows_appcontainer::tests::job_object_name_is_closed_and_bound_to_the_appcontainer_identity",
             "installed::windows_appcontainer::tests::environment_block_is_deterministic_and_scoped",

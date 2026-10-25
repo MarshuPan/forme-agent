@@ -49,7 +49,7 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
     use windows_service::service::{
         ServiceControlAccept, ServiceExitCode, ServiceState, ServiceStatus, ServiceType,
     };
-    let _ = status.set_service_status(ServiceStatus {
+    let starting = status.set_service_status(ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
         current_state: ServiceState::StartPending,
         controls_accepted: ServiceControlAccept::empty(),
@@ -58,41 +58,45 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
         wait_hint: Duration::from_secs(10),
         process_id: None,
     });
-    let result = match managed_from_process_args() {
-        Ok(runtime) => run_host(
-            Some(shutdown_rx),
-            false,
-            runtime,
-            || {
-                status
-                    .set_service_status(ServiceStatus {
-                        service_type: ServiceType::OWN_PROCESS,
-                        current_state: ServiceState::Running,
-                        controls_accepted: ServiceControlAccept::STOP
-                            | ServiceControlAccept::SHUTDOWN,
-                        exit_code: ServiceExitCode::Win32(0),
-                        checkpoint: 0,
-                        wait_hint: Duration::default(),
-                        process_id: None,
-                    })
-                    .map_err(|_| p::Error("host service could not report readiness".into()))
-            },
-            || {
-                status
-                    .set_service_status(ServiceStatus {
-                        service_type: ServiceType::OWN_PROCESS,
-                        current_state: ServiceState::StopPending,
-                        controls_accepted: ServiceControlAccept::empty(),
-                        exit_code: ServiceExitCode::Win32(0),
-                        checkpoint: 1,
-                        wait_hint: Duration::from_secs(60),
-                        process_id: None,
-                    })
-                    .map_err(|_| p::Error("host service could not report draining".into()))
-            },
-        ),
-        Err(error) => Err(error),
-    };
+    let result = starting
+        .map_err(|_| p::Error("host service could not report startup".into()))
+        .and_then(|()| forme_execution::installed::bind_windows_host_service())
+        .and_then(|binding| {
+            let runtime = managed_from_process_args()?;
+            run_host(
+                Some(shutdown_rx),
+                false,
+                runtime,
+                || {
+                    status
+                        .set_service_status(ServiceStatus {
+                            service_type: ServiceType::OWN_PROCESS,
+                            current_state: ServiceState::Running,
+                            controls_accepted: ServiceControlAccept::STOP
+                                | ServiceControlAccept::SHUTDOWN,
+                            exit_code: ServiceExitCode::Win32(0),
+                            checkpoint: 0,
+                            wait_hint: Duration::default(),
+                            process_id: None,
+                        })
+                        .map_err(|_| p::Error("host service could not report readiness".into()))?;
+                    binding.verify_running()
+                },
+                || {
+                    status
+                        .set_service_status(ServiceStatus {
+                            service_type: ServiceType::OWN_PROCESS,
+                            current_state: ServiceState::StopPending,
+                            controls_accepted: ServiceControlAccept::empty(),
+                            exit_code: ServiceExitCode::Win32(0),
+                            checkpoint: 1,
+                            wait_hint: Duration::from_secs(60),
+                            process_id: None,
+                        })
+                        .map_err(|_| p::Error("host service could not report draining".into()))
+                },
+            )
+        });
     let _ = status.set_service_status(ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
         current_state: ServiceState::Stopped,

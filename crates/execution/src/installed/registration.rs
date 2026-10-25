@@ -11,6 +11,7 @@ use windows_service::service::{
 };
 use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
 
+pub(super) mod process;
 pub(super) mod release;
 pub(super) mod release_lifecycle;
 pub(super) mod updater;
@@ -139,6 +140,7 @@ fn current_executable(id: p::BuiltinServiceId) -> p::Result<PathBuf> {
 /// Read-only proof for the fixed privileged network adapter. SCM registrations
 /// and recovery policy must match the running installation, never test paths.
 pub(super) fn verify_network_installation() -> p::Result<(PathBuf, PathBuf, PathBuf, PathBuf)> {
+    process::bind_windows_host_service()?.verify_running()?;
     let arguments: Vec<_> = std::env::args_os().collect();
     if arguments.len() != 3 || arguments[1] != "--config" {
         return Err(p::Error(

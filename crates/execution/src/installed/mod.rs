@@ -47,6 +47,8 @@ pub use paths::*;
 pub use process::*;
 pub use product_config::*;
 #[cfg(windows)]
+pub use registration::process::{bind_windows_host_service, WindowsHostServiceBinding};
+#[cfg(windows)]
 pub use registration::updater::{
     register as register_windows_release_updater, unregister as unregister_windows_release_updater,
 };
