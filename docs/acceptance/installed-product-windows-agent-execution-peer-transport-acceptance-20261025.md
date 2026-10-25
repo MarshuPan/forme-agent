@@ -1,6 +1,6 @@
 # Windows AgentExecution peer transport 组件验收
 
-日期：2026-10-25。分支：`shu/installed-product`。实现提交：`2f5f6a9`。
+日期：2026-10-25。分支：`shu/installed-product`。实现提交：`2f5f6a9`；Windows fail-closed 回归提交：`b901dff`。
 
 本报告记录 managed Windows Host 的 Core -> AgentExecution 原生 peer transport 接缝。它承接 architecture/10 §7.2、canonical §29.9 和 PRD24 §4.1；不把组件证据提升为真实 SCM 安装、完整 worker sandbox 或 IP01–IP24 通过。
 
@@ -19,14 +19,15 @@
 |---|---|
 | `cargo fmt --all -- --check` | PASS |
 | `cargo check --workspace --all-targets` | PASS |
-| `cargo test -p forme-execution --all-targets` | PASS，134 passed、0 failed、1 ignored |
+| `cargo test -p forme-execution --all-targets` | PASS，134 passed、0 failed、1 ignored；managed Host 4/4 场景通过 |
 | `cargo test --workspace --all-targets` | PASS，退出码 0，无失败测试 |
+| `powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-installed-host.ps1` | PASS；宿主命名门全通过，明确输出 `IP01-IP24: NOT_RUN` |
 | `cargo clippy --workspace --all-targets -- -D warnings` | PASS |
 | `py -3 tools/code-quality.py` | PASS，710 files、62 existing size debts |
 | `bash tools/compliance-doctor.sh` | PASS：upstream、license、copy |
 | `git diff --check` | PASS；仅有 Git 的 LF/CRLF 提示 |
 
-Windows 下的 pipe 名称闭合性、安装绑定和协议编译随 `forme-execution` 测试覆盖；managed Host 的既有 TCP fixture 在 Windows 上不冒充真实服务身份，因此按平台条件不运行。
+Windows 下的 pipe 名称闭合性、安装绑定和协议编译随 `forme-execution` 测试覆盖；Windows 专属反向场景还证明：未注册真实 `NT SERVICE\\forme-brain` 时，managed Host 在打开 listener 前失败退出，不回退 TCP、不创建管理 journal，替换 manifest 也不能绕过该失败。既有正向 TCP fixture 在 Windows 上不冒充真实服务身份，因此按平台条件不运行。
 
 ## 3. 未闭合边界
 

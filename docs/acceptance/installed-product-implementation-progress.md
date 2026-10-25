@@ -2,6 +2,10 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-25 `b901dff` 完成 [Windows managed Host fail-closed 回归](installed-product-windows-agent-execution-peer-transport-acceptance-20261025.md)：在没有真实 `NT SERVICE\\forme-brain` 服务身份时，受管 Host 必须在打开 listener 前失败退出，不能回退 TCP，manifest 替换也不能绕过失败或创建管理 journal。`forme-execution` 134/134 非忽略测试通过；`verify-installed-host.ps1` 宿主永久门 PASS，IP01–IP24 仍明确为 NOT_RUN。
+
+2026-10-25 `2f5f6a9` 完成 [Windows AgentExecution peer transport](installed-product-windows-agent-execution-peer-transport-acceptance-20261025.md)：managed Host 的 AgentExecution 从 loopback bearer-only TCP 切换到安装绑定的 named pipe，校验 Brain Service SID、当前 active release image 和应用层 bearer；开发模式仍保留 TCP 协议测试路径。该组件不等于真实 SCM 服务、完整 worker sandbox 或 IP01–IP24 验收。
+
 2026-10-25 `85b59f5` 完成 [SCM Host 当前进程绑定](installed-product-scm-browser-hardening-20261025.md)：受管 Host 在加载凭据/开放 listener 前核对固定 SCM 注册；上报 Running 后要求 OWN_PROCESS、Running 与当前 PID 精确一致，并在两次 PID 观察之间复核注册。永久宿主门已扩展并通过 163/163 命名场景；该证据仍不等于 LocalSystem token、core peer、管理员安装或 IP10/IP24。
 
 2026-10-25 `a8ac11b` 完成 [真实浏览器 fixture framing 修复](installed-product-scm-browser-hardening-20261025.md)：完整请求头、有界读取、idle preconnection 隔离和不完整请求零 mutation。真实 S38、S68 均通过，真实 Windows AppContainer/overlay 3/3 通过；M5 总门此前仅因 NOTICE 缺少 `windows-sys 0.61.2` 被 release audit 阻断，已补齐，当前树独立 release audit 已 PASS（仓库回执随后写入）。
