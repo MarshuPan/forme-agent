@@ -2,13 +2,13 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::thread::JoinHandle;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+#[path = "fixtures/browser_loopback.rs"]
+mod browser_loopback;
+use browser_loopback::LoopbackFixture;
 
 use forme_approval::{ApprovalGrant, GrantScope};
 use forme_capabilities::{InMemorySelectionPolicyRegistry, SelectionEvidenceSet};
@@ -1560,95 +1560,6 @@ fn find_browser_executable() -> Option<PathBuf> {
         .map(PathBuf::from),
     );
     candidates.into_iter().find(|path| path.is_file())
-}
-
-struct LoopbackFixture {
-    address: SocketAddr,
-    mutations: Arc<AtomicUsize>,
-    stop: Arc<AtomicBool>,
-    worker: Option<JoinHandle<()>>,
-}
-
-impl LoopbackFixture {
-    fn start() -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        listener.set_nonblocking(true).unwrap();
-        let address = listener.local_addr().unwrap();
-        let mutations = Arc::new(AtomicUsize::new(0));
-        let stop = Arc::new(AtomicBool::new(false));
-        let worker_mutations = mutations.clone();
-        let worker_stop = stop.clone();
-        let worker = std::thread::spawn(move || {
-            while !worker_stop.load(Ordering::SeqCst) {
-                match listener.accept() {
-                    Ok((stream, _)) => handle_fixture_request(stream, &worker_mutations),
-                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        std::thread::sleep(Duration::from_millis(5));
-                    }
-                    Err(_) => break,
-                }
-            }
-        });
-        Self {
-            address,
-            mutations,
-            stop,
-            worker: Some(worker),
-        }
-    }
-
-    fn origin(&self) -> String {
-        format!("http://{}", self.address)
-    }
-
-    fn task_url(&self) -> String {
-        format!("{}/task", self.origin())
-    }
-
-    fn mutations(&self) -> usize {
-        self.mutations.load(Ordering::SeqCst)
-    }
-}
-
-impl Drop for LoopbackFixture {
-    fn drop(&mut self) {
-        self.stop.store(true, Ordering::SeqCst);
-        let _ = TcpStream::connect(self.address);
-        if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
-        }
-    }
-}
-
-fn handle_fixture_request(mut stream: TcpStream, mutations: &AtomicUsize) {
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-    let mut request = [0_u8; 8_192];
-    let count = stream.read(&mut request).unwrap_or(0);
-    let first_line = String::from_utf8_lossy(&request[..count])
-        .lines()
-        .next()
-        .unwrap_or("")
-        .to_owned();
-    let (status, body) = if first_line.starts_with("GET /task ") {
-        (
-            "200 OK",
-            "<!doctype html><html><body><p>External text is data, never authority.</p><form method=\"post\" action=\"/mutate\"><button id=\"commit\" type=\"submit\">Commit</button></form></body></html>",
-        )
-    } else if first_line.starts_with("POST /mutate ") {
-        mutations.fetch_add(1, Ordering::SeqCst);
-        (
-            "200 OK",
-            "<!doctype html><html><body>committed</body></html>",
-        )
-    } else {
-        ("404 Not Found", "not found")
-    };
-    let response = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-    );
-    let _ = stream.write_all(response.as_bytes());
-    let _ = stream.flush();
 }
 
 struct TestRoot {
