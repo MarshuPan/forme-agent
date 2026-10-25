@@ -96,6 +96,18 @@ Host 将已校验 spec 写入本 job 的受保护运行目录，按注册 launch
 
 Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，绑定固定 loopback endpoint、独立 credential、请求/响应大小和超时；它不能调用 OwnerMaintenance，也不能让 Web 直接取得该 credential。该 transport 只负责 admission/probe/cancel 和 receipt 投影，不在 transport 内产生 permission、重算 plan 或执行模型。正式 ProductionRuntime 在没有真实平台隔离 adapter 时继续将对应 capability 标为 unavailable/blocked；开发 process worker 仅用于 transport/协议验证。
 
+#### 4.1.1a Windows AgentExecution 原生 peer identity
+
+Windows managed Host 不把 loopback TCP 当作 Brain 身份证明。正式 AgentExecution 接缝使用固定名称空间下的 named pipe：`\\.\pipe\forme-agent-execution-v1-<install_digest>`，其中 `<install_digest>` 是 `sha256` 的小写十六进制摘要（摘要输入为 `("forme-agent-execution-pipe-v1", install_id)`，去掉 `sha256:` 前缀）。该名称只能由安装清单绑定的 `install_id` 派生，不能由 Web、模型或请求 payload 选择。
+
+Host 创建 pipe 时使用受保护 DACL，只允许 `LocalSystem` 与安装清单规定的 Brain Service SID（`NT SERVICE\\forme-brain`）；设置 `PIPE_REJECT_REMOTE_CLIENTS`，不启用网络/远端 pipe 访问。每次连接在读取任何 HTTP 字节之前，Host 必须：
+
+1. 通过 `GetNamedPipeClientProcessId` 取得对端 PID；
+2. 以 `PROCESS_QUERY_LIMITED_INFORMATION` 打开该 PID，并以 `OpenProcessToken`/`CheckTokenMembership` 证明 token 包含精确的 Brain Service SID；
+3. 以 `QueryFullProcessImageNameW` 取得实际 image path，和安装清单当前 active release 的 `forme-gatewayd.exe` 规范化路径逐字节（Windows 大小写不敏感）比对；无法读取、路径不一致、进程退出或 SID 不一致均拒绝该连接。
+
+该 OS peer 证明与 AgentExecution bearer 是两层独立校验：named pipe 只允许正确的已安装 Brain 进程进入，bearer 仍须在应用层绑定 `HostAuth`、authority epoch、job、permit 与 digest。Host 不接受从 payload/header 自报的 PID、服务名、image、owner 或安装身份。managed Windows 不再绑定 AgentExecution TCP listener；TCP 双 listener 仅保留给显式开发/协议测试路径。named pipe 组件通过不匹配 SID、错误 image、远端拒绝、重复实例和断连测试后，才可作为原生 transport 证据；这仍不等于完整 IP10/IP24，后者还必须有真实 SCM、ACL、token、网络、credential、会话和恢复证据。
+
 Windows 的 `WindowsJobWorkerIsolation` 已提供 Job Object 平台 adapter：进程在首次执行前加入启用 kill-on-close 的 Job Object；取消和宿主退出会终止受管进程树，observe 只读取受管 process handle 的退出码。该 adapter 的真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等。它只证明进程树生命周期 custody，不证明低权限 token、文件 ACL、网络/credential scope、桌面会话或完整 sandbox。
 
 #### 4.1.2 Windows 每 job AppContainer 隔离契约

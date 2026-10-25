@@ -172,6 +172,8 @@ Host 把经过验证的 spec 写入该 job 专属、受保护的运行目录，�
 
 24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。加载 worker 配置不能自动把普通子进程变成服务沙箱：Windows Job Object adapter 只证明进程树 custody，默认 managed service 仍在账户/ACL/网络/credential/session 门闭合前阻断 dispatch；仅显式前台开发开关可启用普通进程测试，SCM 服务路径不接受该开关。配置/路由细节见 prd/24 §4.1。原生 peer identity、独立账户/ACL 与每 job 文件/网络隔离仍需各平台的实际证据。
 
+Windows managed Host 的 AgentExecution 不使用 loopback bearer-only 接口，而使用由 `install_id` 确定性派生的 `\\.\pipe\forme-agent-execution-v1-<install_digest>`。named pipe 的受保护 ACL 只允许 LocalSystem 与 `NT SERVICE\\forme-brain`，并拒绝远端客户端。Host 在 HTTP framing 之前绑定连接的 client PID、Brain Service SID 和安装清单当前 active release 的 `forme-gatewayd.exe` image path；这三项不能由请求内容自报或替换。应用层 bearer 仍保留，作为第二道校验。named pipe peer 证明失败时只拒绝该连接，不能降级到 TCP 或普通子进程；开发模式可以继续使用 loopback HTTP 做协议测试。该原生接缝只闭合 Brain→Host 的 OS peer 身份，不单独证明 IP10/IP24 或完整 worker sandbox。
+
 Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session id、OS user、desktop grant 和 TTL；不从 Web payload 指定任意桌面。锁屏/注销/TCC/Wayland 能力缺失会改变可用性；在另一台常开服务器上运行大脑，不自动赋予操作用户电脑的权限，跨机继续复用 M4 executor 治理。
 
 ## 8. 数据、密钥与已有数据接管
