@@ -153,6 +153,15 @@
       "notice_action": "Preserve the BSD notice and review locked transitive notices before release.",
       "allowed_paths": [],
       "allowed_sha256": []
+    },
+    {
+      "source": "signal-hook 0.4.5 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the Unix signal iterator API to request the existing project-owned host drain path on SIGINT/SIGTERM; do not copy source, examples, fixtures, errors, or naming.",
+      "notice_action": "Review locked transitive licenses, notices, and reachable advisories before release.",
+      "allowed_paths": [],
+      "allowed_sha256": []
     }
   ]
 }
