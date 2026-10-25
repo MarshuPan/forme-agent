@@ -7,7 +7,7 @@
 
 本批只加固 POSIX 原生包事务入口：
 
-- Linux `preinst`、`postinst`、`prerm` 和 RPM `%post`/`%preun` 显式设置固定系统 `PATH` 与 `umask 077`。
+- Linux `preinst`、`postinst`、`prerm` 和 RPM `%pre`/`%post`/`%preun` 显式设置固定系统 `PATH` 与 `umask 077`。
 - Linux 包事务在继续前显式要求 root，并核验 `/usr/bin/systemctl` 存在且可执行。
 - macOS `preinstall`、`postinstall` 显式设置固定系统 `PATH` 与 `umask 077`。
 - 卸载测试 fixture 显式模拟 root；测试仍只替换 `systemctl` 边界，不写宿主 `/etc`、不注册服务。
