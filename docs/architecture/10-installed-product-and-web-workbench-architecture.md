@@ -32,7 +32,7 @@ flowchart LR
 | 操作工具 `forme-hostctl` | 现有 `cli` crate 的子命令入口 | 本机 operator 身份，经 OS ACL/管理授权调用 broker。 | headless bootstrap、状态、离线修复和恢复；不另起大脑。 |
 | `forme-executord` / 会话 helper | 现有 `execution` crate 的 bin/模块 | 工具专用低权限账户或指定登录会话身份。 | 执行 exact plan/job、限时返回结果；无认知和 stable write。 |
 
-这些名称是本次新增产品入口，不能据此改名或复制上游工程。共享 wire DTO 仅放现有 `protocol`；OS 适配与 worker 在 `execution`，不让 gateway 新增直依赖 execution/config/store。gateway 通过现有 Harness 外观与 protocol client 接口集成，cli 仍只依赖 gateway/protocol。所有平台 binding 采用可审计的安全封装，项目 crate 保持 `forbid(unsafe_code)`；无法在现图落地时先修改设计，不能隐增依赖边。
+这些名称是本次新增产品入口，不能据此改名或复制上游工程。共享 wire DTO 仅放现有 `protocol`；OS 适配与 worker 在 `execution`，不让 gateway 新增直依赖 execution/config/store。gateway 通过现有 Harness 外观与 protocol client 接口集成，cli 仍只依赖 gateway/protocol。平台 binding 采用可审计封装，项目默认保持 `forbid(unsafe_code)`；owner 已批准的 Windows AppContainer 两文件 FFI 例外严格按 canonical §29.9 和质量门约束，不能扩展到其他模块或增加内部依赖边。
 
 OS 服务管理器分别监管三个长期服务。broker 可以要求 OS 开始/停止 core，但不另设抢跑的崩溃重启 loop；每个长期进程只有一个 supervisor。短期 worker 由 broker 管理截止、取消与清理，不做自动副作用重试。Web 崩溃不影响核心；核心崩溃不影响登录与诊断。
 

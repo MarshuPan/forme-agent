@@ -102,6 +102,8 @@ Windows 的 `WindowsJobWorkerIsolation` 已提供 Job Object 平台 adapter：�
 
 正式 Windows worker adapter 必须在受管 service identity 下，为每个 `WorkerJob` 创建唯一、可由原 job 确定性恢复的 AppContainer identity，并在进程首次执行前同时施加 AppContainer 限制与 kill-on-close Job Object。不同 job 即使属于同一个 workspace，也不共享 package identity；身份名由规范化后的专属 `runtime_root` identity 与已验证的 job/plan binding 经固定域分隔摘要派生，不使用 owner 输入或模型生成字符串。不能创建、核对或清理身份时，adapter 返回不可用并 fail closed。
 
+Job Object 名称由同一 lease identity 确定性派生，使用服务会话的本地命名空间和受保护的默认 DACL；拒绝接管已存在的同名对象。进程通过 `PROC_THREAD_ATTRIBUTE_JOB_LIST` 在创建时加入该 Job Object，再以挂起状态完成 token/ACL/Job 回读后才恢复首条指令；禁止“先创建进程、之后再 AssignProcessToJobObject”，以免 Host 在两步之间崩溃留下不受控的挂起进程。worker 不继承 Job handle。服务重启时以原 lease identity 打开同名对象：存在则终止并等待 Job 为空后记录树终止；仅在系统明确返回对象不存在且上述创建时加入/不继承句柄不变量成立时，才可记录原树已不存在。访问拒绝、等待超时或其他错误均保持恢复阻断，不得把它们折算成“不存在”。
+
 路径授权只来自 Host 已验证的配置和 Worker DTO：
 
 - 精确 `workspace_scope` 的已解析目录允许读写，但不允许从该可写目录启动可执行文件；其他 workspace、brain/event 数据、model credentials、Web auth、管理 journal、发布目录和备份不得授予 worker。
@@ -110,6 +112,8 @@ Windows 的 `WindowsJobWorkerIsolation` 已提供 Job Object 平台 adapter：�
 - 临时目录必须位于受保护的 runtime 根下且按 job 分离；worker 不能修改 Host 的授权材料。关闭网页/桌面会话不改变隔离身份或 worker 生命周期。
 
 OS ACL 变更必须有独立于脑事件的、单写者、有界、可恢复的隔离 lease journal，固定在 `runtime_root/sandbox-leases.jsonl`，使用 append-only、record-size limit、OS writer lock、顺序与每步 flush。对每个 ACL mutation，先持久化包含 `SchemaVersion`、job id、plan digest、AppContainer identity、规范化目标路径及其文件 identity、目标 access 和恢复阶段的 intent，再执行并回读有效访问；回收需按记录精确撤权并核验。正常终态先终止并确认进程树，再撤权/删除 identity 和 job 临时目录，最后持久化 cleanup receipt。服务重启先恢复 worker journal 与所有未清理 lease：未知记录、身份冲突、路径 identity 变化、撤权失败或回读不一致都会阻止 worker admission；不得因旧 job 已经是 Unknown 就跳过 ACL 回收。恢复只清理原 lease，不重放 worker 副作用。不得扫描并修改 lease 根以外的 ACL，也不得用整棵目录重置权限掩盖证据。
+
+恢复从 journal 中的 AppContainer identity 确定性重建 SID，不重新创建/替换 profile。未完成的 Grant 视为可能已经授予：先证明原进程树已终止，再按原 path/file identity 追加对应 Revoke intent 并撤权，绝不在恢复时重新授予访问。若已有 Revoke intent，则按该原 operation 幂等重放并回读，而不是另造 operation。profile 删除的重试只接受“成功删除”或平台明确证明“已不存在”；job 目录删除前再次检查其原始 file identity，不匹配或无法验证均停止。所有步骤按原顺序持久化，只有 ACL 全部撤销、profile 已验证不存在且原目录已验证删除后才能写 cleanup receipt。
 
 AppContainer 证据不代替 broker 身份与 worker token 的独立证据。Windows `forme-hostd` 是安装清单绑定的特权 `LocalSystem` broker；必须核对 SCM image/config/account 与当前 Host 进程身份，不能要求 broker 自身为非 SYSTEM，也不能把 AgentExecution bearer 当作 OS peer identity。AgentExecution 对端必须独立证明为已安装的 core 服务，并且只能提交 Harness 绑定的 typed job/permit；交互用户、Web 与 OwnerMaintenance 域均拒绝 dispatch。每个 worker 则必须在首次指令执行前以本 job 的 AppContainer SID 和低完整性受限 token 创建，并先纳入 kill-on-close Job Object；核对有效 token 的 AppContainer 身份、能力/特权集合和句柄继承边界，再以真实文件访问正反断言证明它不具备 SYSTEM/管理员效果，只能访问精确 workspace 与本 job 输入。不能仅凭 `TokenUser`、父进程身份或 API 返回成功作此证明。服务/peer 身份、worker 有效权限、安装 ACL、会话 helper 和 OS 生命周期各自单独验收；任何生产门未通过前，SCM managed service 继续拒绝 dispatch，保留维护与状态查询。AppContainer、Job Object、development process worker 或受控测试均不能单独登记为完整 sandbox 或 IP10 PASS。
 

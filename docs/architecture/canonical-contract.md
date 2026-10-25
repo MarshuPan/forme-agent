@@ -696,3 +696,10 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - 不包含其内核、插件/宿主框架、服务端、模型/记忆/编排、prompt、错误文案、目录体系或 fixture；耦合组件在 forme 中原创实现。
 - 此例外不扩展到其他来源，不允许 `research/upstreams/**` build/import，不关闭 copy detection，不豁免 GPL/未知许可；未获逐文件审查的内容继续受 §12 禁止复制规则约束。
 
+### 29.9 原生平台边界与安全代码例外
+
+- `execution` 是唯一承载 worker OS 隔离 adapter 的既有 crate；不新增内部 crate 或依赖边。默认配置继续使用 `UnavailableWorkerIsolation`，直到完整平台证据闭合。
+- Windows AppContainer adapter 只允许在 `crates/execution/src/installed/windows_appcontainer_acl.rs` 与 `windows_appcontainer_native.rs` 使用受审计的 `windows-sys` FFI。`execution` 根和 `installed` 模块使用 `deny(unsafe_code)`；仓库质量门拒绝其他源文件的 `unsafe` 或 `allow(unsafe_code)`。该例外只覆盖句柄、SID、token、ACL、挂起启动与 Job Object 的边界封装，不允许向业务层泄漏裸句柄或绕过既有 typed worker permit。
+- AppContainer identity、ACL mutation、token readback、Job custody 和 cleanup 都必须绑定同一个 `WorkerJob`/`plan_digest`，按独立 sandbox lease journal 记录。进程创建时原子加入确定性命名的 kill-on-close Job Object，完成 AppContainer token/ACL/Job 回读前不得 resume；启动恢复只操作原命名 Job 和原 lease，ACL/profile/目录清理均须可幂等重试，任何身份、路径或恢复不确定都保持 blocked/Unknown。细节见 prd/24 §4.1.2。
+- 该代码实现只表示 adapter 组件已存在，不表示服务账户、安装 ACL、网络拒绝、重启回收和真实 IP10/IP24 通过。产品门仍以真实 Windows service identity 和正反访问证据为准。
+
