@@ -8,12 +8,15 @@
 
 | 候选 | 可以复用的机制 | 阻断原因 | 结论 |
 |---|---|---|---|
+| 现有 `win-custody 0.1.1` | Job Object、挂起后先入 Job、受控进程/Token 启动、ACL 查询与整树 descriptor 应用 | 组件自身明确不是 sandbox；没有 AppContainer profile/capability、每 job token 或逐 mutation grant/revoke；整树重置不能代替保留原 ACL 的精确撤权 | 只能作为现有 Job/ACL 观测底座 |
 | `landstrip 0.20.9` | Windows AppContainer、AppContainer capability、Job Object、受限用户路径、基础网络能力控制 | AppContainer identity 由工具、策略、时间、PID 和进程内计数器生成，不能由 job/plan 确定性恢复；ACL 由进程内 RAII `Drop` 撤销，不接入 forme 的 `sandbox-leases.jsonl`；库公开入口只有 CLI `execute()`，平台实现为 crate-private；AppContainer 路径未提供挂起后 token 核验接缝 | 不接入 |
 | `rappct 0.13.3` | 可公开创建/派生/删除 AppContainer profile，构造 capability，查询 token，创建带资源限制的 Job Object | ACL API 只有 grant，没有逐 mutation revoke/readback；公开 launch helper 在创建进程后才附加 Job，不能满足首条指令前先入 Job；`suspended` 只留下未公开的恢复接缝 | 不接入 |
 | `sandboxrs-windows 0.1.1` | 公开 builder、AppContainer backend、挂起创建、Job assignment 后 resume、管道隔离 | identity 自动追加时间/PID/计数器随机后缀；递归 ACL 只 grant，没有 durable lease/revoke/readback；profile 的生命周期与 forme job journal 无绑定；后台实现依赖 `rappct`，不能把缺失的回收契约补出来 | 不接入 |
 | `skarn-sandbox 1.0.1` | Windows AppContainer 与 Job Object 的统一高层 API，默认拒绝网络 | 使用固定共享 profile；正常创建进程后才附加 Job，存在首条指令前的 custody 缺口；ACL 只 grant，未提供逐 job revoke/readback 或 durable lease；不能表达 forme 的 peer/token/plan binding | 不接入 |
 
 这些候选提供了实现参考，但不构成授权、依赖批准或安全证据。没有候选可以把“有 AppContainer/Job Object”提升为 IP10/IP24 通过。
+
+现有 `win-custody` 的公开 ACL 读取能力可以用于未来 adapter 的有效权限回读辅助，但其整树 descriptor 应用会重置目标 DACL，不能用来掩盖或替代 `SandboxLeaseJournal` 要求的逐 mutation、保留其他 owner ACE 的精确撤权。
 
 ## 2. 与 PRD24 §4.1.2 的逐项对照
 

@@ -12,7 +12,7 @@
 
 2026-10-25 Windows worker 隔离边界审查：PRD24 §4.1.2 已明确 `forme-hostd` 是安装清单绑定的 LocalSystem broker；core peer 身份与每个 worker 的 AppContainer/低完整性 token、Job Object、有效文件权限分别取证。静态审查的现有候选没有同时满足挂起后先入 Job、精确且身份绑定的 ACL、可崩溃恢复的 ACL lease，以及真实 token/文件访问正反断言；未新增依赖或启用 adapter。当前进程非管理员，`forme-host`/`forme-web`/`forme-brain` 均未注册，因此没有原生 SCM 身份或 worker 权限验收证据。生产 Host 继续使用 `UnavailableWorkerIsolation`，普通 worker dispatch 保持 blocked，IP10 未通过。
 
-2026-10-25 [Windows worker sandbox 候选审查](installed-product-windows-sandbox-candidate-review-20261025.md)：`landstrip 0.20.9`、`rappct 0.13.3`、`sandboxrs-windows 0.1.1` 与 `skarn-sandbox 1.0.1` 均只能作为机制参考，不能直接接入生产 adapter。它们分别缺少 forme 要求的确定性 job identity、durable ACL intent/revoke/readback、或首条指令前的可审计 Job/token 接缝；未新增依赖或启用 adapter。生产 dispatch 继续 fail closed，IP10/IP24 不变。
+2026-10-25 [Windows worker sandbox 候选审查](installed-product-windows-sandbox-candidate-review-20261025.md)：现有 `win-custody 0.1.1` 只能作为 Job/ACL 观测底座；`landstrip 0.20.9`、`rappct 0.13.3`、`sandboxrs-windows 0.1.1` 与 `skarn-sandbox 1.0.1` 均不能直接接入生产 adapter。候选缺少 forme 要求的确定性 job identity、durable ACL intent/revoke/readback、或首条指令前的可审计 Job/token 接缝；未新增依赖或启用 adapter。生产 dispatch 继续 fail closed，IP10/IP24 不变。
 
 2026-10-24 `5cbe175` 完成 Windows `WindowsJobWorkerIsolation`：使用 Job Object 在 worker 首次执行前接管进程，启用 kill-on-close，取消和宿主退出可终止同一进程树；真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等，2/2 PASS。该提交只闭合 Windows 进程树生命周期 custody，不等于完整 sandbox；服务账户、ACL、逐 job 文件/网络/credential scope、会话 helper、原生安装和 IP10/IP24 仍开放。详见[Windows Job Object worker adapter 验收](installed-product-windows-job-object-acceptance.md)。
 
