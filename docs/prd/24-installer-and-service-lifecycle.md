@@ -331,7 +331,7 @@ Checking 失败由持有唯一 writer 的新 Host 写 RecoveryRequired；新 Hos
 - `DesktopSessionBinding`：`schema_version`、`grant_ref`、`owner_ref`、`os_user_ref`、`os_session_ref`、`session_generation`、`desktop_ref`、`action_ref`、`plan_digest`、`authority_epoch`、`nonce`、`capability_set`、`issued_at`、`expires_at`。
 - `DesktopSessionObservation`：helper/product 状态、liveness、实际 OS user/session generation、receipt/reason ref 和观察时间。
 - `DesktopActionRequest`：原 `WorkerJob`/`WorkerPermit` 引用、binding、规范化 action digest、有限 desktop operation 和 deadline；不携带解析 secret、任意程序路径、环境变量、cookie、brain path 或新的 permission。
-- `DesktopActionReceipt`：原 job/action/plan/nonce 摘要、`Committed/Failed/Cancelled/Unknown`、有界结果引用和观察时间。`Started` 后失去可信终态必须是 `Unknown`。
+- `DesktopActionReceipt`：原 job/permit/action/plan/nonce/normalized action digest 摘要、`Committed/Failed/Cancelled/Unknown`、有界结果引用和观察时间。`Started` 后失去可信终态必须是 `Unknown`。
 
 Host 在 admission、helper call 前和回执落盘前分别重查：owner/authority epoch、plan digest、permit/nonce、TTL、真实 OS peer、OS user/session generation、桌面 liveness、锁屏/注销/TCC/portal 状态和 capability allowlist。Web payload 只能请求能力，不能指定可信的 session、display、PID、token 或 helper endpoint。session token 只在受保护 Host↔helper IPC 存在，不写 Web、EventStore、模型上下文、日志或诊断包。
 
