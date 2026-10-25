@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_os = "linux")]
+use super::LinuxSystemdWorkerIsolation;
 use super::{
     reject_linked_ancestors, ProcessWorkerIsolation, WorkerExecutorHost, WorkerLaunchRegistry,
     WorkerLaunchSpec,
@@ -201,6 +203,39 @@ impl WorkerRuntimeConfig {
             })
             .collect::<p::Result<Vec<_>>>()?;
         let isolation = ProcessWorkerIsolation::open(
+            self.runtime_root.clone(),
+            WorkerLaunchRegistry::from_specs(launches)?,
+            self.workspace_roots.clone(),
+        )?;
+        WorkerExecutorHost::open_with_isolation(
+            &self.journal_path,
+            agent_credential_digest,
+            self.authority_epoch,
+            self.allowed_scopes.iter().cloned().collect(),
+            isolation,
+        )
+    }
+
+    /// Managed Linux composition. The adapter proves the fixed root/systemd
+    /// boundary and keeps ordinary process workers unavailable on failure.
+    #[cfg(target_os = "linux")]
+    pub fn open_managed_linux_systemd_host(
+        &self,
+        agent_credential_digest: p::SchemaDigest,
+    ) -> p::Result<WorkerExecutorHost<LinuxSystemdWorkerIsolation>> {
+        self.validate()?;
+        let launches = self
+            .launch_profiles
+            .iter()
+            .map(|profile| {
+                WorkerLaunchSpec::new(
+                    profile.sandbox_profile_ref.clone(),
+                    profile.program.clone(),
+                    profile.args.clone(),
+                )
+            })
+            .collect::<p::Result<Vec<_>>>()?;
+        let isolation = LinuxSystemdWorkerIsolation::open(
             self.runtime_root.clone(),
             WorkerLaunchRegistry::from_specs(launches)?,
             self.workspace_roots.clone(),

@@ -54,6 +54,10 @@ pub(crate) fn load_worker_host(
                 config.open_managed_windows_appcontainer_host(digest)?,
             ));
         }
+        #[cfg(target_os = "linux")]
+        if managed_service_bound {
+            return Ok(Arc::new(config.open_managed_linux_systemd_host(digest)?));
+        }
         return if development_workers {
             Ok(Arc::new(config.open_development_process_host(digest)?))
         } else {

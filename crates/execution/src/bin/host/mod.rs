@@ -83,6 +83,10 @@ pub(super) fn run() -> p::Result<()> {
 }
 
 fn run_foreground(launch: Launch) -> p::Result<()> {
+    #[cfg(not(windows))]
+    let managed_service_bound = matches!(&launch, Launch::Managed(_));
+    #[cfg(windows)]
+    let managed_service_bound = false;
     let runtime = match launch {
         Launch::Development { process_workers } => from_environment(process_workers)?,
         Launch::Managed(path) => from_managed_config(&path)?,
@@ -96,7 +100,7 @@ fn run_foreground(launch: Launch) -> p::Result<()> {
         foreground_shutdown()?,
         true,
         runtime,
-        false,
+        managed_service_bound,
         || Ok(()),
         || Ok(()),
     )

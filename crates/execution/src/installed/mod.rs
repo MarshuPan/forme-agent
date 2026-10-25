@@ -6,6 +6,12 @@ pub mod bootstrap;
 mod firewall_windows;
 mod host;
 mod journal;
+#[cfg(target_os = "linux")]
+mod linux_worker;
+#[cfg(target_os = "linux")]
+mod linux_worker_fs;
+#[cfg(target_os = "linux")]
+mod linux_worker_overlay;
 mod maintenance_pipe;
 mod paths;
 mod process;
@@ -45,6 +51,8 @@ mod worker_host;
 
 pub use host::*;
 pub use journal::*;
+#[cfg(target_os = "linux")]
+pub use linux_worker::*;
 pub use paths::*;
 pub use process::*;
 pub use product_config::*;
