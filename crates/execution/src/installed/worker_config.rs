@@ -280,6 +280,40 @@ impl WorkerRuntimeConfig {
             isolation,
         )
     }
+
+    /// Managed Windows service composition. The caller must already have
+    /// proven the fixed SCM binding; the adapter independently proves that
+    /// this process is the LocalSystem broker before opening state.
+    #[cfg(windows)]
+    pub fn open_managed_windows_appcontainer_host(
+        &self,
+        agent_credential_digest: p::SchemaDigest,
+    ) -> p::Result<WorkerExecutorHost<WindowsAppContainerWorkerIsolation>> {
+        self.validate()?;
+        let launches = self
+            .launch_profiles
+            .iter()
+            .map(|profile| {
+                WorkerLaunchSpec::new(
+                    profile.sandbox_profile_ref.clone(),
+                    profile.program.clone(),
+                    profile.args.clone(),
+                )
+            })
+            .collect::<p::Result<Vec<_>>>()?;
+        let isolation = WindowsAppContainerWorkerIsolation::open_managed(
+            self.runtime_root.clone(),
+            WorkerLaunchRegistry::from_specs(launches)?,
+            self.workspace_roots.clone(),
+        )?;
+        WorkerExecutorHost::open_with_isolation(
+            &self.journal_path,
+            agent_credential_digest,
+            self.authority_epoch,
+            self.allowed_scopes.iter().cloned().collect(),
+            isolation,
+        )
+    }
 }
 
 fn validate_absolute_path(path: &Path, name: &str) -> p::Result<()> {

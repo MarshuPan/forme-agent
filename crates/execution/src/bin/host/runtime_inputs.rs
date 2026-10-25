@@ -35,6 +35,7 @@ pub(crate) fn load_worker_host(
     agent_digest: Option<p::SchemaDigest>,
     worker_config_path: Option<&Path>,
     development_workers: bool,
+    managed_service_bound: bool,
     protected_paths: &[PathBuf],
 ) -> p::Result<Arc<dyn IsolatedExecutorHost>> {
     if let Some(config_path) = worker_config_path {
@@ -47,6 +48,12 @@ pub(crate) fn load_worker_host(
         config.validate_protected_paths(
             &protected.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
         )?;
+        #[cfg(windows)]
+        if managed_service_bound {
+            return Ok(Arc::new(
+                config.open_managed_windows_appcontainer_host(digest)?,
+            ));
+        }
         return if development_workers {
             Ok(Arc::new(config.open_development_process_host(digest)?))
         } else {

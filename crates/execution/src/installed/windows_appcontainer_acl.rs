@@ -3,14 +3,16 @@
 
 use std::ffi::c_void;
 use std::fs::File;
-use std::mem::MaybeUninit;
+use std::mem::{size_of, MaybeUninit};
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 use std::path::Path;
 use std::ptr::{null, null_mut};
 
 use forme_protocol as p;
-use windows_sys::Win32::Foundation::{ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE};
+use windows_sys::Win32::Foundation::{
+    GetLastError, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE,
+};
 use windows_sys::Win32::Security::Authorization::{
     BuildTrusteeWithSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
     GetEffectiveRightsFromAclW, GetSecurityInfo, SetEntriesInAclW, SetSecurityInfo,
@@ -20,8 +22,9 @@ use windows_sys::Win32::Security::Isolation::{
     CreateAppContainerProfile, DeleteAppContainerProfile, DeriveAppContainerSidFromAppContainerName,
 };
 use windows_sys::Win32::Security::{
-    EqualSid, GetAce, GetSecurityDescriptorSacl, ACL, DACL_SECURITY_INFORMATION,
-    LABEL_SECURITY_INFORMATION, PSID, SYSTEM_MANDATORY_LABEL_ACE,
+    EqualSid, GetAce, GetSecurityDescriptorSacl, GetTokenInformation, IsWellKnownSid, TokenUser,
+    WinLocalSystemSid, ACL, DACL_SECURITY_INFORMATION, LABEL_SECURITY_INFORMATION, PSID,
+    SYSTEM_MANDATORY_LABEL_ACE, TOKEN_QUERY, TOKEN_USER,
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CreateFileW, FileDispositionInfo, GetFileInformationByHandle, SetFileInformationByHandle,
@@ -30,6 +33,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     READ_CONTROL, WRITE_DAC, WRITE_OWNER,
 };
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 use super::sandbox_lease::{
     SandboxAclMutation, SandboxAclOperation, SandboxAclReadback, SandboxFileIdentity,
@@ -39,6 +43,53 @@ use super::sandbox_lease::{
 pub(crate) struct Profile {
     name: String,
     sid: OwnedSid,
+}
+
+/// Managed-service identity proof rejects command-line claims after SCM binding.
+pub(crate) fn verify_current_process_is_local_system() -> p::Result<()> {
+    let mut token = null_mut();
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
+        return Err(native_error(
+            "managed worker host token could not be opened",
+        ));
+    }
+    let token = owned_handle(token, "managed worker host token handle is invalid")?;
+    let mut bytes = 0u32;
+    unsafe {
+        GetTokenInformation(raw(&token), TokenUser, null_mut(), 0, &mut bytes);
+    }
+    if bytes == 0 && unsafe { GetLastError() } != ERROR_INSUFFICIENT_BUFFER {
+        return Err(native_error(
+            "managed worker host token information size is unavailable",
+        ));
+    }
+    let mut storage = vec![0u8; bytes as usize];
+    if unsafe {
+        GetTokenInformation(
+            raw(&token),
+            TokenUser,
+            storage.as_mut_ptr() as *mut c_void,
+            bytes,
+            &mut bytes,
+        )
+    } == 0
+    {
+        return Err(native_error(
+            "managed worker host token information could not be read",
+        ));
+    }
+    if storage.len() < size_of::<TOKEN_USER>() {
+        return Err(native_error(
+            "managed worker host token information is truncated",
+        ));
+    }
+    let user = unsafe { (storage.as_ptr() as *const TOKEN_USER).read_unaligned() };
+    if user.User.Sid.is_null() || unsafe { IsWellKnownSid(user.User.Sid, WinLocalSystemSid) } == 0 {
+        return Err(p::Error(
+            "managed worker host must run as LocalSystem".into(),
+        ));
+    }
+    Ok(())
 }
 
 impl Profile {

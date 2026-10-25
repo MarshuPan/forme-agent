@@ -92,7 +92,14 @@ fn run_foreground(launch: Launch) -> p::Result<()> {
             ))
         }
     };
-    run_host(foreground_shutdown()?, true, runtime, || Ok(()), || Ok(()))
+    run_host(
+        foreground_shutdown()?,
+        true,
+        runtime,
+        false,
+        || Ok(()),
+        || Ok(()),
+    )
 }
 
 #[cfg(unix)]
@@ -125,6 +132,7 @@ fn run_host(
     shutdown: Option<Receiver<()>>,
     announce: bool,
     runtime: HostRuntimeConfig,
+    managed_service_bound: bool,
     on_ready: impl FnOnce() -> p::Result<()>,
     on_stopping: impl FnOnce() -> p::Result<()>,
 ) -> p::Result<()> {
@@ -186,6 +194,7 @@ fn run_host(
         agent_digest,
         runtime.worker_config_path.as_deref(),
         runtime.development_workers,
+        managed_service_bound,
         &runtime.worker_protected_paths,
     )?;
     #[cfg(windows)]

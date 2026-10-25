@@ -47,6 +47,17 @@ struct RunningWorker {
 }
 
 impl WindowsAppContainerWorkerIsolation {
+    /// Managed-service composition adds the broker identity proof before any
+    /// runtime directory, lease journal, or AppContainer state is opened.
+    pub fn open_managed(
+        runtime_root: PathBuf,
+        launches: WorkerLaunchRegistry,
+        workspace_roots: BTreeMap<String, PathBuf>,
+    ) -> p::Result<Self> {
+        acl::verify_current_process_is_local_system()?;
+        Self::open(runtime_root, launches, workspace_roots)
+    }
+
     pub fn open(
         runtime_root: PathBuf,
         launches: WorkerLaunchRegistry,

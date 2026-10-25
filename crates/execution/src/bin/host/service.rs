@@ -67,6 +67,7 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
                 Some(shutdown_rx),
                 false,
                 runtime,
+                true,
                 || {
                     status
                         .set_service_status(ServiceStatus {
