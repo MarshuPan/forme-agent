@@ -114,6 +114,8 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 本节只追加当前产品增量的回归记录，不改写上文 M5 历史验收，也不宣称 IP01–IP24 已通过。产品实施状态仍以 `installed-product-implementation-progress.md` 为准。
 
+2026-10-26，`shu/installed-product` 当前实施快照 `c76794c` 的 S99 M5 release audit 为 PASS，回执 `sha256:f788bcc3189d7644655418c3b47c1304ab2b51b5b4107c9bea8308057ea438c5` 已生成、独立验证，并与仓库 current-tree 回执比较 PASS。此次完整 `verify-m5.ps1` 在提交 Host 永久门更新前运行，S1–S99、C1–C24、workspace、strict Clippy、Python 89 tests、代码质量和合规均通过，最终只因工作树未提交在 S99 被 `RELEASE_TREE_DIRTY` 拒绝；提交 `68cca5a` 后单独重跑 S99 当前树审计通过。该回执不表示真实 SCM/LocalSystem 安装、交互桌面 helper、Linux/macOS 原生服务或 IP01–IP24 已验收。
+
 2026-10-21，分支 `shu/installed-product` 的 Web 入口 `49674b7`、审计定位修复 `57e34b8` 与宿主拆分 `26ce4b4` 已通过 688 passed / 0 failed / 5 默认 ignored、strict Clippy、合规、质量和宿主组件门。Python 工具 72 项中 1 项按平台跳过，其余通过；当前 341 个源文件、65 处历史规模债务。
 
 前置审计发现 Gateway 拆分后仍按旧 lib.rs 定位实现；已修正并新增反向测试。2026-10-21 在干净的 `afe7fdb` 上执行完整 `tools/verify-m5.ps1`，终线为 M5 FINAL ACCEPTANCE: PASS；S1–S99、显式 M3/M4/M5 goldens、workspace、Python、strict Clippy、合规及新回执 generate/verify/compare 全部通过。日志保留于本地 `target/verify-m5-product-ingress-final.log`，不包含个人配置读取或真实模型验收。
