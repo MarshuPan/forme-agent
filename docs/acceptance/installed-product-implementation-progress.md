@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 在 `04cbb03` 当前树运行 `pwsh -NoProfile -File tools/verify-code-quality.ps1`：完整源码质量门退出码 0，耗时 601.14 秒；结构/缓存安全/字节一致性回归 21 项、723 文件规模棘轮（63 项历史超限债务未增长）、Rust fmt/check/test/strict Clippy、前端依赖审计与 81 项验证、静态 bundle、原生打包/签名、Windows NTFS 权限与只读防火墙、原创合规及 diff 检查均通过。资源报告提示 `target` 为 90.54 GiB logical / 87.76 GiB allocated，超过缓存预算；门仍以 269 GiB 可用空间完成，未清理构建产物。此为源码门，不证明原生服务安装、真实 provider、真实浏览器完整 claim 或 IP01–IP24。
+
 2026-10-26 在 `5019498` 当前代码上显式运行 `cargo test --locked -p forme-execution --test installed_windows_appcontainer_contract -- --ignored --nocapture`：真实 Low AppContainer 的私有副本/Host 核验回写、失败/取消/冲突、宿主崩溃恢复共 3/3 通过，外网 TCP 正向对照可达且 sandbox 内网络拒绝断言通过。fixture 使用临时目录并在恢复核验后清理。本机没有注册服务且当前身份非管理员，因此该运行不证明 SCM/LocalSystem 装配、安装包或 IP10/IP24；ProductionRuntime 结果通道仍未接入。
 
 2026-10-26 在 `e46fe55` 上运行 `pwsh -NoProfile -File tools/verify-installed-host.ps1`：宿主永久合同门完整 PASS，覆盖安装/升级与管理 journal、worker admission/取消/receipt、Windows AppContainer 与 overlay lease、服务注册边界、恢复和受控停服。该门是临时 fixture/进程的组件证据；脚本明确不安装系统服务，也不认证原生包，因此 IP01–IP24 仍为 `NOT_RUN`。本机未注册 `forme-*` 服务且当前 token 非管理员；没有进行系统级变更。
