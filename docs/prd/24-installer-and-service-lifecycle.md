@@ -128,6 +128,8 @@ worker 在打开输出或修改副本前，有界读取 closed/versioned job、p
 
 Host 仍在进程树终态后验证完整变更集、回写原 workspace、加密封存结果和发布原 receipt；worker 不自行回写原根、不提供虚假的 FileRollback。需要分别证明真实二进制的读/写/删、原根在 Host 收尾前未变、错误绑定/越界目标零变更、失败/取消不回写及结果封存后清理。临时 AppContainer 组件证据不等于已安装服务/IP10/IP24。安装配置、实际 workspace 注册和 core capability 的显式启用仍按各自事务继续闭合；本入口存在不自动启用其他 backend。Linux/macOS 保持已选定的不发布边界。
 
+路径核验分域：Host 在启动前对 job 的完整绝对路径、祖先、identity 和 ACL 做核验与 custody；worker 仅检查已授予只读的 job 根和根内每个实际路径组件（含重解析点/链接拒绝与最终 canonical containment）。worker 不要求读取 Host 私有祖先的 metadata，也不因此扩大祖先 ACL；根外路径的稳定性由既有 Host custody 负责。
+
 #### 4.1.1a Worker 结果 manifest/chunk 通道
 
 worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 launch profile 提供固定的 `FORME_WORKER_RESULT_PATH`，worker 只能写当前 job 的这一处有限结果文件。Host 在 `observe` 得到终态后，必须按“读取源文件 → 校验绑定/长度/整体摘要 → 写 Host 私有工件 → 追加 `WorkerResultManifest` → 追加原 `WorkerReceipt`”顺序完成；中间任何失败都把原 job 留在 `Unknown`，不得用 `safe_result_ref` 虚构正文。
