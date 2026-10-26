@@ -110,7 +110,7 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
       const clientOrigin = `http://${address}`;
       const cookieJar = new Map();
       let csrf;
-      async function request(route, { method = 'GET', body, key, expected = 200, headers = {}, text = false } = {}) {
+      async function request(route, { method = 'GET', body, key, expected = 200, headers = {}, text = false, raw = false } = {}) {
         const result = await fetch(clientOrigin + route, { method, signal: AbortSignal.timeout(30000), headers: {
           Cookie: [...cookieJar].map(([name, value]) => `${name}=${value}`).join('; '),
           ...(method !== 'GET' ? { Origin: clientOrigin, 'Content-Type': 'application/json',
@@ -121,6 +121,7 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
           cookieJar.set(pair.slice(0, at), pair.slice(at + 1));
         }
         assert.equal(result.status, expected, `${method} ${route} returned an unexpected status`);
+        if (raw) return result;
         if (text) return result.text();
         const value = await result.json();
         if (value.csrf) csrf = value.csrf;

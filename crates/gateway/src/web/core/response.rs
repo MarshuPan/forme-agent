@@ -40,6 +40,7 @@ pub(super) fn parse_response(response: &[u8]) -> p::Result<CoreBridgeResponse> {
     let mut length = None;
     let mut transfer = None;
     let mut content_type = None;
+    let mut content_disposition = None;
     for line in lines {
         let (name, raw) = line.split_once(':').ok_or_else(invalid)?;
         if name.is_empty()
@@ -73,6 +74,12 @@ pub(super) fn parse_response(response: &[u8]) -> p::Result<CoreBridgeResponse> {
                 }
                 content_type = Some(value.to_owned());
             }
+            "content-disposition" => {
+                if content_disposition.is_some() || value.is_empty() {
+                    return Err(invalid());
+                }
+                content_disposition = Some(value.to_owned());
+            }
             "content-encoding" if !value.eq_ignore_ascii_case("identity") => return Err(invalid()),
             _ => {}
         }
@@ -100,6 +107,7 @@ pub(super) fn parse_response(response: &[u8]) -> p::Result<CoreBridgeResponse> {
     Ok(CoreBridgeResponse {
         status,
         content_type,
+        content_disposition,
         body,
     })
 }
@@ -153,6 +161,14 @@ mod tests {
         );
         assert_eq!(
             parse_response(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Disposition: attachment\r\n\r\n{}"
+            )
+            .unwrap()
+            .content_disposition,
+            Some("attachment".into())
+        );
+        assert_eq!(
+            parse_response(
                 b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n"
             )
             .unwrap()
@@ -182,6 +198,7 @@ mod tests {
             "HTTP/1.1 101 Switching Protocols\r\n\r\n",
             "HTTP/1.1 204 No Content\r\n\r\n{}",
             "HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n\r\n{}",
+            "HTTP/1.1 200 OK\r\nContent-Disposition: attachment\r\nContent-Disposition: attachment\r\n\r\n{}",
         ] {
             assert!(parse_response(raw.as_bytes()).is_err(), "accepted malformed response");
         }

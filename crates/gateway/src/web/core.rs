@@ -30,6 +30,7 @@ pub(super) struct CoreBridgeClient {
 pub(super) struct CoreBridgeResponse {
     pub(super) status: u16,
     pub(super) content_type: Option<String>,
+    pub(super) content_disposition: Option<String>,
     pub(super) body: Vec<u8>,
 }
 

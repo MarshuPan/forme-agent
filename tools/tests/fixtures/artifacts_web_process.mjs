@@ -38,7 +38,11 @@ export async function exerciseWebArtifacts(product, coreConfig) {
   const download = `/api/v1/brain/artifacts/${encodeURIComponent(receipt.content_ref)}`;
   const verify = async () => {
     const current = await product.request('/api/v1/brain/artifacts/query', { method: 'POST', body: query });
-    assert.deepEqual(current, first);
+    const original = current.artifacts.find((artifact) => artifact.content_ref === receipt.content_ref);
+    assert.ok(original, 'original attachment must remain queryable after later uploads');
+    assert.equal(original.file_name, command.file_name);
+    assert.equal(original.media_type, command.media_type);
+    assert.equal(original.content_digest, receipt.content_digest);
     const downloaded = await product.request(`${download}?session=${encodeURIComponent(session.session)}`, { text: true });
     assert.equal(Buffer.byteLength(downloaded), bytes.length);
     assert.equal(sha(downloaded), receipt.content_digest);
@@ -47,8 +51,29 @@ export async function exerciseWebArtifacts(product, coreConfig) {
   await product.request(`${download}?session=session%3Awrong`, { expected: 400 });
   const companion = `content:${sha(`workbench-artifact-metadata-v1:${receipt.content_ref}`)}`;
   await product.request(`/api/v1/brain/artifacts/${encodeURIComponent(companion)}?session=${encodeURIComponent(session.session)}`, { expected: 400 });
+
+  const hostile = Buffer.from('<!doctype html><svg><script>window.__forme_pwned = true</script></svg>');
+  const hostileKey = 'upload:artifact-hostile-name';
+  const hostileCommand = { ...command, command: hostileKey, file_name: '..\\..\\outside.svg',
+    media_type: 'image/svg+xml', bytes_hex: hostile.toString('hex') };
+  const hostileReceipt = await product.request('/api/v1/brain/artifacts/upload', {
+    method: 'POST', key: hostileKey, body: hostileCommand,
+  });
+  const hostileDownload = `/api/v1/brain/artifacts/${encodeURIComponent(hostileReceipt.content_ref)}?session=${encodeURIComponent(session.session)}`;
+  const hostileResponse = await product.request(hostileDownload, { raw: true });
+  assert.equal(hostileResponse.headers.get('content-type'), 'application/octet-stream');
+  assert.equal(hostileResponse.headers.get('content-disposition'), 'attachment');
+  assert.equal(hostileResponse.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(Buffer.from(await hostileResponse.arrayBuffer()), hostile);
+  const afterHostile = await product.request('/api/v1/brain/artifacts/query', { method: 'POST', body: query });
+  assert.equal(afterHostile.total, 2);
+  assert.ok(afterHostile.artifacts.some((artifact) => artifact.content_ref === hostileReceipt.content_ref));
+  await product.request(`${hostileDownload}&scope=other`, { expected: 400 });
+  await product.request(`/api/v1/brain/artifacts/${encodeURIComponent(hostileReceipt.content_ref)}?session=session%3Awrong`, { expected: 400 });
   const stored = await fs.readFile(coreConfig.brain.store_path);
   assert.equal(stored.includes(Buffer.from(command.file_name)), false);
   assert.equal(stored.includes(Buffer.from('repository-owned artifact payload')), false);
+  assert.equal(stored.includes(Buffer.from(hostileCommand.file_name)), false);
+  assert.equal(stored.includes(hostile), false);
   return { session: session.session, verify };
 }

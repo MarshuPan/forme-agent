@@ -331,6 +331,19 @@ async fn forward(
             output.headers_mut().insert("content-type", value);
         }
     }
+    if let Some(content_disposition) = response.content_disposition {
+        if content_disposition != "attachment" {
+            return Err(WebError::new(
+                StatusCode::BAD_GATEWAY,
+                "CoreProtocolError",
+                "主脑附件响应处置头无效",
+            ));
+        }
+        output.headers_mut().insert(
+            "content-disposition",
+            HeaderValue::from_static("attachment"),
+        );
+    }
     output
         .headers_mut()
         .insert("cache-control", HeaderValue::from_static("no-store"));
