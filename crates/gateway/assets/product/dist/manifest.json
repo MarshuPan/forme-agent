@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "8114f8debda8aa11e253675b339102811924bc71687577aa6b28605a81cffedf",
+  "source_digest": "ae44ff9d4f4bc09bbcea604c90ed661c94ff7183226eeba1c3d8469a72715832",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,7 +20,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "91ea1d669fda5a84a67de8fe5998cb12e697ccb2c478ea7a31931689263c7e69"
+      "sha256": "2f798f7ed0652693abd747880e626473183a3e3fe7631e371567e3c0bde65137"
     },
     {
       "path": "frontend/src/api/client.ts",
@@ -175,6 +175,10 @@
       "sha256": "c30e432e5e542483105be0efbeda3912c22cb837c6475311ce6d7de0399b0c1d"
     },
     {
+      "path": "frontend/src/session-visibility.ts",
+      "sha256": "939fe7a089f6f19674cb89f08edd848d9344d50873eddaecbcec7c13d8553ab0"
+    },
+    {
       "path": "frontend/src/settings-schema.ts",
       "sha256": "75d2be883eb715d2cd4b760b43942d9df321d214359cf282a130c88ddb37b50d"
     },
@@ -247,6 +251,10 @@
       "sha256": "f2c1396a44ce2ee707be1bd6056b230598f8f77d48dc991f213e9099e79832ab"
     },
     {
+      "path": "frontend/src/tests/session-visibility.test.ts",
+      "sha256": "70805c2f65e707e3b2815b5bd17617a429bb6502b9e1a46d328409cad38cf441"
+    },
+    {
       "path": "frontend/src/tests/settings-schema.test.ts",
       "sha256": "2797ed55d4e1dbec436e8b7bce9d3684782a9e82386d120792779c066da53508"
     },
@@ -278,9 +286,9 @@
       "bytes": 14769
     },
     {
-      "path": "assets/index-BZSLlqWV.js",
-      "sha256": "cb3aa3860b5c3508efb8ef12441fde302eb0fc1a129ffaf66f6015ad2bed17ab",
-      "bytes": 368274
+      "path": "assets/index-g4n5xqU6.js",
+      "sha256": "9b91c314814266144edb16e70a786deab9e6443c6687c1cb73ad9ad656d590da",
+      "bytes": 368769
     },
     {
       "path": "dependencies.json",
@@ -294,7 +302,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "86f4682cf80ca50b86f0e730780b3ecf1b6b9e24087616b1d26aa959cfe54cfe",
+      "sha256": "765766fe3c0965ee26e92bae624366ae9383cee6fcc09ca9c225be53180e6608",
       "bytes": 595
     },
     {

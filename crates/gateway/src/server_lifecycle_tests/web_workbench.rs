@@ -11,6 +11,8 @@ const BRIDGE_TOKEN: &str = "workbench-bridge-0123456789abcdef0123456789abcdef";
 
 #[path = "web_workbench/brain_views.rs"]
 mod brain_views;
+#[path = "web_workbench/browser_preview.rs"]
+mod browser_preview;
 #[path = "web_workbench/correction_views.rs"]
 mod correction_views;
 #[path = "web_workbench/data_views.rs"]

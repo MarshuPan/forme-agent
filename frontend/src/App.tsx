@@ -9,6 +9,7 @@ import { WorkspaceView } from './components/Workspace.tsx';
 import { mergeObservedRun } from './conversation-view.ts';
 import type { MaterialLifecycleTarget } from './memory-material.ts';
 import { createAuthInvalidationSync } from './auth-sync.ts';
+import { createSessionVisibilityGuard } from './session-visibility.ts';
 
 const tabs = [ ['conversation', '对话'], ['workspace', '工作空间'], ['inbox', '收件箱'], ['cognition', '记忆与认知'], ['settings', '设置'] ] as const;
 type Tab = typeof tabs[number][0];
@@ -96,16 +97,19 @@ export function App() {
   useEffect(() => { if (entry === 'ready') void refreshCore(); }, [entry, refreshCore]);
   useEffect(() => {
     if (entry !== 'ready') return;
-    let checking = false;
-    const verify = async () => { if (checking || document.hidden) return; checking = true; try { await api.session(); } catch { clear(false); } finally { checking = false; } };
-    // Revalidate before showing cached content restored by BFCache or another tab.
-    const hide = () => { document.documentElement.classList.add('privacy-hidden'); };
-    const show = () => { hide(); void verify().finally(() => document.documentElement.classList.remove('privacy-hidden')); };
+    const guard = createSessionVisibilityGuard({
+      verify: () => api.session(), hidden: () => document.hidden,
+      conceal: () => document.documentElement.classList.add('privacy-hidden'),
+      reveal: () => document.documentElement.classList.remove('privacy-hidden'),
+      invalidated: () => { api.clear(); clear(false); },
+    });
+    const hide = () => guard.hide();
+    const show = () => { void guard.show(); };
     const visibility = () => { if (document.hidden) hide(); else show(); };
-    const timer = setInterval(() => void verify(), 60_000);
+    const timer = setInterval(() => void guard.check(), 60_000);
     window.addEventListener('pagehide', hide); window.addEventListener('pageshow', show);
     document.addEventListener('visibilitychange', visibility);
-    return () => { clearInterval(timer); window.removeEventListener('pagehide', hide); window.removeEventListener('pageshow', show); document.removeEventListener('visibilitychange', visibility); document.documentElement.classList.remove('privacy-hidden'); };
+    return () => { clearInterval(timer); window.removeEventListener('pagehide', hide); window.removeEventListener('pageshow', show); document.removeEventListener('visibilitychange', visibility); guard.close(); };
   }, [api, clear, entry]);
 
   async function logout() { try { await api.logout(); clear(); } catch (problem) { setIssue(problem instanceof Error ? problem.message : '退出结果未确认。'); } }
