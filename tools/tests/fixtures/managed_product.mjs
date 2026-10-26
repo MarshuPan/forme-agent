@@ -106,31 +106,52 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
       await fs.mkdir(path.dirname(image), { recursive: true });
       await fs.writeFile(image, Buffer.from('managed brain image fixture'));
     }
-    const cookieJar = new Map();
-    let csrf;
-    const origin = `http://${webAddress}`;
-    async function request(route, { method = 'GET', body, key, expected = 200, headers = {}, text = false } = {}) {
-      const result = await fetch(origin + route, { method, signal: AbortSignal.timeout(30000), headers: {
-        Cookie: [...cookieJar].map(([name, value]) => `${name}=${value}`).join('; '),
-        ...(method !== 'GET' ? { Origin: origin, 'Content-Type': 'application/json',
-          'Idempotency-Key': key ?? 'fixture:request', ...(csrf ? { 'X-Forme-Csrf': csrf } : {}) } : {}), ...headers,
-      }, body: body === undefined ? undefined : JSON.stringify(body) });
-      for (const cookie of result.headers.getSetCookie()) {
-        const pair = cookie.split(';', 1)[0]; const at = pair.indexOf('=');
-        cookieJar.set(pair.slice(0, at), pair.slice(at + 1));
+    function clientFor(address) {
+      const clientOrigin = `http://${address}`;
+      const cookieJar = new Map();
+      let csrf;
+      async function request(route, { method = 'GET', body, key, expected = 200, headers = {}, text = false } = {}) {
+        const result = await fetch(clientOrigin + route, { method, signal: AbortSignal.timeout(30000), headers: {
+          Cookie: [...cookieJar].map(([name, value]) => `${name}=${value}`).join('; '),
+          ...(method !== 'GET' ? { Origin: clientOrigin, 'Content-Type': 'application/json',
+            'Idempotency-Key': key ?? 'fixture:request', ...(csrf ? { 'X-Forme-Csrf': csrf } : {}) } : {}), ...headers,
+        }, body: body === undefined ? undefined : JSON.stringify(body) });
+        for (const cookie of result.headers.getSetCookie()) {
+          const pair = cookie.split(';', 1)[0]; const at = pair.indexOf('=');
+          cookieJar.set(pair.slice(0, at), pair.slice(at + 1));
+        }
+        assert.equal(result.status, expected, `${method} ${route} returned an unexpected status`);
+        if (text) return result.text();
+        const value = await result.json();
+        if (value.csrf) csrf = value.csrf;
+        return value;
       }
-      assert.equal(result.status, expected, `${method} ${route} returned an unexpected status`);
-      if (text) return result.text();
-      const value = await result.json();
-      if (value.csrf) csrf = value.csrf;
-      return value;
+      return { origin: clientOrigin, request };
     }
-    return { root, prepared, host, template, origin, coreAddress, start, stop, cleanup, request,
+    async function cloneWebConfig(name = 'web-secondary') {
+      const [address] = await allocatePorts(1);
+      const config = await readJson(prepared.web_config_path);
+      config.bind = address;
+      if (config.network_config_path) {
+        const network = await readJson(config.network_config_path);
+        network.bind = address;
+        config.network_config_path = path.join(root, `${name}-network.json`);
+        await writeJson(config.network_config_path, network);
+      }
+      const configPath = path.join(root, `${name}.json`);
+      await writeJson(configPath, config);
+      return { address, configPath, origin: `http://${address}` };
+    }
+    const primary = clientFor(webAddress);
+    return { root, prepared, host, template, origin: primary.origin, coreAddress, start, stop, cleanup,
+      clientFor, cloneWebConfig,
       startHost: () => start('forme-hostd', prepared.host_config_path, `FORME_CONFIGURATION_URL=http://${configurationAddress}`),
-      startWeb: () => start('forme-webd', prepared.web_config_path, `FORME_WEB_URL=${origin}`),
+      startWeb: () => start('forme-webd', prepared.web_config_path, `FORME_WEB_URL=${primary.origin}`),
+      startWebConfig: ({ configPath, origin }) => start('forme-webd', configPath, `FORME_WEB_URL=${origin}`),
       startCore: () => start('forme-gatewayd', template.core_config_path, `FORME_GATEWAY_URL=http://${coreAddress}`),
       proof: (operation) => run('forme-hostctl', ['bootstrap-proof', '--address', hostAddress,
         '--credential-file', host.maintenance_credential_path, '--operation', operation]).proof,
+      request: primary.request,
     };
   } catch (error) { await cleanup(); throw error; }
 }
