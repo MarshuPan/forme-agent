@@ -118,6 +118,16 @@ binding 不携带程序路径、任意环境、secret 值、workspace 文件路�
 
 worker adapter 的最终计划只声明实际提供的回滚边界。当前结果通道不返回进程内 `FileRollback`，因此 worker 文件写入/删除在形成审批前使用 `rollback_boundary=none`，不能沿用本机 `FileBackend` 的 `file-content-snapshot` 承诺；执行前再次拒绝被替换成 snapshot 的计划。Host overlay 的冲突拒绝/失败保留不是完成后可调用的回滚功能。后续若增加受治理的 Host 回滚工件和恢复命令，须另闭合契约与证据后再提升该边界。
 
+#### 4.1.1d 真实有限文件执行入口
+
+现有 `forme-executord` 继续保留无参数的 M4 TLS executor 模式；增加固定 `--installed-file-worker` 模式，只执行一个已接纳 job 的 File Read/Write/Delete，之后退出。它不是 listener、shell、插件宿主或第二个 Agent，不启动子进程、不访问模型、brain/Host journal 或 key resolver，不将原计划重新交给本机 FileBackend 规划。
+
+Windows Host 在既有 `PreparedOverlay` 内按原 workspace 和 exact `WorkerExecutionSpec` 的 `WriteScope` 派生 `WorkerFileTarget { schema_version, job_id, plan_digest, normalized_action_digest, relative_path }`。对象只记录非空、安全的相对文件路径；不允许目录根、`..`、设备名、盘符、ADS、链接或替换后的摘要。Host 将其写入本 job 的只读 `file-target.json`，通过固定 `FORME_WORKER_FILE_TARGET_PATH` 传递路径，与 job/permit/execution 一起授予该 AppContainer 只读访问；原 workspace 不授予 worker。非 File job 不产生该对象。DTO 属于产品执行输入，不新增脑 EventKind，也不修改原 intent 的逻辑路径或 digest。
+
+worker 在打开输出或修改副本前，有界读取 closed/versioned job、permit、execution 和 target，核对当前时间、job/action/owner/scope、plan/normalized-action digest、固定协议版本和环境 deadline；核实 workspace、只读输入与结果路径分域。目标只由 `FORME_WORKER_WORKSPACE_PATH` 与已核验 relative_path 组合，不能回退访问原绝对路径。仅操作普通文件，拒绝链接/重解析点、目录、路径逃逸及读取中的尺寸变化；Read 为有界 UTF-8，Write 内容必须是原 spec 的 exact bytes，Delete 不接受内容。文件和正文读取受既有预算与 16 MiB 文件界限约束。结果只写既有固定 `FORME_WORKER_RESULT_PATH`，成功输出和写入预算在修改前确认；执行失败以非零退出或保留 Unknown 表达，不能在输出失败时虚报成功。
+
+Host 仍在进程树终态后验证完整变更集、回写原 workspace、加密封存结果和发布原 receipt；worker 不自行回写原根、不提供虚假的 FileRollback。需要分别证明真实二进制的读/写/删、原根在 Host 收尾前未变、错误绑定/越界目标零变更、失败/取消不回写及结果封存后清理。临时 AppContainer 组件证据不等于已安装服务/IP10/IP24。安装配置、实际 workspace 注册和 core capability 的显式启用仍按各自事务继续闭合；本入口存在不自动启用其他 backend。Linux/macOS 保持已选定的不发布边界。
+
 #### 4.1.1a Worker 结果 manifest/chunk 通道
 
 worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 launch profile 提供固定的 `FORME_WORKER_RESULT_PATH`，worker 只能写当前 job 的这一处有限结果文件。Host 在 `observe` 得到终态后，必须按“读取源文件 → 校验绑定/长度/整体摘要 → 写 Host 私有工件 → 追加 `WorkerResultManifest` → 追加原 `WorkerReceipt`”顺序完成；中间任何失败都把原 job 留在 `Unknown`，不得用 `safe_result_ref` 虚构正文。
