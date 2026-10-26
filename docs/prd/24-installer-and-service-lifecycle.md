@@ -399,6 +399,14 @@ Checking 失败由持有唯一 writer 的新 Host 写 RecoveryRequired；新 Hos
 
 持久 readiness 文件只是配置加载证据，不能独自证明当前进程仍已就绪。Checking/补开放还须向固定 core listener 发送 closed `ProductReleaseReadinessProbe` v1（install、每次新 nonce、signature），取得 `ProductReleaseReadinessProof` v1（同 nonce、当前内存 readiness、signature）。两方向签名分别绑定 domain；Ed25519 seed 由既有高熵 core-owner credential 按固定 SHA-256 domain 派生，验证公钥由两端同源计算，绝不把 bearer/seed 发到 listener。双方核对签名、installation、nonce、exact binding/config/data/image；伪造 listener、旧文件、重放响应不能通过。该内部只读端点仅在受管 release runtime 存在时提供，不开放新脑命令，不消费工作准入，使用独立限流与有界 IO；同时继续核对实际 SCM 服务目标与状态。
 
+#### 4.10.4 活动发布的程序路径绑定
+
+首次 `InstallationManifest` 和受保护的 `worker.json` 保留原字节，不能因升级而把历史安装记录改写为新版本。它们的初始程序目录也不能继续代表已切换的活动程序。Host 在重放原 product journal 后，以其中的唯一 active release 派生程序：仍为首次版本时保留原安装目录；活动版本已改变时，必须通过同一安装的 committed staging record、签名、闭合文件集与实际文件重新取得 `VerifiedStagedRelease`。缺失 staging、摘要不符或文件被替换均拒绝，不能退回初始版本，也不能选择仅暂存但尚未成为 active 的候选。
+
+Windows AgentExecution 的 core image 身份、保留 profile 的 `forme-executord --installed-file-worker`、以及只读离线核验的固定 hostctl 均使用这一活动发布。只派生固定程序名，不接收浏览器、模型、job 或环境传入的程序路径。文件 worker 的 workspace、epoch、scope、profile、参数与权限保持原绑定，仅在内存中派生该已核验发布的执行 image；自定义 profile 不因此被重写或启用。旧配置 revision、worker 配置及原 journal 不被改写，不产生第二个 active pointer。
+
+Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed、健康或工作准入证明。原生服务、core peer 和 worker 仍须分别核实；程序定位失败不能启动普通进程或旧 image 作为 fallback。测试需覆盖仅 staging 不选用、升级后重启沿用原 active、被替换文件拒绝、未签名/未提交发布不能取得路径，以及自定义 profile 保留。
+
 ### 4.11 交互桌面会话 helper
 
 交互 helper 是 Host 管理的低权限执行单元，不是服务、Agent、策略引擎或第二个大脑。它只接受由 Core/Harness 经过最终 recheck 后、绑定现有 `WorkerJob`/`WorkerPermit` 的 exact desktop action；Web、模型和浏览器不能直接访问 helper。
