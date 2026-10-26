@@ -116,11 +116,11 @@ trait CoreWebBridge {
 
 ### 4.4 窄维护外观与原操作核实
 
-`GET/POST /api/v1/product/maintenance` 与 `GET /api/v1/product/maintenance/operations/{id}` 使用已认证 session；写请求还需 Origin/CSRF、稳定 operation id 与针对服务端重建 digest 的单次密码重认证。浏览器只能选择 StartCore、StopCore、RestartCore、StageSignedRelease 或保留数据的 UninstallPlan；没有 arbitrary MaintenanceKind、路径、程序、SQL 或恢复裁决参数。owner 取自已验证会话，Host 再与产品配置绑定核对；读取不授予操作权。
+`GET/POST /api/v1/product/maintenance` 与 `GET /api/v1/product/maintenance/operations/{id}` 使用已认证 session；写请求还需 Origin/CSRF、稳定 operation id 与针对服务端重建 digest 的单次密码重认证。浏览器仅使用既有 closed `ProductMaintenanceAction`：StartCore、StopCore、RestartCore、StageSignedRelease、Upgrade、RollbackCompatibleRelease、CommitRestore 和保留数据的 UninstallPlan，且只展示 Host 当前 `allowed_operations` 所声明的动作；没有 arbitrary MaintenanceKind、路径、程序、SQL 或恢复裁决参数。owner 取自已验证会话，Host 再与产品配置绑定核对；读取不授予操作权。
 
 该外观经 Configuration 域的固定路由转发，不给 Web 发 maintenance bearer，也不让 Configuration token 访问通用管理/AgentExecution 路由。Host 在内部构造原 MaintenanceCommand，复用同一 ProductJournal/CAS/intent/receipt。快照带独立 `product_revision`、实际 HostStatus、owner 绑定与最多 25 条最近 operation；读取时版本变化返回 conflict，不能把配置 revision 当产品 revision。
 
-Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 release worker 已配置且预检通过才可执行；卸载按钮只生成范围计划，不删除数据。丢响应时页面保留原 operation id，只查询该操作，不能自动再次派发；pending/RecoveryRequired 继续显示原阶段。主脑离线时认证和这些受限维护仍可用。其他升级/恢复动作需各自完整 worker，不能在此借通用代理放开。
+Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 release worker 已配置且预检通过才可执行；Upgrade/RollbackCompatibleRelease 另要求对应 updater/data worker 就绪，并绑定原 release id/digest 和 opaque backup ref，按 PRD24 §4.10 的排空、备份、切换、健康核验及兼容边界执行；CommitRestore 沿已核验候选和原配置 revision。卸载按钮只生成范围计划，不删除数据。丢响应时页面保留原 operation id，只查询该操作，不能自动再次派发；pending/RecoveryRequired 继续显示原阶段。主脑离线时认证和这些受限维护仍可用。缺少完整 worker 时不显示可执行入口，不在此借通用代理放开。
 
 ## 5. 行为、状态与并发
 
@@ -370,3 +370,11 @@ listener digest 绑定实际加载的 bind、精确 Host 和 TLS 开关/配置�
 既有 ConfigureLan 生命周期分类不变，也不增加第二把全局维护锁。执行中每次发布或原生动作前按原 owner/revision/validation digest 重查，探测后再次核对 published/desired 与授权；并发设置保存使原命令过期时进入恢复，不覆盖新设置。8 秒探测窗口还受原命令剩余期限约束；授权到期后不能启动新的原生动作。网络子阶段另绑定目标与固定 loopback 的 bind，Verified 结果必须匹配对应 bind/digest。Checking 未持久化 Verified 时不能结束新网络子事务；历史没有子阶段的 Committed 保持原样，不补造证明。
 
 为区分历史事务与必须验证的新事务，新 ConfigureLan 的 Planned fact 带可选 `network_contract:1`，非网络事务及旧 wire 完全省略该字段。缺省不是当前代码创建新网络事务的选项；新 writer 固定写入该标记。回放旧 fact 时空值仍省略，保持原 hash。带标记的网络事务若缺少相应 Verified/结果，不能写 Checking receipt 或 Committed；无标记的历史终态可读，但永远没有健康结果。
+
+### 11.13 主脑离线的只读备份核验
+
+§5.5 的离线备份核验使用独立的闭合 `POST /api/v1/product/data/verify`，不把主脑数据查询改成自动故障转移。浏览器只提交 `schema_version:1, source, config_revision`；`source` 是既有数据工作台的 opaque 对象名，不是路径、URL 或 key。请求继续验证 session、Origin/CSRF 和有界读配额，owner 从已认证会话赋值。Web 通过 Configuration 域固定路由 `/v1/host/configuration/data/verify` 发送 `ProductBackupVerificationRequest{schema_version:1,install_ref,owner,expected_config_revision,source}`；该 route 不是通配维护/AgentExecution 入口。
+
+Host 核对已认领 owner、当前配置 revision 和安装身份后，使用当前安装固定的 `forme-hostctl maintenance-verify-backup --installation-manifest <安装派生路径>`，经有界 stdin/stdout pipe 传递该请求；程序、参数、配置和数据根不能由浏览器选择。worker 从受保护的安装清单、template 与 storage-only 配置派生唯一 vault 和 `brain/data-operations/<source>`。它通过现有 `OfflineCoreMaintenance`/`OfflineBrainMaintenance` 获得备份的 exclusive access fence，验证 owner、原 key、完整性、事件连续性和 replay；不建立 ProductionRuntime、不加载模型/worker/代理、不启动 core、不写脑事件、不恢复或切换数据。已知 runtime-only 配置只能被明确忽略，未知字段仍拒绝。锁冲突、错误 key、链接、保护不可证、坏备份或过期 revision 均拒绝，不新建空脑。
+
+返回 `ProductBackupVerificationResponse{schema_version:1,request_digest,config_revision,verification}`，`verification` 沿用不含路径、key 或正文的 `DataBackupView`，不携带 restoration。Host/Web 同时核对请求摘要、对象与 revision，失败不转为 verified；worker 的完整交换、成功退出及回收共用最多 8 秒期限，frame 上限沿现有维护 pipe，外层 Configuration transport 保留 10 秒期限。Host 在核对与核验期间持有既有配置锁；未决生命周期事务阻断查询，不另建事实源。页面在线核验仍走正式 core；离线时显式选择本路径，仅显示核验结果和边界，不解锁备份创建、遗忘、导入、恢复或切换。此只读查询可重新检查，但不被包装成任何 mutation 的重试或批准。它不改变现有 brain/maintenance trait、EventKind 或私有配置历史字节。
