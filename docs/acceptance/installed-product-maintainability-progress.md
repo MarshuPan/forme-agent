@@ -76,3 +76,9 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 `3c942af` 将 Harness 内的动作分类、策略降级、审批/能力门与能力快照校验提取到 `crates/harness/src/action_policy.rs`（298 行），`lib.rs` 减少 241 行。新增边界测试证明通信来源不能保留 `Allow`。该提交没有改变公开 API、事件、事务、执行顺序或恢复语义，也没有新增 crate、内部依赖边或 EventKind。
 
 本轮 `verify-m5.ps1` 的 S1–S99、C1–C24、workspace Rust tests、strict Clippy、Python 89 项、合规及 M4/M5 专项均通过；默认全量测试中 3 个真实 Windows AppContainer 场景仍为 ignored，需显式原生环境运行。M5 release audit 生成与独立验证通过，唯一失败是仓库回执仍绑定 `3c942af` 之前的源码。后续刷新回执与最终 clean-tree 比较见 [M5 验收记录 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。本记录不宣称原生 AppContainer、安装服务或 IP01–IP24 通过。
+
+## 11. Production context source 拆分（2026-10-26）
+
+`ccfaa79` 将正式主脑上下文装载实现从 `production.rs` 提取至 `production/context_source.rs`（206 行），原文件减少 180 行；composition 仅更新模块装配。新增 C3 回归证明跨 workspace scope 在调用模型、追加事件或产生其他副作用前被拒绝。没有新增 crate、依赖边或 EventKind，也未改变公开 API、事务和恢复语义。
+
+提交后的 `tools/verify-m5.ps1` 已运行完 S1–S99、C1–C24、workspace 回归、strict Clippy、Python 89 项（1 项平台跳过）、合规与 M4/M5 专项；生成的 M5 release audit 和独立验证通过。终线仅在仓库 M5 receipt 与当前 clean tree 比对时失败，原因是回执仍绑定此前源码；因此本轮不记为 M5 FINAL PASS。刷新回执和最终重跑结果见 [M5 验收记录 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。默认全量测试中的 3 个原生 Windows AppContainer 场景仍为 ignored；本记录不宣称 IP01–IP24、真实系统服务或原生安装验收通过。
