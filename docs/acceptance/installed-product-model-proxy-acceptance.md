@@ -57,6 +57,23 @@
 
 ## 本批未覆盖
 
-- 没有在真实浏览器中完成代理设置页的 claim 后交互截图；本批使用前端行为、类型和 bundle 完整性测试。
+- 没有在已安装原生产品上完成代理设置页的 claim 后交互；本次浏览器证据来自一次性 managed-configuration fixture，不是 IP01–IP24 安装验收。
 - 没有调用真实外部模型 Provider、读取或提交真实 API key、proxy credential 或 `.forme` 数据。
 - 没有执行真实 HTTP 代理连通性、Windows/Linux/macOS 系统服务安装或完整 IP01–IP24 联合验收。
+
+## 真实浏览器增量验收（2026-10-26）
+
+本次使用仓库已有的 `FORME_CONFIG_BROWSER_PREVIEW=1` managed-configuration fixture，实际启动临时 `forme-hostd`、`forme-webd` 和 `forme-gatewayd`，浏览器使用临时账号登录正式内嵌 Web 工作台。模型请求由本地计数型 fixture 提供，不读取用户配置、真实密钥或 `.forme` 数据；浏览器与临时进程结束后已停止。该验收只补充 Web 代理控件的真实交互证据，不提升 IP01–IP24。
+
+| 场景 | 实际结果 |
+|---|---|
+| 登录并打开设置页 | PASS；页面显示已连接正式运行时，设置页显示“网络代理：可配置”。 |
+| 直连切换 HTTP | PASS；出现空的写入字段，已保存地址不进入输入值，只显示重新输入提示。 |
+| 非法代理地址 | PASS；提交 `https://proxy.invalid/path` 返回 HTTP 422，配置未被接受。 |
+| 合法代理地址 | PASS；提交 `http://127.0.0.1:8080` 返回 HTTP 200；响应正文、页面正文和代理控件均不包含该 endpoint 或模型凭据。 |
+| 刷新与切回直连 | PASS；刷新后仍只显示 `endpoint_configured` 的脱敏状态；切回直连后设置恢复为 direct。 |
+| 浏览器持久层 | PASS；代理地址没有写入 `localStorage` 或 `sessionStorage`。 |
+
+脱敏控件截图：[proxy-control.png](evidence/web-browser-20261026/proxy-control.png)，SHA-256 `D8C709DBE417BBF83281DFC175F3C3E14343AF05E129B580301AF295307295B2`。截图没有 endpoint、凭据或用户数据。
+
+本次真实浏览器验收仍不证明外部 Provider 可用、代理网络连通性、系统服务安装、受管原生身份、LAN/TLS 或完整产品 IP01–IP24。

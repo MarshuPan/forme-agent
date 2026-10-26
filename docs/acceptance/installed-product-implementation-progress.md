@@ -6,6 +6,8 @@
 
 2026-10-26 `2702d30` 完成[受管模型代理配置](installed-product-model-proxy-acceptance.md)：Host schema 8、CAS/journal/revision、release binding 保留、core materialization、ProductionRuntime provider 传递和 direct/HTTP transport 绑定已闭合；直接模式禁用环境代理，显式代理禁止 `NO_PROXY` 绕路，失败不自动直连，公共 Web view 不返回 endpoint。workspace 全量测试、fmt、check、strict Clippy、代码质量、资源与完整合规门通过。该条是模型代理组件证据，不提升真实 Provider、系统服务、安装包或 IP01–IP24 状态。
 
+2026-10-26 在 managed-configuration 临时产品 fixture 中完成受管模型代理设置的真实浏览器增量验收：真实登录设置页、非法代理 HTTP 422、合法 HTTP 代理 HTTP 200、响应/页面不回显 endpoint 或凭据、刷新保持脱敏状态、切回 direct 与浏览器持久层检查均通过；脱敏截图与边界见[受管模型代理配置验收](installed-product-model-proxy-acceptance.md#真实浏览器增量验收2026-10-26)。本次不提升真实 Provider、系统服务、安装包或 IP01–IP24 状态。
+
 2026-10-26 在当前 `e49ac89` 工作树显式运行真实 Chrome golden：`s38_real_browser_golden_runs_harness_approval_and_observes_server_mutation` 与 `s68_m3_candidate_live_v2_regression_rollback_and_live_v1_are_governed` 共 2/2 PASS。浏览器由真实 Chrome 进程启动，覆盖审批前零 mutation、审批后单次受治理 mutation、候选/活动版本边界与回滚证据；临时数据和浏览器进程清理完成。该证据属于核心 Harness/M2-M3，使用 fixture provider，不提升真实外部 Provider、安装服务或 IP01–IP24。
 
 2026-10-26 `a5b6a62` 完成并提交 Web 会话可见性竞态修复，新增 7 个前端竞态测试，并用可选真实浏览器夹具验证 Web → Gateway → ProductionRuntime：临时 owner 登录、一条 `workspace:lifecycle` 对话、19 条运行事件、1 次计数型本地模型调用、0 次工具动作、刷新恢复且无重复运行，临时数据清理通过。详见 [Web 运行时链路验收](installed-product-web-runtime-acceptance-20261026.md)。该证据不提升真实 Provider、系统服务、安装包、隔离或 IP01–IP24 状态。
