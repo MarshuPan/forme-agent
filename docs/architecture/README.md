@@ -54,6 +54,10 @@ V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-
 | `m1-b-protocol-compatibility.md` | M1-B intention/claim/job 与 proactive payload 增量的兼容、拒绝和 replay 边界。 | 已随 M1-B 落地；是 M1-B protocol migration note。 |
 | `m1-c-protocol-compatibility.md` | M1-C SchemaDigest、optional MCP action field 与 Context doctor row 的兼容和执行拒绝边界。 | 已随 M1-C 落地；保持 86-event taxonomy 与内部 crate 图。 |
 
+## 待确认的兼容设计
+
+[安装运行时结果与 POSIX 恢复草案](proposals/installed-worker-result-and-posix-recovery.md) 记录已发现的结果读取缺口与两项待确认决策。它尚未激活，不覆盖 canonical/PRD24 的冻结契约，不代表 ProductionRuntime 已接入隔离 worker，也不改变平台或 IP 验收状态。
+
 ## 写作边界
 
 架构文档应该做：
