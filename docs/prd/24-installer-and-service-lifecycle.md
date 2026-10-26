@@ -134,6 +134,8 @@ Host 仍在进程树终态后验证完整变更集、回写原 workspace、加�
 
 Windows 新安装在 manifest 的 workspace 域中建立 `default` 子目录，并生成独立 `worker.json`：初始 `authority_epoch=1`、`workspace:default` 的 exact 目录映射、Host 私有 journal/runtime 与固定 `sandbox:installed-file-v1` profile。profile 只允许本 release `bin/forme-executord.exe --installed-file-worker`；不包含 shell/任意 argv、模型环境或其他 backend。Host 配置显式引用该文件。认领前不创建 brain DB、owner 或 core.json；重开已有安装保留原配置，不静默升级旧布局。POSIX 本批不注入文件执行能力，继续已有不发布边界。
 
+新的完整 bundle 必须同时包含 hostd、webd、gatewayd、cli、hostctl 与 executord 六个本目标程序，全部进入 checksum inventory、签名 ReleaseManifest 和原生包输入校验；Windows 安装必须实际复制 executord。缺失文件入口的候选在写输出或安装前拒绝，不能仅凭配置声明完成。该要求不重写旧发布清单或历史验收，程序存在也不改变 POSIX 的不可发布边界。
+
 Host 根据已验证 installation manifest、worker config、固定程序/参数、路径分域及现有 AgentExecution credential 派生内部 `InstalledFileProvisioning`（`schema_version, binding, workspace_roots`）。binding 沿 §4.1.1c；物理目录映射只作为 Host 所有、core 只读的 policy 输入，不能塞进 binding、skills 或公开设置，也不向 Web 返回。Windows endpoint 仍由 install id 派生，不接受网页传入。
 
 该安装投影经 `ProductConfigStore` 既有单写者、revision/CAS、不可变快照与 journal 持久化为私有 state schema 9。历史 schema 2–8 与历史 core materialization 保持原字节；没有新投影时不增加字段或自动启用。owner 下一次新的配置保存才将已核验投影与该 revision 一起提交；重复原命令仍返回原 revision，不借重放激活能力。模型、skills、恢复、release 变更保留已提交投影；现有 worker 投影与当前安装配置冲突时拒绝重新装配，不能在 recover 时改写历史快照。没有 worker 配置仍可维护，但不得重新声明执行可用。
