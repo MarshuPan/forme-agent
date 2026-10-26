@@ -125,3 +125,7 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 前置审计发现 Gateway 拆分后仍按旧 lib.rs 定位实现；已修正并新增反向测试。2026-10-21 在干净的 `afe7fdb` 上执行完整 `tools/verify-m5.ps1`，终线为 M5 FINAL ACCEPTANCE: PASS；S1–S99、显式 M3/M4/M5 goldens、workspace、Python、strict Clippy、合规及新回执 generate/verify/compare 全部通过。日志保留于本地 `target/verify-m5-product-ingress-final.log`，不包含个人配置读取或真实模型验收。
 
 2026-10-24 在当前干净树（含 `de3c7b1` 的来源材料正文组件与 `7be4016` 的验收/口径更新）上重新生成、独立验证并与仓库工件比较，M5 release audit 为 PASS（9/9 blocking checks）；当前回执为 `sha256:bfc78be6b66eabc195916c177b2990157c1c8f5db614e5649c5da801bfe1ada4`，位于 `m5-release-audit-artifacts/`。旧回执 `sha256:6e2be4451db0822a732a5c0389d24818c723021a5b21875c178e89ccc3384ca3` 保留于 Git 历史；它仍可独立验证，但不再代表当前树。该永久回归不表示 IP01–IP24、原生安装、LAN TLS 或完整工作台已通过；后续产品增量仍需自己的组件与当前源码验收。
+
+2026-10-26，在 `shu/installed-product@3c686ad` 上完成当前提交最终重验。`pwsh -NoProfile -File tools/verify-m5.ps1` 以退出码 0 结束，终线为 `M5 FINAL ACCEPTANCE: PASS`；S1–S99、V1 C1–C24、18-crate workspace 回归、格式/check/strict Clippy、89 项 Python 工具门（1 项因本机无法创建 symlink 而按规则跳过）、原创性/许可证/合规门、M4 历史回执以及 M5 当前树审计生成、独立验证和仓库 receipt 比较均通过。C13–C18 DAG/runtime 场景 23/23，C19–C24 产品闭合场景 7/7。当前 M5 receipt 为 `sha256:08ff70d06b39292042f98ebab4ab94da4bbc9858dc93a5c623654f7fda746c74`；审计观察到的 quick-xml 与 zbus/zvariant 项仅影响非本次 Windows release target，按审计规则记为非阻断观察项。
+
+边界：全量 workspace 测试中 3 个真实 Windows AppContainer 用例仍按设计默认 `ignored`；本轮不将其计为通过。此 M5 工程总门也不证明真实 SCM/LocalSystem 安装、Linux/macOS 原生服务、安装包验收或 IP01–IP24 已通过；产品化状态继续以 [产品化实施进度](installed-product-implementation-progress.md)及各平台组件验收记录为准。
