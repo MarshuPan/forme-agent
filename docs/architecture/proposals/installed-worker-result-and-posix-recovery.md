@@ -56,6 +56,14 @@ Harness 继续负责最终计划、policy/envelope/能力门、审批和 nonce�
 4. 正式 backend/ProductionRuntime 装配与 core→peer→worker→原结果→Verifier 的完整路径。
 5. 产品浏览器与原生 IP10/IP17/IP18/IP24；真实 provider、实际服务身份和临时/模拟证据分开记录。
 
+## 2.6 已批准的正式接入边界
+
+结果通道启用后，下一步不是让 core 直接调用 Host API，而是新增 `WorkerActionBackend` 这一执行 crate 内 adapter，并在受管 composition 中显式装配。它接收安装侧的 `ManagedWorkerBinding`：endpoint、credential 文件、authority epoch 和 sandbox profile；Windows managed 只允许安装派生 named pipe，当前 POSIX/开发路径只允许有界 loopback TCP。binding 缺失或校验失败时，相关 capability 必须保持 unavailable，不能悄悄继续使用 brain 账户的 File/Shell/MCP backend。
+
+adapter 的唯一副作用提交链为：`ExecutionPlan -> WorkerJob/WorkerPermit/WorkerExecutionSpec -> WorkerBrokerTransport::dispatch`。dispatch 返回后只对同一 job 进行 bounded `probe`、`cancel` 和 `result_manifest/read_result`；job id、plan digest、authority epoch、nonce 和 permit digest 全程固定。dispatch/结果读取不明、终态与 manifest 不一致、`Completed` 没有可验证正文或 Host binding 失败，都返回既有 `ActionOutcomeUnknown`，不创建替代 job。可验证的 worker outcome 再按既有 `ActionResult`/Verifier 路径进入脑事件。
+
+该 adapter 首轮只承诺通用 worker protocol 接缝和可被 Host 证明的 backend；文件变更 diff/overlay 回写、桌面 helper binding、真实 Windows SCM/ACL 和 Linux/macOS 原生安装仍保持各自的独立验收门。开发进程 worker 的测试只证明 wire/result 协议，不提高产品发布状态。
+
 必须覆盖跨 owner/job/scope、permit/plan/nonce 替换、过期执行许可、维护凭据、结果篡改、越界 offset、超预算、linked path、磁盘满、工件/receipt 两侧崩溃、并发读/清理、取消/Host 死亡和恢复。拒绝路径证明零新增执行；已开始但不明的路径证明原 Unknown 且不重派。
 
 ## 3. 决策二：POSIX 的发布边界或恢复契约变更

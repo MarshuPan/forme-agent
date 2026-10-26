@@ -96,6 +96,21 @@ Host 将已校验 spec 写入本 job 的受保护运行目录，按注册 launch
 
 Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，绑定固定 loopback endpoint、独立 credential、请求/响应大小和超时；它不能调用 OwnerMaintenance，也不能让 Web 直接取得该 credential。该 transport 负责 admission/probe/cancel 以及只读的 result manifest/chunk 投影，不在 transport 内产生 permission、重算 plan 或执行模型。正式 ProductionRuntime 在没有真实平台隔离 adapter 时继续将对应 capability 标为 unavailable/blocked；开发 process worker 仅用于 transport/协议验证。
 
+#### 4.1.1c ProductionRuntime adapter 与受管 binding
+
+正式 core 使用 `ManagedWorkerBinding` 装配 worker driver。binding 是受保护 core/service 配置的 closed、versioned 投影，至少包含：
+
+- `schema_version`；
+- `endpoint`：`windows_named_pipe` 或受限 `loopback_tcp`；Windows managed 只能是安装清单派生的 named pipe，POSIX 当前有限边界和开发协议测试才可使用 loopback；
+- `credential_path`：Host 生成的 AgentExecution 独立 credential 文件，core 只读，不能从环境变量、Web payload 或模型上下文取得；
+- `authority_epoch` 与 `sandbox_profile_ref`：必须和 Host 的 `WorkerRuntimeConfig`/当前安装 profile 一致。
+
+binding 不携带程序路径、任意环境、secret 值、workspace 文件路径或新的 permission。Host/config 路径校验、ACL、peer identity 和平台隔离仍分别取证；binding 通过不等于原生安装或 IP10/IP24 通过。
+
+`ProductionRuntimeBuilder::from_managed_config` 在没有 binding 时仍可装配认知、Web 和维护能力，但所有需要执行外部副作用的 managed worker capability 必须保持 `Unavailable/Blocked`；不允许回退到 brain 进程内 backend。存在 binding 时，最终 `ExecutionPlan` 由同一 `WorkerActionBackend` 转成 job/permit/spec，dispatch 一次，之后只 probe/cancel/read 原 job，并把已校验的 manifest/chunk 转回既有 `ActionResult`。transport、Host、结果工件或 binding 任何一跳无法证明终态时，沿既有 `Unknown`/Waiting 恢复，不重派。
+
+开发 `ProductionRuntimeConfig` 的进程内 backend 仅用于受控单元、协议和本地 harness 测试；它不能被 managed service 选择，也不能被测试结果包装为产品隔离或平台支持证据。
+
 #### 4.1.1a Worker 结果 manifest/chunk 通道
 
 worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 launch profile 提供固定的 `FORME_WORKER_RESULT_PATH`，worker 只能写当前 job 的这一处有限结果文件。Host 在 `observe` 得到终态后，必须按“读取源文件 → 校验绑定/长度/整体摘要 → 写 Host 私有工件 → 追加 `WorkerResultManifest` → 追加原 `WorkerReceipt`”顺序完成；中间任何失败都把原 job 留在 `Unknown`，不得用 `safe_result_ref` 虚构正文。

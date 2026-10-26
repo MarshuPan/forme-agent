@@ -178,6 +178,14 @@ worker 的 stdout/stderr 不是结果事实源。受管 Host 为每个 job 提�
 
 AgentExecution 只读路由为 `GET /v1/agent/workers/{job_id}/result`（manifest）和 `POST /v1/agent/workers/{job_id}/result/read`（chunk）。两者只允许 AgentExecution credential/peer，Web、OwnerMaintenance、worker 均不能直接访问；Web 若需要展示产物，必须通过既有 core/产品授权投影。未知副作用只能读取原 job 的 manifest/probe，不能因结果缺失、超时或响应丢失新派发。
 
+#### 7.1.2 ProductionRuntime worker adapter
+
+受管产品的 `ProductionRuntime` 通过一个受保护的 managed worker binding 装配 `WorkerBrokerClient`，再以既有 `ExecutionBackendRegistry` 注册按 backend kind 分派的 worker adapter。binding 是安装配置的一部分，至少包含 `schema_version`、endpoint、AgentExecution credential 文件、`authority_epoch` 和 `sandbox_profile_ref`；它不接受模型、Web 或 `ActionIntent` 提供的 endpoint、credential、程序路径或 profile。Windows managed 只能使用安装派生的 named pipe；loopback TCP 只用于明确标记的开发/协议验证和当前有限 POSIX 路径。
+
+adapter 在 Harness 已完成最终 plan/policy/approval/nonce 检查之后，生成确定性但一次性的 `WorkerJob`、同 digest 的 `WorkerPermit` 和 `WorkerExecutionSpec`。`WorkerExecutionSpec` 只复制最终 plan 的 intent、backend、scope、resource set、normalized-action digest、timeout 和 output budget。dispatch 是唯一可能产生副作用的提交；成功后只对原 job 做 bounded probe、owner cancel 和 result manifest/chunk read。dispatch 响应不明、probe/read 失败、manifest 与 job/permit 不匹配、正文缺失或 `Completed` 没有可验证结果时返回既有 `ActionOutcomeUnknown`，不改成空成功、不创建新 job。
+
+受管 binding 缺失、endpoint/credential 无法验证、epoch/profile 与 Host 不一致，或目标 backend 没有对应的真实隔离/结果能力时，相关 capability 在 composition manifest 中标记为 `Unavailable/Blocked`；绝不在受管模式降级到 brain 账户的进程内 `FileBackend`、`ShellBackend`、`McpBackend` 或其他执行器。开发 `ProductionRuntimeConfig` 仍可使用原进程内 backend 做单元和协议测试，但该路径不能作为安装产品或原生平台通过证据。
+
 当前实现使用 Host 私有结果目录和独立 manifest/data 文件，journal 只保存绑定和 manifest，不复制正文。应用层加密必须接入产品执行数据域的真实 key resolver 后才能宣称完成；私有目录权限不是应用层加密的替代品。开发 Process worker 已提供受限结果文件和真实分块读取证据；该证据不提升 Windows/Linux/macOS 原生隔离、ProductionRuntime 或 IP10/IP24 的状态。
 
 这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux 已加入 `LinuxSystemdWorkerIsolation`：受管 Host 先验证 root、固定 `forme-host.service`、systemd 控制面和 `forme-exec`，每个 job 使用私有 workspace 副本并由 Host 核验回写；当前仅有目标交叉检查和通用回归，尚无 Linux 原生服务/账户/回写运行证据。macOS 已接入 `MacOsLaunchdWorkerIsolation` 的代码路径：受管 Host 先验证 root、固定 `com.forme.host` LaunchDaemon、`launchctl`、`sandbox-exec` 和 `_formeexec`，每个 job 使用私有 workspace 副本，由 Host 核验回写，网络 shell 在当前无 scoped adapter 时拒绝；当前没有 macOS 主机上的 LaunchDaemon、账户、sandbox、TCC、安装包或回写运行证据，IP10/IP24 仍需原生验收。
