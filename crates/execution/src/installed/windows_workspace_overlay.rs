@@ -92,6 +92,21 @@ impl PreparedOverlay {
         self.run_dir.join("workspace")
     }
 
+    pub fn file_target(&self) -> p::Result<Option<p::WorkerFileTarget>> {
+        let WriteScope::File { path, .. } = &self.scope else {
+            return Ok(None);
+        };
+        let target = p::WorkerFileTarget {
+            schema_version: p::SchemaVersion(1),
+            job_id: self.baseline.job.job_id.clone(),
+            plan_digest: self.baseline.job.plan_digest.clone(),
+            normalized_action_digest: self.baseline.execution.normalized_action_digest.clone(),
+            relative_path: path.clone(),
+        };
+        target.validate_for(&self.baseline.job, &self.baseline.execution)?;
+        Ok(Some(target))
+    }
+
     /// Change labels only below the newly-created per-job copy, never the
     /// original workspace, input records or Host intent/receipt directory.
     pub fn prepare_low_integrity(&self) -> p::Result<()> {

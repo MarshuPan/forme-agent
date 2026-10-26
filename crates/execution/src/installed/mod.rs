@@ -3,6 +3,7 @@
 
 pub mod bootstrap;
 mod desktop_helper;
+mod file_worker;
 #[cfg(windows)]
 mod firewall_windows;
 mod host;
@@ -63,6 +64,7 @@ mod worker_results;
 mod worker_socket;
 
 pub use desktop_helper::{DesktopHelperAdapter, UnavailableDesktopHelper};
+pub use file_worker::run_installed_file_worker;
 pub use host::*;
 pub use journal::*;
 #[cfg(target_os = "linux")]

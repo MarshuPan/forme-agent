@@ -194,6 +194,11 @@ impl WindowsAppContainerWorkerIsolation {
             if let Some(execution) = execution {
                 write_private_json(&execution_path, execution)?;
             }
+            let file_target_path = run_dir.join("file-target.json");
+            let file_target = overlay.file_target()?;
+            if let Some(target) = &file_target {
+                write_private_json(&file_target_path, target)?;
+            }
 
             self.grant(
                 &lease_id,
@@ -217,6 +222,9 @@ impl WindowsAppContainerWorkerIsolation {
             if execution.is_some() {
                 read_only_inputs.push(execution_path.as_path());
             }
+            if file_target.is_some() {
+                read_only_inputs.push(file_target_path.as_path());
+            }
             for input in read_only_inputs {
                 self.grant(
                     &lease_id,
@@ -239,6 +247,7 @@ impl WindowsAppContainerWorkerIsolation {
                 job_path: &job_path,
                 permit_path: &permit_path,
                 execution_path: execution.as_ref().map(|_| execution_path.as_path()),
+                file_target_path: file_target.as_ref().map(|_| file_target_path.as_path()),
                 workspace_scope: &job.workspace_scope.0,
                 deadline: job.deadline,
             })?;

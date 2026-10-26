@@ -44,6 +44,7 @@ fn environment_block_is_deterministic_and_scoped() {
             permit_path: Path::new(r"C:\forme\run\permit.json"),
             workspace: Path::new(r"C:\forme\workspace"),
             execution_path: Some(Path::new(r"C:\forme\run\execution.json")),
+            file_target_path: None,
             workspace_scope: "workspace:demo",
             deadline: 42,
         },

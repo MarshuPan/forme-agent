@@ -14,6 +14,7 @@ pub(super) struct WorkerEnvironment<'a> {
     pub permit_path: &'a Path,
     pub workspace: &'a Path,
     pub execution_path: Option<&'a Path>,
+    pub file_target_path: Option<&'a Path>,
     pub workspace_scope: &'a str,
     pub deadline: p::Timestamp,
 }
@@ -28,6 +29,7 @@ pub(super) fn environment_block(
         permit_path,
         workspace,
         execution_path,
+        file_target_path,
         workspace_scope,
         deadline,
     } = input;
@@ -68,6 +70,12 @@ pub(super) fn environment_block(
         values.insert(
             "FORME_WORKER_EXECUTION_PATH",
             path_string(path, "worker execution path")?,
+        );
+    }
+    if let Some(path) = file_target_path {
+        values.insert(
+            "FORME_WORKER_FILE_TARGET_PATH",
+            path_string(path, "worker file target path")?,
         );
     }
     values.insert("FORME_WORKER_WORKSPACE_SCOPE", workspace_scope.to_owned());

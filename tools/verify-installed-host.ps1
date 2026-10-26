@@ -275,6 +275,12 @@ try {
         "transport_delay_preserves_the_fixed_timeout_and_never_extends_the_deadline"
     )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_worker_contract") $name }
 
+    foreach ($name in @(
+        "installed_file_entry_reads_writes_and_deletes_only_the_private_copy",
+        "installed_file_entry_rejects_mapping_permit_and_scope_substitutions_before_writes",
+        "installed_file_entry_checks_budget_encoding_and_link_custody_before_mutations"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_file_worker_contract") $name }
+
     Invoke-NamedTest "forme-execution" @("--lib") "installed::worker_socket::tests::fragmented_tcp_bytes_cannot_extend_the_absolute_request_deadline"
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "result_handoff_orders_manifest_cleanup_receipt_and_never_retries_failed_cleanup"
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "cancel_result_cleanup_failure_stays_unknown_without_repeating_cleanup"

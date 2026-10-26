@@ -16,6 +16,14 @@ fn main() {
 }
 
 fn run() -> p::Result<()> {
+    let arguments: Vec<_> = std::env::args().skip(1).collect();
+    match arguments.as_slice() {
+        [] => {}
+        [mode] if mode == "--installed-file-worker" => {
+            return forme_execution::installed::run_installed_file_worker();
+        }
+        _ => return Err(p::Error("unsupported executor entry arguments".into())),
+    }
     let grant_path = required_path("FORME_EXECUTOR_GRANT_PATH")?;
     let grant_bytes = std::fs::read(&grant_path)
         .map_err(|_| p::Error("executor grant file cannot be read".into()))?;

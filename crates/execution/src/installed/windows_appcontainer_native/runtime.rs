@@ -26,6 +26,7 @@ pub(crate) struct LaunchRequest<'a> {
     pub(crate) job_path: &'a Path,
     pub(crate) permit_path: &'a Path,
     pub(crate) execution_path: Option<&'a Path>,
+    pub(crate) file_target_path: Option<&'a Path>,
     pub(crate) workspace_scope: &'a str,
     pub(crate) deadline: p::Timestamp,
 }

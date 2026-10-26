@@ -164,6 +164,7 @@ fn launch_suspended(
             permit_path: request.permit_path,
             workspace: request.workspace,
             execution_path: request.execution_path,
+            file_target_path: request.file_target_path,
             workspace_scope: request.workspace_scope,
             deadline: request.deadline,
         },
