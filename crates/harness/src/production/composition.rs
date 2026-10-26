@@ -99,12 +99,12 @@ pub(super) fn compose(
     )?;
 
     let context_builder = Arc::new(LayeredContextBuilder::default());
-    let context_source = Arc::new(ProductionContextSliceSource {
-        store: store.clone(),
-        cognition: cognition.clone(),
-        aggregates: aggregates.clone(),
-        workspace: config.workspace.clone(),
-    });
+    let context_source = Arc::new(context_source::ProductionContextSliceSource::new(
+        store.clone(),
+        cognition.clone(),
+        aggregates.clone(),
+        config.workspace.clone(),
+    ));
     let catalog = ProductionContextCatalogSource {
         store: store.clone(),
         capabilities: capabilities.clone(),

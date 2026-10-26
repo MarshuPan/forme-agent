@@ -751,6 +751,35 @@ fn c3_formal_context_carries_history_rules_and_brain_slices_to_the_model() {
 }
 
 #[test]
+fn c3_context_source_rejects_cross_workspace_scope_without_model_or_event_side_effects() {
+    let _env = TestEnvironment::new();
+    let model = ModelServer::start("must not be called");
+    let path = database_path("context-scope-escape");
+    let config = config("owner:context-scope", &path, model.address);
+    let runtime = build(&config);
+    let store = runtime.services().store.clone();
+    let events_before = total_events(&store);
+
+    let mut request = context_request("scope-escape");
+    request.scope = p::Scope("workspace:foreign".into());
+    assert!(runtime
+        .services()
+        .context_hydrator
+        .hydrate(&request)
+        .is_err());
+    assert_eq!(model.calls(), 0, "scope rejection precedes model access");
+    assert_eq!(
+        total_events(&store),
+        events_before,
+        "a rejected context source does not append brain events"
+    );
+
+    drop(store);
+    drop(runtime);
+    remove_database(&path);
+}
+
+#[test]
 fn c5_scheduler_pass_runs_through_the_same_runtime_as_owner_turns() {
     let _env = TestEnvironment::new();
     let model = ModelServer::start("scheduled answer");
