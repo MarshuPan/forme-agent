@@ -41,7 +41,7 @@
 |---|---|---|
 | P04–05 / IP04–05：无配置可达与认领 | 独立 Web、证明/CAS、有限 setup、新脑签名 claim、断线恢复 | 与整机首次安装连接；旧脑/备份候选与并发/中断的完整路径。 |
 | P06 / IP06–07：账号与可信身份 | Argon2id、cookie/CSRF/epoch、plan-bound reauth、签名 bridge/durable fence | core 离线撤销恢复、OS 管理员有限口令恢复；账号/owner/keys 保持。 |
-| P07 / IP08：持久设置 | 模型 patch/CAS/journal、不可变凭据、validate/start/restart/ack；`0990bd0` 接入默认 workspace、前台优先与后台相关性模型；受管 skills、公共设置 v2 与可用性投影已接入正式 `SkillRegistry`/ProductionRuntime，组件见 `installed-product-managed-skills-acceptance.md`。 | MCP/plugin/package、消息渠道、代理、真实外部 provider 和完整产品验收仍仅经 core；组件通过不单独提升 IP08。 |
+| P07 / IP08：持久设置 | 模型 patch/CAS/journal、不可变凭据、validate/start/restart/ack；`0990bd0` 接入默认 workspace、前台优先与后台相关性模型；受管 skills、公共设置 v2、受管模型代理与可用性投影已接入正式 `SkillRegistry`/ProductionRuntime，组件见 `installed-product-managed-skills-acceptance.md` 与 `installed-product-model-proxy-acceptance.md`。 | MCP/plugin/package、消息渠道、真实外部 provider 和完整产品验收仍仅经 core；组件通过不单独提升 IP08。 |
 | P08 / IP09：本地与 LAN | 精确 Host/Origin、分桶限流；受管网络投影、TLS 材料校验、公共设置 v2、监听健康/有界回退、单次维护派发和 Windows 管理员 firewall 规则的只读核验已接入，见网络组件报告。 | 其他平台核验、真实管理员规则/SCM、证书客户端信任及跨设备证据；不自动改防火墙。 |
 | P15 / IP21：离线维护 | 认证独立、host inspect/启停、模型配置与原 operation 核实 | 健康/诊断、备份候选、升级恢复/回滚、安全系统操作和完整状态视图。 |
 
