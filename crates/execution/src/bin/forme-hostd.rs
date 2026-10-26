@@ -30,7 +30,21 @@ mod tests {
                 process_workers: false
             }
         ));
+        assert!(matches!(
+            launch_from_args(vec![
+                "--development-config".into(),
+                std::env::current_dir()
+                    .unwrap()
+                    .join("absolute.json")
+                    .into_os_string(),
+            ])
+            .unwrap(),
+            Launch::DevelopmentConfig(_)
+        ));
         assert!(launch_from_args(vec!["--config".into(), "relative.json".into()]).is_err());
+        assert!(
+            launch_from_args(vec!["--development-config".into(), "relative.json".into()]).is_err()
+        );
         assert!(launch_from_args(vec![
             "--config".into(),
             "--development-process-workers".into()

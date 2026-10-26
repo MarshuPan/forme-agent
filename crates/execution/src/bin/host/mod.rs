@@ -45,6 +45,7 @@ pub(super) fn run() -> p::Result<()> {
     #[cfg(windows)]
     {
         match launch {
+            Launch::DevelopmentConfig(path) => run_foreground(Launch::DevelopmentConfig(path)),
             Launch::InstallService(path) => service::install(&path),
             Launch::UninstallService(path) => service::uninstall(&path),
             Launch::ReleaseUpdater(_) => updater_service::dispatch().map_err(|_| {
@@ -68,6 +69,7 @@ pub(super) fn run() -> p::Result<()> {
     }
     #[cfg(not(windows))]
     match launch {
+        Launch::DevelopmentConfig(path) => run_foreground(Launch::DevelopmentConfig(path)),
         Launch::Development { .. } | Launch::Managed(_) => run_foreground(launch),
         Launch::InstallService(_) | Launch::UninstallService(_) => Err(p::Error(
             "host service installation is managed by the native package manager on this platform"
@@ -89,6 +91,7 @@ fn run_foreground(launch: Launch) -> p::Result<()> {
     let managed_service_bound = false;
     let runtime = match launch {
         Launch::Development { process_workers } => from_environment(process_workers)?,
+        Launch::DevelopmentConfig(path) => from_development_config(&path)?,
         Launch::Managed(path) => from_managed_config(&path)?,
         _ => {
             return Err(p::Error(

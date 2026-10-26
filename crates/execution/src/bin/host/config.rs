@@ -221,6 +221,7 @@ pub(crate) enum Launch {
     Development {
         process_workers: bool,
     },
+    DevelopmentConfig(PathBuf),
     Managed(PathBuf),
     InstallService(PathBuf),
     UninstallService(PathBuf),
@@ -247,6 +248,11 @@ pub(crate) fn launch_from_args(
             let path = PathBuf::from(path);
             reject_path(&path)?;
             Ok(Launch::Managed(path))
+        }
+        [flag, path] if flag == "--development-config" => {
+            let path = PathBuf::from(path);
+            reject_path(&path)?;
+            Ok(Launch::DevelopmentConfig(path))
         }
         [install, flag, path] if install == "--install-service" && flag == "--config" => {
             let path = PathBuf::from(path);
@@ -438,6 +444,17 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         worker_protected_paths,
         managed: true,
     })
+}
+
+/// Explicit foreground compatibility for repository-owned integration and
+/// development runs. It reuses the closed file schema and credential/path
+/// validation, but it never claims SCM service identity or enables the native
+/// AgentExecution peer transport.
+pub(super) fn from_development_config(path: &Path) -> p::Result<HostRuntimeConfig> {
+    let mut runtime = from_managed_config(path)?;
+    runtime.managed = false;
+    runtime.development_workers = false;
+    Ok(runtime)
 }
 
 #[cfg(windows)]

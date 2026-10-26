@@ -42,7 +42,8 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
     await fs.rm(resolved, { recursive: true });
   };
   async function start(name, config, announcement) {
-    const child = spawn(executable(name), ['--config', config], { cwd: root, env: environment,
+    const flag = name === 'forme-hostd' ? '--development-config' : '--config';
+    const child = spawn(executable(name), [flag, config], { cwd: root, env: environment,
       windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     processes.add(child);
     let output = '', diagnostic = '';
