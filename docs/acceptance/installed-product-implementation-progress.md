@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 `2702d30` 完成[受管模型代理配置](installed-product-model-proxy-acceptance.md)：Host schema 8、CAS/journal/revision、release binding 保留、core materialization、ProductionRuntime provider 传递和 direct/HTTP transport 绑定已闭合；直接模式禁用环境代理，显式代理禁止 `NO_PROXY` 绕路，失败不自动直连，公共 Web view 不返回 endpoint。workspace 全量测试、fmt、check、strict Clippy、代码质量、资源与完整合规门通过。该条是模型代理组件证据，不提升真实 Provider、系统服务、安装包或 IP01–IP24 状态。
+
 2026-10-26 `a5b6a62` 完成并提交 Web 会话可见性竞态修复，新增 7 个前端竞态测试，并用可选真实浏览器夹具验证 Web → Gateway → ProductionRuntime：临时 owner 登录、一条 `workspace:lifecycle` 对话、19 条运行事件、1 次计数型本地模型调用、0 次工具动作、刷新恢复且无重复运行，临时数据清理通过。详见 [Web 运行时链路验收](installed-product-web-runtime-acceptance-20261026.md)。该证据不提升真实 Provider、系统服务、安装包、隔离或 IP01–IP24 状态。
 
 2026-10-26 基于实现提交 `5391750` 更新 [Windows x86_64 原生候选](installed-product-windows-candidate-20261026.md)：release workspace 构建、17-file bundle、固定 SHA-256 的 Inno 6.6.1 编译与独立摘要核对均通过；安装器为 65,564,782 bytes、SHA-256 `3acfe724a4c9f3a82faf687c16660f243eae1fec39e23a383deb97ac8068b957`。它仍是 unsigned/uninstalled/development、`release_ready=false`，没有运行安装器或注册服务，不提升任何 IP 状态。当前源码的 M5 回归与发布回执状态另见 [M5 报告 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。
