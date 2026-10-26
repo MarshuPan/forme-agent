@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ApiError, newKey } from '../api/client.ts';
 import type { WorkbenchClient } from '../api/client.ts';
-import type { CoreHealth, HostStatus, ProductBrainPreferences, ProductCapabilitySettings, ProductConfigView, ProductModelProfilePatch, ProductNetworkConfig, RuntimeView } from '../types.ts';
+import type { CoreHealth, HostStatus, ProductBrainPreferences, ProductCapabilitySettings, ProductConfigView, ProductModelProfilePatch, ProductNetworkConfig, ProductProxyConfigPatch, ProductProxyMode, RuntimeView } from '../types.ts';
 import { draftFromConfig, emptyModel, patchFromDraft } from '../configuration.ts';
 import type { ModelDraft } from '../configuration.ts';
 import { capabilitiesFromDraft, draftFromCapabilities } from '../skills.ts';
@@ -97,13 +97,16 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
   const [brain, setBrain] = useState<ProductBrainPreferences | null>(config?.brain ?? null);
   const [skills, setSkills] = useState<SkillDraft[]>(() => draftFromCapabilities(config?.capabilities));
   const [network, setNetwork] = useState<ProductNetworkConfig>(() => config?.network ?? loopbackNetwork());
+  const [proxyMode, setProxyMode] = useState<ProductProxyMode>(() => config?.proxy?.mode ?? 'direct');
+  const [proxyEndpoint, setProxyEndpoint] = useState('');
+  const [proxyChanged, setProxyChanged] = useState(false);
   const [loadedRevision, setLoadedRevision] = useState<number | null>(null);
-  const pending = useRef<{ operation: string; revision: number; models: ProductModelProfilePatch[]; brain: ProductBrainPreferences; capabilities: ProductCapabilitySettings; network: ProductNetworkConfig } | null>(null);
+  const pending = useRef<{ operation: string; revision: number; models: ProductModelProfilePatch[]; brain: ProductBrainPreferences; capabilities: ProductCapabilitySettings; network: ProductNetworkConfig; proxy?: ProductProxyConfigPatch } | null>(null);
   const [uncertain, setUncertain] = useState(false);
   const networkConfigurable = settingConfigurable(config, 'network');
   useEffect(() => {
     if (config && config.active_revision !== loadedRevision) {
-      setModels(draftFromConfig(config)); setBrain(config.brain); setSkills(draftFromCapabilities(config.capabilities)); setNetwork(config.network); setLoadedRevision(config.active_revision);
+      setModels(draftFromConfig(config)); setBrain(config.brain); setSkills(draftFromCapabilities(config.capabilities)); setNetwork(config.network); setProxyMode(config.proxy?.mode ?? 'direct'); setProxyEndpoint(''); setProxyChanged(false); setLoadedRevision(config.active_revision);
     }
   }, [config, loadedRevision]);
   function update(index: number, change: Partial<ModelDraft>) {
@@ -114,13 +117,15 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy || !config || !models.length || !brain) return;
+    if (proxyChanged && proxyMode === 'http' && !proxyEndpoint.trim()) { onError('HTTP 代理需要填写地址；现有地址不会从服务端回显。'); return; }
     onBusy(true); onError('');
     try {
-      pending.current ??= { operation: newKey('config'), revision: config.active_revision, models: patchFromDraft(models), brain, capabilities: capabilitiesFromDraft(skills), network };
-      const { operation, revision, models: patch, brain: preferences, capabilities, network: networkPatch } = pending.current;
-      const result = await api.saveProductConfig(revision, patch, operation, preferences, capabilities, networkPatch);
+      pending.current ??= { operation: newKey('config'), revision: config.active_revision, models: patchFromDraft(models), brain, capabilities: capabilitiesFromDraft(skills), network,
+        proxy: proxyChanged ? { schema_version: 1, mode: proxyMode, ...(proxyMode === 'http' ? { endpoint: proxyEndpoint.trim() } : {}) } : undefined };
+      const { operation, revision, models: patch, brain: preferences, capabilities, network: networkPatch, proxy } = pending.current;
+      const result = await api.saveProductConfig(revision, patch, operation, preferences, capabilities, networkPatch, proxy);
       pending.current = null; setUncertain(false);
-      onSaved(result.view); setLoadedRevision(result.view.active_revision); setModels(draftFromConfig(result.view)); setBrain(result.view.brain); setSkills(draftFromCapabilities(result.view.capabilities)); setNetwork(result.view.network);
+      onSaved(result.view); setLoadedRevision(result.view.active_revision); setModels(draftFromConfig(result.view)); setBrain(result.view.brain); setSkills(draftFromCapabilities(result.view.capabilities)); setNetwork(result.view.network); setProxyMode(result.view.proxy?.mode ?? 'direct'); setProxyEndpoint(''); setProxyChanged(false);
     } catch (problem) {
       if (problem instanceof ApiError && (problem.status === 409 || (problem.status === 422 && problem.code === 'ConfigurationInvalid'))) { pending.current = null; setUncertain(false); }
       else setUncertain(true);
@@ -136,6 +141,7 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
     {error && <p className="form-error" role="alert">{error}</p>}
     {brain && <BrainPreferences value={brain} models={models} disabled={busy || uncertain} onChange={setBrain} />}
     <SkillSettings value={skills} disabled={busy || uncertain} onChange={setSkills} />
+    {settingConfigurable(config, 'proxy') && <ProxySettings mode={proxyMode} endpoint={proxyEndpoint} endpointConfigured={config?.proxy?.endpoint_configured ?? false} disabled={busy || uncertain} onChange={(nextMode, nextEndpoint) => { setProxyMode(nextMode); setProxyEndpoint(nextEndpoint); setProxyChanged(true); }} />}
     <NetworkSettings value={network} active={config?.network_active ?? true} disabled={busy || uncertain || !networkConfigurable} onChange={setNetwork} />
     {config && <p className="muted">工作空间与分工来源：{config.brain_source === 'installation_template' ? '安装默认值' : '已保存配置'}。</p>}
     {models.map((model, index) => <fieldset className="model-profile" key={index} disabled={busy || uncertain}>
@@ -157,6 +163,17 @@ function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBu
     </fieldset>)}
     <div className="button-row"><button type="button" className="secondary-button" disabled={busy || uncertain} onClick={() => setModels((current) => [...current, { ...emptyModel(), id: `model:${current.length + 1}`, default: false }])}>添加模型</button><button type="submit" className="primary-button" disabled={busy || !config}>{busy ? '正在保存…' : uncertain ? '核实原保存' : '保存模型与主脑配置'}</button></div>
   </form>;
+}
+
+function ProxySettings({ mode, endpoint, endpointConfigured, disabled, onChange }: { mode: ProductProxyMode; endpoint: string; endpointConfigured: boolean; disabled: boolean; onChange: (mode: ProductProxyMode, endpoint: string) => void }) {
+  return <section className="proxy-settings"><h3>模型网络代理</h3>
+    <p className="muted">代理只作用于主脑的模型请求，不改变权限、审批或模型角色。已保存的地址不会回显；修改 HTTP 代理时请重新输入完整地址。</p>
+    <div className="form-grid">
+      <label>连接方式<select value={mode} disabled={disabled} onChange={(event) => onChange(event.target.value as ProductProxyMode, '')}><option value="direct">直接连接</option><option value="http">HTTP 代理</option></select></label>
+      {mode === 'http' && <label className="wide-field">HTTP 代理地址<input type="url" value={endpoint} disabled={disabled} onChange={(event) => onChange('http', event.target.value)} placeholder={endpointConfigured ? '已配置，输入新地址以替换' : 'http://127.0.0.1:8080'} autoComplete="off" /></label>}
+    </div>
+    <p className={mode === 'http' && endpointConfigured && !endpoint ? 'status-pill' : 'muted'}>{mode === 'http' && endpointConfigured && !endpoint ? '当前已配置代理；留空表示保持原地址' : mode === 'direct' ? '当前不使用受管模型代理。' : '保存后由 Host 校验地址，并在受控重启后生效。'}</p>
+  </section>;
 }
 
 function loopbackNetwork(): ProductNetworkConfig {

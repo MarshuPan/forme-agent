@@ -40,7 +40,8 @@ const config: ProductConfigView = { schema_version: 1, configured: true, install
   brain_source: 'installation_template', brain: { schema_version: 1, default_workspace: 'workspace:default',
     model_routing: { schema_version: 1, foreground: null, cognition: null } },
   network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null },
-  network_active: true, network_source: 'installation_template' };
+  network_active: true, network_source: 'installation_template',
+  proxy: { schema_version: 1, mode: 'direct', endpoint_configured: false }, proxy_source: 'installation_template' };
 const snapshot: MaintenanceSnapshot = { schema_version: 1, product_revision: 31, owner: 'owner:fixture',
   host: { schema_version: 1, product_state: 'ready', core_health: 'ready', active_release: '0.0.1', allowed_operations: ['commit_restore'] }, operations: [] };
 

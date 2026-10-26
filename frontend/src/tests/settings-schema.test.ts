@@ -14,8 +14,9 @@ function view(): ProductConfigView {
     capabilities_source: 'installation_template', issue_refs: [],
     network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null },
     network_active: true, network_source: 'installation_template',
+    proxy: { schema_version: 1, mode: 'direct', endpoint_configured: false }, proxy_source: 'installation_template',
     availability: { schema_version: 1, features: settingFeatures.map((feature) => {
-      const configurable = ['models', 'skills', 'network'].includes(feature);
+      const configurable = ['models', 'skills', 'proxy', 'network'].includes(feature);
       return { schema_version: 1, feature, state: configurable ? 'configurable' : 'unavailable',
         reason: configurable ? null : 'managed_consumer_missing' };
     }) } };
@@ -31,7 +32,7 @@ test('settings read negotiates v2 explicitly and unavailable consumers stay dist
   assert.deepEqual(calls, ['/api/v1/product/config?schema_version=2']);
   assert.equal(result.schema_version, 2);
   for (const feature of ['mcp', 'plugins', 'packages', 'channels', 'proxy']) {
-    assert.equal(result.availability!.features.find((item) => item.feature === feature)?.state, 'unavailable');
+    assert.equal(result.availability!.features.find((item) => item.feature === feature)?.state, feature === 'proxy' ? 'configurable' : 'unavailable');
   }
   assert.equal(Object.hasOwn(result, 'credential'), false);
 });
@@ -42,6 +43,7 @@ test('unknown, incomplete, duplicate and contradictory settings capabilities are
   assert.throws(() => parseProductSettings({ ...view(), availability: undefined }));
   assert.throws(() => parseProductSettings({ ...view(), brain: { ...view().brain, schema_version: 2 } }));
   assert.throws(() => parseProductSettings({ ...view(), network: { ...view().network, schema_version: 2 } }));
+  assert.throws(() => parseProductSettings({ ...view(), proxy: { ...view().proxy!, endpoint: 'http://secret.invalid:8080' } }));
   const source = view().availability!;
   assert.throws(() => parseProductSettings({ ...view(), availability: { ...source, features: source.features.slice(1) } }));
   assert.throws(() => parseProductSettings({ ...view(), availability: { ...source, features: source.features.map(() => source.features[0]) } }));
@@ -102,6 +104,21 @@ test('v2 network writes send only the managed material reference', async () => {
   assert.equal(Object.hasOwn(body.network.tls, 'material_configured'), false);
   assert.equal(Object.hasOwn(body.network.tls, 'certificate_path'), false);
   assert.equal(Object.hasOwn(body.network.tls, 'private_key_path'), false);
+});
+
+test('v2 proxy writes use a write-only endpoint and preserve public redaction', async () => {
+  const calls: RequestInit[] = [];
+  const api = new WorkbenchClient(async (_path, init) => {
+    calls.push(init!);
+    return init?.method === 'GET'
+      ? Response.json(view())
+      : Response.json({ schema_version: 2, view: { ...view(), proxy: { schema_version: 1, mode: 'http', endpoint_configured: true } }, applied: true, operation_id: 'settings:proxy' });
+  });
+  await api.saveProductConfig(0, patchFromDraft([emptyModel()]), 'settings:proxy', undefined, undefined, undefined, { schema_version: 1, mode: 'http', endpoint: 'http://127.0.0.1:8080' });
+  const body = JSON.parse(String(calls[0].body));
+  assert.deepEqual(body.proxy, { schema_version: 1, mode: 'http', endpoint: 'http://127.0.0.1:8080' });
+  assert.equal(Object.hasOwn(body, 'availability'), false);
+  assert.equal((await api.productConfig()).proxy?.endpoint_configured, false);
 });
 
 test('incompatible write responses never trigger a downgraded or fresh operation', async () => {

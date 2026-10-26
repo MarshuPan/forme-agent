@@ -24,6 +24,11 @@ export function parseProductSettings(value: unknown): ProductConfigView {
   }
   for (const item of value.models) versioned(item);
   versioned(value.brain); versioned(value.brain.model_routing); versioned(value.network);
+  if (!isRecord(value.proxy) || value.proxy.schema_version !== 1
+      || !['direct', 'http'].includes(String(value.proxy.mode))
+      || typeof value.proxy.endpoint_configured !== 'boolean'
+      || Object.hasOwn(value.proxy, 'endpoint')) throw invalid();
+  if (!['installation_template', 'managed_configuration'].includes(String(value.proxy_source))) throw invalid();
   if (Object.hasOwn(value.network, 'certificate_path') || Object.hasOwn(value.network, 'private_key_path')) throw invalid();
   if (typeof value.network.bind !== 'string' || !Array.isArray(value.network.allowed_hosts)
       || (value.network.firewall !== null && !isRecord(value.network.firewall))) throw invalid();

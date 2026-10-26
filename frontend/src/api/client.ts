@@ -1,7 +1,7 @@
 import { isRecord, versioned } from '../types.ts';
 import type { ArtifactCatalogView } from '../types.ts';
 import type { ProjectSupervisionCommand, WorkspaceControlSnapshot } from '../types.ts';
-import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, HostStatus, OrchestrationLedger, PendingApproval, ProductModelProfilePatch, ProductNetworkConfig, ProductNetworkConfigPatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
+import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, HostStatus, OrchestrationLedger, PendingApproval, ProductModelProfilePatch, ProductNetworkConfig, ProductNetworkConfigPatch, ProductProxyConfigPatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
 import type { ProductBrainPreferences, ProductCapabilitySettings, ProductConfigValidation, ProductCoreActivation, ProductCoreActivationResult, ProductOperation, RunPendingView } from '../types.ts';
 import { isWorkbenchProposal } from '../workbench.ts';
 import type { PendingWorkbenchProposals, WorkbenchProposal, WorkbenchReceipt, WorkbenchReview, WorkbenchSection, WorkbenchSnapshot } from '../workbench.ts';
@@ -130,7 +130,7 @@ export class WorkbenchClient {
     return parseProductSettings(await this.json<unknown>('product/config?schema_version=2', 'GET', undefined, undefined, 2));
   }
   productStatus() { return this.json<HostStatus>('product/status'); }
-  async saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config'), brain?: ProductBrainPreferences, capabilities?: ProductCapabilitySettings, network?: ProductNetworkConfig) {
+  async saveProductConfig(expected_revision: number, models: ProductModelProfilePatch[], operation = newKey('config'), brain?: ProductBrainPreferences, capabilities?: ProductCapabilitySettings, network?: ProductNetworkConfig, proxy?: ProductProxyConfigPatch) {
     const networkPatch: ProductNetworkConfigPatch | undefined = network && {
       schema_version: network.schema_version,
       bind: network.bind,
@@ -140,7 +140,7 @@ export class WorkbenchClient {
     };
     const response = await this.json<{ schema_version: 2; view: unknown; applied: boolean; operation_id: string | null }>(
       'product/config', 'POST', { schema_version: 2, operation_id: operation, expected_revision, models,
-        ...(brain ? { brain } : {}), ...(capabilities ? { capabilities } : {}), ...(networkPatch ? { network: networkPatch } : {}) }, operation, 2,
+        ...(brain ? { brain } : {}), ...(capabilities ? { capabilities } : {}), ...(networkPatch ? { network: networkPatch } : {}), ...(proxy ? { proxy } : {}) }, operation, 2,
     );
     return { ...response, view: parseProductSettings(response.view) };
   }

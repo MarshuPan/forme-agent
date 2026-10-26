@@ -14,7 +14,8 @@ test('saved model editing strips readonly fields and does not echo credentials',
     brain_source: 'installation_template', brain: { schema_version: 1, default_workspace: 'workspace:default',
       model_routing: { schema_version: 1, foreground: null, cognition: null } },
     network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null },
-    network_active: true, network_source: 'installation_template' };
+    network_active: true, network_source: 'installation_template',
+    proxy: { schema_version: 1, mode: 'direct', endpoint_configured: false }, proxy_source: 'installation_template' };
   const draft = draftFromConfig(config);
   assert.equal(draft[0].credential, '');
   const patch = patchFromDraft(draft);
@@ -98,6 +99,7 @@ test('managed skill settings keep trust separate from enablement and preserve th
       brain: { schema_version: 1, default_workspace: 'workspace:default', model_routing: { schema_version: 1, foreground: null, cognition: null } },
       brain_source: 'managed_configuration', capabilities, capabilities_source: 'managed_configuration',
       network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null }, network_active: true, network_source: 'managed_configuration',
+      proxy: { schema_version: 1, mode: 'direct', endpoint_configured: false }, proxy_source: 'managed_configuration',
     }, applied: false, operation_id: 'config:skills' });
   });
   await api.saveProductConfig(1, [], 'config:skills', undefined, capabilities);

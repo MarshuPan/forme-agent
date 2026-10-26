@@ -84,6 +84,13 @@ export interface ProductNetworkConfigPatch {
   schema_version: 1; bind: string; allowed_hosts: string[];
   tls: ProductNetworkTlsPatch | null; firewall: ProductFirewallBinding | null;
 }
+export type ProductProxyMode = 'direct' | 'http';
+export interface ProductProxySettings {
+  schema_version: 1; mode: ProductProxyMode; endpoint_configured: boolean;
+}
+export interface ProductProxyConfigPatch {
+  schema_version: 1; mode: ProductProxyMode; endpoint?: string;
+}
 export interface ProductConfigView {
   schema_version: 1 | 2; install_ref: string; owner: string | null;
   active_revision: number; acknowledged_revision: number | null; pending_restart: boolean;
@@ -93,6 +100,8 @@ export interface ProductConfigView {
   capabilities_source?: 'installation_template' | 'managed_configuration';
   network: ProductNetworkConfig; network_active: boolean;
   network_source: 'installation_template' | 'managed_configuration';
+  proxy?: ProductProxySettings;
+  proxy_source?: 'installation_template' | 'managed_configuration';
   availability?: ProductConfigAvailability;
 }
 export type ProductSettingFeature = 'models' | 'skills' | 'mcp' | 'plugins' | 'packages' | 'channels' | 'proxy' | 'network';
