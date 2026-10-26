@@ -1,5 +1,15 @@
 # Third-party dependencies
 
+## Installed worker result protection (2026-10-27)
+
+The execution crate reuses the already locked `chacha20poly1305 = 0.11.0`
+public AEAD API for Host-owned result envelopes. Per-manifest keys and nonces
+come from OS entropy; keys stay in a separate local execution-data resolver.
+This adds no internal crate edge, crypto implementation, copied example,
+test vector, fixture, or new registry package. The existing Apache-2.0 OR MIT
+review below applies; native key protection and installation ACL evidence
+remain separate release requirements.
+
 ## Windows installation access helpers (2026-10-22)
 
 `packaging/windows/install-access.ps1` and `service-access.psm1` are project-authored
