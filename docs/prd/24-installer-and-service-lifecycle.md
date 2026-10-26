@@ -116,6 +116,8 @@ binding 不携带程序路径、任意环境、secret 值、workspace 文件路�
 
 开发 `ProductionRuntimeConfig` 的进程内 backend 仅用于受控单元、协议和本地 harness 测试；它不能被 managed service 选择，也不能被测试结果包装为产品隔离或平台支持证据。
 
+worker adapter 的最终计划只声明实际提供的回滚边界。当前结果通道不返回进程内 `FileRollback`，因此 worker 文件写入/删除在形成审批前使用 `rollback_boundary=none`，不能沿用本机 `FileBackend` 的 `file-content-snapshot` 承诺；执行前再次拒绝被替换成 snapshot 的计划。Host overlay 的冲突拒绝/失败保留不是完成后可调用的回滚功能。后续若增加受治理的 Host 回滚工件和恢复命令，须另闭合契约与证据后再提升该边界。
+
 #### 4.1.1a Worker 结果 manifest/chunk 通道
 
 worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 launch profile 提供固定的 `FORME_WORKER_RESULT_PATH`，worker 只能写当前 job 的这一处有限结果文件。Host 在 `observe` 得到终态后，必须按“读取源文件 → 校验绑定/长度/整体摘要 → 写 Host 私有工件 → 追加 `WorkerResultManifest` → 追加原 `WorkerReceipt`”顺序完成；中间任何失败都把原 job 留在 `Unknown`，不得用 `safe_result_ref` 虚构正文。
