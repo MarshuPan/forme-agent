@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 `c247c44` 修正受管产品 fixture 的 Host 启动边界：正式 `forme-hostd --config <absolute-path>` 继续保持受管模式，并在缺少 SCM/Service SID 时 fail closed；仓库自有开发/集成 fixture 改用显式 `forme-hostd --development-config <absolute-path>`，复用 closed 配置 schema 与路径/凭据校验，但只运行非受管 loopback 前台 Host。新增参数解析与受管 transport 回归、managed configuration/network/cognition fixture 均通过；这不构成系统服务注册、原生 peer identity、worker sandbox、安装包或 IP01–IP24 证据。
+
 2026-10-26 `2702d30` 完成[受管模型代理配置](installed-product-model-proxy-acceptance.md)：Host schema 8、CAS/journal/revision、release binding 保留、core materialization、ProductionRuntime provider 传递和 direct/HTTP transport 绑定已闭合；直接模式禁用环境代理，显式代理禁止 `NO_PROXY` 绕路，失败不自动直连，公共 Web view 不返回 endpoint。workspace 全量测试、fmt、check、strict Clippy、代码质量、资源与完整合规门通过。该条是模型代理组件证据，不提升真实 Provider、系统服务、安装包或 IP01–IP24 状态。
 
 2026-10-26 在当前 `e49ac89` 工作树显式运行真实 Chrome golden：`s38_real_browser_golden_runs_harness_approval_and_observes_server_mutation` 与 `s68_m3_candidate_live_v2_regression_rollback_and_live_v1_are_governed` 共 2/2 PASS。浏览器由真实 Chrome 进程启动，覆盖审批前零 mutation、审批后单次受治理 mutation、候选/活动版本边界与回滚证据；临时数据和浏览器进程清理完成。该证据属于核心 Harness/M2-M3，使用 fixture provider，不提升真实外部 Provider、安装服务或 IP01–IP24。

@@ -166,7 +166,9 @@ Windows 原生启动必需环境只额外包含 OS 查询得到的 `SystemRoot` 
 
 host/Web 自动启动；core 在认领与配置通过前按需启动，注册时允许其配置尚未创建，实际启动仍须完整校验。SCM 故障恢复为 5/30/120 秒延迟后停止自动重启，24 小时重置计数；不运行任意恢复命令。原生包负责服务账户/ACL 与配置预置，这些命令不独自证明安装可用或隔离合格。Linux 单元使用真实支持的 Type=exec，不伪报未实现的 notify 就绪；进程状态与业务 readiness 分开探测。
 
-`forme-hostd --config <absolute-path>` 加载有界、closed schema 的 HostServiceConfig：安装/release/本机 target、独立 loopback 双域地址、管理 journal、两个私有 credential 文件及可选 worker/bootstrap 配置。路径无链接/别名/交叠，凭据按私有文件读取；服务模式不能读取 shell 环境作为回退，不能开启开发进程 worker。前台无参数环境模式仅保留开发兼容。此配置不是脑事件；坏配置不能创建 journal 或替代脑。
+`forme-hostd --config <absolute-path>` 加载有界、closed schema 的 HostServiceConfig：安装/release/本机 target、独立 loopback 双域地址、管理 journal、两个私有 credential 文件及可选 worker/bootstrap 配置。路径无链接/别名/交叠，凭据按私有文件读取；服务模式不能读取 shell 环境作为回退，不能开启开发进程 worker。它是正式受管服务入口：Windows 上缺少已核验的 SCM/Service SID 绑定时必须 fail closed。
+
+仓库自有集成测试和前台开发若需要复用同一配置文件 schema，必须显式使用 `forme-hostd --development-config <absolute-path>`。该入口将同一文件校验结果装配为非受管、loopback-only 的前台运行，不声明 SCM/Service SID、AgentExecution peer、系统服务注册或生产 worker 隔离，也不能作为安装/IP01–IP24 证据。无参数环境模式仍仅保留开发兼容。此配置不是脑事件；坏配置不能创建 journal 或替代脑。
 
 ### 4.4 Windows 首次安装的权限分区与失败边界
 

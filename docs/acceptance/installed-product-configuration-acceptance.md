@@ -13,7 +13,7 @@
 | `verify-web-identity.ps1` / `verify-web-ingress.ps1` | PASS：25/25、10/10 命名场景；原生服务、真实 provider 与 IP01–IP24 仍为 `NOT_RUN`。 |
 | `verify-workbench-correction.ps1` | PASS：原子纠正、正式桥接组件与认证测试通过；安装 daemon 重启进程证据为 `NOT_RUN`。 |
 
-因此，本报告当前可证明的是配置/认证/网络/纠正组件契约，而不是已注册的 Windows 服务、真实服务身份下的跨进程链路或完整安装产品。测试 fixture 的 Windows brain image 现依据安装清单的 `manifest.paths.releases/bin` 创建，避免把 fixture 写入错误的目录；该修复不构成原生安装证据。
+因此，本报告当前可证明的是配置/认证/网络/纠正组件契约，而不是已注册的 Windows 服务、真实服务身份下的跨进程链路或完整安装产品。测试 fixture 的 Windows brain image 现依据安装清单的 `manifest.paths.releases/bin` 创建，避免把 fixture 写入错误的目录；该修复不构成原生安装证据。为使 fixture 复用正式 HostServiceConfig schema 而不伪造服务身份，仓库 fixture 对 `forme-hostd` 显式使用 `--development-config`；正式 `--config` 仍要求受管 SCM/Service SID 绑定并在缺失时 fail closed。
 
 ## 1. 本次闭合的路径
 
@@ -55,7 +55,7 @@
 
 ## 3. 实际进程与浏览器证据
 
-`tools/tests/managed_configuration.test.mjs` 在独立临时安装目录、随机 loopback 端口与空继承环境运行正式 `forme-hostctl`、`forme-hostd`、`forme-webd`、`forme-gatewayd`：
+`tools/tests/managed_configuration.test.mjs` 在独立临时安装目录、随机 loopback 端口与空继承环境运行正式 `forme-hostctl`、`forme-webd`、`forme-gatewayd`，并以显式 `--development-config` 前台方式启动 Host fixture：
 
 1. `prepare-installation` 后使用本机证明完成账号认领；未登录与错误 CSRF 被拒绝。无效模型端点返回 422，配置仍为 revision 0。
 2. 从 Web 保存 revision 1，响应不含 key/credential path，保存与静态检查均不调用模型。错误启停口令不推进宿主管理 journal。
