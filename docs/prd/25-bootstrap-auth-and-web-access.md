@@ -337,7 +337,17 @@ owner 已确认扩展设置协议及 LAN/TLS 事务。公共 `ProductConfigView/
 
 v1/v2 共用同一 Host store 和恢复日志，不建第二套配置。新前端显式读取/提交 v2，并拒绝不能理解的响应版本；旧 patch、原日志字节、core 配置和凭据引用不因读取或升级而改写。设置可用性仅是配置/适配能力，不证明 provider、listener、客户端信任或任务质量。
 
-### 11.11 网络监听检查与有界失败回退
+### 11.11 受管模型代理配置
+
+`proxy_config` 是 `ProductConfigSnapshot` 中已经确认的设置项，本批把它接通到模型 HTTP provider；它不是 Web 的 URL 代理，也不能把浏览器请求转发到任意地址。公共设置 v2 增加 `proxy` 与 `proxy_source`，v1 形状保持不变。`proxy` 是 closed/versioned `{schema_version:1, mode:"direct"|"http", endpoint?}`：`direct` 不带 endpoint；`http` 只接受明确的 `http://` 或 `https://` authority，拒绝 userinfo、路径、query、fragment、控制字符、空主机和无效端口。当前不支持 SOCKS、PAC、自动发现、代理认证或从聊天正文指定代理。
+
+代理配置与模型、brain、skills、network 共用同一 `operation_id`、expected revision、Host journal、CAS、staging 和 core acknowledgement。v2 省略 `proxy` 保留当前值；显式 `direct` 清除代理。旧 v1 保存不得清除代理。代理变更进入新的 composition/config digest，进行中的 run 固定原配置，应用前需要受控 core 重启或重新装配；不能通过修改进程环境热更新。
+
+Host 只把已验证的代理 authority 写入受管 core 配置。模型 provider 在每次真实 HTTP call 前使用已绑定的代理快照；代理连接失败、返回不明或配置过期按现有模型 transport 的 retryable/unknown 分类记录，不能自动切换到直连。代理不会改变 model profile、trust、permission、AutonomyEnvelope、审批或 fallback 真实性，provider 事件仍记录实际 profile。代理 endpoint 和任何未来 secret ref 均不回显到浏览器、事件、trace、诊断包或错误正文；本批不实现代理认证，因此含凭据的 endpoint 必须拒绝。
+
+验收至少覆盖：v2 读写与旧 v1 保留、CAS/幂等/异义冲突、direct 清除、state/revision 恢复、core materialization、真实模型 HTTP 请求确实经过固定代理、代理失败不直连、运行中配置不热换、endpoint 中的 userinfo/path/query/fragment/控制字符全部在 staging 前拒绝。MCP、plugin/package、消息渠道仍因没有对应的受管产品消费者保持 `unavailable`，不得借代理配置通过提升它们的状态。
+
+### 11.12 网络监听检查与有界失败回退
 
 服务管理器的 Running 回执不足以提交 `ConfigureLan`。Host 还必须连接批准的精确地址，检查实际 listener 的安装身份及已加载配置；不跟随 redirect、不使用环境代理、不解析任意外部 URL。检查是只读且有界的，允许在固定窗口内等待启动；不重发维护命令、不调用 core、模型或工具。
 
