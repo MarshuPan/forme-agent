@@ -130,6 +130,18 @@ Host 仍在进程树终态后验证完整变更集、回写原 workspace、加�
 
 路径核验分域：Host 在启动前对 job 的完整绝对路径、祖先、identity 和 ACL 做核验与 custody；worker 仅检查已授予只读的 job 根和根内每个实际路径组件（含重解析点/链接拒绝与最终 canonical containment）。worker 不要求读取 Host 私有祖先的 metadata，也不因此扩大祖先 ACL；根外路径的稳定性由既有 Host custody 负责。
 
+#### 4.1.1e 安装侧文件能力装配
+
+Windows 新安装在 manifest 的 workspace 域中建立 `default` 子目录，并生成独立 `worker.json`：初始 `authority_epoch=1`、`workspace:default` 的 exact 目录映射、Host 私有 journal/runtime 与固定 `sandbox:installed-file-v1` profile。profile 只允许本 release `bin/forme-executord.exe --installed-file-worker`；不包含 shell/任意 argv、模型环境或其他 backend。Host 配置显式引用该文件。认领前不创建 brain DB、owner 或 core.json；重开已有安装保留原配置，不静默升级旧布局。POSIX 本批不注入文件执行能力，继续已有不发布边界。
+
+Host 根据已验证 installation manifest、worker config、固定程序/参数、路径分域及现有 AgentExecution credential 派生内部 `InstalledFileProvisioning`（`schema_version, binding, workspace_roots`）。binding 沿 §4.1.1c；物理目录映射只作为 Host 所有、core 只读的 policy 输入，不能塞进 binding、skills 或公开设置，也不向 Web 返回。Windows endpoint 仍由 install id 派生，不接受网页传入。
+
+该安装投影经 `ProductConfigStore` 既有单写者、revision/CAS、不可变快照与 journal 持久化为私有 state schema 9。历史 schema 2–8 与历史 core materialization 保持原字节；没有新投影时不增加字段或自动启用。owner 下一次新的配置保存才将已核验投影与该 revision 一起提交；重复原命令仍返回原 revision，不借重放激活能力。模型、skills、恢复、release 变更保留已提交投影；现有 worker 投影与当前安装配置冲突时拒绝重新装配，不能在 recover 时改写历史快照。没有 worker 配置仍可维护，但不得重新声明执行可用。
+
+core.json 分别输出现有 `brain.worker_binding` 与独立私有 `brain.worker_file_roots`。后者是 scope→物理根的只读投影，不是第二份可写 registry。受管 `ManagedBrainConfig` 仅当 binding 显式支持 File 且当前 workspace 存在有效映射时启用该 File capability，并把对应根用于既有 execution-time policy；未注册 scope、缺 binding 或任意不一致均 disabled/blocked，不回退本机 FileBackend。安装能力并不授予行动许可，读写仍经同一 Harness、最终 plan、权限/审批和 Host exact scope/permit 核验。
+
+验收分别覆盖安装配置/路径与重复 prepare、认领前无脑、owner 保存后绑定物化、模型/skills 后续保存和重开不丢失、历史字节不变、错误 profile/epoch/path/scope 的拒绝以及受管 capability 装配。真实 SCM peer 连通和完整工具调用仍需管理员原生验收，不以注册 ready 代替可执行证明。后续新增 scope/调整物理映射必须先走显式受管事务和 epoch/composition 失效，不能用 Web 项目登记直接改 Host 路径表。
+
 #### 4.1.1a Worker 结果 manifest/chunk 通道
 
 worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 launch profile 提供固定的 `FORME_WORKER_RESULT_PATH`，worker 只能写当前 job 的这一处有限结果文件。Host 在 `observe` 得到终态后，必须按“读取源文件 → 校验绑定/长度/整体摘要 → 写 Host 私有工件 → 追加 `WorkerResultManifest` → 追加原 `WorkerReceipt`”顺序完成；中间任何失败都把原 job 留在 `Unknown`，不得用 `safe_result_ref` 虚构正文。

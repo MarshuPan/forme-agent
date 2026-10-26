@@ -214,6 +214,8 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 
 `forme-executord --installed-file-worker` 是现有执行 crate 内的一次性、无模型/网络/子进程的文件入口；无参数 M4 模式不变。Host 从 exact plan 的 overlay `WriteScope` 派生 versioned `WorkerFileTarget`，绑定 job、plan/normalized-action digest 和安全相对路径，写入本 job 只读输入并通过固定环境项传递。worker 只对私有副本执行 Read/Write/Delete，不能重规划或用原逻辑绝对路径直接打开 owner workspace。Host 的原变更集核验、回写、结果 AEAD/manifest/receipt 和 Unknown 边界保持不变。完整输入/资源/拒绝与验收细节见 prd/24 §4.1.1d；入口存在不等于安装自动配置或平台/IP 通过。
 
+安装侧装配沿 PRD24 §4.1.1e：新 Windows 安装仅 provision 当前 release 的有限文件 profile 与默认 workspace 映射；Host 核验后通过原配置 revision/journal 持久化私有 state 9，物化现有 worker binding 和独立的只读 policy roots。旧配置/历史物化字节保持，只有新的 owner 配置命令提交投影；未映射 workspace 不启用 File，真实 SCM 连通另验。此路径不新增公开设置、脑事件、依赖边或进程内 fallback。
+
 ### 7.2 交互会话 helper 协议
 
 交互 helper 是 `AgentExecution` 的一个 placement adapter，不是第四个服务大脑。Host 负责创建、绑定、撤销和回收；helper 不拥有 policy、model、brain store、keys、EventStore 或安装管理能力。协议对象均为产品侧 DTO，带 `schema_version`，由 Host 的 session journal 单写者保存，不新增 brain `EventKind`。
