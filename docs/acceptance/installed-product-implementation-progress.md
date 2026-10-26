@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 对当前源码 `5676dc1eeaea8874352c71d3b577d766f25b2350` 做只读复验：`npm --prefix frontend run verify` 的 TypeScript、81 项前端行为测试、生产构建及静态 bundle 检查通过；`verify-web-workbench.ps1` 8 项、`verify-web-identity.ps1` 25 项、`verify-web-ingress.ps1` 10 项通过；`verify-product-configuration.ps1` 的配置/激活 62 项、网络 fence 4 项、脑偏好 3 项、managed skills 2 项通过，产品二进制构建通过。受管 Host/Web/core 多进程桥因本机未注册 `NT SERVICE\forme-brain` 为 `NOT_RUN`；原生服务、安装包、真实 provider、浏览器完整 claim 后链路及 IP01–IP24 仍未通过。本轮静态对照另确认正式 worker driver 仍缺可取回的有界 ActionResult 工件契约：现行 transport 仅有 dispatch/probe/cancel，结果引用没有对应读取路径；需先按架构变更流程确认 PRD24/architecture/10 文档方案，再实现。该复验未修改代码，不提升任何产品 IP 状态。
+
 2026-10-26 `89bec64` 完成 Windows 桌面 helper dispatch 的受治理 Host 边界：桌面 grant/capability/plan digest 精确绑定，拒绝过期 grant 与能力不匹配，helper 在动作开始后失联则保留 Unknown 且不重试；`installed_worker_contract` 11/11 通过。`68cca5a` 将三个 desktop-helper 场景加入并通过宿主永久门。当前生产仍使用 `UnavailableDesktopHelper`，ProductionRuntime 尚未接入正式 worker driver，也没有真实登录会话 helper、SCM/LocalSystem 安装运行证据或 IP01–IP24 通过；详见[桌面 helper dispatch 组件验收](installed-product-desktop-helper-dispatch-acceptance-20261026.md)。本轮完整 M5 场景/质量门均通过；首次 `verify-m5.ps1` 仅因当时工作树未提交而在 S99 退出，随后提交后单独重验当前树 M5 release audit 通过，最终当前树回执比较见 M5 验收报告 §10。
 
 2026-10-26 `ece53be` 完成 Harness gateway control 实现的职责拆分，见[可维护性实施记录](installed-product-maintainability-progress.md#9-gateway-控制实现拆分2026-10-26)。本次完整 `verify-m5.ps1` 在当前提交运行了全部 S1–S99、C1–C24、workspace、strict Clippy、89 项 Python 门和合规检查；临时 S99 审计及独立验证通过，最终只因仓库回执绑定旧源码而在回执比较退出。该次不记作完整 M5 PASS；刷新后的当前树回执及复跑结果在 [M5 报告 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。该拆分不改变生产 worker 可用性、原生平台状态或 IP01–IP24。
