@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 基于实现提交 `5391750` 更新 [Windows x86_64 原生候选](installed-product-windows-candidate-20261026.md)：release workspace 构建、17-file bundle、固定 SHA-256 的 Inno 6.6.1 编译与独立摘要核对均通过；安装器为 65,564,782 bytes、SHA-256 `3acfe724a4c9f3a82faf687c16660f243eae1fec39e23a383deb97ac8068b957`。它仍是 unsigned/uninstalled/development、`release_ready=false`，没有运行安装器或注册服务，不提升任何 IP 状态。当前源码的 M5 回归与发布回执状态另见 [M5 报告 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。
+
 2026-10-26 `5391750` 修复 Web 320/390 窄屏溢出、顶栏挤压与导航焦点，新增默认 ignored 的独立临时浏览器夹具；[浏览器组件验收](installed-product-browser-component-acceptance-20261026.md)记录真实内嵌 `forme-webd` 的键盘导航、core 离线维护、两标签页注销与刷新后的认证清除。前端 81/81、workspace check/strict Clippy、工作台 8 项组件门、代码质量和合规通过，724 文件/63 处既有规模债务未增长。夹具为预认领临时账号，未连接 Host/core/真实 provider；本次不提升任何 IP01–IP24 状态，完整安装、认领、业务并发与平台联合验收继续开放。
 
 2026-10-26 在 `04cbb03` 当前树运行 `pwsh -NoProfile -File tools/verify-code-quality.ps1`：完整源码质量门退出码 0，耗时 601.14 秒；结构/缓存安全/字节一致性回归 21 项、723 文件规模棘轮（63 项历史超限债务未增长）、Rust fmt/check/test/strict Clippy、前端依赖审计与 81 项验证、静态 bundle、原生打包/签名、Windows NTFS 权限与只读防火墙、原创合规及 diff 检查均通过。资源报告提示 `target` 为 90.54 GiB logical / 87.76 GiB allocated，超过缓存预算；门仍以 269 GiB 可用空间完成，未清理构建产物。此为源码门，不证明原生服务安装、真实 provider、真实浏览器完整 claim 或 IP01–IP24。

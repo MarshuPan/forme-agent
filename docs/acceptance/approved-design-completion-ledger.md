@@ -65,4 +65,6 @@
 
 最终必须核对全部 P/IP、S1–S99、相关 C1–C24、冻结 graph/taxonomy、strict Clippy、质量棘轮、完整默认合规、typed artifacts 与当前源码 release audit；main 集成与远端发布按既有授权分别处理。
 
-当前 Windows 会话不是管理员；固定摘要的 Inno 6.6.1 已编译 Windows 未签名、未安装开发候选，详见 `installed-product-windows-candidate-20261024.md`，该候选不覆盖后续源码。Linux/macOS 原生目标与签名身份未提供。继续完成可实现的代码/工具与本机证据，不伪造原生支持、签名或管理员安装结论；这些限制只阻断依赖它们的验收，不阻断其余工作。
+当前 Windows 会话不是管理员；固定摘要的 Inno 6.6.1 已基于实现提交 `5391750` 重新编译 Windows 未签名、未安装开发候选，详见 `installed-product-windows-candidate-20261026.md`；2026-10-24 候选保留为历史。Linux/macOS 原生目标与签名身份未提供。继续完成可实现的代码/工具与本机证据，不伪造原生支持、签名或管理员安装结论；这些限制只阻断依赖它们的验收，不阻断其余工作。
+
+安装 worker 的有界结果读取/ProductionRuntime 接入，以及 POSIX 有限服务恢复的兼容变更，已整理为 `architecture/proposals/installed-worker-result-and-posix-recovery.md`。两项仍待 owner 确认、未激活；不由组件测试或本清单自动批准，不放宽正式 managed backend 的 unavailable/blocked 边界。
