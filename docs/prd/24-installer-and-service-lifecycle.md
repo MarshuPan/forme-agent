@@ -110,6 +110,8 @@ Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，�
 
 binding 不携带程序路径、任意环境、secret 值、workspace 文件路径或新的 permission。Host/config 路径校验、ACL、peer identity 和平台隔离仍分别取证；binding 通过不等于原生安装或 IP10/IP24 通过。
 
+有显式 binding 时，将其版本、endpoint、epoch、profile 和 backend 支持集合的规范化摘要合入既有 composition capability snapshot；不含 credential 值或文件路径，无 binding 时保留历史摘要。变更 placement 不得恢复旧 composition 的待决审批。真实 transport 另以自身 credential 绑定的安装 authority ref 核验 manifest/read，不能接受其他安装的结果。
+
 `ProductionRuntimeBuilder::from_managed_config` 在没有 binding 时仍可装配认知、Web 和维护能力，但所有需要执行外部副作用的 managed worker capability 必须保持 `Unavailable/Blocked`；不允许回退到 brain 进程内 backend。存在 binding 时，最终 `ExecutionPlan` 由同一 `WorkerActionBackend` 转成 job/permit/spec，dispatch 一次，之后只 probe/cancel/read 原 job，并把已校验的 manifest/chunk 转回既有 `ActionResult`。transport、Host、结果工件或 binding 任何一跳无法证明终态时，沿既有 `Unknown`/Waiting 恢复，不重派。
 
 开发 `ProductionRuntimeConfig` 的进程内 backend 仅用于受控单元、协议和本地 harness 测试；它不能被 managed service 选择，也不能被测试结果包装为产品隔离或平台支持证据。
@@ -127,7 +129,7 @@ worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 laun
 
 正文总量同时受最终 `WorkerExecutionSpec.output_budget_bytes` 与 64 MiB 上限约束，单 chunk 不超过 256 KiB。Host 每次读取都复核工件是普通文件、长度与整体 digest 一致；跨 chunk 的 UTF-8 不在 chunk 边界截断。`Pending`、正文 `Missing`、`Corrupt`、`Cleaned` 和动作 `Unknown` 不能被合成普通成功结果。
 
-core adapter 也独立校验 manifest 的 job/permit/原 observation 的 receipt/result ref、最终 output budget，以及每个 chunk 的原 manifest digest、连续 offset、单次长度和终止位置；重算摘要不能掩盖错误绑定。正文全部核验后才产生既有输出/完成事件，任何缺失、超预算、截断、错误 UTF-8 或分块不前进均进入原 job Unknown，不能先输出部分正文再报告成功。
+core adapter 也独立校验 manifest 的 job/permit/原 observation 的 receipt/result ref、最终 output budget，以及每个 chunk 的原 manifest digest、连续 offset、单次长度和终止位置；重算摘要不能掩盖错误绑定。整份结果的 manifest/chunk 组装预算取最终 plan timeout 与 30 秒的较小值，在每次有界 transport 调用前后检查，最多读取 4096 个 chunk；单次在途调用仍受 transport 自身超时约束，不以后台失控线程中止。正文全部核验后才产生既有输出/完成事件，任何缺失、超预算、截断、错误 UTF-8、分块不前进或组装预算耗尽均进入原 job Unknown，不能先输出部分正文再报告成功。
 
 AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/agent/workers/{job_id}/result/read`；两条路由使用 AgentExecution credential/peer，OwnerMaintenance、Web 和 worker 均拒绝。Host journal 只保存 manifest/binding，结果正文保存在独立私有 result store，不能复制进 brain event、普通日志、管理回执或公共配置。当前实现已闭合协议、Host 私有封存、Process worker 受限结果文件和 HTTP/typed transport 定向测试；应用层加密仍须接入产品执行数据域的真实 key resolver，不能用 bearer digest 或自制算法冒充完成。该组件证据不等同 ProductionRuntime、原生平台隔离或 IP10/IP24 通过。
 
