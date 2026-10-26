@@ -206,6 +206,8 @@ Host 工件和未核验正文不直接成为脑事实；完整核验后的执行
 
 Windows managed Host 的 AgentExecution 不使用 loopback bearer-only 接口，而使用由 `install_id` 确定性派生的 `\\.\pipe\forme-agent-execution-v1-<install_digest>`。named pipe 的受保护 ACL 只允许 LocalSystem 与 `NT SERVICE\\forme-brain`，并拒绝远端客户端。Host 在 HTTP framing 之前绑定连接的 client PID、Brain Service SID 和安装清单当前 active release 的 `forme-gatewayd.exe` image path；这三项不能由请求内容自报或替换。应用层 bearer 仍保留，作为第二道校验。named pipe peer 证明失败时只拒绝该连接，不能降级到 TCP 或普通子进程；只有显式 `--development-config` 的非受管前台运行可以继续使用 loopback HTTP 做协议测试。该原生接缝只闭合 Brain→Host 的 OS peer 身份，不单独证明 IP10/IP24 或完整 worker sandbox。
 
+Brain 也必须在发送任何 HTTP/bearer/job 字节前验证服务端。管道使用 identification-only SQOS 打开，服务端 PID 必须等于只读 SCM 所见的固定 `forme-host` Running own-process/LocalSystem 服务 PID，实际 image 必须位于当前 core 的同一 release 目录并名为 `forme-hostd.exe`。同名管道被占、SCM/进程查询失败或身份不符时零凭据发送，不回退 TCP。Host 校验 Brain Service SID 时先将 primary token 复制为 identification token，再检查 membership；不扩展既有 Win32 审计文件或引入新的安装授权。
+
 Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session id、OS user、desktop grant 和 TTL；不从 Web payload 指定任意桌面。锁屏/注销/TCC/Wayland 能力缺失会改变可用性；在另一台常开服务器上运行大脑，不自动赋予操作用户电脑的权限，跨机继续复用 M4 executor 治理。
 
 ### 7.2 交互会话 helper 协议

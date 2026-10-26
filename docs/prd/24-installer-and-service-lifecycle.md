@@ -133,7 +133,7 @@ core adapter 也独立校验 manifest 的 job/permit/原 observation 的 receipt
 
 AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/agent/workers/{job_id}/result/read`；两条路由使用 AgentExecution credential/peer，OwnerMaintenance、Web 和 worker 均拒绝。Host journal 只保存 manifest/binding，原始结果工件保存在独立私有 result store，不把工件或尚未核验的正文直接写成 brain event、普通日志、管理回执或公共配置。core 完整核验后的执行观察复用既有 `ActionOutputDelta`/完成事件与主脑内容保护和生命周期治理，标为 Untrusted；这些是原动作的观察，不是 Host manifest/工件的另一套事实表。不能以通道隔离为由丢弃正式运行所需的执行观察，也不能用成功状态替代正文核验。应用层加密须接入产品执行数据域真实 key resolver，不能用 bearer digest 或自制算法冒充完成。组件通过不等同原生平台隔离或 IP10/IP24 通过。
 
-#### 4.1.1b 结果保护与隔离清理交接
+##### 4.1.1a.1 结果保护与隔离清理交接
 
 结果正文使用已锁定的 `chacha20poly1305 = 0.11.0` 公共 AEAD API。Host 执行数据域为每个 manifest 分配独立的 OS 随机 32-byte key 与 12-byte nonce，AAD 绑定域标识及完整 manifest digest；私有二进制 envelope 以版本 magic 固定算法，不改变公开 manifest/chunk schema。key resolver 位于 worker journal 派生的独立 `result-keys` 目录，不与结果、backup、workspace、runtime、配置或程序交叠，也不把 key 或 key locator 写进 manifest/journal/log。读取只能解析已有 key，缺失、替换、损坏、旧明文或错误 AAD 一律拒绝，不新建 key 修复历史。此本地文件 resolver 依赖安装权限矩阵，不宣称已实现 Windows OS 密钥密封或抵御 root/整机磁盘泄露。
 
@@ -150,10 +150,12 @@ Windows managed Host 不把 loopback TCP 当作 Brain 身份证明。正式 Agen
 Host 创建 pipe 时使用受保护 DACL，只允许 `LocalSystem` 与安装清单规定的 Brain Service SID（`NT SERVICE\\forme-brain`）；设置 `PIPE_REJECT_REMOTE_CLIENTS`，不启用网络/远端 pipe 访问。每次连接在读取任何 HTTP 字节之前，Host 必须：
 
 1. 通过 `GetNamedPipeClientProcessId` 取得对端 PID；
-2. 以 `PROCESS_QUERY_LIMITED_INFORMATION` 打开该 PID，并以 `OpenProcessToken`/`CheckTokenMembership` 证明 token 包含精确的 Brain Service SID；
+2. 以 `PROCESS_QUERY_LIMITED_INFORMATION` 打开该 PID，以 `OpenProcessToken` 取得 query/duplicate 权限，再通过 identification-level `DuplicateToken`/`CheckTokenMembership` 证明 token 包含精确的 Brain Service SID；不把 primary token 直接当作 impersonation token 使用；
 3. 以 `QueryFullProcessImageNameW` 取得实际 image path，和安装清单当前 active release 的 `forme-gatewayd.exe` 规范化路径逐字节（Windows 大小写不敏感）比对；无法读取、路径不一致、进程退出或 SID 不一致均拒绝该连接。
 
 该 OS peer 证明与 AgentExecution bearer 是两层独立校验：named pipe 只允许正确的已安装 Brain 进程进入，bearer 仍须在应用层绑定 `HostAuth`、authority epoch、job、permit 与 digest。Host 不接受从 payload/header 自报的 PID、服务名、image、owner 或安装身份。managed Windows 不再绑定 AgentExecution TCP listener；TCP 双 listener 仅保留给显式开发/协议测试路径。named pipe 组件通过不匹配 SID、错误 image、远端拒绝、重复实例和断连测试后，才可作为原生 transport 证据；这仍不等于完整 IP10/IP24，后者还必须有真实 SCM、ACL、token、网络、credential、会话和恢复证据。
+
+验证必须双向进行。Brain 打开管道时只授予 `SECURITY_IDENTIFICATION`，防止对端模拟 Brain 身份；在发送任何 HTTP/bearer/job 字节前，用 `GetNamedPipeServerProcessId` 绑定服务端 PID，并通过只读 SCM 查询确认它正是 Running、own-process、LocalSystem 的固定 `forme-host` 服务。实际进程 image 必须与当前 core 可执行文件同一 release 目录下的 `forme-hostd.exe` 规范化路径一致。SCM 缺失、PID/账户/服务类型/image 不符或查询失败均关闭连接且零凭据发送；不能仅凭同名 pipe、可连接或 bearer 作为服务端证明。该查询不启动、注册或修改服务，也不增加 binding 中的程序路径字段。
 
 Windows 的 `WindowsJobWorkerIsolation` 已提供 Job Object 平台 adapter：进程在首次执行前加入启用 kill-on-close 的 Job Object；取消和宿主退出会终止受管进程树，observe 只读取受管 process handle 的退出码。该 adapter 的真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等。它只证明进程树生命周期 custody，不证明低权限 token、文件 ACL、网络/credential scope、桌面会话或完整 sandbox。
 
