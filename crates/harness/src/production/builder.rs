@@ -13,6 +13,7 @@ pub struct ProductionRuntimeBuilder {
 pub(super) struct ManagedModelSources {
     credentials: BTreeMap<String, PathBuf>,
     routing: p::ProductModelRouting,
+    proxy: Option<ModelHttpProxy>,
 }
 
 impl ProductionRuntimeBuilder {
@@ -33,6 +34,20 @@ impl ProductionRuntimeBuilder {
     /// Managed mode uses only explicit file credentials; it never falls back
     /// to process environment. File ACLs must also be enforced by installation.
     pub fn from_managed_config(config: crate::ManagedBrainConfig) -> p::Result<Self> {
+        let model_proxy = match config.model_proxy.as_ref() {
+            Some(proxy) => {
+                proxy.validate()?;
+                match proxy.mode {
+                    p::ProductProxyMode::Direct => None,
+                    p::ProductProxyMode::Http => {
+                        Some(ModelHttpProxy::parse(proxy.endpoint.clone().ok_or_else(
+                            || p::Error("managed model proxy endpoint is missing".into()),
+                        )?)?)
+                    }
+                }
+            }
+            None => None,
+        };
         let runtime = config.runtime_config()?;
         let key_directory = config.content_key_directory()?;
         let expected_fence = config.expected_restoration_fence.clone();
@@ -46,6 +61,7 @@ impl ProductionRuntimeBuilder {
             credential_files: Some(ManagedModelSources {
                 credentials: credential_files,
                 routing: config.model_routing,
+                proxy: model_proxy,
             }),
             managed_key_directory: Some(key_directory),
             required_restoration_fence: Some(expected_fence),
@@ -130,22 +146,27 @@ pub(super) fn bind_models(
     match credentials {
         None => ModelRegistry::from_config_degrading(config),
         Some(sources) => {
+            let proxy = sources.proxy.clone();
             let (registry, unavailable) =
-                ModelRegistry::from_config_degrading_with_credentials(config, |profile| {
-                    let path = sources.credentials.get(&profile.id).ok_or_else(|| {
-                        p::Error("managed model credential is unavailable".into())
-                    })?;
-                    let bytes = crate::managed_config::read_managed_file(path, 16 * 1024)?;
-                    let value = String::from_utf8(bytes)
-                        .map_err(|_| p::Error("managed model credential is invalid".into()))?;
-                    let secret = forme_models::SecretString::new(
-                        value.trim_end_matches(['\r', '\n']).to_owned(),
-                    )?;
-                    Ok((
-                        secret,
-                        p::CredentialRef(format!("managed-model:{}", profile.id)),
-                    ))
-                })?;
+                ModelRegistry::from_config_degrading_with_credentials_and_proxy(
+                    config,
+                    proxy,
+                    |profile| {
+                        let path = sources.credentials.get(&profile.id).ok_or_else(|| {
+                            p::Error("managed model credential is unavailable".into())
+                        })?;
+                        let bytes = crate::managed_config::read_managed_file(path, 16 * 1024)?;
+                        let value = String::from_utf8(bytes)
+                            .map_err(|_| p::Error("managed model credential is invalid".into()))?;
+                        let secret = forme_models::SecretString::new(
+                            value.trim_end_matches(['\r', '\n']).to_owned(),
+                        )?;
+                        Ok((
+                            secret,
+                            p::CredentialRef(format!("managed-model:{}", profile.id)),
+                        ))
+                    },
+                )?;
             Ok((registry.with_role_routing(sources.routing)?, unavailable))
         }
     }

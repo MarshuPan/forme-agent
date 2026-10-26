@@ -3,8 +3,6 @@
 
 use std::collections::VecDeque;
 use std::fmt;
-use std::io::Write;
-use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use forme_protocol as p;
@@ -12,9 +10,13 @@ use serde_json::{json, Value};
 
 mod m3_b;
 mod registry;
+mod transport;
 
 pub use m3_b::*;
 pub use registry::*;
+#[cfg(test)]
+pub(crate) use transport::{parse_chat_response, split_http_status};
+pub use transport::{ChatCompletionsProvider, ModelHttpProxy};
 
 pub type SecretRef = p::CredentialRef;
 
@@ -464,293 +466,6 @@ pub trait ModelProvider: p::ModelProvider + Send + Sync {
     fn profile(&self) -> ModelProfile;
 }
 
-#[derive(Debug, Clone)]
-pub struct ChatCompletionsProvider {
-    profile: ModelProfile,
-    credential: SecretString,
-    executable: String,
-    timeout: p::DurationMs,
-}
-
-impl ChatCompletionsProvider {
-    pub fn new(
-        profile: ModelProfile,
-        credential: SecretString,
-        timeout: p::DurationMs,
-    ) -> p::Result<Self> {
-        profile.validate()?;
-        if timeout.0 == 0 {
-            return Err(p::Error("model timeout must be non-zero".into()));
-        }
-        Ok(Self {
-            profile,
-            credential,
-            executable: "curl".into(),
-            timeout,
-        })
-    }
-
-    pub fn with_executable(mut self, executable: impl Into<String>) -> p::Result<Self> {
-        let executable = executable.into();
-        if executable.trim().is_empty() {
-            return Err(p::Error("model HTTP executable cannot be empty".into()));
-        }
-        self.executable = executable;
-        Ok(self)
-    }
-
-    fn request_json(&self, request: &ModelRequest) -> Value {
-        let messages = request
-            .messages
-            .iter()
-            .map(|message| match &message.tool_exchange {
-                Some(ModelToolExchange::Call {
-                    call_id,
-                    name,
-                    arguments,
-                    ..
-                }) => json!({
-                    "role": "assistant", "content": null,
-                    "tool_calls": [{"id": call_id, "type": "function", "function": {
-                        "name": name, "arguments": arguments.to_string()
-                    }}]
-                }),
-                Some(ModelToolExchange::Result { call_id, .. }) => json!({
-                    "role": "tool", "tool_call_id": call_id,
-                    "content": message.transport_content()
-                }),
-                None => json!({
-                    "role": message.role.as_str(),
-                    "content": message.transport_content(),
-                }),
-            })
-            .collect::<Vec<_>>();
-        let tools = request
-            .tools
-            .iter()
-            .map(|tool| {
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.parameters,
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
-        let mut body = json!({
-            "model": self.profile.model,
-            "messages": messages,
-            "stream": false,
-        });
-        if !tools.is_empty() {
-            body["tools"] = Value::Array(tools);
-        }
-        if let Some(limit) = request.max_output_tokens {
-            body["max_tokens"] = json!(limit);
-        }
-        body
-    }
-
-    fn call_http(&self, body: &Value) -> p::Result<Value> {
-        let encoded = serde_json::to_string(body)
-            .map_err(|error| p::Error(format!("failed to encode model request: {error}")))?;
-        let config = self.curl_config(&encoded)?;
-        let mut child = Command::new(&self.executable)
-            .args(["--config", "-"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|_| p::Error("retryable: model HTTP transport could not start".into()))?;
-        child
-            .stdin
-            .take()
-            .ok_or_else(|| p::Error("model HTTP transport has no input pipe".into()))?
-            .write_all(config.as_bytes())
-            .map_err(|_| {
-                p::Error("unknown: model HTTP transport input outcome is unconfirmed".into())
-            })?;
-        let output = child
-            .wait_with_output()
-            .map_err(|_| p::Error("unknown: model HTTP transport outcome is unconfirmed".into()))?;
-        let (body, status) = split_http_status(&output.stdout);
-        if !output.status.success() {
-            // curl stderr may echo private endpoints. Only fixed categories
-            // and numeric codes may cross into event/trace failure evidence.
-            let code = output.status.code().unwrap_or(-1);
-            let retryable =
-                matches!(code, 5..=7) || (code == 22 && matches!(status, Some(429 | 502 | 503)));
-            return Err(p::Error(format!(
-                "{}: model HTTP attempt failed (transport_code={code}, http_status={})",
-                if retryable { "retryable" } else { "unknown" },
-                status.unwrap_or(0)
-            )));
-        }
-        serde_json::from_slice(body)
-            .map_err(|error| p::Error(format!("model endpoint returned invalid JSON: {error}")))
-    }
-
-    fn curl_config(&self, body: &str) -> p::Result<String> {
-        let endpoint = quote_curl_config(&self.profile.base_url.endpoint())?;
-        let credential = quote_curl_config(self.credential.expose())?;
-        let body = quote_curl_config(body)?;
-        let timeout_seconds = self.timeout.0.div_ceil(1000).max(1);
-        Ok(format!(
-            "silent\nshow-error\nfail-with-body\nrequest = \"POST\"\nmax-time = \"{timeout_seconds}\"\nurl = \"{endpoint}\"\nheader = \"Content-Type: application/json\"\nheader = \"Authorization: Bearer {credential}\"\ndata = \"{body}\"\nwrite-out = \"\\nFORME_HTTP_STATUS:%{{http_code}}\"\n"
-        ))
-    }
-}
-fn split_http_status(bytes: &[u8]) -> (&[u8], Option<u16>) {
-    const MARKER: &[u8] = b"\nFORME_HTTP_STATUS:";
-    if let Some(at) = bytes.windows(MARKER.len()).rposition(|s| s == MARKER) {
-        let status = std::str::from_utf8(&bytes[at + MARKER.len()..])
-            .ok()
-            .and_then(|s| s.trim().parse().ok());
-        (&bytes[..at], status)
-    } else {
-        (bytes, None)
-    }
-}
-
-impl p::ExternalProvider for ChatCompletionsProvider {
-    fn kind(&self) -> p::ProviderKind {
-        p::ProviderKind::Model
-    }
-
-    fn id(&self) -> p::ProviderId {
-        self.profile.provider.clone()
-    }
-
-    fn declared_capabilities(&self) -> p::CapabilitySet {
-        p::CapabilitySet {
-            schema_version: p::SchemaVersion(1),
-            capabilities: vec![p::CapabilityRef(format!(
-                "model:{}:{}",
-                self.profile.provider.0, self.profile.model
-            ))],
-            permissions: Vec::new(),
-        }
-    }
-
-    fn trust_default(&self) -> p::TrustTier {
-        p::TrustTier::Untrusted
-    }
-}
-
-impl p::ModelProvider for ChatCompletionsProvider {}
-
-impl ModelProvider for ChatCompletionsProvider {
-    fn call(&self, request: ModelRequest) -> p::Result<ModelResponse> {
-        request.validate()?;
-        parse_chat_response(self.call_http(&self.request_json(&request))?)
-    }
-
-    fn profile(&self) -> ModelProfile {
-        self.profile.clone()
-    }
-}
-
-fn quote_curl_config(value: &str) -> p::Result<String> {
-    if value.contains('\0') {
-        return Err(p::Error(
-            "model transport value contains a null byte".into(),
-        ));
-    }
-    let mut escaped = String::with_capacity(value.len());
-    for character in value.chars() {
-        match character {
-            '\\' => escaped.push_str("\\\\"),
-            '"' => escaped.push_str("\\\""),
-            '\r' => escaped.push_str("\\r"),
-            '\n' => escaped.push_str("\\n"),
-            other => escaped.push(other),
-        }
-    }
-    Ok(escaped)
-}
-
-fn parse_chat_response(body: Value) -> p::Result<ModelResponse> {
-    if body.get("error").is_some_and(|error| !error.is_null()) {
-        // Provider-controlled text can echo credentials or impersonate our
-        // retry classification. It never becomes a runtime diagnostic.
-        return Err(p::Error(
-            "unknown: model endpoint rejected the request".into(),
-        ));
-    }
-    let choice = body
-        .get("choices")
-        .and_then(Value::as_array)
-        .and_then(|choices| choices.first())
-        .ok_or_else(|| p::Error("model response has no choices".into()))?;
-    let message = choice
-        .get("message")
-        .ok_or_else(|| p::Error("model response has no message".into()))?;
-    let calls = message.get("tool_calls").and_then(Value::as_array);
-    if calls.is_some_and(|calls| calls.len() > 1) {
-        return Err(p::Error(
-            "parallel model tool proposals are unsupported".into(),
-        ));
-    }
-    let output = if let Some(tool_call) = calls.and_then(|calls| calls.first()) {
-        let function = tool_call
-            .get("function")
-            .ok_or_else(|| p::Error("model tool call has no function".into()))?;
-        let name = function
-            .get("name")
-            .and_then(Value::as_str)
-            .ok_or_else(|| p::Error("model tool call has no name".into()))?;
-        let arguments = function
-            .get("arguments")
-            .and_then(Value::as_str)
-            .map(|value| serde_json::from_str(value).unwrap_or_else(|_| json!({ "raw": value })))
-            .unwrap_or_else(|| json!({}));
-        ModelOutput::Tool(Box::new(ModelToolCall {
-            schema_version: p::SchemaVersion(1),
-            call_id: p::ToolCallId(
-                tool_call
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .filter(|id| !id.trim().is_empty())
-                    .ok_or_else(|| p::Error("model tool call has no correlation id".into()))?
-                    .to_owned(),
-            ),
-            tool: p::ToolRef(name.to_owned()),
-            arguments,
-            intent: None,
-        }))
-    } else {
-        let content = message
-            .get("content")
-            .and_then(Value::as_str)
-            .ok_or_else(|| p::Error("model response has no text content".into()))?;
-        ModelOutput::Final(content.to_owned())
-    };
-    let usage = body.get("usage");
-    Ok(ModelResponse {
-        schema_version: p::SchemaVersion(1),
-        output,
-        usage: p::ModelUsage {
-            input_tokens: usage
-                .and_then(|value| value.get("prompt_tokens"))
-                .and_then(Value::as_u64)
-                .unwrap_or(0),
-            output_tokens: usage
-                .and_then(|value| value.get("completion_tokens"))
-                .and_then(Value::as_u64)
-                .unwrap_or(0),
-        },
-        finish_reason: p::FinishReason(
-            choice
-                .get("finish_reason")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown")
-                .to_owned(),
-        ),
-    })
-}
-
 #[derive(Clone)]
 pub struct ScriptedModelProvider {
     profile: ModelProfile,
@@ -858,6 +573,7 @@ impl ToolCompatibility {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     fn profile(strength: ModelStrength, tool_use: bool) -> ModelProfile {
         ModelProfile {
@@ -1081,6 +797,136 @@ mod tests {
         let config = provider.curl_config("{}").unwrap();
         assert!(config.contains("do-not-log-this"));
         assert_eq!(provider.executable, "curl");
+    }
+
+    #[test]
+    fn model_transport_binds_proxy_and_disables_environment_fallback() {
+        let credential = SecretString::new("transport-test-secret").unwrap();
+        let direct = ChatCompletionsProvider::new(
+            profile(ModelStrength::Standard, false),
+            credential.clone(),
+            p::DurationMs(5_000),
+        )
+        .unwrap();
+        let direct_config = direct.curl_config("{}").unwrap();
+        assert!(direct_config.contains("proxy = \"\""));
+        assert!(direct_config.contains("noproxy = \"*\""));
+
+        let proxy = ModelHttpProxy::parse("http://proxy.invalid:8080").unwrap();
+        let configured = ChatCompletionsProvider::new_with_proxy(
+            profile(ModelStrength::Standard, false),
+            credential,
+            p::DurationMs(5_000),
+            Some(proxy),
+        )
+        .unwrap();
+        let configured_text = configured.curl_config("{}").unwrap();
+        assert!(configured_text.contains("proxy = \"http://proxy.invalid:8080\""));
+        assert!(configured_text.contains("noproxy = \"\""));
+        assert!(!configured_text.contains("noproxy = \"*\""));
+    }
+
+    #[test]
+    fn model_http_proxy_rejects_non_authority_endpoints() {
+        for endpoint in [
+            "http://user@proxy.invalid:8080",
+            "http://proxy.invalid:8080/path",
+            "http://proxy.invalid:8080?secret=value",
+            "socks5://proxy.invalid:1080",
+            "http://proxy.invalid:65536",
+        ] {
+            assert!(ModelHttpProxy::parse(endpoint).is_err(), "{endpoint}");
+        }
+    }
+
+    #[test]
+    fn model_request_reaches_the_bound_proxy_instead_of_the_model_origin() {
+        use std::io::Read;
+        use std::net::TcpListener;
+        use std::thread;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let proxy_observer = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0_u8; 4096];
+            let header_end = loop {
+                let count = stream.read(&mut buffer).unwrap();
+                assert!(count > 0, "proxy received an empty request");
+                request.extend_from_slice(&buffer[..count]);
+                if let Some(end) = request.windows(4).position(|window| window == b"\r\n\r\n") {
+                    break end + 4;
+                }
+                assert!(
+                    request.len() < 64 * 1024,
+                    "proxy request exceeded test bound"
+                );
+            };
+            let text = String::from_utf8_lossy(&request[..header_end]);
+            assert!(text.starts_with("POST http://model.invalid/v1/chat/completions "));
+            let body = r#"{"choices":[{"message":{"content":"proxied"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+            text.into_owned()
+        });
+
+        let mut model = profile(ModelStrength::Standard, false);
+        model.base_url = Url::parse("http://model.invalid/v1").unwrap();
+        let provider = ChatCompletionsProvider::new_with_proxy(
+            model,
+            SecretString::new("proxy-test-secret").unwrap(),
+            p::DurationMs(5_000),
+            Some(ModelHttpProxy::parse(format!("http://{address}")).unwrap()),
+        )
+        .unwrap();
+        let response = provider.call(ModelRequest::text("through proxy")).unwrap();
+        assert_eq!(response.output, ModelOutput::Final("proxied".into()));
+        assert!(proxy_observer
+            .join()
+            .unwrap()
+            .starts_with("POST http://model.invalid"));
+    }
+
+    #[test]
+    fn proxy_failure_does_not_fallback_to_the_model_origin() {
+        use std::net::TcpListener;
+        use std::thread;
+
+        let origin = TcpListener::bind("127.0.0.1:0").unwrap();
+        origin.set_nonblocking(true).unwrap();
+        let origin_address = origin.local_addr().unwrap();
+        let proxy = TcpListener::bind("127.0.0.1:0").unwrap();
+        let proxy_address = proxy.local_addr().unwrap();
+        let proxy_observer = thread::spawn(move || {
+            let (stream, _) = proxy.accept().unwrap();
+            drop(stream);
+        });
+
+        let mut model = profile(ModelStrength::Standard, false);
+        model.base_url = Url::parse(format!("http://{origin_address}/v1")).unwrap();
+        let provider = ChatCompletionsProvider::new_with_proxy(
+            model,
+            SecretString::new("proxy-failure-secret").unwrap(),
+            p::DurationMs(5_000),
+            Some(ModelHttpProxy::parse(format!("http://{proxy_address}")).unwrap()),
+        )
+        .unwrap();
+        assert!(provider
+            .call(ModelRequest::text("must not go direct"))
+            .is_err());
+        proxy_observer.join().unwrap();
+        assert!(
+            matches!(origin.accept(), Err(error) if error.kind() == std::io::ErrorKind::WouldBlock)
+        );
     }
 
     #[test]

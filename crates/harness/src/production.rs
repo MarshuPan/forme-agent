@@ -43,7 +43,9 @@ use forme_execution::{
     NotificationBackend, OutputBudget, PtyBackend, RejectingSecretResolver, SecretResolver,
     ShellBackend, ShellSandbox,
 };
-use forme_models::{ModelProfile, ModelRegistry, ModelRegistryConfig, ModelRuntimeConfig};
+use forme_models::{
+    ModelHttpProxy, ModelProfile, ModelRegistry, ModelRegistryConfig, ModelRuntimeConfig,
+};
 use forme_policy::{
     ActionMatcher, AppApiConnectorLimit, ArgMatcher, ComputerSurfaceLimit, DelegationGrant,
     DelegationSubject, PolicyLayer, PolicyLayerSource, PolicyRule,

@@ -67,8 +67,22 @@ impl ProductConfigStore {
     pub fn snapshot_settings_v2(&mut self) -> p::Result<p::ProductConfigViewV2> {
         let view = self.snapshot()?;
         let network = self.settings_network_view(&view.network)?;
+        let proxy = self
+            .state
+            .proxy
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(p::ProductProxyConfig::direct);
+        let proxy_view = p::ProductProxySettingsView::from_internal(&proxy)?;
+        let proxy_source = if self.state.proxy.is_some() {
+            p::ProductPreferenceSource::ManagedConfiguration
+        } else {
+            p::ProductPreferenceSource::InstallationTemplate
+        };
         Ok(view.into_settings_v2(
             network,
+            proxy_view,
+            proxy_source,
             p::ProductConfigAvailability::managed(self.network_is_managed()),
         ))
     }
@@ -83,16 +97,20 @@ impl ProductConfigStore {
             .as_ref()
             .map(|network| self.materialize_settings_network(network))
             .transpose()?;
-        let response = self.apply(p::ProductConfigPatch {
-            schema_version: patch.schema_version,
-            operation_id: patch.operation_id,
-            expected_revision: patch.expected_revision,
-            owner: patch.owner,
-            models: patch.models,
-            brain: patch.brain,
-            capabilities: patch.capabilities,
-            network,
-        })?;
+        let proxy = patch.proxy;
+        let response = self.apply_internal(
+            p::ProductConfigPatch {
+                schema_version: patch.schema_version,
+                operation_id: patch.operation_id,
+                expected_revision: patch.expected_revision,
+                owner: patch.owner,
+                models: patch.models,
+                brain: patch.brain,
+                capabilities: patch.capabilities,
+                network,
+            },
+            proxy,
+        )?;
         Ok(p::ProductConfigResponseV2 {
             schema_version: p::PRODUCT_SETTINGS_SCHEMA_VERSION,
             view: self.snapshot_settings_v2()?,

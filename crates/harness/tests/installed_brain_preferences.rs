@@ -31,6 +31,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
         workspace: p::WorkspaceRef("workspace:managed".into()),
         agent_profile: f.config.agent_profile.clone(),
         models: serde_json::from_value(serde_json::json!(profiles)).unwrap(),
+        model_proxy: None,
         model_routing: p::ProductModelRouting {
             schema_version: p::SchemaVersion(1),
             foreground: Some(p::ModelProfileRef("model:foreground".into())),

@@ -14,8 +14,12 @@ use crate::{
     SchemaDigest, SchemaVersion, WorkspaceRef,
 };
 
+mod proxy;
+pub use proxy::*;
+
 pub const PRODUCT_CONFIG_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
 pub const PRODUCT_DATA_BINDING_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
+pub const PRODUCT_PROXY_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
 
 fn default_web_bind() -> SocketAddr {
     "127.0.0.1:8765".parse().expect("valid default Web bind")

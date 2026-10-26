@@ -8,6 +8,17 @@ impl ModelRegistry {
     /// as unavailable profiles, exactly as in the development environment path.
     pub fn from_config_degrading_with_credentials<F>(
         config: ModelRegistryConfig,
+        resolve: F,
+    ) -> p::Result<(Self, Vec<UnavailableModelProfile>)>
+    where
+        F: FnMut(&ModelRuntimeConfig) -> p::Result<(SecretString, p::CredentialRef)>,
+    {
+        Self::from_config_degrading_with_credentials_and_proxy(config, None, resolve)
+    }
+
+    pub fn from_config_degrading_with_credentials_and_proxy<F>(
+        config: ModelRegistryConfig,
+        proxy: Option<ModelHttpProxy>,
         mut resolve: F,
     ) -> p::Result<(Self, Vec<UnavailableModelProfile>)>
     where
@@ -35,8 +46,9 @@ impl ModelRegistry {
         for profile in config.profiles {
             let reference = p::ModelProfileRef(profile.id.clone());
             let required = profile.default;
-            let bound = resolve(&profile)
-                .and_then(|(secret, reference)| profile.bind_resolved(secret, reference));
+            let bound = resolve(&profile).and_then(|(secret, reference)| {
+                profile.bind_resolved_with_proxy(secret, reference, proxy.clone())
+            });
             match bound {
                 Ok(model) => registry.register(model)?,
                 Err(error) if required => return Err(error),

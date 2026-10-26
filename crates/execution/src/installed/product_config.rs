@@ -61,6 +61,8 @@ struct ConfigState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     network: Option<p::ProductNetworkConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    proxy: Option<p::ProductProxyConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     release: Option<p::ProductReleaseBinding>,
 }
 
@@ -77,6 +79,7 @@ impl ConfigState {
             brain: None,
             capabilities: None,
             network: None,
+            proxy: None,
             release: None,
         }
     }
@@ -90,6 +93,7 @@ impl ConfigState {
                 | p::SchemaVersion(5)
                 | p::SchemaVersion(6)
                 | p::SchemaVersion(7)
+                | p::SchemaVersion(8)
         ) || self.install_ref != template.install_ref
             || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
             || (self.schema_version.0 < 4 && self.brain.is_some())
@@ -97,6 +101,8 @@ impl ConfigState {
             || (self.schema_version.0 == 5 && self.capabilities.is_none())
             || (self.schema_version.0 < 6 && self.network.is_some())
             || (self.schema_version == p::SchemaVersion(6) && self.network.is_none())
+            || (self.schema_version.0 < 8 && self.proxy.is_some())
+            || (self.schema_version == p::SchemaVersion(8) && self.proxy.is_none())
             || self.revision > 1_000_000_000
             || self.models.len() != self.credentials.len()
             || (self.revision == 0) != self.models.is_empty()
@@ -122,6 +128,9 @@ impl ConfigState {
         }
         if let Some(network) = &self.network {
             network.validate_material_root(template.web_material_directory.as_deref())?;
+        }
+        if let Some(proxy) = &self.proxy {
+            materialize::validate_proxy(proxy)?;
         }
         if let Some(binding) = &self.active_data {
             binding.validate()?;
@@ -238,10 +247,24 @@ impl ProductConfigStore {
     /// Validate every profile and credential before writing staging files. Keys
     /// have immutable revision paths, including when a saved key is retained.
     pub fn apply(&mut self, patch: p::ProductConfigPatch) -> p::Result<p::ProductConfigResponse> {
+        self.apply_internal(patch, None)
+    }
+
+    pub(super) fn apply_internal(
+        &mut self,
+        patch: p::ProductConfigPatch,
+        proxy_update: Option<p::ProductProxyConfig>,
+    ) -> p::Result<p::ProductConfigResponse> {
         patch.validate().map_err(|_| rejected_patch())?;
+        if let Some(proxy) = &proxy_update {
+            materialize::validate_proxy(proxy).map_err(|_| rejected_patch())?;
+        }
         let settings_schema = patch.schema_version;
         self.recover()?;
-        let digest = patch.digest()?;
+        let digest = match &proxy_update {
+            Some(proxy) => p::canonical_digest(&(patch.digest()?, proxy))?,
+            None => patch.digest()?,
+        };
         if self.journal.existing(&patch.operation_id, &digest)? {
             return self.settings_response(patch.operation_id, false, settings_schema);
         }
@@ -258,6 +281,7 @@ impl ProductConfigStore {
             .capabilities
             .or_else(|| self.state.capabilities.clone());
         let network = patch.network.or_else(|| self.state.network.clone());
+        let proxy = proxy_update.or_else(|| self.state.proxy.clone());
         if let Some(brain) = &brain {
             brain
                 .validate(
@@ -281,7 +305,9 @@ impl ProductConfigStore {
         let credentials = materialize::credential_paths(&self.template, &id, &prepared)?;
         let active_network = self.active_network()?;
         let state = ConfigState {
-            schema_version: p::SchemaVersion(if self.state.release.is_some() {
+            schema_version: p::SchemaVersion(if proxy.is_some() {
+                8
+            } else if self.state.release.is_some() {
                 7
             } else if network.is_some() {
                 6
@@ -301,6 +327,7 @@ impl ProductConfigStore {
             brain,
             capabilities,
             network,
+            proxy,
             release: self.state.release.clone(),
         };
         state

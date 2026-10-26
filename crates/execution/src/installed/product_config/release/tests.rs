@@ -132,6 +132,47 @@ fn release_publication_preserves_old_revision_and_cannot_acknowledge_old_readine
 }
 
 #[test]
+fn release_publication_preserves_model_proxy_in_schema_eight() {
+    let (_root, template_path, store) = fixture();
+    let mut store = store.into_inner().unwrap();
+    let base = patch("save:proxy", 0);
+    store
+        .apply_settings_v2(p::ProductConfigPatchV2 {
+            schema_version: p::PRODUCT_SETTINGS_SCHEMA_VERSION,
+            operation_id: base.operation_id,
+            expected_revision: base.expected_revision,
+            owner: base.owner,
+            models: base.models,
+            brain: base.brain,
+            capabilities: base.capabilities,
+            network: None,
+            proxy: Some(p::ProductProxyConfig {
+                schema_version: p::PRODUCT_PROXY_SCHEMA_VERSION,
+                mode: p::ProductProxyMode::Http,
+                endpoint: Some("http://proxy.invalid:8080".into()),
+            }),
+        })
+        .unwrap();
+    let takeover = takeover(&mut store);
+    let binding = binding(&takeover);
+    store
+        .publish_release_binding(&takeover, binding.clone(), 100)
+        .unwrap();
+    assert_eq!(store.state.schema_version, p::SchemaVersion(8));
+    assert_eq!(
+        store.state.proxy.as_ref().unwrap().mode,
+        p::ProductProxyMode::Http
+    );
+    assert_eq!(store.release_binding(), Some(&binding));
+    drop(store);
+
+    let reopened = ProductConfigStore::open(&template_path).unwrap();
+    let reopened = reopened.lock().unwrap();
+    assert_eq!(reopened.state.schema_version, p::SchemaVersion(8));
+    assert_eq!(reopened.release_binding(), Some(&binding));
+}
+
+#[test]
 fn stale_owner_revision_digest_nonce_and_expiry_cannot_publish_a_release() {
     for case in 0..5 {
         let (_root, _template, store) = fixture();

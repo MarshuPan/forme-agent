@@ -74,6 +74,8 @@ pub struct ProductConfigViewV2 {
     pub network: ProductNetworkSettingsView,
     pub network_active: bool,
     pub network_source: ProductPreferenceSource,
+    pub proxy: ProductProxySettingsView,
+    pub proxy_source: ProductPreferenceSource,
     pub availability: ProductConfigAvailability,
     pub issue_refs: Vec<String>,
 }
@@ -92,6 +94,8 @@ pub struct ProductConfigPatchV2 {
     pub capabilities: Option<ProductCapabilitySettings>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub network: Option<ProductNetworkSettingsPatch>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<ProductProxyConfig>,
 }
 
 impl ProductConfigPatchV2 {
@@ -112,6 +116,9 @@ impl ProductConfigPatchV2 {
         .validate()?;
         if let Some(network) = &self.network {
             network.validate()?;
+        }
+        if let Some(proxy) = &self.proxy {
+            proxy.validate()?;
         }
         Ok(())
     }
@@ -146,7 +153,7 @@ impl ProductConfigAvailability {
             .into_iter()
             .map(|feature| {
                 let reason = match feature {
-                    Feature::Models | Feature::Skills => None,
+                    Feature::Models | Feature::Skills | Feature::Proxy => None,
                     Feature::Network if network_paths => None,
                     Feature::Network => Some(Reason::NetworkPathsMissing),
                     _ => Some(Reason::ManagedConsumerMissing),
@@ -183,6 +190,8 @@ impl ProductConfigView {
     pub fn into_settings_v2(
         self,
         network: ProductNetworkSettingsView,
+        proxy: ProductProxySettingsView,
+        proxy_source: ProductPreferenceSource,
         availability: ProductConfigAvailability,
     ) -> ProductConfigViewV2 {
         ProductConfigViewV2 {
@@ -201,6 +210,8 @@ impl ProductConfigView {
             network,
             network_active: self.network_active,
             network_source: self.network_source,
+            proxy,
+            proxy_source,
             availability,
             issue_refs: self.issue_refs,
         }

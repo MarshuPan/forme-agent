@@ -8,7 +8,12 @@ pub(super) fn validate_state(
     state: &ConfigState,
     template: &p::ProductConfigTemplate,
 ) -> p::Result<()> {
-    if (state.schema_version == p::SchemaVersion(7)) != state.release.is_some() {
+    // Schema 7 introduced the release binding; schema 8 adds the model proxy
+    // while preserving the ability to carry that binding. A proxy-only state
+    // is therefore valid at schema 8 without a release binding.
+    if (state.schema_version == p::SchemaVersion(7) && state.release.is_none())
+        || (state.schema_version.0 < 7 && state.release.is_some())
+    {
         return Err(invalid());
     }
     if let Some(binding) = &state.release {
@@ -67,7 +72,7 @@ impl ProductConfigStore {
         }
         let digest = p::canonical_digest(&("forme-release-configuration-v1", takeover, &binding))?;
         let mut state = self.state.clone();
-        state.schema_version = p::SchemaVersion(7);
+        state.schema_version = p::SchemaVersion(if state.proxy.is_some() { 8 } else { 7 });
         state.revision = binding.config_revision;
         state.release = Some(binding.clone());
         state.validate(&self.template)?;

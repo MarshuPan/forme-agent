@@ -32,7 +32,7 @@ fn v2_reads_do_not_rewrite_v1_bytes_or_change_independent_object_versions() {
             .iter()
             .filter(|item| item.state == p::ProductSettingState::Configurable)
             .count(),
-        3
+        4
     );
     for item in features {
         if matches!(
@@ -41,7 +41,6 @@ fn v2_reads_do_not_rewrite_v1_bytes_or_change_independent_object_versions() {
                 | p::ProductSettingFeature::Plugins
                 | p::ProductSettingFeature::Packages
                 | p::ProductSettingFeature::Channels
-                | p::ProductSettingFeature::Proxy
         ) {
             assert_eq!(item.state, p::ProductSettingState::Unavailable);
             assert_eq!(
@@ -190,4 +189,119 @@ fn old_installation_reports_network_as_unavailable_without_migrating_template() 
         Some(p::ProductSettingUnavailableReason::NetworkPathsMissing)
     );
     assert_eq!(std::fs::read(path).unwrap(), original);
+}
+
+#[test]
+fn v2_proxy_is_materialized_without_endpoint_in_public_views_and_survives_v1_save() {
+    let (_root, path, config) = fixture();
+    let base = patch("save:proxy", 0);
+    let request = p::ProductConfigPatchV2 {
+        schema_version: p::PRODUCT_SETTINGS_SCHEMA_VERSION,
+        operation_id: "save:proxy".into(),
+        expected_revision: 0,
+        owner: base.owner.clone(),
+        models: base.models.clone(),
+        brain: None,
+        capabilities: None,
+        network: None,
+        proxy: Some(p::ProductProxyConfig {
+            schema_version: p::PRODUCT_PROXY_SCHEMA_VERSION,
+            mode: p::ProductProxyMode::Http,
+            endpoint: Some("http://proxy.invalid:8080".into()),
+        }),
+    };
+    let result = config
+        .lock()
+        .unwrap()
+        .apply_settings_v2(request.clone())
+        .unwrap();
+    assert_eq!(result.view.proxy.mode, p::ProductProxyMode::Http);
+    assert!(result.view.proxy.endpoint_configured);
+    assert_eq!(
+        result.view.proxy_source,
+        p::ProductPreferenceSource::ManagedConfiguration
+    );
+    assert!(!serde_json::to_string(&result)
+        .unwrap()
+        .contains("proxy.invalid"));
+
+    let core_path = config.lock().unwrap().template.core_config_path.clone();
+    let core: serde_json::Value = storage::json(&core_path, MAX_CONFIG_BYTES).unwrap();
+    assert_eq!(core["model_proxy"]["mode"], "http");
+    assert_eq!(core["model_proxy"]["endpoint"], "http://proxy.invalid:8080");
+    drop(config);
+
+    let config = ProductConfigStore::open(&path).unwrap();
+    let mut config = config.into_inner().unwrap();
+    assert_eq!(
+        config.snapshot_settings_v2().unwrap().proxy.mode,
+        p::ProductProxyMode::Http
+    );
+    let old_client = config.apply(patch("save:old-proxy-client", 1)).unwrap();
+    assert_eq!(old_client.schema_version, p::PRODUCT_CONFIG_SCHEMA_VERSION);
+    assert!(old_client.view.availability.is_none());
+    assert_eq!(
+        storage::json::<serde_json::Value>(&core_path, MAX_CONFIG_BYTES).unwrap()["model_proxy"]
+            ["endpoint"],
+        "http://proxy.invalid:8080"
+    );
+
+    let direct_base = patch("save:direct", 2);
+    let direct = config
+        .apply_settings_v2(p::ProductConfigPatchV2 {
+            schema_version: p::PRODUCT_SETTINGS_SCHEMA_VERSION,
+            operation_id: "save:direct".into(),
+            expected_revision: 2,
+            owner: direct_base.owner,
+            models: direct_base.models,
+            brain: None,
+            capabilities: None,
+            network: None,
+            proxy: Some(p::ProductProxyConfig::direct()),
+        })
+        .unwrap();
+    assert_eq!(direct.view.proxy.mode, p::ProductProxyMode::Direct);
+    assert!(!direct.view.proxy.endpoint_configured);
+    assert_eq!(
+        storage::json::<serde_json::Value>(&core_path, MAX_CONFIG_BYTES).unwrap()["model_proxy"]
+            ["mode"],
+        "direct"
+    );
+}
+
+#[test]
+fn proxy_endpoint_is_rejected_before_credentials_or_revisions_are_staged() {
+    for (index, endpoint) in [
+        "http://proxy.invalid:8080/secret",
+        "http://user@proxy.invalid:8080",
+        "http://proxy.invalid:8080?token=secret",
+        "http://proxy.invalid:8080#fragment",
+        "socks5://proxy.invalid:1080",
+        "http://proxy.invalid:65536",
+        "http://proxy.invalid:8080\nheader: injected",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let (root, _path, config) = fixture();
+        let base = patch(&format!("save:bad-proxy-{index}"), 0);
+        let request = p::ProductConfigPatchV2 {
+            schema_version: p::PRODUCT_SETTINGS_SCHEMA_VERSION,
+            operation_id: format!("save:bad-proxy-{index}"),
+            expected_revision: 0,
+            owner: base.owner,
+            models: base.models,
+            brain: None,
+            capabilities: None,
+            network: None,
+            proxy: Some(p::ProductProxyConfig {
+                schema_version: p::PRODUCT_PROXY_SCHEMA_VERSION,
+                mode: p::ProductProxyMode::Http,
+                endpoint: Some(endpoint.into()),
+            }),
+        };
+        assert!(config.lock().unwrap().apply_settings_v2(request).is_err());
+        assert!(!root.path().join("keys/models").exists());
+        assert!(!root.path().join("config/core.json").exists());
+    }
 }

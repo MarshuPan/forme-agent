@@ -92,6 +92,27 @@ pub(super) fn validate_model(model: &p::ProductModelProfilePatch) -> p::Result<(
     Ok(())
 }
 
+pub(super) fn validate_proxy(proxy: &p::ProductProxyConfig) -> p::Result<()> {
+    proxy.validate()?;
+    let Some(endpoint) = proxy.endpoint.as_deref() else {
+        return Ok(());
+    };
+    let url = Url::parse(endpoint)
+        .map_err(|_| p::Error("product HTTP proxy endpoint is invalid".into()))?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || !matches!(url.path(), "" | "/")
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || url.cannot_be_a_base()
+    {
+        return Err(p::Error("product HTTP proxy endpoint is invalid".into()));
+    }
+    Ok(())
+}
+
 pub(super) fn patch_from_view(view: &p::ProductModelProfileView) -> p::ProductModelProfilePatch {
     p::ProductModelProfilePatch {
         schema_version: view.schema_version,
@@ -366,6 +387,10 @@ pub(super) fn core_config(
         config["brain"]["capabilities"] =
             serde_json::to_value(capabilities).map_err(|_| invalid())?;
     }
+    if let Some(proxy) = &state.proxy {
+        validate_proxy(proxy)?;
+        config["model_proxy"] = serde_json::to_value(proxy).map_err(|_| invalid())?;
+    }
     if state.active_data.is_some() {
         config["transport"]["work_admission_path"] = serde_json::to_value(
             template
@@ -452,6 +477,7 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         brain: None,
         capabilities: None,
         network: None,
+        proxy: None,
         release: None,
     };
     state.validate(&store.template)?;

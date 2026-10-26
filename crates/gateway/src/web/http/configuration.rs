@@ -43,6 +43,8 @@ pub(super) struct ProductConfigBodyV2 {
     capabilities: Option<p::ProductCapabilitySettings>,
     #[serde(default)]
     network: Option<p::ProductNetworkSettingsPatch>,
+    #[serde(default)]
+    proxy: Option<p::ProductProxyConfig>,
 }
 
 #[derive(Deserialize)]
@@ -204,6 +206,7 @@ pub(super) async fn write(
             brain: body.brain,
             capabilities: body.capabilities,
             network: body.network,
+            proxy: body.proxy,
         };
         let response = state
             .configuration_call(move |configuration| configuration.apply_v2(patch))

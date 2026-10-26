@@ -6,8 +6,8 @@ use forme_protocol as p;
 use serde::Deserialize;
 
 use crate::{
-    ChatCompletionsProvider, Cost, ModelCapability, ModelProfile, ModelProvider, ModelStrength,
-    RateLimit, SecretString, ToolCompatibility, Url,
+    ChatCompletionsProvider, Cost, ModelCapability, ModelHttpProxy, ModelProfile, ModelProvider,
+    ModelStrength, RateLimit, SecretString, ToolCompatibility, Url,
 };
 
 mod credentials;
@@ -427,6 +427,15 @@ impl ModelRuntimeConfig {
         credential: SecretString,
         credential_ref: p::CredentialRef,
     ) -> p::Result<RegisteredModel> {
+        self.bind_resolved_with_proxy(credential, credential_ref, None)
+    }
+
+    fn bind_resolved_with_proxy(
+        self,
+        credential: SecretString,
+        credential_ref: p::CredentialRef,
+        proxy: Option<ModelHttpProxy>,
+    ) -> p::Result<RegisteredModel> {
         self.validate()?;
         let reference = p::ModelProfileRef(self.id.clone());
         let profile = ModelProfile {
@@ -452,10 +461,11 @@ impl ModelRuntimeConfig {
             },
             credential_ref,
         };
-        let provider = Arc::new(ChatCompletionsProvider::new(
+        let provider = Arc::new(ChatCompletionsProvider::new_with_proxy(
             profile.clone(),
             credential,
             p::DurationMs(self.timeout_ms),
+            proxy,
         )?);
         let compatibility = self
             .tool_schema_versions

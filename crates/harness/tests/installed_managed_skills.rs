@@ -38,6 +38,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
             profile: f.config.models[0].clone(),
             credential_path: key,
         }],
+        model_proxy: None,
         model_routing: Default::default(),
         capabilities: Some(settings(&f.config.workspace.0)),
         scheduler_enabled: false,

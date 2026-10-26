@@ -365,6 +365,7 @@ fn legacy_fixture(mismatch: bool) -> (tempfile::TempDir, PathBuf, Vec<u8>, PathB
         brain: None,
         capabilities: None,
         network: None,
+        proxy: None,
         release: None,
     };
     let mut core = materialize::core_config(&template, &state).unwrap();

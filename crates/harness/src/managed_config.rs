@@ -27,6 +27,8 @@ pub struct ManagedBrainConfig {
     pub agent_profile: p::AgentProfileRef,
     pub models: Vec<ManagedModelProfile>,
     #[serde(default)]
+    pub model_proxy: Option<p::ProductProxyConfig>,
+    #[serde(default)]
     pub model_routing: p::ProductModelRouting,
     #[serde(default)]
     pub capabilities: Option<p::ProductCapabilitySettings>,
@@ -78,6 +80,9 @@ impl ManagedBrainConfig {
             {
                 return Err(invalid());
             }
+        }
+        if let Some(proxy) = &self.model_proxy {
+            proxy.validate().map_err(|_| invalid())?;
         }
         let profiles: Vec<_> = self
             .models
