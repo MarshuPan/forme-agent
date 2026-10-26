@@ -141,6 +141,8 @@ AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/a
 
 取消已产生结果的 job 时，Host 为现有源分配与原 job/取消回执绑定的 opaque result ref，manifest 的真实 outcome 仍为 Cancelled/Unknown，不改成 Completed。进程终止与结果交接分别确认；封存、清理或取消收尾失败均进入原 job Unknown。AppContainer 用 Host 独占的 pending/sealed 交接标记保护源；Drop/启动恢复先终止原进程树、撤销 ACL/profile，未封存或标记不完整时保留目录并阻断新准入，不删除或重新执行原 job。
 
+恢复未完成是 worker 执行准入阻断，不得升级成整个已认证维护面的永久启动阻断。配置、安装身份、路径与 journal 本身仍须正常校验；通过这些前置条件后，AppContainer adapter 可保留 recovery-required 状态供同一 Host 查询原 job Unknown，所有新 worker admission 拒绝。恢复错误不能启用其他 adapter、进程内 fallback 或自动重放。
+
 #### 4.1.1b Windows AgentExecution 原生 peer identity
 
 Windows managed Host 不把 loopback TCP 当作 Brain 身份证明。正式 AgentExecution 接缝使用固定名称空间下的 named pipe：`\\.\pipe\forme-agent-execution-v1-<install_digest>`，其中 `<install_digest>` 是 `sha256` 的小写十六进制摘要（摘要输入为 `("forme-agent-execution-pipe-v1", install_id)`，去掉 `sha256:` 前缀）。该名称只能由安装清单绑定的 `install_id` 派生，不能由 Web、模型或请求 payload 选择。
