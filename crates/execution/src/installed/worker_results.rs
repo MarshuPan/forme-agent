@@ -5,13 +5,14 @@
 //! private immutable artifact and verifies its digest again on every read.
 
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use forme_protocol as p;
 
 use super::desktop_helper::DesktopHelperAdapter;
 use super::worker_host::{WorkerExecutorHost, WorkerIsolation};
+use super::worker_result_crypto::{ResultKeys, ENVELOPE_OVERHEAD};
 use super::{reject_linked_ancestors, set_private_directory};
 
 const MAX_RESULT_FILE_BYTES: u64 = p::WORKER_RESULT_MAX_BYTES;
@@ -51,6 +52,7 @@ pub(super) fn installation_ref(agent_credential_digest: &p::SchemaDigest) -> p::
 
 pub(crate) struct WorkerResultStore {
     root: PathBuf,
+    keys: ResultKeys,
 }
 
 impl WorkerResultStore {
@@ -65,6 +67,7 @@ impl WorkerResultStore {
         set_private_directory(root)?;
         Ok(Self {
             root: root.to_path_buf(),
+            keys: ResultKeys::open(&root.with_extension("result-keys"))?,
         })
     }
 
@@ -179,15 +182,7 @@ impl WorkerResultStore {
         manifest.validate()?;
         request.validate_for(manifest)?;
         match manifest.status {
-            p::WorkerResultStatus::Empty => {
-                if request.offset != 0 {
-                    return Err(p::Error(
-                        "worker result offset is outside the artifact".into(),
-                    ));
-                }
-                return Self::chunk(manifest, 0, Vec::new(), true);
-            }
-            p::WorkerResultStatus::Available => {}
+            p::WorkerResultStatus::Empty | p::WorkerResultStatus::Available => {}
             p::WorkerResultStatus::Pending => {
                 return Err(p::Error("worker result is not terminal".into()))
             }
@@ -205,12 +200,18 @@ impl WorkerResultStore {
         reject_linked_ancestors(&path)?;
         let metadata = fs::symlink_metadata(&path)
             .map_err(|_| p::Error("worker result artifact is unavailable".into()))?;
-        if !metadata.is_file() || metadata.len() != manifest.bytes {
+        if !metadata.is_file() || metadata.len() != manifest.bytes + ENVELOPE_OVERHEAD {
             return Err(p::Error("worker result artifact size is invalid".into()));
         }
-        let mut verify = File::open(&path)
+        let mut envelope = Vec::new();
+        File::open(&path)
+            .and_then(|file| {
+                file.take(MAX_RESULT_FILE_BYTES + ENVELOPE_OVERHEAD + 1)
+                    .read_to_end(&mut envelope)
+            })
             .map_err(|_| p::Error("worker result artifact cannot be read".into()))?;
-        let digest = p::sha256_reader_digest(&mut verify)?;
+        let plaintext = self.keys.decrypt(manifest, &envelope)?;
+        let digest = p::sha256_content_digest(&plaintext);
         if Some(digest) != manifest.content_digest {
             return Err(p::Error("worker result artifact digest is invalid".into()));
         }
@@ -219,15 +220,10 @@ impl WorkerResultStore {
                 "worker result offset is outside the artifact".into(),
             ));
         }
-        let mut file = File::open(&path)
-            .map_err(|_| p::Error("worker result artifact cannot be read".into()))?;
-        file.seek(SeekFrom::Start(request.offset))
-            .map_err(|_| p::Error("worker result offset cannot be applied".into()))?;
         let remaining = manifest.bytes.saturating_sub(request.offset);
         let size = remaining.min(request.max_bytes) as usize;
-        let mut bytes = vec![0_u8; size];
-        file.read_exact(&mut bytes)
-            .map_err(|_| p::Error("worker result chunk cannot be read".into()))?;
+        let start = request.offset as usize;
+        let bytes = plaintext[start..start + size].to_vec();
         let next = request.offset + bytes.len() as u64;
         Self::chunk(manifest, request.offset, bytes, next == manifest.bytes)
     }
@@ -273,16 +269,36 @@ impl WorkerResultStore {
 
     fn persist_bytes(&self, manifest: &p::WorkerResultManifest, bytes: &[u8]) -> p::Result<()> {
         let path = self.data_path(&manifest.manifest_digest)?;
+        reject_linked_ancestors(&path)?;
+        if path
+            .try_exists()
+            .map_err(|_| p::Error("worker result cannot be inspected".into()))?
+        {
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|_| p::Error("worker result cannot be inspected".into()))?;
+            if !metadata.is_file() || metadata.len() != manifest.bytes + ENVELOPE_OVERHEAD {
+                return Err(p::Error("existing worker result cannot be verified".into()));
+            }
+            let envelope = fs::read(&path)
+                .map_err(|_| p::Error("existing worker result cannot be verified".into()))?;
+            if self.keys.decrypt(manifest, &envelope)?.as_slice() != bytes {
+                return Err(p::Error(
+                    "worker result artifact collision was detected".into(),
+                ));
+            }
+            return Ok(());
+        }
+        let envelope = self.keys.seal(manifest, bytes)?;
         match create_private_file(&path) {
             Ok(mut file) => {
-                file.write_all(bytes)
+                file.write_all(&envelope)
                     .and_then(|()| file.sync_all())
                     .map_err(|_| p::Error("worker result artifact cannot be persisted".into()))?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 let existing = fs::read(&path)
                     .map_err(|_| p::Error("existing worker result cannot be verified".into()))?;
-                if existing != bytes {
+                if self.keys.decrypt(manifest, &existing)?.as_slice() != bytes {
                     return Err(p::Error(
                         "worker result artifact collision was detected".into(),
                     ));
@@ -395,7 +411,14 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerResultHostExt for Worker
         job_id: &str,
         now: p::Timestamp,
     ) -> p::Result<p::WorkerResultManifest> {
-        let observation = self.refresh_isolation(job_id, now)?;
+        let observation = match self.refresh_isolation(job_id, now) {
+            Ok(observation) => observation,
+            Err(error) => {
+                let reason = p::canonical_digest(&("worker-result-observation-unknown", job_id))?.0;
+                self.journal.mark_unknown(job_id, reason, now)?;
+                return Err(error);
+            }
+        };
         if let Some(manifest) = self.journal.result_manifest(job_id)? {
             manifest.validate()?;
             return Ok(manifest);

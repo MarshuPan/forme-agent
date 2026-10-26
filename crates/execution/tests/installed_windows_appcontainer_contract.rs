@@ -200,6 +200,11 @@ fn native_low_worker_uses_a_private_copy_and_host_verifies_writeback() {
             fs::read(sibling.join("denied")).unwrap(),
             b"private sibling"
         );
+        let source = isolation.result_path(&request.job)?.unwrap();
+        assert_eq!(fs::read(&source).unwrap(), b"worker fixture result\n");
+        // Standalone adapter test explicitly acknowledges its inspected bytes.
+        isolation.result_sealed(&request.job, now_ms())?;
+        assert!(!source.exists());
         Ok(())
     })();
     drop(isolation);
@@ -255,10 +260,11 @@ fn negative_native_case(mode: &str) {
         // Prove the real worker ran and wrote the private copy before testing
         // cancellation/recovery; a suspended or failed loader is insufficient.
         loop {
-            let ran = fs::read_dir(&runtime)
-                .unwrap()
-                .flatten()
-                .any(|entry| entry.path().join("workspace/worker-fixture-ran").is_file());
+            let ran = fs::read_dir(&runtime).unwrap().flatten().any(|entry| {
+                entry.path().join("workspace/worker-fixture-ran").is_file()
+                    && fs::read(entry.path().join("results/result.bin"))
+                        .is_ok_and(|bytes| bytes == b"worker fixture result\n")
+            });
             if ran {
                 break;
             }
@@ -290,10 +296,32 @@ fn negative_native_case(mode: &str) {
                 std::thread::sleep(Duration::from_millis(20));
             }
         }
+        if mode != "drop" {
+            let source = isolation.result_path(&request.job)?.unwrap();
+            assert_eq!(fs::read(source).unwrap(), b"worker fixture result\n");
+            isolation.result_sealed(&request.job, now_ms())?;
+        }
         Ok(())
     })();
     drop(isolation);
     let recovery = WindowsAppContainerWorkerIsolation::open(runtime.clone(), registry, maps);
+    if mode == "drop" {
+        result.unwrap();
+        let recovered = recovery.expect("query/maintenance composition remains available");
+        assert!(recovered
+            .admit_with_execution(
+                &request.job,
+                &request.permit,
+                request.execution.as_ref(),
+                now_ms()
+            )
+            .is_err());
+        drop(recovered);
+        assert_retained_result(&runtime);
+        assert_eq!(fs::read(root.join("existing")).unwrap(), b"before");
+        assert!(!root.join("worker-fixture-ran").exists());
+        return;
+    }
     if recovery.is_err() {
         let retained = temporary.keep();
         panic!(
@@ -389,9 +417,11 @@ fn native_host_death_recovers_original_lease_without_replaying_worker() {
     let deadline = Instant::now() + Duration::from_secs(10);
     let ready = loop {
         let entered = fs::read_dir(&runtime).is_ok_and(|entries| {
-            entries
-                .flatten()
-                .any(|entry| entry.path().join("workspace/worker-fixture-ran").is_file())
+            entries.flatten().any(|entry| {
+                entry.path().join("workspace/worker-fixture-ran").is_file()
+                    && fs::read(entry.path().join("results/result.bin"))
+                        .is_ok_and(|bytes| bytes == b"worker fixture result\n")
+            })
         });
         if temporary.path().join("adapter-ready").exists() && entered {
             break true;
@@ -405,15 +435,17 @@ fn native_host_death_recovers_original_lease_without_replaying_worker() {
     child.wait().unwrap();
     let maps = BTreeMap::from([("workspace:appcontainer".into(), root.clone())]);
     let recovery = WindowsAppContainerWorkerIsolation::open(runtime.clone(), make_registry(), maps);
-    if recovery.is_err() {
-        let retained = temporary.keep();
-        panic!(
-            "crash recovery failed; retained {}: {:?}",
-            retained.display(),
-            recovery.err()
-        );
-    }
-    drop(recovery);
+    let recovered = recovery.expect("query/maintenance composition remains available");
+    let request = request(&root, now_ms());
+    assert!(recovered
+        .admit_with_execution(
+            &request.job,
+            &request.permit,
+            request.execution.as_ref(),
+            now_ms()
+        )
+        .is_err());
+    drop(recovered);
     assert!(
         ready,
         "real worker did not enter main before the host was killed"
@@ -424,6 +456,171 @@ fn native_host_death_recovers_original_lease_without_replaying_worker() {
         &runtime.join("sandbox-leases.jsonl"),
     )
     .unwrap();
-    journal.verify_startup_recovery_complete().unwrap();
-    assert_eq!(fs::read_dir(runtime).unwrap().flatten().count(), 1);
+    assert!(journal.verify_startup_recovery_complete().is_err());
+    for lease in journal.pending_cleanup().unwrap() {
+        assert!(lease.process_tree_termination.is_some());
+        assert!(lease.appcontainer_removed);
+        assert!(!lease.job_directory_removed);
+    }
+    assert_retained_result(&runtime);
+}
+
+fn assert_retained_result(runtime: &Path) {
+    let retained = fs::read_dir(runtime)
+        .unwrap()
+        .flatten()
+        .find(|entry| entry.path().is_dir())
+        .expect("original result source remains")
+        .path();
+    assert!(retained.join("result-seal-pending.json").is_file());
+    assert!(!retained.join("result-sealed.json").exists());
+    assert_eq!(
+        fs::read(retained.join("results/result.bin")).unwrap(),
+        b"worker fixture result\n"
+    );
+}
+
+#[test]
+#[ignore = "runs native AppContainer jobs through the Host encrypted result and cleanup lifecycle"]
+fn native_host_seals_results_before_cleanup_and_retains_unsealed_failures() {
+    use forme_execution::installed::{
+        HostCredentials, IsolatedExecutorHost, ProductHostBroker, SystemServiceManager,
+        WorkerExecutorHost,
+    };
+    for budget in [4096, 1] {
+        let temporary = tempfile::tempdir().unwrap();
+        let root = temporary.path().join("original");
+        let runtime = temporary.path().join("runtime");
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join("existing"), b"before").unwrap();
+        let root = fs::canonicalize(root).unwrap();
+        let registry = WorkerLaunchRegistry::from_specs([WorkerLaunchSpec::new(
+            "sandbox:appcontainer",
+            Path::new(env!("CARGO_BIN_EXE_forme-worker-fixture")).to_path_buf(),
+            vec![],
+        )
+        .unwrap()])
+        .unwrap();
+        let maps = BTreeMap::from([("workspace:appcontainer".into(), root.clone())]);
+        let isolation = WindowsAppContainerWorkerIsolation::open(
+            runtime.clone(),
+            registry.clone(),
+            maps.clone(),
+        )
+        .unwrap();
+        let token = "native-result-agent-abcdefghijklmnopqrstuvwxyz";
+        let broker = ProductHostBroker::open_with_service_manager(
+            &temporary.path().join("host.jsonl"),
+            "native-result-install",
+            HostCredentials::new(
+                "native-result-maintenance-abcdefghijklmnopqrstuvwxyz".into(),
+                Some(token.into()),
+            )
+            .unwrap(),
+            p::ProductTarget::WindowsX86_64,
+            "0.1.0".into(),
+            SystemServiceManager,
+        )
+        .unwrap();
+        let auth = broker.authenticate_agent(token).unwrap();
+        let host = WorkerExecutorHost::open_with_isolation(
+            &temporary.path().join("worker.jsonl"),
+            p::canonical_digest(&token).unwrap(),
+            p::AuthorityEpoch(1),
+            [p::Scope("workspace:appcontainer".into())].into(),
+            isolation,
+        )
+        .unwrap();
+        let mut request = request(&root, now_ms());
+        request.execution.as_mut().unwrap().output_budget_bytes = budget;
+        host.dispatch_with_execution(
+            &auth,
+            request.job.clone(),
+            request.permit.clone(),
+            request.execution.clone(),
+            now_ms(),
+        )
+        .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            match host.probe(&auth, &request.job.job_id, now_ms()) {
+                Ok(observation) if observation.state == p::WorkerState::Completed => {
+                    assert_eq!(budget, 4096);
+                    break;
+                }
+                Err(_) => {
+                    assert_eq!(budget, 1);
+                    assert_eq!(
+                        host.probe(&auth, &request.job.job_id, now_ms())
+                            .unwrap()
+                            .state,
+                        p::WorkerState::Unknown
+                    );
+                    assert_retained_result(&runtime);
+                    break;
+                }
+                _ => assert!(Instant::now() < deadline, "native Host did not finish"),
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        if budget == 4096 {
+            let manifest = host
+                .result_manifest(&auth, &request.job.job_id, now_ms())
+                .unwrap();
+            assert_eq!(manifest.status, p::WorkerResultStatus::Available);
+            let chunk = host
+                .read_result(
+                    &auth,
+                    p::WorkerResultRead {
+                        schema_version: p::WORKER_RESULT_SCHEMA_VERSION,
+                        binding: manifest.binding.clone(),
+                        manifest_digest: manifest.manifest_digest.clone(),
+                        offset: 0,
+                        max_bytes: 4096,
+                    },
+                    now_ms(),
+                )
+                .unwrap();
+            assert_eq!(chunk.bytes, b"worker fixture result\n");
+            assert_eq!(fs::read_dir(&runtime).unwrap().flatten().count(), 1);
+            assert!(!root.join("result.bin").exists());
+        }
+        drop(host);
+        let reopened = WindowsAppContainerWorkerIsolation::open(runtime.clone(), registry, maps);
+        let reopened =
+            reopened.expect("worker recovery must not prevent query/maintenance composition");
+        if budget == 1 {
+            assert!(reopened
+                .admit_with_execution(
+                    &request.job,
+                    &request.permit,
+                    request.execution.as_ref(),
+                    now_ms()
+                )
+                .is_err());
+        }
+        let reopened_host = WorkerExecutorHost::open_with_isolation(
+            &temporary.path().join("worker.jsonl"),
+            p::canonical_digest(&token).unwrap(),
+            p::AuthorityEpoch(1),
+            [p::Scope("workspace:appcontainer".into())].into(),
+            reopened,
+        )
+        .unwrap();
+        assert_eq!(
+            reopened_host
+                .probe(&auth, &request.job.job_id, now_ms())
+                .unwrap()
+                .state,
+            if budget == 4096 {
+                p::WorkerState::Completed
+            } else {
+                p::WorkerState::Unknown
+            }
+        );
+        drop(reopened_host);
+        if budget == 1 {
+            assert_retained_result(&runtime);
+        }
+    }
 }

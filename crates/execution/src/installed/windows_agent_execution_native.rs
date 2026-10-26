@@ -4,27 +4,31 @@
 use std::ffi::c_void;
 use std::fs::{self, File, OpenOptions};
 use std::mem::size_of;
+use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, OwnedHandle, RawHandle};
 use std::path::{Path, PathBuf};
 use std::ptr::{null, null_mut};
 
 use forme_protocol as p;
 use windows_sys::Win32::Foundation::{
-    GetLastError, LocalFree, SetLastError, ERROR_INSUFFICIENT_BUFFER, ERROR_PIPE_CONNECTED,
-    ERROR_PIPE_LISTENING, HANDLE, HLOCAL, INVALID_HANDLE_VALUE,
+    GetLastError, LocalFree, SetLastError, ERROR_BROKEN_PIPE, ERROR_INSUFFICIENT_BUFFER,
+    ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, ERROR_PIPE_NOT_CONNECTED, HANDLE, HLOCAL,
+    INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
 };
 use windows_sys::Win32::Security::{
-    CheckTokenMembership, IsValidSid, LookupAccountNameW, PSID, SECURITY_ATTRIBUTES, SID_NAME_USE,
-    TOKEN_QUERY,
+    CheckTokenMembership, DuplicateToken, IsValidSid, LookupAccountNameW, SecurityIdentification,
+    PSID, SECURITY_ATTRIBUTES, SID_NAME_USE, TOKEN_DUPLICATE, TOKEN_QUERY,
 };
-use windows_sys::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX};
+use windows_sys::Win32::Storage::FileSystem::{
+    FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX, SECURITY_IDENTIFICATION,
+};
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, SetNamedPipeHandleState,
-    WaitNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
-    PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, GetNamedPipeServerProcessId,
+    PeekNamedPipe, SetNamedPipeHandleState, WaitNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE,
+    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
 };
 use windows_sys::Win32::System::Threading::{
     OpenProcess, OpenProcessToken, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
@@ -117,9 +121,8 @@ impl WindowsAgentExecutionListener {
     }
 }
 
-/// Opens the managed AgentExecution pipe for the Brain process. The server
-/// still verifies the caller's service SID and image; this helper only waits
-/// for the fixed endpoint and opens a duplex byte stream.
+/// Opens a mutually authenticated stream. No caller can write credentials
+/// before the fixed Host service PID, identity and release image are verified.
 pub fn open_agent_execution_pipe(name: &str) -> p::Result<File> {
     if !name.starts_with(r"\\.\pipe\forme-agent-execution-v1-")
         || name.len() > 256
@@ -127,15 +130,114 @@ pub fn open_agent_execution_pipe(name: &str) -> p::Result<File> {
     {
         return Err(p::Error("AgentExecution pipe name is invalid".into()));
     }
+    let file = open_nonblocking_pipe(name)?;
+    verify_agent_execution_server(&file)?;
+    Ok(file)
+}
+
+fn open_nonblocking_pipe(name: &str) -> p::Result<File> {
     let name_w = wide(name);
     if unsafe { WaitNamedPipeW(name_w.as_ptr(), 30_000) } == 0 {
         return Err(native_error("AgentExecution named pipe is unavailable"));
     }
-    OpenOptions::new()
+    let file = OpenOptions::new()
         .read(true)
         .write(true)
+        .security_qos_flags(SECURITY_IDENTIFICATION)
         .open(name)
-        .map_err(|_| p::Error("AgentExecution named pipe could not be opened".into()))
+        .map_err(|_| p::Error("AgentExecution named pipe could not be opened".into()))?;
+    let mode = PIPE_READMODE_BYTE | PIPE_NOWAIT;
+    // SAFETY: file owns a connected duplex pipe; mode points to a live u32,
+    // and both unused optional pointers are null. The safe client applies
+    // its absolute I/O deadline while polling this nonblocking handle.
+    if unsafe { SetNamedPipeHandleState(file.as_raw_handle() as HANDLE, &mode, null(), null()) }
+        == 0
+    {
+        return Err(native_error(
+            "AgentExecution pipe could not enter bounded I/O mode",
+        ));
+    }
+    Ok(file)
+}
+
+fn verify_agent_execution_server(file: &File) -> p::Result<()> {
+    use windows_service::service::{ServiceAccess, ServiceState, ServiceType};
+    use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
+
+    let invalid = || p::Error("AgentExecution Host service identity is unverifiable".into());
+    let mut pid = 0;
+    // SAFETY: file owns the connected pipe and pid is a valid output buffer.
+    if unsafe { GetNamedPipeServerProcessId(file.as_raw_handle() as HANDLE, &mut pid) } == 0
+        || pid == 0
+    {
+        return Err(invalid());
+    }
+    // SAFETY: PID comes from the live pipe; only limited read access is requested.
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    let process = owned_handle(process, "AgentExecution Host process cannot be opened")?;
+    let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
+        .map_err(|_| invalid())?;
+    let service = manager
+        .open_service(
+            p::BuiltinServiceId::Host.service_name(),
+            ServiceAccess::QUERY_STATUS | ServiceAccess::QUERY_CONFIG,
+        )
+        .map_err(|_| invalid())?;
+    let status = service.query_status().map_err(|_| invalid())?;
+    let config = service.query_config().map_err(|_| invalid())?;
+    let account = config.account_name.as_deref().ok_or_else(invalid)?;
+    if status.current_state != ServiceState::Running
+        || status.process_id != Some(pid)
+        || status.service_type != ServiceType::OWN_PROCESS
+        || config.service_type != ServiceType::OWN_PROCESS
+        || !matches!(account.to_str(), Some(name) if name.eq_ignore_ascii_case("LocalSystem") || name.eq_ignore_ascii_case(r"NT AUTHORITY\SYSTEM"))
+    {
+        return Err(invalid());
+    }
+    let core_image = std::env::current_exe().map_err(|_| invalid())?;
+    let expected_image = core_image
+        .parent()
+        .ok_or_else(invalid)?
+        .join("forme-hostd.exe");
+    super::reject_linked_ancestors(&expected_image)?;
+    let expected_image = fs::canonicalize(expected_image).map_err(|_| invalid())?;
+    let observed_image =
+        fs::canonicalize(process_image_path(raw(&process))?).map_err(|_| invalid())?;
+    if !observed_image
+        .to_string_lossy()
+        .eq_ignore_ascii_case(&expected_image.to_string_lossy())
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Distinguishes a connected-but-empty byte pipe from a closed peer. Rust's
+/// File::read can report zero bytes for both cases on a PIPE_NOWAIT handle.
+pub(super) fn agent_execution_pipe_available(file: &File) -> std::io::Result<Option<u32>> {
+    let mut available = 0;
+    // SAFETY: file owns the live pipe handle, no data buffer is requested,
+    // available is a valid writable u32 and other output pointers are null.
+    if unsafe {
+        PeekNamedPipe(
+            file.as_raw_handle() as HANDLE,
+            null_mut(),
+            0,
+            null_mut(),
+            &mut available,
+            null_mut(),
+        )
+    } != 0
+    {
+        return Ok(Some(available));
+    }
+    // SAFETY: capture the failure immediately after PeekNamedPipe.
+    let error = unsafe { GetLastError() };
+    if matches!(error, ERROR_BROKEN_PIPE | ERROR_PIPE_NOT_CONNECTED) {
+        Ok(None)
+    } else {
+        Err(std::io::Error::from_raw_os_error(error as i32))
+    }
 }
 
 fn create_agent_execution_pipe(name: &str) -> p::Result<OwnedHandle> {
@@ -166,13 +268,25 @@ fn verify_agent_execution_peer(pipe: HANDLE, expected_image: &Path) -> p::Result
     let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
     let process = owned_handle(process, "AgentExecution client process cannot be opened")?;
     let mut token = null_mut();
-    if unsafe { OpenProcessToken(raw(&process), TOKEN_QUERY, &mut token) } == 0 {
+    if unsafe { OpenProcessToken(raw(&process), TOKEN_QUERY | TOKEN_DUPLICATE, &mut token) } == 0 {
         return Err(native_error("AgentExecution client token cannot be opened"));
     }
     let token = owned_handle(token, "AgentExecution client token handle is invalid")?;
+    let mut identification = null_mut();
+    // SAFETY: token is an owned primary token with duplicate/query access;
+    // membership checks require an impersonation token, never a primary token.
+    if unsafe { DuplicateToken(raw(&token), SecurityIdentification, &mut identification) } == 0 {
+        return Err(native_error(
+            "AgentExecution client token cannot be duplicated",
+        ));
+    }
+    let identification = owned_handle(
+        identification,
+        "AgentExecution identification token is invalid",
+    )?;
     let sid = lookup_account_sid(BRAIN_SERVICE_ACCOUNT)?;
     let mut member = 0;
-    if unsafe { CheckTokenMembership(raw(&token), sid.raw(), &mut member) } == 0 {
+    if unsafe { CheckTokenMembership(raw(&identification), sid.raw(), &mut member) } == 0 {
         return Err(native_error(
             "AgentExecution client service SID membership cannot be checked",
         ));
@@ -347,5 +461,114 @@ mod tests {
         assert_ne!(first, second);
         assert!(first.starts_with(r"\\.\pipe\forme-agent-execution-v1-"));
         assert!(windows_agent_execution_pipe_name("not a valid install").is_err());
+    }
+
+    // This is a current-user byte-stream fixture, not installed peer/SID proof.
+    fn fixture_listener() -> (super::OwnedHandle, String) {
+        use super::*;
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let name = format!(
+            r"\\.\pipe\forme-agent-execution-v1-io-fixture-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        );
+        let wide_name = wide(&name);
+        // SAFETY: the terminated name is live, optional security is null (the
+        // fixture uses the current user's default DACL), and the return is owned.
+        let handle = unsafe {
+            CreateNamedPipeW(
+                wide_name.as_ptr(),
+                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
+                1,
+                PIPE_BUFFER_BYTES,
+                PIPE_BUFFER_BYTES,
+                0,
+                null(),
+            )
+        };
+        let owned = owned_handle(handle, "fixture pipe could not be created").unwrap();
+        (owned, name)
+    }
+
+    fn pipe_pair() -> (super::File, super::File) {
+        use super::*;
+        let (owned, name) = fixture_listener();
+        // This fixture verifies bounded I/O only; the public connection path
+        // always requires the real SCM Host identity before returning a file.
+        let client = open_nonblocking_pipe(&name).unwrap();
+        // SAFETY: the pipe handle is owned and valid, synchronous connect uses
+        // no OVERLAPPED structure, and ERROR_PIPE_CONNECTED is a normal race.
+        let connected = unsafe { ConnectNamedPipe(raw(&owned), null_mut()) } != 0;
+        assert!(connected || unsafe { GetLastError() } == ERROR_PIPE_CONNECTED);
+        // SAFETY: ownership moves once from the unique owned handle to File.
+        let server = unsafe { File::from_raw_handle(owned.into_raw_handle()) };
+        (server, client)
+    }
+
+    #[test]
+    fn occupied_host_pipe_rejects_before_any_credential_or_job_byte() {
+        use super::*;
+        use std::io::Read;
+        let (owned, name) = fixture_listener();
+        let reader = std::thread::spawn(move || {
+            // SAFETY: the unique listener handle is live; no OVERLAPPED is used.
+            let connected = unsafe { ConnectNamedPipe(raw(&owned), null_mut()) } != 0;
+            let error = unsafe { GetLastError() };
+            assert!(connected || matches!(error, ERROR_PIPE_CONNECTED | 232));
+            // SAFETY: unique ownership transfers once to File and then DeadlinePipe.
+            let server = unsafe { File::from_raw_handle(owned.into_raw_handle()) };
+            let mut server = super::super::worker_pipe::DeadlinePipe::new(
+                server,
+                std::time::Duration::from_secs(2),
+            );
+            assert_eq!(server.read(&mut [0; 1]).unwrap(), 0);
+        });
+        let temporary = tempfile::tempdir().unwrap();
+        let credential = temporary.path().join("agent.token");
+        fs::write(&credential, "fixture-agent-credential-never-sent").unwrap();
+        let client =
+            super::super::WorkerBrokerClient::connect_named_pipe(&name, &credential).unwrap();
+        use super::super::WorkerBrokerTransport;
+        assert!(client.probe("fixture-original-job").is_err());
+        reader.join().unwrap();
+    }
+
+    #[test]
+    fn idle_native_pipe_client_expires_without_a_blocked_io_thread() {
+        use std::{
+            io::Read,
+            time::{Duration, Instant},
+        };
+        let (_server, client) = pipe_pair();
+        let mut client =
+            super::super::worker_pipe::DeadlinePipe::new(client, Duration::from_millis(25));
+        let started = Instant::now();
+        let error = client.read(&mut [0; 1]).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
+
+    #[test]
+    fn native_pipe_client_reads_delayed_bytes_and_observes_disconnect() {
+        use std::{
+            io::{Read, Write},
+            time::Duration,
+        };
+        let (mut server, client) = pipe_pair();
+        let (acknowledge, consumed) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(15));
+            server.write_all(b"bounded fixture result").unwrap();
+            consumed.recv_timeout(Duration::from_secs(2)).unwrap();
+        });
+        let mut client =
+            super::super::worker_pipe::DeadlinePipe::new(client, Duration::from_secs(2));
+        let mut bytes = vec![0; b"bounded fixture result".len()];
+        client.read_exact(&mut bytes).unwrap();
+        assert_eq!(bytes, b"bounded fixture result");
+        acknowledge.send(()).unwrap();
+        writer.join().unwrap();
+        assert_eq!(client.read(&mut [0; 1]).unwrap(), 0);
     }
 }

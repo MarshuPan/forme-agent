@@ -11,6 +11,7 @@ fn main() {
     let workspace = env::current_dir().expect("worker fixture workspace");
     if env::args().any(|arg| arg == "--isolation-probe") {
         isolation_probe(&workspace);
+        write_result();
         return;
     }
     let marker = workspace.join("worker-fixture-ran");
@@ -22,19 +23,7 @@ fn main() {
     file.write_all(b"worker fixture completed\n")
         .expect("worker fixture append");
     file.sync_all().expect("worker fixture durable marker");
-    if !env::args().any(|arg| arg == "--no-result") {
-        if let Some(path) = env::var_os("FORME_WORKER_RESULT_PATH") {
-            let mut result = fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path)
-                .expect("worker result artifact");
-            result
-                .write_all(b"worker fixture result\n")
-                .expect("worker result artifact write");
-            result.sync_all().expect("worker result artifact durable");
-        }
-    }
+    write_result();
     let descendant = workspace.join("worker-fixture-descendant-ran");
     if env::args().any(|arg| arg == "--descendant") {
         thread::sleep(Duration::from_millis(750));
@@ -72,6 +61,23 @@ fn main() {
     }
     if env::args().any(|arg| arg == "--fail") {
         std::process::exit(17);
+    }
+}
+
+fn write_result() {
+    if env::args().any(|arg| arg == "--no-result" || arg == "--descendant") {
+        return;
+    }
+    if let Some(path) = env::var_os("FORME_WORKER_RESULT_PATH") {
+        let mut result = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .expect("worker result artifact");
+        result
+            .write_all(b"worker fixture result\n")
+            .expect("worker result write");
+        result.sync_all().expect("worker result durable");
     }
 }
 

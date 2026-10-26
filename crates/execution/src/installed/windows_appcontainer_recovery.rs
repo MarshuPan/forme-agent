@@ -107,6 +107,7 @@ pub(super) fn cleanup_lease(
 
     let latest = find_pending(journal, lease_id)?;
     if !latest.job_directory_removed {
+        super::results::verify_cleanup_allowed(run_dir)?;
         // Unknown writeback must retain its copy, baseline and original
         // intent. ACL/profile cleanup above is still mandatory on restart.
         if let Some(receipt) =

@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Mutex;
 
 use forme_protocol as p;
@@ -15,61 +15,7 @@ use super::worker_results::{
 };
 use super::{HostAuth, HostCredentialDomain};
 
-/// An isolation implementation must represent real OS-level admission. The
-/// default is intentionally unavailable, so an unconfigured product cannot
-/// silently execute a worker as the brain service account.
-pub trait WorkerIsolation: Send + Sync {
-    fn admit(&self, job: &p::WorkerJob, permit: &p::WorkerPermit) -> p::Result<()>;
-
-    fn admit_with_execution(
-        &self,
-        job: &p::WorkerJob,
-        permit: &p::WorkerPermit,
-        _execution: Option<&p::WorkerExecutionSpec>,
-        now: p::Timestamp,
-    ) -> p::Result<()> {
-        self.admit_at(job, permit, now)
-    }
-
-    fn admit_at(
-        &self,
-        job: &p::WorkerJob,
-        permit: &p::WorkerPermit,
-        _now: p::Timestamp,
-    ) -> p::Result<()> {
-        self.admit(job, permit)
-    }
-
-    fn cancel(&self, job: &p::WorkerJob) -> p::Result<p::WorkerCancelReceipt>;
-
-    /// Return a durable receipt only when the underlying worker has a known
-    /// terminal result. The default keeps non-process fixtures observation
-    /// only; it never invents a completion outcome.
-    fn observe(
-        &self,
-        _job: &p::WorkerJob,
-        _now: p::Timestamp,
-    ) -> p::Result<Option<p::WorkerReceipt>> {
-        Ok(None)
-    }
-
-    /// Return the adapter-owned bounded result path after a terminal
-    /// observation. The Host reads it before publishing the receipt.
-    fn result_path(&self, _job: &p::WorkerJob) -> p::Result<Option<PathBuf>> {
-        Ok(None)
-    }
-
-    /// The timestamp-aware form lets a real process adapter bind a cancel
-    /// receipt to the actual observation time without changing older test
-    /// adapters that implement `cancel`.
-    fn cancel_at(
-        &self,
-        job: &p::WorkerJob,
-        _now: p::Timestamp,
-    ) -> p::Result<p::WorkerCancelReceipt> {
-        self.cancel(job)
-    }
-}
+pub use super::worker_isolation::WorkerIsolation;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct UnavailableWorkerIsolation;
@@ -324,6 +270,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
                     evidence_refs: receipt.ground_truth_refs.clone(),
                     now,
                 })?;
+                self.isolation.result_sealed(&job, now)?;
                 self.journal.record_receipt(receipt, now)?;
             }
         }
@@ -537,17 +484,28 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
                 return Err(error);
             }
         };
-        receipt.validate_for(&job)?;
-        self.seal_result(WorkerResultSealRequest {
-            job: &job,
-            receipt_ref: receipt.receipt_ref.clone(),
-            result_ref: None,
-            outcome: Some(receipt.outcome),
-            source: None,
-            evidence_refs: Vec::new(),
-            now,
-        })?;
-        self.journal.record_cancel_receipt(receipt.clone(), now)?;
+        let finalized = (|| {
+            receipt.validate_for(&job)?;
+            let source = self.isolation.result_path(&job)?;
+            let result_digest =
+                p::canonical_digest(&("forme-worker-cancel-result-v1", &job, &receipt))?;
+            self.seal_result(WorkerResultSealRequest {
+                job: &job,
+                receipt_ref: receipt.receipt_ref.clone(),
+                result_ref: Some(format!("worker-cancel-result-{}", result_digest.0)),
+                outcome: Some(receipt.outcome),
+                source: source.as_deref(),
+                evidence_refs: Vec::new(),
+                now,
+            })?;
+            self.isolation.result_sealed(&job, now)?;
+            self.journal.record_cancel_receipt(receipt.clone(), now)
+        })();
+        if let Err(error) = finalized {
+            let reason = p::canonical_digest(&("worker-cancel-seal-unknown", job_id))?.0;
+            self.journal.mark_unknown(job_id, reason, now)?;
+            return Err(error);
+        }
         Ok(receipt)
     }
 

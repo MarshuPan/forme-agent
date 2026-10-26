@@ -54,6 +54,7 @@ fn environment_block_is_deterministic_and_scoped() {
     let text = String::from_utf16_lossy(&block);
     assert!(text.contains("FORME_WORKER_WORKSPACE_SCOPE=workspace:demo\0"));
     assert!(text.contains("FORME_WORKER_DEADLINE=42\0"));
+    assert!(text.contains("FORME_WORKER_RESULT_PATH=C:\\forme\\run\\results/result.bin\0"));
     assert!(text.ends_with("\0\0"));
 }
 
@@ -253,6 +254,17 @@ fn startup_recovery_preserves_unknown_overlay_after_revoking_access() {
     let saved = std::fs::metadata(&path).unwrap().len();
     assert!(recovery::recover_pending(&journal).is_err());
     assert_eq!(std::fs::metadata(&path).unwrap().len(), saved);
+    drop(journal);
+    let workspace = temporary.path().join("original");
+    std::fs::create_dir(&workspace).unwrap();
+    let isolation = WindowsAppContainerWorkerIsolation::open(
+        runtime,
+        WorkerLaunchRegistry::default(),
+        BTreeMap::from([("workspace:one".into(), workspace)]),
+    )
+    .expect("incomplete worker recovery must preserve Host composition");
+    let (job, permit) = fixture_job();
+    assert!(isolation.admit(&job, &permit).is_err());
 }
 
 #[test]

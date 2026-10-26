@@ -144,9 +144,11 @@ impl WorkerRuntimeConfig {
     /// not a substitute for platform ACLs or execution-time identity checks.
     pub fn validate_protected_paths(&self, protected: &[&Path]) -> p::Result<()> {
         let result_root = self.result_root();
+        let result_keys = result_root.with_extension("result-keys");
         let writable: Vec<_> = [&self.journal_path, &self.runtime_root]
             .into_iter()
             .chain(std::iter::once(&result_root))
+            .chain(std::iter::once(&result_keys))
             .chain(self.workspace_roots.values())
             .map(|path| path_identity(path))
             .collect::<p::Result<_>>()?;

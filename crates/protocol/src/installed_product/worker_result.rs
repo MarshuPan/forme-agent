@@ -142,7 +142,11 @@ impl WorkerResultManifest {
         if self.expected_digest()? != self.manifest_digest {
             return Err(Error("worker result manifest digest is invalid".into()));
         }
-        if self.produced_at <= 0 || self.bytes > WORKER_RESULT_MAX_BYTES || self.truncated {
+        if self.produced_at <= 0
+            || self.bytes > self.binding.output_budget_bytes
+            || self.bytes > WORKER_RESULT_MAX_BYTES
+            || self.truncated
+        {
             return Err(Error("worker result manifest bounds are invalid".into()));
         }
         if let Some(result_ref) = &self.result_ref {
@@ -257,7 +261,7 @@ impl WorkerResultChunk {
         version(self.schema_version)?;
         validate_product_digest(&self.manifest_digest)?;
         if self.bytes.len() as u64 > WORKER_RESULT_MAX_CHUNK_BYTES
-            || self.next_offset != self.offset + self.bytes.len() as u64
+            || Some(self.next_offset) != self.offset.checked_add(self.bytes.len() as u64)
         {
             return Err(Error("worker result chunk bounds are invalid".into()));
         }

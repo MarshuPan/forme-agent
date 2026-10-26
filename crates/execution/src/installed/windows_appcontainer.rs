@@ -17,11 +17,13 @@ use super::windows_appcontainer_native as native;
 #[cfg(test)]
 use super::windows_appcontainer_support::{environment_block, WorkerEnvironment};
 use super::windows_appcontainer_support::{job_object_name, profile_name_for, recovery_timestamp};
-use super::windows_workspace_overlay::{Completion, PreparedOverlay};
+use super::windows_workspace_overlay::PreparedOverlay;
 use super::{reject_linked_ancestors, WorkerIsolation};
 
 #[path = "windows_appcontainer_recovery.rs"]
 mod recovery;
+#[path = "windows_appcontainer_results.rs"]
+mod results;
 
 /// Windows AppContainer worker isolation with typed lifecycle and recovery.
 /// Win32 calls remain behind the audited native adapters.
@@ -44,6 +46,7 @@ struct RunningWorker {
     run_dir: PathBuf,
     started_at: p::Timestamp,
     overlay: PreparedOverlay,
+    terminal_receipt: Option<p::WorkerReceipt>,
 }
 
 impl WindowsAppContainerWorkerIsolation {
@@ -76,7 +79,10 @@ impl WindowsAppContainerWorkerIsolation {
         let runtime_root = fs::canonicalize(&runtime_root)
             .map_err(|_| p::Error("worker runtime directory cannot be resolved".into()))?;
         let journal = SandboxLeaseJournal::open(&runtime_root.join("sandbox-leases.jsonl"))?;
-        recovery::recover_pending(&journal)?;
+        // Incomplete cleanup blocks worker admission while preserving the
+        // authenticated Host maintenance/query control plane. Configuration,
+        // identities, paths and the journal itself still fail closed above.
+        let recovery_required = recovery::recover_pending(&journal).is_err();
 
         let mut roots = BTreeMap::new();
         for (scope, path) in workspace_roots {
@@ -106,7 +112,7 @@ impl WindowsAppContainerWorkerIsolation {
             workspace_roots: roots,
             journal,
             children: Mutex::new(BTreeMap::new()),
-            recovery_required: AtomicBool::new(false),
+            recovery_required: AtomicBool::new(recovery_required),
         })
     }
 
@@ -175,6 +181,10 @@ impl WindowsAppContainerWorkerIsolation {
                 PreparedOverlay::prepare(&run_dir, &original, job, permit, execution, now)?;
             overlay.prepare_low_integrity()?;
             let workspace = overlay.workspace();
+            let results = run_dir.join("results");
+            fs::create_dir(&results)
+                .map_err(|_| p::Error("worker result directory cannot be created".into()))?;
+            acl::set_low_integrity(&results)?;
 
             let job_path = run_dir.join("job.json");
             let permit_path = run_dir.join("permit.json");
@@ -188,6 +198,12 @@ impl WindowsAppContainerWorkerIsolation {
             self.grant(
                 &lease_id,
                 &workspace,
+                SandboxTargetAccess::WorkspaceReadWrite,
+                profile,
+            )?;
+            self.grant(
+                &lease_id,
+                &results,
                 SandboxTargetAccess::WorkspaceReadWrite,
                 profile,
             )?;
@@ -226,6 +242,7 @@ impl WindowsAppContainerWorkerIsolation {
                 workspace_scope: &job.workspace_scope.0,
                 deadline: job.deadline,
             })?;
+            results::begin_handoff(&run_dir, job)?;
             resources.verify_resume()?;
             let native = resources.finish()?;
             Ok(RunningWorker {
@@ -234,6 +251,7 @@ impl WindowsAppContainerWorkerIsolation {
                 run_dir: run_dir.clone(),
                 started_at: now,
                 overlay,
+                terminal_receipt: None,
             })
         })();
 
@@ -348,6 +366,14 @@ impl WorkerIsolation for WindowsAppContainerWorkerIsolation {
     ) -> p::Result<Option<p::WorkerReceipt>> {
         self.fence_on_error(self.observe_worker(job, now))
     }
+
+    fn result_path(&self, job: &p::WorkerJob) -> p::Result<Option<PathBuf>> {
+        self.fence_on_error(self.terminal_result_path(job))
+    }
+
+    fn result_sealed(&self, job: &p::WorkerJob, now: p::Timestamp) -> p::Result<()> {
+        self.fence_on_error(self.finish_result_handoff(job, now))
+    }
 }
 
 impl WindowsAppContainerWorkerIsolation {
@@ -383,99 +409,16 @@ impl WindowsAppContainerWorkerIsolation {
                 return Err(error);
             }
         };
-        if recovery::cleanup_lease(
-            &self.journal,
-            &worker.lease_id,
-            &worker.run_dir,
-            worker.native.profile(),
-            terminal,
-            now,
-        )
-        .is_err()
-        {
+        if terminal != (true, 0) {
             self.restore_worker(job, worker)?;
-            return Err(p::Error(
-                "worker cancellation or sandbox cleanup is unverifiable".into(),
-            ));
+            return Err(p::Error("worker cancellation is unverifiable".into()));
         }
         let outcome = match cancel_state {
             native::CancelState::Terminated => p::WorkerOutcome::Cancelled,
             native::CancelState::AlreadyExited => p::WorkerOutcome::Unknown,
         };
+        self.restore_worker(job, worker)?;
         self.cancel_receipt(job, now, outcome)
-    }
-
-    fn observe_worker(
-        &self,
-        job: &p::WorkerJob,
-        now: p::Timestamp,
-    ) -> p::Result<Option<p::WorkerReceipt>> {
-        let mut children = self
-            .children
-            .lock()
-            .map_err(|_| p::Error("worker process registry is unavailable".into()))?;
-        let Some(worker) = children.get(&job.job_id) else {
-            return Ok(None);
-        };
-        let observed = worker.native.terminal_state()?;
-        if !observed.0 {
-            return Ok(None);
-        }
-        let orphaned_children = observed.1 != 0;
-        if orphaned_children {
-            worker.native.cancel()?;
-        }
-        let terminal = worker.native.terminal_state()?;
-        if !terminal.0 || terminal.1 != 0 {
-            return Ok(None);
-        }
-        let exit_code = worker.native.exit_code()?;
-        let committed = if exit_code == 0 && !orphaned_children {
-            worker.overlay.complete(job, now)? == Completion::Committed
-        } else {
-            false
-        };
-        recovery::cleanup_lease(
-            &self.journal,
-            &worker.lease_id,
-            &worker.run_dir,
-            worker.native.profile(),
-            terminal,
-            now,
-        )?;
-        let started_at = worker.started_at;
-        let outcome = if committed {
-            p::WorkerOutcome::Completed
-        } else {
-            p::WorkerOutcome::Failed
-        };
-        children.remove(&job.job_id);
-        let digest =
-            p::canonical_digest(&("worker-appcontainer-receipt", &job.job_id, &job.plan_digest))?.0;
-        Ok(Some(p::WorkerReceipt {
-            schema_version: p::SchemaVersion(1),
-            receipt_ref: format!("worker-receipt-{digest}"),
-            job_id: job.job_id.clone(),
-            plan_digest: job.plan_digest.clone(),
-            authority_epoch: job.authority_epoch,
-            nonce: job.nonce.clone(),
-            observed_outcome: outcome,
-            safe_result_ref: Some(format!("worker-result-{digest}")),
-            ground_truth_refs: if orphaned_children {
-                vec![
-                    format!("worker-exit-code-{exit_code}"),
-                    format!("worker-exit-{digest}"),
-                    format!("worker-orphaned-child-tree-{digest}"),
-                ]
-            } else {
-                vec![
-                    format!("worker-exit-{digest}"),
-                    format!("worker-exit-code-{exit_code}"),
-                ]
-            },
-            started_at,
-            finished_at: Some(now),
-        }))
     }
 }
 

@@ -242,7 +242,12 @@ impl WorkerExecutionSpec {
             || self.normalized_action_digest != normalized_action_digest(&self.intent)?
             || self.timeout.0 == 0
             || self.timeout.0 > 600_000
-            || self.timeout.0 > job.deadline.saturating_sub(now).try_into().unwrap_or(0)
+            || self.timeout.0
+                > job
+                    .deadline
+                    .saturating_sub(permit.issued_at)
+                    .try_into()
+                    .unwrap_or(0)
             || self.output_budget_bytes == 0
             || self.output_budget_bytes > 64 * 1024 * 1024
         {

@@ -53,6 +53,16 @@ pub(super) fn environment_block(
             "FORME_WORKER_WORKSPACE_PATH",
             path_string(workspace, "worker workspace path")?,
         ),
+        (
+            "FORME_WORKER_RESULT_PATH",
+            path_string(
+                &job_path
+                    .parent()
+                    .ok_or_else(|| p::Error("worker input parent is missing".into()))?
+                    .join("results/result.bin"),
+                "worker result path",
+            )?,
+        ),
     ]);
     if let Some(path) = execution_path {
         values.insert(

@@ -36,6 +36,7 @@ use forme_coordination::{
     CoordinationReasoner, RuleBasedCoordinationReasoner, SeedOrchestrationLibrary,
 };
 use forme_eval::{DeterministicVerifier, Verifier};
+use forme_execution::installed::{ManagedWorkerBinding, WorkerActionBackend};
 use forme_execution::{
     AppApiBackend, BrowserBackend, CompositeAppApiBackend, ComputerBackend, ContentResolver,
     ExecutionBackendRegistry, FileArtifactStore, FileBackend, HeadlessChromeDriver,
@@ -63,6 +64,7 @@ use super::production_config::*;
 use super::{now_ms, GovernanceConfig, HarnessConfig, ReactiveHarness};
 
 mod builder;
+mod builtin_execution;
 pub use builder::ProductionRuntimeBuilder;
 mod composition;
 use composition::compose;
@@ -467,12 +469,42 @@ struct CompositeCapabilityRechecker {
 
 const BUILTIN_CAPABILITY_SOURCE: &str = "builtin:forme-runtime";
 
+fn try_register_managed_worker_backend(
+    managed_mode: bool,
+    binding: Option<&ManagedWorkerBinding>,
+    kind: p::BackendKind,
+    config: &ProductionRuntimeConfig,
+    budget: &OutputBudget,
+    timeout: p::DurationMs,
+    backends: &ExecutionBackendRegistry,
+) -> p::Result<bool> {
+    if !managed_mode {
+        return Ok(false);
+    }
+    let Some(binding) = binding else {
+        return Ok(false);
+    };
+    if !binding.supports(kind) {
+        return Ok(false);
+    }
+    let owner = p::VerifiedPrincipal(config.owner.0.clone());
+    let Ok(backend) =
+        WorkerActionBackend::from_binding(kind, binding, owner, budget.clone(), timeout)
+    else {
+        return Ok(false);
+    };
+    backends.register(Arc::new(backend))?;
+    Ok(true)
+}
+
 fn assemble_capabilities(
     config: &ProductionRuntimeConfig,
     workspace: &p::WorkspaceRef,
     authority_created_at: p::Timestamp,
     protection: forme_store::StoreContentProtection,
     store: SqliteEventStore,
+    managed_mode: bool,
+    worker_binding: Option<&ManagedWorkerBinding>,
 ) -> p::Result<CapabilityAssembly> {
     let capability_config = &config.capabilities;
     let capabilities = Arc::new(InMemoryCapabilityRegistry::default());
@@ -535,297 +567,24 @@ fn assemble_capabilities(
     let output_budget = OutputBudget::truncate_at(capability_config.output_budget_bytes);
     let timeout = capability_config.timeout;
     let contents: Arc<dyn ContentResolver> = Arc::new(InMemoryContentResolver::default());
-    let rejecting_secrets: Arc<dyn SecretResolver> = Arc::new(RejectingSecretResolver);
-    let mut bindings = BTreeMap::new();
-    let mut builtin_entries = Vec::new();
-    let mut tool_schemas = BTreeMap::new();
-    let mut service_states = Vec::new();
-    let mut browser_active = false;
-    let mut computer_active = false;
-    let mut pty_active = false;
-
-    if capability_config.notification_enabled {
-        let capability = p::CapabilityRef("capability:local-notification".into());
-        let permission = p::PermissionRef("permission:local-notification".into());
-        add_builtin_capability(
-            &mut builtin_entries,
-            &mut bindings,
-            &mut tool_schemas,
-            capability,
-            Capability::Tool(p::ToolRef("tool:local-notification".into())),
-            permission,
-            workspace,
-            p::Risk::High,
-            p::BackendKind::Notification,
-            "notification",
-        );
-        backends.register(Arc::new(NotificationBackend::new(
-            Arc::new(forme_execution::ConsoleNotificationSink),
-            output_budget.clone(),
-            timeout,
-        )))?;
-        service_states.push(RuntimeServiceState::ready("notification-backend"));
-    } else {
-        service_states.push(RuntimeServiceState::unavailable(
-            "notification-backend",
-            RuntimeServiceStatus::Disabled,
-            "notification disabled by explicit configuration",
-        ));
-    }
-
-    if capability_config.file.enabled {
-        match FileBackend::new(
-            capability_config.file.roots.clone(),
-            output_budget.clone(),
-            timeout,
-        ) {
-            Ok(backend) => {
-                backends.register(Arc::new(backend))?;
-                add_builtin_capability(
-                    &mut builtin_entries,
-                    &mut bindings,
-                    &mut tool_schemas,
-                    p::CapabilityRef("capability:file".into()),
-                    Capability::Tool(p::ToolRef("tool:file".into())),
-                    p::PermissionRef("permission:file".into()),
-                    workspace,
-                    p::Risk::Medium,
-                    p::BackendKind::File,
-                    "file",
-                );
-                service_states.push(RuntimeServiceState::ready("file-backend"));
-            }
-            Err(_) => service_states.push(RuntimeServiceState::unavailable(
-                "file-backend",
-                RuntimeServiceStatus::Unsupported,
-                "configured file roots are unavailable",
-            )),
-        }
-    } else {
-        service_states.push(RuntimeServiceState::unavailable(
-            "file-backend",
-            RuntimeServiceStatus::Disabled,
-            "file backend disabled by explicit configuration",
-        ));
-    }
-
-    if capability_config.shell.enabled {
-        let sandbox = ShellSandbox {
-            schema_version: p::SchemaVersion(1),
-            available: true,
-            allowed_programs: capability_config.shell.allowed_programs.clone(),
-            allowed_roots: capability_config.shell.allowed_roots.clone(),
-            environment: capability_config.shell.environment.clone(),
-            network_allowed: capability_config.shell.network_allowed,
-        };
-        match ShellBackend::new(sandbox, output_budget.clone(), timeout) {
-            Ok(backend) => {
-                backends.register(Arc::new(backend))?;
-                add_builtin_capability(
-                    &mut builtin_entries,
-                    &mut bindings,
-                    &mut tool_schemas,
-                    p::CapabilityRef("capability:shell".into()),
-                    Capability::Tool(p::ToolRef("tool:shell".into())),
-                    p::PermissionRef("permission:shell".into()),
-                    workspace,
-                    p::Risk::High,
-                    p::BackendKind::Shell,
-                    "shell",
-                );
-                service_states.push(RuntimeServiceState::ready("shell-backend"));
-            }
-            Err(_) => service_states.push(RuntimeServiceState::unavailable(
-                "shell-backend",
-                RuntimeServiceStatus::Unsupported,
-                "configured shell roots or programs are unavailable",
-            )),
-        }
-    } else {
-        service_states.push(RuntimeServiceState::unavailable(
-            "shell-backend",
-            RuntimeServiceStatus::Disabled,
-            "shell backend disabled by explicit configuration",
-        ));
-    }
-
-    let artifact_store = if capability_config.browser.enabled || capability_config.computer.enabled
-    {
-        FileArtifactStore::new(config.data.artifact_root.clone())
-            .ok()
-            .map(|inner| {
-                Arc::new(ProtectedRuntimeArtifacts {
-                    inner,
-                    protection: protection.clone(),
-                    store: store.clone(),
-                    owner: p::VerifiedPrincipal(config.owner.0.clone()),
-                }) as Arc<dyn forme_execution::ArtifactStore>
-            })
-    } else {
-        None
-    };
-
-    if capability_config.browser.enabled
-        && capability_config.browser.driver.0 == "browser:chrome"
-        && capability_config.browser.executable.is_some()
-        && !capability_config.browser.allowed_origins.is_empty()
-    {
-        match (
-            capability_config.browser.executable.clone(),
-            artifact_store.clone(),
-        ) {
-            (Some(executable), Some(artifacts)) => {
-                let driver =
-                    HeadlessChromeDriver::new(executable, contents.clone(), artifacts, timeout);
-                match driver.and_then(|driver| {
-                    BrowserBackend::new(
-                        capability_config.browser.driver.clone(),
-                        Arc::new(driver),
-                        rejecting_secrets.clone(),
-                        output_budget.clone(),
-                        timeout,
-                    )
-                }) {
-                    Ok(backend) => {
-                        backends.register(Arc::new(backend))?;
-                        add_builtin_capability(
-                            &mut builtin_entries,
-                            &mut bindings,
-                            &mut tool_schemas,
-                            p::CapabilityRef("capability:browser".into()),
-                            Capability::Tool(p::ToolRef("tool:browser".into())),
-                            p::PermissionRef("permission:browser".into()),
-                            workspace,
-                            p::Risk::High,
-                            p::BackendKind::Browser,
-                            "browser",
-                        );
-                        browser_active = true;
-                        service_states.push(RuntimeServiceState::ready("browser-backend"));
-                    }
-                    Err(_) => service_states.push(RuntimeServiceState::unavailable(
-                        "browser-backend",
-                        RuntimeServiceStatus::Unsupported,
-                        "browser driver or artifact store is unavailable",
-                    )),
-                }
-            }
-            _ => service_states.push(RuntimeServiceState::unavailable(
-                "browser-backend",
-                RuntimeServiceStatus::Unsupported,
-                "browser driver or artifact store is unavailable",
-            )),
-        }
-    } else if capability_config.browser.enabled {
-        service_states.push(RuntimeServiceState::unavailable(
-            "browser-backend",
-            RuntimeServiceStatus::Unsupported,
-            "browser driver, executable, or allowed origins are unavailable",
-        ));
-    } else {
-        service_states.push(RuntimeServiceState::unavailable(
-            "browser-backend",
-            RuntimeServiceStatus::Disabled,
-            "browser backend disabled by explicit configuration",
-        ));
-    }
-
-    let computer_surfaces_valid = !capability_config.computer.surfaces.is_empty()
-        && capability_config.computer.surfaces.iter().all(|surface| {
-            surface.schema_version.0 > 0
-                && !surface.surface.0.trim().is_empty()
-                && surface.bounds.validate().is_ok()
-        });
-    if capability_config.computer.enabled
-        && capability_config.computer.driver.0 == "computer:native"
-        && computer_surfaces_valid
-    {
-        match artifact_store.clone().map(|artifacts| {
-            build_computer_backend(
-                &capability_config.computer,
-                contents.clone(),
-                artifacts,
-                rejecting_secrets.clone(),
-                output_budget.clone(),
-                timeout,
-            )
-        }) {
-            Some(Ok(backend)) => {
-                backends.register(Arc::new(backend))?;
-                add_builtin_capability(
-                    &mut builtin_entries,
-                    &mut bindings,
-                    &mut tool_schemas,
-                    p::CapabilityRef("capability:computer".into()),
-                    Capability::Tool(p::ToolRef("tool:computer".into())),
-                    p::PermissionRef("permission:computer".into()),
-                    workspace,
-                    p::Risk::High,
-                    p::BackendKind::Computer,
-                    "computer",
-                );
-                computer_active = true;
-                service_states.push(RuntimeServiceState::ready("computer-backend"));
-            }
-            _ => service_states.push(RuntimeServiceState::unavailable(
-                "computer-backend",
-                RuntimeServiceStatus::Unsupported,
-                "computer driver or artifact store is unavailable",
-            )),
-        }
-    } else if capability_config.computer.enabled {
-        service_states.push(RuntimeServiceState::unavailable(
-            "computer-backend",
-            RuntimeServiceStatus::Unsupported,
-            "computer driver, surfaces, or artifact store are unavailable",
-        ));
-    } else {
-        service_states.push(RuntimeServiceState::unavailable(
-            "computer-backend",
-            RuntimeServiceStatus::Disabled,
-            "computer backend disabled by explicit configuration",
-        ));
-    }
-
-    if capability_config.pty.enabled {
-        match PtyBackend::new(
-            capability_config.pty.allowed_programs.clone(),
-            capability_config.pty.allowed_roots.clone(),
-            rejecting_secrets.clone(),
-            contents.clone(),
-            output_budget.clone(),
-            timeout,
-        ) {
-            Ok(backend) => {
-                backends.register(Arc::new(backend))?;
-                add_builtin_capability(
-                    &mut builtin_entries,
-                    &mut bindings,
-                    &mut tool_schemas,
-                    p::CapabilityRef("capability:pty".into()),
-                    Capability::Tool(p::ToolRef("tool:pty".into())),
-                    p::PermissionRef("permission:pty".into()),
-                    workspace,
-                    p::Risk::High,
-                    p::BackendKind::Pty,
-                    "pty",
-                );
-                pty_active = true;
-                service_states.push(RuntimeServiceState::ready("pty-backend"));
-            }
-            Err(_) => service_states.push(RuntimeServiceState::unavailable(
-                "pty-backend",
-                RuntimeServiceStatus::Unsupported,
-                "configured PTY programs or roots are unavailable",
-            )),
-        }
-    } else {
-        service_states.push(RuntimeServiceState::unavailable(
-            "pty-backend",
-            RuntimeServiceStatus::Disabled,
-            "PTY backend disabled by explicit configuration",
-        ));
-    }
+    let builtin_execution::BuiltinExecution {
+        mut bindings,
+        entries: builtin_entries,
+        tool_schemas,
+        mut service_states,
+        browser_active,
+        computer_active,
+        pty_active,
+    } = builtin_execution::assemble(builtin_execution::Inputs {
+        config,
+        workspace,
+        protection,
+        store,
+        backends: backends.clone(),
+        contents: contents.clone(),
+        managed_mode,
+        worker_binding,
+    })?;
 
     if !builtin_entries.is_empty() {
         capabilities.index(CapabilitySource {
@@ -854,6 +613,14 @@ fn assemble_capabilities(
                 format!("mcp:{}", id.0),
                 RuntimeServiceStatus::Disabled,
                 "MCP server disabled by explicit configuration",
+            ));
+            continue;
+        }
+        if managed_mode && entry.discover_on_start {
+            service_states.push(RuntimeServiceState::unavailable(
+                format!("mcp:{}", id.0),
+                RuntimeServiceStatus::Blocking,
+                "managed MCP discovery requires a worker-owned discovery path",
             ));
             continue;
         }
@@ -903,7 +670,9 @@ fn assemble_capabilities(
             }
         } else {
             active_mcp.insert(id.clone());
-            service_states.push(RuntimeServiceState::ready(format!("mcp:{}", id.0)));
+            if !managed_mode {
+                service_states.push(RuntimeServiceState::ready(format!("mcp:{}", id.0)));
+            }
         }
     }
     if active_mcp.is_empty() {
@@ -920,6 +689,35 @@ fn assemble_capabilities(
                 "no MCP server is active and granted"
             },
         ));
+    } else if managed_mode {
+        let ready = try_register_managed_worker_backend(
+            managed_mode,
+            worker_binding,
+            p::BackendKind::Mcp,
+            config,
+            &output_budget,
+            timeout,
+            &backends,
+        )?;
+        if ready {
+            for id in &active_mcp {
+                service_states.push(RuntimeServiceState::ready(format!("mcp:{}", id.0)));
+            }
+            service_states.push(RuntimeServiceState::ready("mcp-registry"));
+        } else {
+            for id in &active_mcp {
+                service_states.push(RuntimeServiceState::unavailable(
+                    format!("mcp:{}", id.0),
+                    RuntimeServiceStatus::Blocking,
+                    "managed worker binding is missing or unavailable",
+                ));
+            }
+            service_states.push(RuntimeServiceState::unavailable(
+                "mcp-registry",
+                RuntimeServiceStatus::Blocking,
+                "managed worker binding is missing or unavailable",
+            ));
+        }
     } else {
         backends.register(Arc::new(McpBackend::new(output_budget.clone(), timeout)?))?;
         service_states.push(RuntimeServiceState::ready("mcp-registry"));
@@ -976,6 +774,7 @@ fn assemble_capabilities(
     let mut app_api_backends = Vec::new();
     let mut app_api_limits = Vec::new();
     let mut app_api_schemas = BTreeMap::new();
+    let mut managed_app_api_backend_ready = false;
     for entry in &capability_config.app_api {
         let id = entry.provider_id.clone();
         if app_api.connector(&id).is_err() {
@@ -993,6 +792,74 @@ fn assemble_capabilities(
                 RuntimeServiceStatus::Disabled,
                 "App API connector disabled by explicit configuration",
             ));
+            continue;
+        }
+        if managed_mode {
+            let credential_ref = entry
+                .credential_env
+                .as_ref()
+                .map(|name| p::SecretRef(format!("env:{name}")));
+            let (Some(trust), Some(grant)) = (entry.trust, entry.grant.clone()) else {
+                service_states.push(RuntimeServiceState::unavailable(
+                    format!("app-api:{}", id.0),
+                    RuntimeServiceStatus::Disabled,
+                    "App API connector has no explicit trust and grant binding",
+                ));
+                continue;
+            };
+            if grant.budget != capability_config.envelope_budget
+                || app_api.enable(id.clone()).is_err()
+                || app_api
+                    .bind_trust(id.clone(), trust, p::Actor::Owner)
+                    .is_err()
+                || app_api.grant(id.clone(), grant).is_err()
+            {
+                let _ = app_api.revoke(id.clone(), p::LineageRef("runtime-assembly".into()));
+                service_states.push(RuntimeServiceState::unavailable(
+                    format!("app-api:{}", id.0),
+                    RuntimeServiceStatus::Blocking,
+                    "managed App API worker binding is invalid",
+                ));
+                continue;
+            }
+            if !managed_app_api_backend_ready {
+                managed_app_api_backend_ready = try_register_managed_worker_backend(
+                    managed_mode,
+                    worker_binding,
+                    p::BackendKind::AppApi,
+                    config,
+                    &output_budget,
+                    timeout,
+                    &backends,
+                )?;
+            }
+            if !managed_app_api_backend_ready {
+                let _ = app_api.revoke(id.clone(), p::LineageRef("runtime-assembly".into()));
+                service_states.push(RuntimeServiceState::unavailable(
+                    format!("app-api:{}", id.0),
+                    RuntimeServiceStatus::Blocking,
+                    "managed worker binding is missing or unavailable",
+                ));
+                continue;
+            }
+            app_api_limits.push(AppApiConnectorLimit {
+                schema_version: p::SchemaVersion(1),
+                connector: id.clone(),
+                base_url: entry.base_url.clone(),
+                schema_digest: entry.schema_digest.clone(),
+                credential_ref,
+                allowed_mutations: entry.allowed_mutations.clone(),
+                max_timeout: entry.timeout,
+            });
+            app_api_schemas.insert(
+                id.clone(),
+                format!(
+                    "app-api connector={} schema_digest={}",
+                    id.0, entry.schema_digest.0
+                ),
+            );
+            active_app_api.insert(id.clone());
+            service_states.push(RuntimeServiceState::ready(format!("app-api:{}", id.0)));
             continue;
         }
         let credential_ref = entry

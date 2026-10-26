@@ -158,6 +158,82 @@ fn wait_for_terminal(
 }
 
 #[test]
+fn result_ciphertext_survives_restart_but_wrong_missing_keys_and_tampering_never_read() {
+    let temp = Temp::new();
+    let auth = agent_auth(&temp);
+    let worker = host(&temp, Vec::new());
+    let (job, permit) = job("job-encrypted-result", 500);
+    worker.dispatch(&auth, job.clone(), permit, 10).unwrap();
+    assert_eq!(
+        wait_for_terminal(&worker, &auth, &job.job_id).state,
+        p::WorkerState::Completed
+    );
+    let manifest = worker.result_manifest(&auth, &job.job_id, 201).unwrap();
+    let suffix = manifest.manifest_digest.0.strip_prefix("sha256:").unwrap();
+    let artifact = temp
+        .0
+        .join("worker.results")
+        .join(format!("data-{suffix}.bin"));
+    let key_path = temp
+        .0
+        .join("worker.result-keys")
+        .join(format!("{suffix}.key"));
+    let envelope = fs::read(&artifact).unwrap();
+    let key = fs::read(&key_path).unwrap();
+    assert_eq!(key.len(), 32);
+    assert!(envelope.starts_with(b"FRMRES01"));
+    assert!(!envelope
+        .windows(b"worker fixture result".len())
+        .any(|part| part == b"worker fixture result"));
+    drop(worker);
+    let journal = fs::read(temp.journal()).unwrap();
+    assert!(!journal
+        .windows(key.len())
+        .any(|part| part == key.as_slice()));
+    assert!(!journal
+        .windows(b"worker fixture result".len())
+        .any(|part| part == b"worker fixture result"));
+    let read = p::WorkerResultRead {
+        schema_version: p::WORKER_RESULT_SCHEMA_VERSION,
+        binding: manifest.binding.clone(),
+        manifest_digest: manifest.manifest_digest.clone(),
+        offset: 0,
+        max_bytes: p::WORKER_RESULT_MAX_CHUNK_BYTES,
+    };
+    let worker = host(&temp, Vec::new());
+    assert_eq!(
+        worker.read_result(&auth, read.clone(), 202).unwrap().bytes,
+        b"worker fixture result\n"
+    );
+    let mut damaged = envelope.clone();
+    *damaged.last_mut().unwrap() ^= 1;
+    fs::write(&artifact, damaged).unwrap();
+    assert!(worker.read_result(&auth, read.clone(), 203).is_err());
+    fs::write(&artifact, &envelope).unwrap();
+    let mut wrong_key = key.clone();
+    wrong_key[0] ^= 1;
+    fs::write(&key_path, wrong_key).unwrap();
+    assert!(worker.read_result(&auth, read.clone(), 204).is_err());
+    fs::write(&key_path, &key).unwrap();
+    assert_eq!(
+        worker.read_result(&auth, read.clone(), 205).unwrap().bytes,
+        b"worker fixture result\n"
+    );
+    fs::remove_file(&key_path).unwrap();
+    drop(worker);
+    let worker = host(&temp, Vec::new());
+    assert!(worker.read_result(&auth, read, 206).is_err());
+    assert!(!key_path.exists());
+    assert_eq!(
+        fs::read_to_string(temp.workspace().join("worker-fixture-ran"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn process_worker_uses_registered_program_and_reports_completion() {
     let temp = Temp::new();
     let auth = agent_auth(&temp);

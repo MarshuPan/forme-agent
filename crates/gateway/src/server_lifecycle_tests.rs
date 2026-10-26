@@ -655,7 +655,10 @@ async fn shutdown_stops_background_claims_and_leaves_later_intentions_pending() 
     let due = now_ms() - 1;
     let first =
         SchedulerGatewayControl::schedule(harness.as_ref(), reminder("a:first", due)).unwrap();
-    let later = now_ms() + 1000;
+    // Startup and durable notification completion may take longer than a
+    // second. Keep the existing intention well outside that window; a due
+    // intention added after shutdown below tests that the scheduler stopped.
+    let later = now_ms() + 60_000;
     let remaining =
         SchedulerGatewayControl::schedule(harness.as_ref(), reminder("b:next", later)).unwrap();
     drop(harness);
@@ -679,14 +682,25 @@ async fn shutdown_stops_background_claims_and_leaves_later_intentions_pending() 
         .unwrap()
         .unwrap()
         .unwrap();
-    while now_ms() <= later + 30 {
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    let after_stop = SchedulerGatewayControl::schedule(
+        runtime.harness().as_ref(),
+        reminder("c:after-stop", now_ms() - 1),
+    )
+    .unwrap();
+    tokio::time::sleep(Duration::from_millis(100)).await;
     let jobs = runtime.harness().list_jobs().unwrap();
-    assert_eq!(jobs.len(), 2);
+    assert_eq!(jobs.len(), 3);
     assert_eq!(
         jobs.iter()
             .find(|job| job.intention.id == remaining)
+            .unwrap()
+            .intention
+            .state,
+        p::IntentionState::Pending
+    );
+    assert_eq!(
+        jobs.iter()
+            .find(|job| job.intention.id == after_stop)
             .unwrap()
             .intention
             .state,

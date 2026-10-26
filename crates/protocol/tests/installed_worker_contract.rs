@@ -114,3 +114,18 @@ fn dispatch_wire_accepts_legacy_request_without_optional_execution() {
     let decoded: p::WorkerDispatchRequest = serde_json::from_value(value).unwrap();
     assert!(decoded.execution.is_none());
 }
+
+#[test]
+fn transport_delay_preserves_the_fixed_timeout_and_never_extends_the_deadline() {
+    let mut request = request(10_000);
+    request.permit.issued_at = 10_000;
+    request.job.deadline = 15_000;
+    request.permit.deadline = 15_000;
+    let original = request.clone();
+    request.validate_at(10_025).unwrap();
+    request.validate_at(14_999).unwrap();
+    assert_eq!(request, original);
+    assert!(request.validate_at(15_000).is_err());
+    request.execution.as_mut().unwrap().timeout = p::DurationMs(5_001);
+    assert!(request.validate_at(10_025).is_err());
+}

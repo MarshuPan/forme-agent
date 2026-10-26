@@ -311,6 +311,193 @@ fn host<I: WorkerIsolation>(temp: &Temp, isolation: I) -> WorkerExecutorHost<I> 
     .unwrap()
 }
 
+#[derive(Clone)]
+struct SealLifecycle {
+    root: PathBuf,
+    reject_cleanup: bool,
+    cancel_only: bool,
+    cleanups: Arc<AtomicU64>,
+}
+
+impl WorkerIsolation for SealLifecycle {
+    fn admit(&self, _job: &p::WorkerJob, _permit: &p::WorkerPermit) -> p::Result<()> {
+        fs::write(self.root.join("source.bin"), b"retained result").unwrap();
+        Ok(())
+    }
+
+    fn cancel(&self, job: &p::WorkerJob) -> p::Result<p::WorkerCancelReceipt> {
+        Ok(p::WorkerCancelReceipt {
+            schema_version: p::SchemaVersion(1),
+            job_id: job.job_id.clone(),
+            plan_digest: job.plan_digest.clone(),
+            nonce: job.nonce.clone(),
+            outcome: p::WorkerOutcome::Cancelled,
+            observed_at: 20,
+            receipt_ref: Some("receipt:cancel-seal".into()),
+            reason_ref: None,
+        })
+    }
+
+    fn observe(
+        &self,
+        job: &p::WorkerJob,
+        now: p::Timestamp,
+    ) -> p::Result<Option<p::WorkerReceipt>> {
+        if self.cancel_only {
+            return Ok(None);
+        }
+        Ok(Some(p::WorkerReceipt {
+            schema_version: p::SchemaVersion(1),
+            receipt_ref: "receipt:sealed".into(),
+            job_id: job.job_id.clone(),
+            plan_digest: job.plan_digest.clone(),
+            authority_epoch: job.authority_epoch,
+            nonce: job.nonce.clone(),
+            observed_outcome: p::WorkerOutcome::Completed,
+            safe_result_ref: Some("result:sealed".into()),
+            ground_truth_refs: vec!["fixture:exit".into()],
+            started_at: 10,
+            finished_at: Some(now),
+        }))
+    }
+
+    fn result_path(&self, _job: &p::WorkerJob) -> p::Result<Option<PathBuf>> {
+        Ok(Some(self.root.join("source.bin")))
+    }
+
+    fn result_sealed(&self, _job: &p::WorkerJob, _now: p::Timestamp) -> p::Result<()> {
+        let artifacts = fs::read_dir(self.root.join("worker.results"))
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        assert!(artifacts
+            .iter()
+            .any(|path| path.extension().is_some_and(|value| value == "json")));
+        assert!(artifacts
+            .iter()
+            .any(|path| path.extension().is_some_and(|value| value == "bin")));
+        self.cleanups.fetch_add(1, Ordering::SeqCst);
+        if self.reject_cleanup {
+            return Err(p::Error("fixture cleanup failed".into()));
+        }
+        fs::remove_file(self.root.join("source.bin")).unwrap();
+        Ok(())
+    }
+}
+
+#[test]
+fn result_handoff_orders_manifest_cleanup_receipt_and_never_retries_failed_cleanup() {
+    for reject_cleanup in [false, true] {
+        let temp = Temp::new();
+        let (_broker, _maintenance, agent) = auths(&temp);
+        let cleanups = Arc::new(AtomicU64::new(0));
+        let host = host(
+            &temp,
+            SealLifecycle {
+                root: temp.0.clone(),
+                reject_cleanup,
+                cancel_only: false,
+                cleanups: cleanups.clone(),
+            },
+        );
+        let (job, permit) = make_job(100);
+        host.dispatch(&agent, job.clone(), permit.clone(), 10)
+            .unwrap();
+        let observed = if reject_cleanup {
+            host.result_manifest(&agent, &job.job_id, 20)
+                .map(|_| unreachable!())
+        } else {
+            host.probe(&agent, &job.job_id, 20)
+        };
+        if reject_cleanup {
+            assert!(observed.is_err());
+            assert_eq!(
+                host.probe(&agent, &job.job_id, 21).unwrap().state,
+                p::WorkerState::Unknown
+            );
+            assert_eq!(
+                host.dispatch(&agent, job, permit, 22).unwrap().state,
+                p::WorkerState::Unknown
+            );
+            assert!(temp.0.join("source.bin").is_file());
+        } else {
+            assert_eq!(observed.unwrap().state, p::WorkerState::Completed);
+            assert!(!temp.0.join("source.bin").exists());
+        }
+        assert_eq!(cleanups.load(Ordering::SeqCst), 1);
+        drop(host);
+        let records = fs::read_to_string(temp.worker_journal()).unwrap();
+        assert!(records.contains("\"record\":\"result_manifest\""));
+        let receipt = records.find("\"record\":\"receipt\"");
+        assert_eq!(receipt.is_none(), reject_cleanup);
+        if let Some(receipt) = receipt {
+            assert!(records.find("\"record\":\"result_manifest\"").unwrap() < receipt);
+        }
+    }
+}
+
+#[test]
+fn cancellation_seals_existing_source_without_fabricating_completion() {
+    let temp = Temp::new();
+    let (_broker, _maintenance, agent) = auths(&temp);
+    let host = host(
+        &temp,
+        SealLifecycle {
+            root: temp.0.clone(),
+            reject_cleanup: false,
+            cancel_only: true,
+            cleanups: Arc::new(AtomicU64::new(0)),
+        },
+    );
+    let (job, permit) = make_job(100);
+    host.dispatch(&agent, job.clone(), permit, 10).unwrap();
+    assert_eq!(
+        host.cancel(&agent, &job.job_id, 20).unwrap().outcome,
+        p::WorkerOutcome::Cancelled
+    );
+    assert_eq!(
+        host.probe(&agent, &job.job_id, 21).unwrap().state,
+        p::WorkerState::Cancelled
+    );
+    let manifest = host.result_manifest(&agent, &job.job_id, 22).unwrap();
+    assert_eq!(manifest.status, p::WorkerResultStatus::Available);
+    assert_eq!(manifest.outcome, Some(p::WorkerOutcome::Cancelled));
+    assert!(!temp.0.join("source.bin").exists());
+}
+
+#[test]
+fn cancel_result_cleanup_failure_stays_unknown_without_repeating_cleanup() {
+    let temp = Temp::new();
+    let (_broker, _maintenance, agent) = auths(&temp);
+    let cleanups = Arc::new(AtomicU64::new(0));
+    let host = host(
+        &temp,
+        SealLifecycle {
+            root: temp.0.clone(),
+            reject_cleanup: true,
+            cancel_only: true,
+            cleanups: cleanups.clone(),
+        },
+    );
+    let (job, permit) = make_job(100);
+    host.dispatch(&agent, job.clone(), permit, 10).unwrap();
+    assert!(host.cancel(&agent, &job.job_id, 20).is_err());
+    assert_eq!(
+        host.probe(&agent, &job.job_id, 21).unwrap().state,
+        p::WorkerState::Unknown
+    );
+    assert_eq!(
+        host.cancel(&agent, &job.job_id, 22).unwrap().outcome,
+        p::WorkerOutcome::Unknown
+    );
+    assert_eq!(cleanups.load(Ordering::SeqCst), 1);
+    assert!(temp.0.join("source.bin").exists());
+    drop(host);
+    let records = fs::read_to_string(temp.worker_journal()).unwrap();
+    assert!(!records.contains("\"record\":\"cancel_receipt\""));
+}
+
 #[test]
 fn worker_requires_agent_domain_and_real_isolation() {
     let temp = Temp::new();

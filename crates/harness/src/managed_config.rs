@@ -2,6 +2,7 @@
 use crate::{
     CapabilityRuntimeConfig, CognitiveRuntimeConfig, DataProtectionConfig, ProductionRuntimeConfig,
 };
+use forme_execution::installed::ManagedWorkerBinding;
 use forme_models::{ModelRegistryConfig, ModelRuntimeConfig};
 use forme_protocol as p;
 use serde::Deserialize;
@@ -26,6 +27,11 @@ pub struct ManagedBrainConfig {
     pub workspace: p::WorkspaceRef,
     pub agent_profile: p::AgentProfileRef,
     pub models: Vec<ManagedModelProfile>,
+    /// Explicit core-to-AgentExecution binding. A missing binding keeps all
+    /// managed external-effect capabilities unavailable; it never falls back
+    /// to a brain-process backend.
+    #[serde(default)]
+    pub worker_binding: Option<ManagedWorkerBinding>,
     #[serde(default)]
     pub model_proxy: Option<p::ProductProxyConfig>,
     #[serde(default)]

@@ -1,11 +1,14 @@
 //! Composition inputs and credential binding. The composition itself is shared
 //! by managed services, development entry points and durable-store fixtures.
 use super::*;
+use forme_execution::installed::ManagedWorkerBinding;
 
 pub struct ProductionRuntimeBuilder {
     config: ProductionRuntimeConfig,
     credential_files: Option<ManagedModelSources>,
     managed_key_directory: Option<PathBuf>,
+    managed_mode: bool,
+    worker_binding: Option<ManagedWorkerBinding>,
     // None is development; Some(None) is a managed, unrestored store.
     required_restoration_fence: Option<Option<p::SchemaDigest>>,
 }
@@ -27,6 +30,8 @@ impl ProductionRuntimeBuilder {
             config,
             credential_files: None,
             managed_key_directory: None,
+            managed_mode: false,
+            worker_binding: None,
             required_restoration_fence: None,
         })
     }
@@ -48,6 +53,7 @@ impl ProductionRuntimeBuilder {
             }
             None => None,
         };
+        let worker_binding = config.worker_binding.clone();
         let runtime = config.runtime_config()?;
         let key_directory = config.content_key_directory()?;
         let expected_fence = config.expected_restoration_fence.clone();
@@ -64,6 +70,8 @@ impl ProductionRuntimeBuilder {
                 proxy: model_proxy,
             }),
             managed_key_directory: Some(key_directory),
+            managed_mode: true,
+            worker_binding,
             required_restoration_fence: Some(expected_fence),
         })
     }
@@ -129,7 +137,14 @@ impl ProductionRuntimeBuilder {
                 Arc::new(keys),
             )?)?;
         }
-        let mut runtime = compose(self.config, store, self.credential_files, access)?;
+        let mut runtime = compose(
+            self.config,
+            store,
+            self.credential_files,
+            access,
+            self.managed_mode,
+            self.worker_binding,
+        )?;
         runtime.data_operation_root = data_operation_root;
         Ok(runtime)
     }

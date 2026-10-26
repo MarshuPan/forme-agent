@@ -2,13 +2,13 @@
 //!
 //! This client is deliberately narrower than the maintenance clients: it can
 //! only reach a loopback AgentExecution listener with its dedicated bearer and
-//! only exposes dispatch, probe, and cancel. It never creates a permit or
+//! only exposes dispatch, probe, cancel, and bounded result reads. It never creates a permit or
 //! retries an action after an uncertain side effect.
 
 use std::{
     fs,
     io::{Read, Write},
-    net::{SocketAddr, TcpStream},
+    net::SocketAddr,
     path::Path,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -49,9 +49,9 @@ enum AgentExecutionEndpoint {
 }
 
 enum AgentExecutionStream {
-    Tcp(TcpStream),
+    Tcp(super::worker_socket::DeadlineSocket),
     #[cfg(windows)]
-    NamedPipe(std::fs::File),
+    NamedPipe(super::worker_pipe::DeadlinePipe),
 }
 
 impl Read for AgentExecutionStream {
@@ -132,21 +132,26 @@ impl WorkerBrokerClient {
 
         let (mut stream, host) = match &self.endpoint {
             AgentExecutionEndpoint::Tcp(address) => {
-                let stream = TcpStream::connect_timeout(address, REQUEST_TIMEOUT)
-                    .map_err(|_| operation.transport_error())?;
-                stream
-                    .set_read_timeout(Some(REQUEST_TIMEOUT))
-                    .and_then(|_| stream.set_write_timeout(Some(REQUEST_TIMEOUT)))
-                    .map_err(|_| operation.transport_error())?;
+                let stream =
+                    super::worker_socket::DeadlineSocket::connect(address, REQUEST_TIMEOUT)
+                        .map_err(|_| operation.transport_error())?;
                 (AgentExecutionStream::Tcp(stream), address.to_string())
             }
             #[cfg(windows)]
-            AgentExecutionEndpoint::NamedPipe(name) => (
-                AgentExecutionStream::NamedPipe(
-                    super::windows_agent_execution_native::open_agent_execution_pipe(name)?,
-                ),
-                "forme-agent-execution".to_owned(),
-            ),
+            AgentExecutionEndpoint::NamedPipe(name) => {
+                let started = std::time::Instant::now();
+                let file = super::windows_agent_execution_native::open_agent_execution_pipe(name)?;
+                let remaining = REQUEST_TIMEOUT
+                    .checked_sub(started.elapsed())
+                    .filter(|remaining| !remaining.is_zero())
+                    .ok_or_else(|| operation.transport_error())?;
+                (
+                    AgentExecutionStream::NamedPipe(super::worker_pipe::DeadlinePipe::new(
+                        file, remaining,
+                    )),
+                    "forme-agent-execution".to_owned(),
+                )
+            }
         };
         let header = format!(
             "{method} {path} HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nAccept: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -259,7 +264,12 @@ impl WorkerBrokerTransport for WorkerBrokerClient {
         )?;
         let manifest: p::WorkerResultManifest = decode(&body, Operation::ResultManifest)?;
         manifest.validate()?;
-        if manifest.binding.job_id != job_id {
+        if manifest.binding.job_id != job_id
+            || manifest.binding.installation_ref
+                != super::worker_results::installation_ref(&p::canonical_digest(
+                    &self.credential.as_str(),
+                )?)?
+        {
             return Err(p::Error(
                 "agent execution result is bound to another job".into(),
             ));
@@ -269,6 +279,15 @@ impl WorkerBrokerTransport for WorkerBrokerClient {
 
     fn read_result(&self, request: p::WorkerResultRead) -> p::Result<p::WorkerResultChunk> {
         request.validate()?;
+        if request.binding.installation_ref
+            != super::worker_results::installation_ref(&p::canonical_digest(
+                &self.credential.as_str(),
+            )?)?
+        {
+            return Err(p::Error(
+                "agent execution result belongs to another installation".into(),
+            ));
+        }
         let job_id = request.binding.job_id.clone();
         let body = self.json(
             "POST",

@@ -56,7 +56,13 @@ impl WorkerExecutionBinding {
             || p::validate_product_digest(&self.normalized_action_digest).is_err()
             || self.timeout.0 == 0
             || self.timeout.0 > 600_000
-            || self.timeout.0 > job.deadline.saturating_sub(at).try_into().unwrap_or(0)
+            || self.timeout.0
+                > job
+                    .deadline
+                    .saturating_sub(permit.issued_at)
+                    .try_into()
+                    .unwrap_or(0)
+            || at >= job.deadline
             || self.output_budget_bytes == 0
             || self.output_budget_bytes > 64 * 1024 * 1024
             || job.plan_digest != permit.plan_digest

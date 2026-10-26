@@ -6,8 +6,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use forme_execution::installed::{
-    WorkerBrokerClient, WorkerBrokerTransport, WorkerLaunchProfileConfig, WorkerRuntimeConfig,
+    WorkerActionBackend, WorkerBrokerClient, WorkerBrokerTransport, WorkerLaunchProfileConfig,
+    WorkerRuntimeConfig,
 };
+use forme_execution::{ActionBackend, ActionStatus, CancelToken, EventSink, OutputBudget};
 use forme_protocol as p;
 use forme_protocol::WorkerExecutionSpec;
 
@@ -607,4 +609,161 @@ fn invalid_worker_requests_and_routes_have_no_admission_or_side_effect() {
     }
     assert_eq!(std::fs::metadata(&journal).unwrap().len(), baseline);
     assert!(!daemon.root.join("workspace/worker-fixture-ran").exists());
+}
+
+struct DelayedClient {
+    client: WorkerBrokerClient,
+    lose_dispatch_response: bool,
+}
+
+impl WorkerBrokerTransport for DelayedClient {
+    fn dispatch(&self, request: p::WorkerDispatchRequest) -> p::Result<p::WorkerObservation> {
+        std::thread::sleep(Duration::from_millis(25));
+        let observation = self.client.dispatch(request)?;
+        if self.lose_dispatch_response {
+            Err(p::Error(
+                "test intentionally lost an admitted response".into(),
+            ))
+        } else {
+            Ok(observation)
+        }
+    }
+    fn probe(&self, id: &str) -> p::Result<p::WorkerObservation> {
+        self.client.probe(id)
+    }
+    fn cancel(&self, id: &str) -> p::Result<p::WorkerCancelReceipt> {
+        self.client.cancel(id)
+    }
+    fn result_manifest(&self, id: &str) -> p::Result<p::WorkerResultManifest> {
+        self.client.result_manifest(id)
+    }
+    fn read_result(&self, read: p::WorkerResultRead) -> p::Result<p::WorkerResultChunk> {
+        self.client.read_result(read)
+    }
+}
+
+fn action_backend(daemon: &Daemon, lose_dispatch_response: bool) -> WorkerActionBackend {
+    let credential = daemon.root.join("backend-agent.token");
+    std::fs::write(&credential, AGENT_TOKEN).unwrap();
+    let client =
+        WorkerBrokerClient::connect(daemon.agent_address.parse().unwrap(), &credential).unwrap();
+    WorkerActionBackend::new(
+        p::BackendKind::Shell,
+        std::sync::Arc::new(DelayedClient {
+            client,
+            lose_dispatch_response,
+        }),
+        p::VerifiedPrincipal("owner:worker-http".into()),
+        p::AuthorityEpoch(1),
+        "sandbox:process",
+        OutputBudget::strict(4096),
+        p::DurationMs(10_000),
+    )
+    .unwrap()
+}
+
+#[test]
+fn worker_action_backend_crosses_real_host_and_delayed_transport_once() {
+    let daemon = Daemon::start(Vec::new());
+    let backend = action_backend(&daemon, false);
+    let intent = typed_execution_request("backend-real-host", now_ms() + 30_000)
+        .execution
+        .unwrap()
+        .intent;
+    let plan = backend.plan(&intent).unwrap();
+    let sink = EventSink::default();
+    let result = backend
+        .execute(plan.clone(), &sink, CancelToken::default())
+        .unwrap();
+    assert_eq!(result.status, ActionStatus::Completed);
+    assert_eq!(result.output, "worker fixture result\n");
+    let events = sink.events();
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| matches!(e, p::EventPayload::ActionStarted(_)))
+            .count(),
+        1
+    );
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, p::EventPayload::ActionCompleted(_))));
+    assert!(!events
+        .iter()
+        .any(|e| matches!(e, p::EventPayload::ActionOutcomeUnknown(_))));
+    let replay = backend
+        .execute(plan, &EventSink::default(), CancelToken::default())
+        .unwrap();
+    assert_eq!(replay, result);
+    assert_eq!(
+        std::fs::read_to_string(daemon.root.join("workspace/worker-fixture-ran"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn worker_action_backend_lost_response_probes_the_real_original_job_only() {
+    let daemon = Daemon::start(Vec::new());
+    let backend = action_backend(&daemon, true);
+    let intent = typed_execution_request("backend-real-lost", now_ms() + 30_000)
+        .execution
+        .unwrap()
+        .intent;
+    let plan = backend.plan(&intent).unwrap();
+    let sink = EventSink::default();
+    let first = backend
+        .execute(plan.clone(), &sink, CancelToken::default())
+        .unwrap();
+    assert_eq!(first.status, ActionStatus::Unknown);
+    assert!(!sink
+        .events()
+        .iter()
+        .any(|e| matches!(e, p::EventPayload::ActionCompleted(_))));
+    let recovered = backend
+        .execute(plan, &EventSink::default(), CancelToken::default())
+        .unwrap();
+    assert_eq!(recovered.status, ActionStatus::Completed);
+    assert_eq!(
+        std::fs::read_to_string(daemon.root.join("workspace/worker-fixture-ran"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn worker_action_backend_missing_real_result_has_no_completion_or_reexecution() {
+    let daemon = Daemon::start(vec!["--no-result".into()]);
+    let backend = action_backend(&daemon, false);
+    let intent = typed_execution_request("backend-real-missing", now_ms() + 30_000)
+        .execution
+        .unwrap()
+        .intent;
+    let plan = backend.plan(&intent).unwrap();
+    for _ in 0..2 {
+        let sink = EventSink::default();
+        let result = backend
+            .execute(plan.clone(), &sink, CancelToken::default())
+            .unwrap();
+        assert_eq!(result.status, ActionStatus::Unknown);
+        assert!(sink
+            .events()
+            .iter()
+            .any(|e| matches!(e, p::EventPayload::ActionOutcomeUnknown(_))));
+        assert!(!sink.events().iter().any(|e| matches!(
+            e,
+            p::EventPayload::ActionCompleted(_) | p::EventPayload::ActionOutputDelta(_)
+        )));
+    }
+    assert_eq!(
+        std::fs::read_to_string(daemon.root.join("workspace/worker-fixture-ran"))
+            .unwrap()
+            .lines()
+            .count(),
+        1
+    );
 }

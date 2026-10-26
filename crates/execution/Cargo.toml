@@ -8,6 +8,7 @@ publish.workspace = true
 [dependencies]
 forme-protocol = { path = "../protocol" }
 forme-policy = { path = "../policy" }
+chacha20poly1305 = { version = "=0.11.0", default-features = true }
 ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["std"] }
 getrandom = "=0.4.3"
 headless_chrome = "=1.0.22"

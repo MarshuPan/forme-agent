@@ -188,7 +188,10 @@ try {
             "installed::windows_appcontainer_acl::tests::low_labels_are_only_applied_to_a_private_test_copy",
             "installed::windows_appcontainer_native::tests::native_failure_handles_are_rejected_and_empty_capabilities_need_no_array",
             "installed::windows_appcontainer_native::tests::worker_integrity_requires_the_exact_low_mandatory_sid",
-            "installed::windows_appcontainer_native::tests::empty_job_recovery_uses_accounting_without_synchronize_access"
+            "installed::windows_appcontainer_native::tests::empty_job_recovery_uses_accounting_without_synchronize_access",
+            "installed::windows_agent_execution_native::tests::pipe_name_is_install_bound_and_closed",
+            "installed::windows_agent_execution_native::tests::idle_native_pipe_client_expires_without_a_blocked_io_thread",
+            "installed::windows_agent_execution_native::tests::native_pipe_client_reads_delayed_bytes_and_observes_disconnect"
         )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
         foreach ($name in @(
             "copy_is_private_and_verified_writeback_handles_creates_edits_and_deletes",
@@ -225,7 +228,8 @@ try {
     foreach ($name in @(
         "process_worker_uses_registered_program_and_reports_completion",
         "process_worker_preserves_failed_exit_as_failed_receipt",
-        "process_worker_cancel_kills_running_child_without_retry"
+        "process_worker_cancel_kills_running_child_without_retry",
+        "result_ciphertext_survives_restart_but_wrong_missing_keys_and_tampering_never_read"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_process_contract") $name }
 
     foreach ($name in @(
@@ -243,8 +247,47 @@ try {
         "hostd_accepts_delayed_fragmented_worker_requests_without_redispatch",
         "hostd_default_config_cannot_enable_an_unsandboxed_worker",
         "concurrent_http_dispatches_run_the_original_worker_once",
-        "invalid_worker_requests_and_routes_have_no_admission_or_side_effect"
+        "invalid_worker_requests_and_routes_have_no_admission_or_side_effect",
+        "worker_broker_client_dispatches_typed_spec_and_reuses_original_job",
+        "worker_broker_client_cannot_use_maintenance_listener",
+        "worker_action_backend_crosses_real_host_and_delayed_transport_once",
+        "worker_action_backend_lost_response_probes_the_real_original_job_only",
+        "worker_action_backend_missing_real_result_has_no_completion_or_reexecution"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_host_worker_transport") $name }
+
+    foreach ($name in @(
+        "managed_worker_completes_and_reuses_original_job_without_redispatch",
+        "dispatch_error_becomes_unknown_and_never_creates_a_replacement_job",
+        "manifest_and_chunk_tampering_are_unknown",
+        "fragmented_or_late_results_stop_without_output_completion_or_redispatch",
+        "cancel_targets_the_original_worker_job",
+        "transport_delay_empty_results_and_split_utf8_preserve_the_plan",
+        "a_lost_dispatch_response_can_only_read_the_original_terminal_receipt",
+        "token_cancellation_contacts_the_original_running_job",
+        "invalid_limits_and_changed_plan_never_dispatch"
+        "worker_file_mutations_never_claim_a_local_rollback_snapshot"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_backend_contract") $name }
+
+    foreach ($name in @(
+        "typed_execution_spec_is_bound_to_job_and_permit",
+        "typed_execution_spec_rejects_expiry_and_unbounded_payload",
+        "dispatch_wire_accepts_legacy_request_without_optional_execution",
+        "transport_delay_preserves_the_fixed_timeout_and_never_extends_the_deadline"
+    )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_worker_contract") $name }
+
+    Invoke-NamedTest "forme-execution" @("--lib") "installed::worker_socket::tests::fragmented_tcp_bytes_cannot_extend_the_absolute_request_deadline"
+    Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "result_handoff_orders_manifest_cleanup_receipt_and_never_retries_failed_cleanup"
+    Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "cancel_result_cleanup_failure_stays_unknown_without_repeating_cleanup"
+    Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "cancellation_seals_existing_source_without_fabricating_completion"
+    if ($IsWindows) {
+        Invoke-NamedTest "forme-execution" @("--lib") "installed::windows_appcontainer::results::tests::unsealed_or_changed_handoff_preserves_source_and_blocks_cleanup"
+        Invoke-NamedTest "forme-execution" @("--lib") "installed::windows_agent_execution_native::tests::occupied_host_pipe_rejects_before_any_credential_or_job_byte"
+    }
+
+    foreach ($name in @(
+        "managed_missing_or_invalid_worker_stays_blocked_without_local_fallback",
+        "managed_worker_placement_is_composition_bound_stable_and_secret_free"
+    )) { Invoke-NamedTest "forme-harness" @("--test", "installed_worker_composition") $name }
 
     foreach ($name in @(
         "lifecycle::tests::closing_admission_preserves_existing_work_and_rejects_later_claims",

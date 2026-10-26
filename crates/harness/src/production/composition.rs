@@ -7,6 +7,8 @@ pub(super) fn compose(
     store: SqliteEventStore,
     credential_files: Option<builder::ManagedModelSources>,
     access: forme_store::StoreAccessGuard,
+    managed_mode: bool,
+    worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
 ) -> p::Result<ProductionRuntime> {
     if !store.is_file_backed()? {
         return Err(p::Error(
@@ -67,6 +69,8 @@ pub(super) fn compose(
             .content_protection()?
             .ok_or_else(|| p::Error("production content protection is not installed".into()))?,
         store.as_ref().clone(),
+        managed_mode,
+        worker_binding.as_ref(),
     )?;
     let capabilities = capability_assembly.capabilities.clone();
     let skills = capability_assembly.skills.clone();
@@ -217,6 +221,18 @@ pub(super) fn compose(
     let doctor = ConfigDoctorSnapshot::from_states(&service_states);
     append_doctor_event(&store, &aggregates, &doctor)?;
     let capability_snapshot = capability_snapshot_digest(&capability_assembly, &service_states);
+    let capability_snapshot = match worker_binding.as_ref() {
+        Some(binding) => p::canonical_digest(&(
+            "forme-managed-worker-composition-v1",
+            capability_snapshot,
+            binding.schema_version,
+            &binding.endpoint,
+            binding.authority_epoch,
+            &binding.sandbox_profile_ref,
+            &binding.backend_kinds,
+        ))?,
+        None => capability_snapshot,
+    };
     let capability_snapshot = match model_registry.role_routing_digest()? {
         Some(roles) => p::canonical_digest(&(
             "forme-capabilities-with-model-roles-v1",

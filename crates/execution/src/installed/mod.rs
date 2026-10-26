@@ -14,6 +14,7 @@ mod mac_worker;
 #[cfg(target_os = "macos")]
 mod mac_worker_sandbox;
 mod maintenance_pipe;
+mod managed_worker;
 mod paths;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod posix_worker_fs;
@@ -49,11 +50,17 @@ mod windows_worker;
 #[cfg(windows)]
 mod windows_workspace_overlay;
 mod worker;
+mod worker_backend;
 mod worker_binding;
 mod worker_client;
 mod worker_config;
 mod worker_host;
+mod worker_isolation;
+#[cfg(windows)]
+mod worker_pipe;
+mod worker_result_crypto;
 mod worker_results;
+mod worker_socket;
 
 pub use desktop_helper::{DesktopHelperAdapter, UnavailableDesktopHelper};
 pub use host::*;
@@ -62,6 +69,7 @@ pub use journal::*;
 pub use linux_worker::*;
 #[cfg(target_os = "macos")]
 pub use mac_worker::*;
+pub use managed_worker::*;
 pub use paths::*;
 pub use process::*;
 pub use product_config::*;
@@ -91,6 +99,7 @@ pub use windows_appcontainer::*;
 #[cfg(windows)]
 pub use windows_worker::*;
 pub use worker::*;
+pub use worker_backend::*;
 pub use worker_client::*;
 pub use worker_config::*;
 pub use worker_host::*;
