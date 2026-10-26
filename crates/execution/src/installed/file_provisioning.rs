@@ -144,6 +144,37 @@ impl InstalledFileProvisioning {
     }
 }
 
+impl super::WorkerRuntimeConfig {
+    /// Keep the protected profile history intact while binding the reserved
+    /// entry to a journal-selected, reauthenticated release in memory.
+    pub fn for_active_release(&self, release: &super::VerifiedStagedRelease) -> p::Result<Self> {
+        self.validate()?;
+        let mut configured = self.clone();
+        if !configured
+            .launch_profiles
+            .iter()
+            .any(|profile| profile.sandbox_profile_ref == INSTALLED_FILE_PROFILE)
+        {
+            return Ok(configured);
+        }
+        release.recheck()?;
+        if release.manifest().target != p::ProductTarget::WindowsX86_64 {
+            return Err(invalid());
+        }
+        let program = release.content_root().join("bin/forme-executord.exe");
+        for profile in &mut configured.launch_profiles {
+            if profile.sandbox_profile_ref == INSTALLED_FILE_PROFILE {
+                if profile.args != ["--installed-file-worker"] {
+                    return Err(invalid());
+                }
+                profile.program = program.clone();
+            }
+        }
+        configured.validate()?;
+        Ok(configured)
+    }
+}
+
 fn overlaps(left: &Path, right: &Path) -> bool {
     let normalize = |path: &Path| {
         let text = path.to_string_lossy().replace('\\', "/");

@@ -30,36 +30,45 @@ pub(super) fn reject_path(path: &Path) -> p::Result<()> {
     forme_execution::installed::reject_linked_ancestors(path)
 }
 
+pub(crate) struct WorkerHostContext<'a> {
+    pub managed_service_bound: bool,
+    pub protected_paths: &'a [PathBuf],
+    pub active_release: Option<&'a forme_execution::installed::VerifiedStagedRelease>,
+}
+
 pub(crate) fn load_worker_host(
     host_journal: &Path,
     agent_digest: Option<p::SchemaDigest>,
     worker_config_path: Option<&Path>,
     development_workers: bool,
-    managed_service_bound: bool,
-    protected_paths: &[PathBuf],
+    context: WorkerHostContext<'_>,
 ) -> p::Result<Arc<dyn IsolatedExecutorHost>> {
     if let Some(config_path) = worker_config_path {
         let digest = agent_digest.ok_or_else(|| {
             p::Error("worker configuration requires an agent execution credential".into())
         })?;
-        let config = WorkerRuntimeConfig::load(config_path)?;
+        let original = WorkerRuntimeConfig::load(config_path)?;
+        let config = match context.active_release {
+            Some(release) => original.for_active_release(release)?,
+            None => original,
+        };
         let mut protected = vec![host_journal.to_path_buf()];
-        protected.extend(protected_paths.iter().cloned());
+        protected.extend(context.protected_paths.iter().cloned());
         config.validate_protected_paths(
             &protected.iter().map(PathBuf::as_path).collect::<Vec<_>>(),
         )?;
         #[cfg(windows)]
-        if managed_service_bound {
+        if context.managed_service_bound {
             return Ok(Arc::new(
                 config.open_managed_windows_appcontainer_host(digest)?,
             ));
         }
         #[cfg(target_os = "linux")]
-        if managed_service_bound {
+        if context.managed_service_bound {
             return Ok(Arc::new(config.open_managed_linux_systemd_host(digest)?));
         }
         #[cfg(target_os = "macos")]
-        if managed_service_bound {
+        if context.managed_service_bound {
             return Ok(Arc::new(config.open_managed_macos_launchd_host(digest)?));
         }
         return if development_workers {

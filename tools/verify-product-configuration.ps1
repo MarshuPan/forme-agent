@@ -30,7 +30,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Managed product binaries failed to build' }
     # These fixtures deliberately use --development-config and disposable
     # paths. Do not skip real process coverage just because SCM is uninstalled.
-    & node --test tools/tests/managed_configuration.test.mjs tools/tests/managed_network.test.mjs tools/tests/local_authority.test.mjs tools/tests/web_multi_process.test.mjs
+    & node --test --test-concurrency=1 tools/tests/managed_configuration.test.mjs tools/tests/managed_network.test.mjs tools/tests/local_authority.test.mjs tools/tests/web_multi_process.test.mjs
     if ($LASTEXITCODE -ne 0) { throw 'Managed configuration process test failed' }
     Write-Host 'Managed product configuration: PASS (durable state, service contract, actual Web/host/core process bridge)'
     Write-Host 'Native service-manager installation, live provider and IP01-IP24: NOT_RUN by this component gate'

@@ -16,6 +16,8 @@ use forme_execution::installed::{
 };
 use forme_protocol as p;
 
+#[path = "installed_release_staging/active_program_cases.rs"]
+mod active_program_cases;
 #[path = "installed_release_staging/service_switch_cases.rs"]
 mod service_switch_cases;
 #[path = "installed_release_staging/updater_cases.rs"]
@@ -203,6 +205,7 @@ impl Fixture {
             "bin/forme-gatewayd.exe",
             "bin/forme-cli.exe",
             "bin/forme-hostctl.exe",
+            "bin/forme-executord.exe",
             "web/index.html",
         ] {
             let path = source.join("content").join(name);

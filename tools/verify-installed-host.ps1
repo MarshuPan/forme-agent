@@ -340,6 +340,12 @@ try {
         "online_restore_binds_the_approved_plan_and_final_post_sealing_manifest"
     )) { Invoke-NamedTest "forme-store" @("--test", "installed_offline_recovery") $name }
 
+    foreach ($name in @(
+        "active_programs_follow_only_the_journal_release_across_restart_without_rewriting_config",
+        "active_programs_refuse_lost_staging_or_tampered_files_without_initial_image_fallback",
+        "active_file_program_preserves_custom_profiles_and_rejects_replaced_reserved_arguments"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") "active_program_cases::$name" }
+
     Write-Host "installed-host-foundation and core-shutdown-components: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }

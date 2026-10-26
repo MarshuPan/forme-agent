@@ -199,20 +199,32 @@ fn run_host(
         )?;
     }
     let has_agent = runtime.has_agent_endpoint && agent_digest.is_some();
+    let active_release = if runtime.managed {
+        broker.verified_active_release()?
+    } else {
+        None
+    };
     let worker = load_worker_host(
         &journal,
         agent_digest,
         runtime.worker_config_path.as_deref(),
         runtime.development_workers,
-        managed_service_bound,
-        &runtime.worker_protected_paths,
+        WorkerHostContext {
+            managed_service_bound,
+            protected_paths: &runtime.worker_protected_paths,
+            active_release: active_release.as_ref(),
+        },
     )?;
+    #[cfg(windows)]
+    let core_image_path = active_release
+        .as_ref()
+        .map(|release| release.content_root().join("bin/forme-gatewayd.exe"))
+        .or_else(|| runtime.core_image_path.clone());
     #[cfg(windows)]
     let mut agent_pipe = if has_agent && runtime.managed {
         Some(WindowsAgentExecutionListener::bind(
             &runtime.install_id,
-            runtime
-                .core_image_path
+            core_image_path
                 .as_deref()
                 .ok_or_else(|| p::Error("managed Brain image binding is unavailable".into()))?,
         )?)

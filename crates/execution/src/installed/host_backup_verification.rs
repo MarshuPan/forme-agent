@@ -41,7 +41,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         if installation.install_id != request.install_ref {
             return Err(unavailable());
         }
-        let program = ReleaseDataProgram::new(installation)?;
+        let program = match self.verified_active_release()? {
+            Some(release) => ReleaseDataProgram::from_verified(installation, release)?,
+            None => ReleaseDataProgram::new(installation)?,
+        };
         let deadline = Instant::now() + Duration::from_secs(8);
         let mut pipe: MaintenancePipe<p::ProductBackupVerificationResponse> =
             program.spawn_backup_verification(deadline)?;

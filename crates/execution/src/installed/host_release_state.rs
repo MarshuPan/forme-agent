@@ -4,6 +4,29 @@ use crate::installed::NativeServiceManager;
 use forme_protocol as p;
 
 impl<M: NativeServiceManager> ProductHostBroker<M> {
+    /// Resolve only the journal's active release, never an arbitrary staged
+    /// candidate. None preserves the verified initial installation layout.
+    /// This is a local program-location check, not work admission or authority.
+    pub fn verified_active_release(
+        &self,
+    ) -> p::Result<Option<crate::installed::VerifiedStagedRelease>> {
+        let active = self.active_release_state()?;
+        if active.id == self.initial_release {
+            return Ok(None);
+        }
+        let stager = self
+            .release_stager
+            .as_ref()
+            .ok_or_else(|| p::Error("active release staging evidence is unavailable".into()))?;
+        let digest = active
+            .digest
+            .as_ref()
+            .ok_or_else(|| p::Error("active release digest is unavailable".into()))?;
+        let verified = stager.verified_staged(&self.journal, &active.id, digest)?;
+        verified.recheck()?;
+        Ok(Some(verified))
+    }
+
     pub fn record_installation_verification(
         &self,
         manifest_digest: p::SchemaDigest,

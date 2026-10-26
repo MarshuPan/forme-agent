@@ -9,7 +9,7 @@ use runtime_inputs::{
 };
 pub(crate) use runtime_inputs::{
     load_bootstrap_authority, load_or_create_token, load_worker_host, required, required_path,
-    target_from_environment, token_path,
+    target_from_environment, token_path, WorkerHostContext,
 };
 
 use std::io::Read;

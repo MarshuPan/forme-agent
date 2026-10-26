@@ -177,6 +177,7 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     restore_worker: Option<Arc<dyn super::RestoreWorkerProvider>>,
     target: p::ProductTarget,
     install_id: String,
+    initial_release: String,
     active_release: std::sync::Mutex<ActiveReleaseState>,
     services: M,
 }
@@ -238,6 +239,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         credentials.validate()?;
         p::validate_product_id(install_id)?;
         p::validate_release_id(&active_release)?;
+        let initial_release = active_release.clone();
         let journal = ProductJournal::open(journal_path, install_id)?;
         let active = journal
             .active_release()?
@@ -273,6 +275,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             restore_worker: None,
             target,
             install_id: install_id.into(),
+            initial_release,
             active_release: std::sync::Mutex::new(active),
             services,
         })
