@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 `f3cf915` 修正并复验产品配置验收脚本：当前源码实际执行的配置/激活/维护/skills/network/settings 场景为 `65/65` PASS，网络 fence `4/4`、脑偏好 `3/3`、managed skills `2/2` PASS，受管产品二进制构建 PASS。该修正只消除旧计数器造成的假阴性，不提升受管 Host/Web/core 服务桥、原生安装、真实 Provider 或 IP01–IP24 状态；本机没有注册 `NT SERVICE\\forme-brain`，这些范围继续为 `NOT_RUN`。
+
 2026-10-26 `c247c44` 修正受管产品 fixture 的 Host 启动边界：正式 `forme-hostd --config <absolute-path>` 继续保持受管模式，并在缺少 SCM/Service SID 时 fail closed；仓库自有开发/集成 fixture 改用显式 `forme-hostd --development-config <absolute-path>`，复用 closed 配置 schema 与路径/凭据校验，但只运行非受管 loopback 前台 Host。新增参数解析与受管 transport 回归、managed configuration/network/cognition fixture 均通过；这不构成系统服务注册、原生 peer identity、worker sandbox、安装包或 IP01–IP24 证据。
 
 2026-10-26 `2702d30` 完成[受管模型代理配置](installed-product-model-proxy-acceptance.md)：Host schema 8、CAS/journal/revision、release binding 保留、core materialization、ProductionRuntime provider 传递和 direct/HTTP transport 绑定已闭合；直接模式禁用环境代理，显式代理禁止 `NO_PROXY` 绕路，失败不自动直连，公共 Web view 不返回 endpoint。workspace 全量测试、fmt、check、strict Clippy、代码质量、资源与完整合规门通过。该条是模型代理组件证据，不提升真实 Provider、系统服务、安装包或 IP01–IP24 状态。
