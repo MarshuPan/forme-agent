@@ -58,6 +58,8 @@ Harness 继续负责最终计划、policy/envelope/能力门、审批和 nonce�
 
 ## 2.6 已批准的正式接入边界
 
+binding 同时包含 `schema_version` 与缺省为空的 `backend_kinds` 显式支持集合，不能自授权限。执行 timeout 是最终计划固定值，以原 `deadline - permit.issued_at` 核对；每次准入仍拒绝过期 permit，实际剩余执行窗不超过 `min(timeout, deadline - now)`。core 在发布结果前独立校验 observation 的 receipt/result ref、预算与全部 chunk 的原 manifest digest/连续范围，错误绑定即使重算摘要也拒绝。
+
 结果通道启用后，下一步不是让 core 直接调用 Host API，而是新增 `WorkerActionBackend` 这一执行 crate 内 adapter，并在受管 composition 中显式装配。它接收安装侧的 `ManagedWorkerBinding`：endpoint、credential 文件、authority epoch 和 sandbox profile；Windows managed 只允许安装派生 named pipe，当前 POSIX/开发路径只允许有界 loopback TCP。binding 缺失或校验失败时，相关 capability 必须保持 unavailable，不能悄悄继续使用 brain 账户的 File/Shell/MCP backend。
 
 adapter 的唯一副作用提交链为：`ExecutionPlan -> WorkerJob/WorkerPermit/WorkerExecutionSpec -> WorkerBrokerTransport::dispatch`。dispatch 返回后只对同一 job 进行 bounded `probe`、`cancel` 和 `result_manifest/read_result`；job id、plan digest、authority epoch、nonce 和 permit digest 全程固定。dispatch/结果读取不明、终态与 manifest 不一致、`Completed` 没有可验证正文或 Host binding 失败，都返回既有 `ActionOutcomeUnknown`，不创建替代 job。可验证的 worker outcome 再按既有 `ActionResult`/Verifier 路径进入脑事件。

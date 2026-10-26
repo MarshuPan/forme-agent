@@ -90,6 +90,8 @@ AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/work
 
 #### 4.1.1 Core→broker typed driver 接缝
 
+`timeout` 始终是最终计划的固定字段，不能随传输重新计算。执行规格和 journal binding 用 `timeout <= deadline - permit.issued_at` 校验原授权时间窗；每次准入仍要求 `now < deadline`。传输、排队和恢复不延长 deadline，实际执行最多使用 `min(timeout, deadline - now)` 的剩余窗口；到期只取消/核实原 job，不重新签发 permit。结果只读核实不重新检查历史许可的执行有效期。
+
 `WorkerDispatchRequest` 保持当前 schema 1，并以兼容新增字段携带有限的 `WorkerExecutionSpec`。它只复制已经由 Harness 最终重查过的 `ActionIntent`、backend、scope、affected resources、plan digest、timeout 和 output budget；不携带解析后的 secret、任意环境变量、程序路径或可替代的 plan 字段。spec 的 digest、intent id、scope、resources 和 plan digest 必须与 `WorkerJob`/`WorkerPermit` 逐项一致，Host 在调用隔离器前再次校验；没有 spec 的旧请求仍只保留控制面兼容语义，不被当成正式执行 driver 证据。
 
 Host 将已校验 spec 写入本 job 的受保护运行目录，按注册 launch profile 通过固定的 `FORME_WORKER_EXECUTION_PATH` 只读入口交给 worker；worker 只能读取该 job 自己的文件。spec 丢失、损坏、过期、与 job/permit 不一致或写入结果不明时，该原 job 进入 `Unknown`，不能换 job 重发。probe/cancel 只引用原 job，不重新提交 spec；重启后未终态 job 仍只做 Unknown 恢复。
@@ -104,6 +106,7 @@ Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，�
 - `endpoint`：`windows_named_pipe` 或受限 `loopback_tcp`；Windows managed 只能是安装清单派生的 named pipe，POSIX 当前有限边界和开发协议测试才可使用 loopback；
 - `credential_path`：Host 生成的 AgentExecution 独立 credential 文件，core 只读，不能从环境变量、Web payload 或模型上下文取得；
 - `authority_epoch` 与 `sandbox_profile_ref`：必须和 Host 的 `WorkerRuntimeConfig`/当前安装 profile 一致。
+- `backend_kinds`：安装侧显式核实的执行类型集合，缺失时默认空。它仅限制注册，不能授予 permission、扩展 Host profile 或证明原生隔离可用；不在集合内的类型保持 unavailable。
 
 binding 不携带程序路径、任意环境、secret 值、workspace 文件路径或新的 permission。Host/config 路径校验、ACL、peer identity 和平台隔离仍分别取证；binding 通过不等于原生安装或 IP10/IP24 通过。
 
@@ -123,6 +126,8 @@ worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 laun
 - `WorkerResultChunk`：manifest digest、offset、bounded bytes、chunk digest、next offset 和 finished。
 
 正文总量同时受最终 `WorkerExecutionSpec.output_budget_bytes` 与 64 MiB 上限约束，单 chunk 不超过 256 KiB。Host 每次读取都复核工件是普通文件、长度与整体 digest 一致；跨 chunk 的 UTF-8 不在 chunk 边界截断。`Pending`、正文 `Missing`、`Corrupt`、`Cleaned` 和动作 `Unknown` 不能被合成普通成功结果。
+
+core adapter 也独立校验 manifest 的 job/permit/原 observation 的 receipt/result ref、最终 output budget，以及每个 chunk 的原 manifest digest、连续 offset、单次长度和终止位置；重算摘要不能掩盖错误绑定。正文全部核验后才产生既有输出/完成事件，任何缺失、超预算、截断、错误 UTF-8 或分块不前进均进入原 job Unknown，不能先输出部分正文再报告成功。
 
 AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/agent/workers/{job_id}/result/read`；两条路由使用 AgentExecution credential/peer，OwnerMaintenance、Web 和 worker 均拒绝。Host journal 只保存 manifest/binding，结果正文保存在独立私有 result store，不能复制进 brain event、普通日志、管理回执或公共配置。当前实现已闭合协议、Host 私有封存、Process worker 受限结果文件和 HTTP/typed transport 定向测试；应用层加密仍须接入产品执行数据域的真实 key resolver，不能用 bearer digest 或自制算法冒充完成。该组件证据不等同 ProductionRuntime、原生平台隔离或 IP10/IP24 通过。
 

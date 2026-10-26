@@ -180,6 +180,8 @@ AgentExecution 只读路由为 `GET /v1/agent/workers/{job_id}/result`（manifes
 
 #### 7.1.2 ProductionRuntime worker adapter
 
+安装 binding 的 `backend_kinds` 是显式支持集合，缺省为空；它是能力注册的必要条件，不代替 permission、Host admission 或真实平台证据。最终计划 `timeout` 不随传输改变：spec/journal 以 `deadline - permit.issued_at` 校验原时间窗，准入仍拒绝已过 deadline 的请求，执行只使用 `min(timeout, deadline - now)`，不因传输/排队延长许可。core 读取结果时同时核对原 observation 的 receipt/result ref、最终 output budget、每个 chunk 的 manifest digest/offset/长度/终止位置；整份正文验证之前不发输出或完成事件。
+
 受管产品的 `ProductionRuntime` 通过一个受保护的 managed worker binding 装配 `WorkerBrokerClient`，再以既有 `ExecutionBackendRegistry` 注册按 backend kind 分派的 worker adapter。binding 是安装配置的一部分，至少包含 `schema_version`、endpoint、AgentExecution credential 文件、`authority_epoch` 和 `sandbox_profile_ref`；它不接受模型、Web 或 `ActionIntent` 提供的 endpoint、credential、程序路径或 profile。Windows managed 只能使用安装派生的 named pipe；loopback TCP 只用于明确标记的开发/协议验证和当前有限 POSIX 路径。
 
 adapter 在 Harness 已完成最终 plan/policy/approval/nonce 检查之后，生成确定性但一次性的 `WorkerJob`、同 digest 的 `WorkerPermit` 和 `WorkerExecutionSpec`。`WorkerExecutionSpec` 只复制最终 plan 的 intent、backend、scope、resource set、normalized-action digest、timeout 和 output budget。dispatch 是唯一可能产生副作用的提交；成功后只对原 job 做 bounded probe、owner cancel 和 result manifest/chunk read。dispatch 响应不明、probe/read 失败、manifest 与 job/permit 不匹配、正文缺失或 `Completed` 没有可验证结果时返回既有 `ActionOutcomeUnknown`，不改成空成功、不创建新 job。
