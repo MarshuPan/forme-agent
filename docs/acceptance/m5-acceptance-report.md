@@ -114,6 +114,12 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 本节只追加当前产品增量的回归记录，不改写上文 M5 历史验收，也不宣称 IP01–IP24 已通过。产品实施状态仍以 `installed-product-implementation-progress.md` 为准。
 
+2026-10-26，本轮完整 `tools/verify-m5.ps1` 已执行 `5391750` 所含相同运行代码的 S1–S99、V1 C1–C24、workspace、strict Clippy、89 项 Python 工具测试（1 项因无法创建 symlink 跳过）、格式/结构/合规及 M4/M5 工件检查。所有这些阶段通过；最终 S99 在干净 `51df714` 上生成并独立验证了新审计，但仓库 current-tree receipt 仍绑定旧源码，因此脚本以回执比较失败退出。**不将该次完整脚本记作 FINAL PASS。**
+
+其后先将浏览器组件证据、未激活契约草案与 Windows 候选报告提交，再在干净 `3499ff9` 上单独重新生成当前树 M5 审计。8 个审计检查均 PASS，`blocking=false`，新 receipt 为 `sha256:37c05fe3a1db82d88aba781386329a9b73dbea673b370d133ee3a0809ccc8547`。生成工件和仓库工件的独立 `--verify` 均 PASS，`--compare` 也 PASS。该工件替换仓库 current-tree receipt；旧 `08ff70…` 回执保留在 Git 历史。此处是同一运行代码的完整场景回归与更新后独立发布树审计证据，不声称已重跑整套脚本并取得新的 FINAL PASS 终线。
+
+浏览器证据限于预认领、core 离线的临时真实 Web daemon、320/390 窄屏、键盘和两标签页退出；新 Windows 包仍 unsigned/uninstalled、release_ready=false。实际 SCM、worker 结果通道、真实 provider、其他平台及完整 IP01–IP24 仍未由本轮通过。构建空间报告已保存在本地 ignored `target/build-resources-browser-5391750.json`：当前 target 为 97,774,282,024 logical bytes / 94,793,977,273 allocated bytes，超过 64 GiB 报告预算；构建前最近可用空间为 265.0 GiB。本轮未清理构建缓存或用户数据。
+
 2026-10-26，在 `shu/installed-product@abad1e8` 上完成 Web 多标签页认证失效同步。完整 `verify-m5.ps1` 顺序跑过 S1–S99、C1–C24、Rust workspace、strict Clippy、Python、合规与 M4/M5 专项，并推进至最终 S99；当时源码尚未提交，发布树审计按规则拒绝 dirty tree。提交后对 clean commit 重新生成 M5 当前树回执，M5 release audit PASS，独立验证与仓库回执比较均 PASS；当前摘要为 `sha256:e41af6d2c50ded1d2db31782bb94db22d5d5b50258c5b421c5e05f8c07ae5d7c`。依赖审计中针对非 Windows target 的 advisory 为非阻断观察项。前端 `npm run verify` 为 81/81；代码质量门 PASS。旧回执 `sha256:0f0579703789d601d3d5480f808668ce52fa099cb85722bf92be820f519e99ec` 仍保存在 Git 历史。此结果不证明真实 SCM/LocalSystem 安装、原生平台/IP10/IP24 或 IP01–IP24 已通过。
 
 2026-10-26，在 `shu/installed-product@93f501e` 上完整复跑 `tools/verify-m5.ps1`，终线为 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、V1 C1–C24 回归、18 crates、97 EventKinds、严格 Clippy、workspace/Python tests、合规及 M5 当前树发布回执生成、独立验证和比较均通过；当前回执摘要为 `sha256:0f0579703789d601d3d5480f808668ce52fa099cb85722bf92be820f519e99ec`。工作树干净。该次默认全量测试中 3 个真实 Windows AppContainer 集成测试因需要显式原生环境而 ignored；其余另有按命令行/浏览器/多进程条件显式运行的 goldens 已由验收脚本执行。故此结果证明当前源码和受控回归门通过，不证明真实 SCM 安装或 IP10/IP24 平台验收通过。
