@@ -55,7 +55,7 @@
 | P14 / IP20：收件箱 | `477ef52` 主动提案/AskToLearn/失败投影和处置；运行 pending 按 `RunPendingView` 投影为 typed `Waiting` 并导航原 run；`507cccf` 将普通建议未决原命令保存到独立身份库，支持重启读回和显式原号核实，组件见 `installed-product-proposal-recovery-acceptance.md`。 | 真实浏览器刷新/双 tab、多 Web 进程、服务重启全链路与完整 IP20。等待/失败历史必须区分，查看不等于采纳。 |
 | P14 / IP20：记忆与认知 | `477ef52` 投影、证据/血缘及 review/撤回；`de3c7b1` 来源正文核对；`91072be` 具体来源的真实遗忘；`802e3d2` 原子文字纠正、旧认知失效/低置信候选、无正文回执与删除后不复活，见 `installed-product-cognition-correction-acceptance.md`。临时真实浏览器已验证纠正、刷新与原号查询。 | 双 tab/多 Web 进程、实际 provider、原生重启及完整 IP20/IP24 仍开放。组件、临时浏览器和本机模型 fixture 不等于产品通过。 |
 | P07/P15 / IP21：设置 | 模型配置、默认 workspace 与模型角色、受管 skills、口令、主脑状态与受限启停/维护命令；另有配置、离线数据、恢复候选等组件报告。 | MCP/plugin/package、消息渠道、LAN TLS 和全部系统维护面尚未闭合；无假开关/任意 shell/SQL，完整 IP21 仍待产品验收。 |
-| P08/P12 / IP22：浏览器安全 | CSP、无 raw HTML、独立限流、private cache 清理 | 附件/下载隔离、实际浏览器故障/恶意内容、键盘/窄屏与认证恢复验收。 |
+| P08/P12 / IP22：浏览器安全 | CSP、无 raw HTML、独立限流、private cache 清理；`5391750` 的真实临时浏览器组件证据覆盖 320/390 窄屏、键盘导航与两标签页注销清除，见 `installed-product-browser-component-acceptance-20261026.md`。 | 附件/下载隔离、实际浏览器故障/恶意内容、完整认领与业务恢复验收；预认领/core 离线组件不提升完整 IP22/IP24。 |
 | P16 / IP23：前端来源 | 自有 React/TypeScript UI，白名单/依赖/NOTICE/资源构建门 | 新组件继续来源审查；无 upstream runtime、fixture 或 build/import。 |
 | P01–16 / IP24：完整产品 | 当前只有分层组件证据 | 正式包→认领→配置→真实对话/工具审批→项目/后台→重启→备份恢复→升级的联合验收。 |
 
