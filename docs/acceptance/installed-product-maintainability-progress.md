@@ -4,7 +4,7 @@
 
 本记录对应 owner 要求的工程规范与大模块维护，不代表安装器、五面 Web 或全部历史技术债已经完成。规范入口为 [code-quality.md](../engineering/code-quality.md)，产品范围仍按 prd/24–26。
 
-2026-10-26 `ece53be` 将 `AgentHarness`、`GatewayControl`、`Observability` 的实现移入 `crates/harness/src/gateway_control.rs`，根级新增公开控制 trait 契约测试。该提交只移动实现并保留原 API/行为；没有新增 crate、依赖边或 EventKind。`cargo test --workspace --all-targets`、fmt、workspace check、strict Clippy、结构门及其单测、代码质量门和 compliance doctor 均通过；结构门扫描 719 个文件，63 处既有规模债务未增长。当前 `verify-m5.ps1` 已完成 S1–S99、C1–C24、Rust/Python 与合规检查；临时 S99 回执独立验证通过，但仓库回执仍绑定前一源码，比较失败。故本记录不把首次总命令记作 M5 PASS；回执刷新和 clean-tree 复跑状态见 [M5 验收记录 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。本次不改变安装、worker 或 IP01–IP24 验收状态。
+2026-10-26 `ece53be` 将 `AgentHarness`、`GatewayControl`、`Observability` 的实现移入 `crates/harness/src/gateway_control.rs`，根级新增公开控制 trait 契约测试。该提交只移动实现并保留原 API/行为；没有新增 crate、依赖边或 EventKind。`cargo test --workspace --all-targets`、fmt、workspace check、strict Clippy、结构门及其单测、代码质量门和 compliance doctor 均通过；结构门扫描 719 个文件，63 处既有规模债务未增长。首次 `verify-m5.ps1` 已完成 S1–S99、C1–C24、Rust/Python 与合规检查，所有代码门通过；但仓库 S99 回执仍绑定前一源码，故该次终线比较失败，不记作 M5 FINAL PASS。后续回执刷新与 clean-tree 最终状态见 [M5 验收记录 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。本次不改变安装、worker 或 IP01–IP24 验收状态。
 
 | 提交 | 结果 |
 |---|---|
@@ -70,3 +70,9 @@ Python 工具全量运行 72 项，其中 1 项按平台跳过，其余通过。
 ## 9. Gateway 控制实现拆分（2026-10-26）
 
 `ece53be` 将 `AgentHarness`、`GatewayControl` 与 `Observability` 的生产实现集中到职责明确的 `gateway_control.rs`；`lib.rs` 只保留入口与重导出。移动前后的实现文本保持一致，并新增根级测试确认原公开 trait 仍由正式 Harness 实现。文件行数为 300，符合新增生产文件上限。提交前完整 workspace tests、fmt、check、strict Clippy、Python 结构门及其回归、`py -3 tools/code-quality.py` 与 `bash tools/compliance-doctor.sh` 均通过；没有扩大 63 项历史规模债务。M5 第一次当前树复跑中，所有行为与质量检查通过，唯一失败是仓库 S99 回执仍对应旧源码；该次不记作完整 M5 PASS，后续刷新与最终状态见 M5 报告 §10。
+
+## 10. Harness 动作策略职责拆分（2026-10-26）
+
+`3c942af` 将 Harness 内的动作分类、策略降级、审批/能力门与能力快照校验提取到 `crates/harness/src/action_policy.rs`（298 行），`lib.rs` 减少 241 行。新增边界测试证明通信来源不能保留 `Allow`。该提交没有改变公开 API、事件、事务、执行顺序或恢复语义，也没有新增 crate、内部依赖边或 EventKind。
+
+本轮 `verify-m5.ps1` 的 S1–S99、C1–C24、workspace Rust tests、strict Clippy、Python 89 项、合规及 M4/M5 专项均通过；默认全量测试中 3 个真实 Windows AppContainer 场景仍为 ignored，需显式原生环境运行。M5 release audit 生成与独立验证通过，唯一失败是仓库回执仍绑定 `3c942af` 之前的源码。后续刷新回执与最终 clean-tree 比较见 [M5 验收记录 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。本记录不宣称原生 AppContainer、安装服务或 IP01–IP24 通过。
