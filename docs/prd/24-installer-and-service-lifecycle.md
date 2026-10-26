@@ -131,13 +131,15 @@ worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 laun
 
 core adapter 也独立校验 manifest 的 job/permit/原 observation 的 receipt/result ref、最终 output budget，以及每个 chunk 的原 manifest digest、连续 offset、单次长度和终止位置；重算摘要不能掩盖错误绑定。整份结果的 manifest/chunk 组装预算取最终 plan timeout 与 30 秒的较小值，在每次有界 transport 调用前后检查，最多读取 4096 个 chunk；单次在途调用仍受 transport 自身超时约束，不以后台失控线程中止。正文全部核验后才产生既有输出/完成事件，任何缺失、超预算、截断、错误 UTF-8、分块不前进或组装预算耗尽均进入原 job Unknown，不能先输出部分正文再报告成功。
 
-AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/agent/workers/{job_id}/result/read`；两条路由使用 AgentExecution credential/peer，OwnerMaintenance、Web 和 worker 均拒绝。Host journal 只保存 manifest/binding，结果正文保存在独立私有 result store，不能复制进 brain event、普通日志、管理回执或公共配置。当前实现已闭合协议、Host 私有封存、Process worker 受限结果文件和 HTTP/typed transport 定向测试；应用层加密仍须接入产品执行数据域的真实 key resolver，不能用 bearer digest 或自制算法冒充完成。该组件证据不等同 ProductionRuntime、原生平台隔离或 IP10/IP24 通过。
+AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/agent/workers/{job_id}/result/read`；两条路由使用 AgentExecution credential/peer，OwnerMaintenance、Web 和 worker 均拒绝。Host journal 只保存 manifest/binding，原始结果工件保存在独立私有 result store，不把工件或尚未核验的正文直接写成 brain event、普通日志、管理回执或公共配置。core 完整核验后的执行观察复用既有 `ActionOutputDelta`/完成事件与主脑内容保护和生命周期治理，标为 Untrusted；这些是原动作的观察，不是 Host manifest/工件的另一套事实表。不能以通道隔离为由丢弃正式运行所需的执行观察，也不能用成功状态替代正文核验。应用层加密须接入产品执行数据域真实 key resolver，不能用 bearer digest 或自制算法冒充完成。组件通过不等同原生平台隔离或 IP10/IP24 通过。
 
 #### 4.1.1b 结果保护与隔离清理交接
 
 结果正文使用已锁定的 `chacha20poly1305 = 0.11.0` 公共 AEAD API。Host 执行数据域为每个 manifest 分配独立的 OS 随机 32-byte key 与 12-byte nonce，AAD 绑定域标识及完整 manifest digest；私有二进制 envelope 以版本 magic 固定算法，不改变公开 manifest/chunk schema。key resolver 位于 worker journal 派生的独立 `result-keys` 目录，不与结果、backup、workspace、runtime、配置或程序交叠，也不把 key 或 key locator 写进 manifest/journal/log。读取只能解析已有 key，缺失、替换、损坏、旧明文或错误 AAD 一律拒绝，不新建 key 修复历史。此本地文件 resolver 依赖安装权限矩阵，不宣称已实现 Windows OS 密钥密封或抵御 root/整机磁盘泄露。
 
 隔离器观察到进程树终态后必须保留该 job 的结果源，Host 完成加密封存及 manifest 落 journal 后，才通过内部 `WorkerIsolation::result_sealed(job, now)` 交接清理，随后追加原 worker receipt。回调缺省无动作，仅为已有隔离 adapter 的生命周期接缝，不产生新执行权限。封存或清理失败时不追加成功 receipt，不清掉未知现场；重启仍按原 job Unknown 恢复。AppContainer 输出只能写入本 job 的私有低完整性结果目录，不能写原 workspace、授权输入、Host 工件或 key 目录；结果不是 workspace 回写的一部分。
+
+取消已产生结果的 job 时，Host 为现有源分配与原 job/取消回执绑定的 opaque result ref，manifest 的真实 outcome 仍为 Cancelled/Unknown，不改成 Completed。进程终止与结果交接分别确认；封存、清理或取消收尾失败均进入原 job Unknown。AppContainer 用 Host 独占的 pending/sealed 交接标记保护源；Drop/启动恢复先终止原进程树、撤销 ACL/profile，未封存或标记不完整时保留目录并阻断新准入，不删除或重新执行原 job。
 
 #### 4.1.1b Windows AgentExecution 原生 peer identity
 

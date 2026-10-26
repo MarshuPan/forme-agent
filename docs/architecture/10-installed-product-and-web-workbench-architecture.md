@@ -198,6 +198,8 @@ adapter 在 Harness 已完成最终 plan/policy/approval/nonce 检查之后，�
 
 隔离器在 `observe` 返回终态后保留结果源；Host 加密封存并持久化 manifest 后调用内部 `result_sealed` 完成隔离清理，最后才追加 worker receipt。AppContainer 使用独立低完整性结果目录，不把输出混入 workspace 回写；封存、清理或 journal 任一阶段不明都保留原 job 的 Unknown 恢复边界。
 
+Host 工件和未核验正文不直接成为脑事实；完整核验后的执行观察继续通过既有 Untrusted `ActionOutputDelta`/完成事件进入主脑内容保护与生命周期治理，不能把“产品事实分域”解释成丢弃正式运行所需的观察。取消结果引用绑定原 job/取消回执，保留真实 Cancelled/Unknown outcome。AppContainer 在 Drop/启动恢复时仍先终止树并撤销 ACL/profile；pending/sealed 交接未闭合则保留源目录、阻断准入，不重派或清掉未知现场。
+
 这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux 已加入 `LinuxSystemdWorkerIsolation`：受管 Host 先验证 root、固定 `forme-host.service`、systemd 控制面和 `forme-exec`，每个 job 使用私有 workspace 副本并由 Host 核验回写；当前仅有目标交叉检查和通用回归，尚无 Linux 原生服务/账户/回写运行证据。macOS 已接入 `MacOsLaunchdWorkerIsolation` 的代码路径：受管 Host 先验证 root、固定 `com.forme.host` LaunchDaemon、`launchctl`、`sandbox-exec` 和 `_formeexec`，每个 job 使用私有 workspace 副本，由 Host 核验回写，网络 shell 在当前无 scoped adapter 时拒绝；当前没有 macOS 主机上的 LaunchDaemon、账户、sandbox、TCC、安装包或回写运行证据，IP10/IP24 仍需原生验收。
 
 24.2 控制面原型将维护与执行放在不同的 loopback listener，路由与凭据跨域使用均拒绝。受管 Windows service 只有在固定 SCM/`LocalSystem` 身份和受保护 worker 配置同时成立时才进入 AppContainer/Job/overlay composition；缺少任一条件或仍处于前台开发模式时保持原有 fail-closed/测试边界，不能回退到普通高权限子进程。该 composition 仍不替代原生安装、core peer、服务账户/ACL、网络/credential/session 和 Linux/macOS 平台证据。配置/路由细节见 prd/24 §4.1。
