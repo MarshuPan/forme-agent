@@ -33,3 +33,30 @@
 - 本轮没有调用真实外部模型 Provider，也没有把真实 API key、proxy credential、`.forme` 数据或本地模型配置写入仓库、提交、验收文档或命令输出。
 - 本轮没有注册/启动系统服务，没有执行真实 LAN/公网代理连通性验收，也没有执行 IP01–IP24。现有真实浏览器、Host、安装包和平台服务证据仍以各自专项记录为准。
 - 因此，本记录证明的是“受管模型代理配置与模型传输边界已经实现并通过源码/fixture/回归门”，不是“任意真实 Provider 在任意代理网络下已经可用”。真实 Provider 的可用性仍需在用户自己的本地密钥和代理环境中单独验收。
+
+## Web 设置接入（2026-10-26）
+
+实现提交：`e817534`。本批将已有的受管代理配置接入 Web 设置页，未改变 Host、模型传输、权限或产品配置协议。
+
+- 设置页支持 `direct` 与 `http` 两种模式；HTTP 地址只写入请求，不从公共配置 view 回显。
+- 已配置代理但未重新输入地址时，前端保持原配置；切换为 HTTP 后必须输入完整地址，避免误清空或提交不完整配置。
+- 前端解析器拒绝缺失/错误的代理公开投影，也拒绝任何意外回显的 `endpoint` 字段。
+- 保存请求沿用原有 owner operation、revision 和失败恢复绑定，并只在用户实际修改代理时发送 proxy patch。
+- 重新生成并同步内嵌 Web bundle，避免源前端与 `forme-gateway` 内嵌资源漂移。
+
+## 本批验证
+
+| 检查 | 结果 |
+|---|---|
+| `npm run verify --prefix frontend` | PASS，TypeScript、89 项前端测试、Vite 构建和内嵌 bundle 核对通过 |
+| `pwsh -NoProfile -File tools/verify-code-quality.ps1` | PASS；Rust workspace、strict Clippy、前端、原生打包静态门、合规门和 diff 检查通过 |
+| `git diff --check` | PASS |
+| 代码提交 | `e817534`，`feat(web): expose managed model proxy settings` |
+
+质量门报告的构建缓存预算提示为警告，不影响本批通过；原生安装/服务及 IP01–IP24 在该门中仍为 `NOT_RUN`。
+
+## 本批未覆盖
+
+- 没有在真实浏览器中完成代理设置页的 claim 后交互截图；本批使用前端行为、类型和 bundle 完整性测试。
+- 没有调用真实外部模型 Provider、读取或提交真实 API key、proxy credential 或 `.forme` 数据。
+- 没有执行真实 HTTP 代理连通性、Windows/Linux/macOS 系统服务安装或完整 IP01–IP24 联合验收。
