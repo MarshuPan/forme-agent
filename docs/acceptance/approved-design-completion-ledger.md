@@ -28,7 +28,7 @@
 |---|---|---|
 | P01 / IP01 / prd24：完整原生包 | bundle、资源/签名验证、三平台模板、Windows 有限 ACL 安装入口；`277f551` 加固 POSIX 包事务的固定环境、root/systemd 前置检查与卸载 fixture | 原生构建/签名/清单及失败恢复工具链；各目标实际安装证据。 |
 | P02–03 / IP02–03：常驻、唯一主脑 | 三 daemon、SCM host、有限退避、core drain、独占 writer | 无桌面冷启动、故障/注销后任务持续、双启动与 Unknown 恢复原生证据。 |
-| P09 / IP10：实际分权与 worker | 双域 broker、exact permit、持久 job receipt；普通进程生产 blocked；Windows 新安装 ACL；`8936975` 固定服务 Service SID 核验 | 逐 job 文件/网络/进程隔离、正式 core→broker 原生 peer、独立实际账户；每个平台有效拒绝。Service SID 组件不等于 worker sandbox 或 IP10 PASS。 |
+| P09 / IP10：实际分权与 worker | 双域 broker、exact permit、持久 job receipt；普通进程生产 blocked；Windows 新安装 ACL/Service SID；`1ae55c6` 正式 core→worker/加密结果/双向 peer，`cc43440`、`1270e54`、`7cb5b8b` 有限文件入口、首装 profile/workspace 装配与活动程序绑定，详见本批文件 worker 组件报告。 | 原生 SCM/LocalSystem 安装后的账户、文件/网络/进程隔离及拒绝证据；每个平台独立验证。交互 Host/AppContainer 与临时进程不等于 IP10 PASS。 |
 | P09 / IP11：会话桥 | 核心 desktop grant/driver 治理基线 | 指定 OS 会话的有限 helper、TTL/liveness/锁屏/注销/TCC/Wayland 行为与平台证据。 |
 | P10 / IP12–13：数据与接管 | AEAD/backup/restore/data lifecycle 核心；新脑认领；旧安装 template 原位保留 | 旧脑/备份离线验证、候选绑定、显式迁移与新路径切换、恢复材料；不接管错误 owner/key/占用库。 |
 | P11 / IP14–15：升级回滚恢复 | product journal、release trust/compatibility、服务 adapter；`5b99ac5` 已实现恢复水位、活动数据 CAS、完整 CommitRestore 与提交后准入；`e36b5b9` 增加独立 Web 激活与已暂存发布的重新认证 | 恢复的原生 SCM 联调；签名 Upgrade/Rollback/self-update 的排空→备份→程序切换→健康验证与断电/磁盘失败恢复。不以恢复组件/禁用状态截图代替原生升级验收。 |
@@ -43,7 +43,7 @@
 | P06 / IP06–07：账号与可信身份 | Argon2id、cookie/CSRF/epoch、plan-bound reauth、签名 bridge/durable fence | core 离线撤销恢复、OS 管理员有限口令恢复；账号/owner/keys 保持。 |
 | P07 / IP08：持久设置 | 模型 patch/CAS/journal、不可变凭据、validate/start/restart/ack；`0990bd0` 接入默认 workspace、前台优先与后台相关性模型；受管 skills、公共设置 v2、受管模型代理与可用性投影已接入正式 `SkillRegistry`/ProductionRuntime，组件见 `installed-product-managed-skills-acceptance.md` 与 `installed-product-model-proxy-acceptance.md`。 | MCP/plugin/package、消息渠道、真实外部 provider 和完整产品验收仍仅经 core；组件通过不单独提升 IP08。 |
 | P08 / IP09：本地与 LAN | 精确 Host/Origin、分桶限流；受管网络投影、TLS 材料校验、公共设置 v2、监听健康/有界回退、单次维护派发和 Windows 管理员 firewall 规则的只读核验已接入，见网络组件报告。 | 其他平台核验、真实管理员规则/SCM、证书客户端信任及跨设备证据；不自动改防火墙。 |
-| P15 / IP21：离线维护 | 认证独立、host inspect/启停、模型配置与原 operation 核实 | 健康/诊断、备份候选、升级恢复/回滚、安全系统操作和完整状态视图。 |
+| P15 / IP21：离线维护 | 认证独立、host inspect/启停、模型配置、原 operation 核实；`1270e54` 的固定 hostctl 离线备份核验与升级/回滚 Web 控件，`7cb5b8b` 绑定已验证活动发布，见[组件报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。 | 原生服务、实际升级/恢复/回滚、完整维护状态及产品联合证据；前端 fixture 不等于真实维护事务。 |
 
 ## 5. Web 五个工作面
 
@@ -54,7 +54,7 @@
 | P13 / IP19：项目 | project/route register/plan/execute/cancel、charter | 意图/监管调整、历史/依赖/节点证据、刷新/恢复；不创建项目私有脑。 |
 | P14 / IP20：收件箱 | `477ef52` 主动提案/AskToLearn/失败投影和处置；运行 pending 按 `RunPendingView` 投影为 typed `Waiting` 并导航原 run；`507cccf` 将普通建议未决原命令保存到独立身份库，支持重启读回和显式原号核实，组件见 `installed-product-proposal-recovery-acceptance.md`。 | 真实浏览器刷新/双 tab、多 Web 进程、服务重启全链路与完整 IP20。等待/失败历史必须区分，查看不等于采纳。 |
 | P14 / IP20：记忆与认知 | `477ef52` 投影、证据/血缘及 review/撤回；`de3c7b1` 来源正文核对；`91072be` 具体来源的真实遗忘；`802e3d2` 原子文字纠正、旧认知失效/低置信候选、无正文回执与删除后不复活，见 `installed-product-cognition-correction-acceptance.md`。临时真实浏览器已验证纠正、刷新与原号查询。 | 双 tab/多 Web 进程、实际 provider、原生重启及完整 IP20/IP24 仍开放。组件、临时浏览器和本机模型 fixture 不等于产品通过。 |
-| P07/P15 / IP21：设置 | 模型配置、默认 workspace 与模型角色、受管 skills、口令、主脑状态与受限启停/维护命令；另有配置、离线数据、恢复候选等组件报告。 | MCP/plugin/package、消息渠道、LAN TLS 和全部系统维护面尚未闭合；无假开关/任意 shell/SQL，完整 IP21 仍待产品验收。 |
+| P07/P15 / IP21：设置 | 模型配置、默认 workspace 与模型角色、受管 skills、口令、主脑状态、受管网络/TLS 与受限启停/维护命令；配置、离线数据、恢复候选和活动发布各有组件报告。 | 真实 backend/provider、LAN 跨设备/证书信任、原生系统维护和完整 IP21 产品证据仍开放；MCP/plugin/package/消息渠道按 PRD25 §11.10–11.11 显示实际 unavailable，无假开关/任意 shell/SQL。 |
 | P08/P12 / IP22：浏览器安全 | CSP、无 raw HTML、独立限流、private cache 清理；`5391750` 的真实临时浏览器组件证据覆盖 320/390 窄屏、键盘导航与两标签页注销清除，见 `installed-product-browser-component-acceptance-20261026.md`。 | 附件/下载隔离、实际浏览器故障/恶意内容、完整认领与业务恢复验收；预认领/core 离线组件不提升完整 IP22/IP24。 |
 | P16 / IP23：前端来源 | 自有 React/TypeScript UI，白名单/依赖/NOTICE/资源构建门 | 新组件继续来源审查；无 upstream runtime、fixture 或 build/import。 |
 | P01–16 / IP24：完整产品 | 当前只有分层组件证据 | 正式包→认领→配置→真实对话/工具审批→项目/后台→重启→备份恢复→升级的联合验收。 |
@@ -65,6 +65,6 @@
 
 最终必须核对全部 P/IP、S1–S99、相关 C1–C24、冻结 graph/taxonomy、strict Clippy、质量棘轮、完整默认合规、typed artifacts 与当前源码 release audit；main 集成与远端发布按既有授权分别处理。
 
-当前 Windows 会话不是管理员；固定摘要的 Inno 6.6.1 已基于实现提交 `5391750` 重新编译 Windows 未签名、未安装开发候选，详见 `installed-product-windows-candidate-20261026.md`；2026-10-24 候选保留为历史。Linux/macOS 原生目标与签名身份未提供。继续完成可实现的代码/工具与本机证据，不伪造原生支持、签名或管理员安装结论；这些限制只阻断依赖它们的验收，不阻断其余工作。
+当前 Windows 会话不是管理员；固定摘要的 Inno 6.6.1 已基于实现提交 `7cb5b8b` 重新编译六程序 Windows 未签名、未安装开发候选，详见[2026-10-27 候选报告](installed-product-windows-candidate-20261027.md)；2026-10-24/26 候选保留为历史。Linux/macOS 原生目标与签名身份未提供。继续完成可实现的代码/工具与本机证据，不伪造原生支持、签名或管理员安装结论；这些限制只阻断依赖它们的验收，不阻断其余工作。
 
-安装 worker 的有界结果读取/Host manifest-chunk 通道，以及 POSIX 有限服务恢复的兼容变更，已整理为 `architecture/proposals/installed-worker-result-and-posix-recovery.md`。owner 已批准结果通道并选择 POSIX 方案 A。`1ae55c6` 已实现 ProductionRuntime 正式 adapter、应用层 AEAD、结果独立核验与 Windows 双向 peer 核验，并通过全量 Rust/Host/closure A 和四项 AppContainer 原生组件场景，证据见 `installed-product-worker-core-driver-acceptance-20261027.md`。真实有限文件入口已先落 PRD24 §4.1.1d，实际安装的 profile/workspace/capability 装配、原生服务安装与完整 IP 仍开放。Linux/macOS 保持 `release_ready=false`，不宣称原生产品完成。
+安装 worker 的有界结果读取/Host manifest-chunk 通道，以及 POSIX 有限服务恢复的兼容变更，见 `architecture/proposals/installed-worker-result-and-posix-recovery.md`。owner 已批准结果通道并选择 POSIX 方案 A。`1ae55c6` 的 ProductionRuntime adapter、应用层 AEAD、结果核验与双向 peer 之后，`cc43440`、`1270e54`、`7cb5b8b` 已补齐有限文件入口、首次安装的 profile/workspace/capability 装配与活动发布程序定位，证据见[文件 worker 与离线维护报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。原生 SCM/LocalSystem、桌面 helper、正式安装及完整 IP 仍开放。下一项权限边界已形成[具体草案](../architecture/proposals/installed-windows-desktop-helper-native-boundary.md)，尚未扩大 unsafe 白名单；本机安装按[原生验收计划](installed-product-windows-native-acceptance-plan.md)另行批准。Linux/macOS 保持 `release_ready=false`，不宣称原生产品完成。

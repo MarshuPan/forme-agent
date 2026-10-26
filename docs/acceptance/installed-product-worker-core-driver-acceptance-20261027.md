@@ -36,3 +36,5 @@ Windows AgentExecution named pipe 双向核验实际 PID、固定 SCM/Service SI
 - Linux/macOS 按 owner 选择继续保持有限恢复与 `release_ready=false`，无原生产品支持声明。
 
 结论：受管 core→worker 与结果封存组件验收 PASS；整体产品里程碑继续进行。
+
+后续实施记录：`cc43440`、`1270e54` 与 `7cb5b8b` 已实现本报告当时仍开放的有限文件入口、首装 profile/workspace/capability 装配，以及活动发布程序绑定；新证据见[文件 worker 与离线维护报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。以上历史测试结果不改写，也不自动覆盖后续提交；原生服务/桌面 helper、真实 Provider 和完整产品 IP 继续开放。
