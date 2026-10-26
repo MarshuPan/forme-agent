@@ -6,6 +6,7 @@ pub(super) mod http;
 mod service;
 #[cfg(windows)]
 mod updater_service;
+pub(super) mod worker_routes;
 
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener};

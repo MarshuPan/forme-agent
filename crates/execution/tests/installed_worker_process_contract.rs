@@ -173,6 +173,71 @@ fn process_worker_uses_registered_program_and_reports_completion() {
     assert_eq!(observation.outcome, Some(p::WorkerOutcome::Completed));
     assert!(observation.safe_result_ref.is_some());
     assert!(temp.workspace().join("worker-fixture-ran").is_file());
+    let manifest = host.result_manifest(&auth, &job.job_id, 200).unwrap();
+    assert_eq!(manifest.status, p::WorkerResultStatus::Available);
+    assert_eq!(manifest.bytes, b"worker fixture result\n".len() as u64);
+    let chunk = host
+        .read_result(
+            &auth,
+            p::WorkerResultRead {
+                schema_version: p::WORKER_RESULT_SCHEMA_VERSION,
+                binding: manifest.binding.clone(),
+                manifest_digest: manifest.manifest_digest.clone(),
+                offset: 0,
+                max_bytes: p::WORKER_RESULT_MAX_CHUNK_BYTES,
+            },
+            201,
+        )
+        .unwrap();
+    assert_eq!(chunk.bytes, b"worker fixture result\n");
+    assert!(chunk.finished);
+
+    let artifact = temp.0.join("worker.results").join(format!(
+        "data-{}.bin",
+        manifest.manifest_digest.0.strip_prefix("sha256:").unwrap()
+    ));
+    fs::write(artifact, b"tampered").unwrap();
+    assert!(host
+        .read_result(
+            &auth,
+            p::WorkerResultRead {
+                schema_version: p::WORKER_RESULT_SCHEMA_VERSION,
+                binding: manifest.binding,
+                manifest_digest: manifest.manifest_digest,
+                offset: 0,
+                max_bytes: p::WORKER_RESULT_MAX_CHUNK_BYTES,
+            },
+            202,
+        )
+        .is_err());
+}
+
+#[test]
+fn process_worker_missing_result_is_not_reported_as_available() {
+    let temp = Temp::new();
+    let auth = agent_auth(&temp);
+    let host = host(&temp, vec!["--no-result".into()]);
+    let (job, permit) = job("job-process-missing-result", 500);
+
+    host.dispatch(&auth, job.clone(), permit, 10).unwrap();
+    let observation = wait_for_terminal(&host, &auth, &job.job_id);
+    assert_eq!(observation.state, p::WorkerState::Completed);
+    let manifest = host.result_manifest(&auth, &job.job_id, 200).unwrap();
+    assert_eq!(manifest.status, p::WorkerResultStatus::Missing);
+    assert_eq!(manifest.outcome, Some(p::WorkerOutcome::Completed));
+    assert!(host
+        .read_result(
+            &auth,
+            p::WorkerResultRead {
+                schema_version: p::WORKER_RESULT_SCHEMA_VERSION,
+                binding: manifest.binding,
+                manifest_digest: manifest.manifest_digest,
+                offset: 0,
+                max_bytes: p::WORKER_RESULT_MAX_CHUNK_BYTES,
+            },
+            201,
+        )
+        .is_err());
 }
 
 #[test]

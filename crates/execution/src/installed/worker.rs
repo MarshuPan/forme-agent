@@ -43,6 +43,9 @@ enum WorkerFact {
     Receipt {
         receipt: p::WorkerReceipt,
     },
+    ResultManifest {
+        manifest: p::WorkerResultManifest,
+    },
     CancelReceipt {
         receipt: p::WorkerCancelReceipt,
     },
@@ -82,6 +85,7 @@ struct WorkerRecord {
     desktop_observation: Option<p::DesktopSessionObservation>,
     state: p::WorkerState,
     receipt: Option<p::WorkerReceipt>,
+    result_manifest: Option<p::WorkerResultManifest>,
     cancel_receipt: Option<p::WorkerCancelReceipt>,
     reason_ref: Option<String>,
 }
@@ -144,6 +148,7 @@ impl WorkerProjection {
                         desktop_observation: None,
                         state: p::WorkerState::Pending,
                         receipt: None,
+                        result_manifest: None,
                         cancel_receipt: None,
                         reason_ref: None,
                     },
@@ -238,6 +243,23 @@ impl WorkerProjection {
                 };
                 record.reason_ref = receipt.reason_ref.clone();
                 record.cancel_receipt = Some(receipt.clone());
+            }
+            WorkerFact::ResultManifest { manifest } => {
+                let record = self
+                    .jobs
+                    .get_mut(&manifest.binding.job_id)
+                    .ok_or_else(invalid_journal)?;
+                manifest.validate_for(&record.job, &record.permit)?;
+                if !matches!(
+                    record.state,
+                    p::WorkerState::Pending
+                        | p::WorkerState::Running
+                        | p::WorkerState::CancelRequested
+                ) || record.result_manifest.is_some()
+                {
+                    return Err(invalid_journal());
+                }
+                record.result_manifest = Some(manifest.clone());
             }
             WorkerFact::Unknown {
                 job_id,
@@ -426,6 +448,20 @@ impl WorkerJournal {
         Ok(observation(record, now))
     }
 
+    pub fn record_result_manifest(&self, manifest: p::WorkerResultManifest) -> p::Result<()> {
+        let mut writer = self.writer.lock().map_err(|_| storage_error())?;
+        let job = writer
+            .projection
+            .jobs
+            .get(&manifest.binding.job_id)
+            .ok_or_else(|| p::Error("worker job does not exist".into()))?;
+        manifest.validate_for(&job.job, &job.permit)?;
+        if job.result_manifest.as_ref() == Some(&manifest) {
+            return Ok(());
+        }
+        append_fact(&mut writer, WorkerFact::ResultManifest { manifest })
+    }
+
     pub fn record_desktop_observation(
         &self,
         job_id: &str,
@@ -582,10 +618,63 @@ impl WorkerJournal {
             .map(|record| record.job.clone())
             .ok_or_else(|| p::Error("worker job does not exist".into()))
     }
+
+    pub fn result_manifest(&self, job_id: &str) -> p::Result<Option<p::WorkerResultManifest>> {
+        validate_worker_id(job_id)?;
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        Ok(writer
+            .projection
+            .jobs
+            .get(job_id)
+            .and_then(|record| record.result_manifest.clone()))
+    }
+
+    pub fn result_binding(
+        &self,
+        job_id: &str,
+        installation_ref: String,
+        receipt_ref: Option<String>,
+    ) -> p::Result<p::WorkerResultBinding> {
+        validate_worker_id(job_id)?;
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        let record = writer
+            .projection
+            .jobs
+            .get(job_id)
+            .ok_or_else(|| p::Error("worker job does not exist".into()))?;
+        let (normalized_action_digest, output_budget_bytes) = record
+            .execution_binding
+            .as_ref()
+            .map(|binding| {
+                (
+                    Some(binding.normalized_action_digest.clone()),
+                    binding.output_budget_bytes,
+                )
+            })
+            .unwrap_or((None, p::WORKER_RESULT_MAX_BYTES));
+        let binding = p::WorkerResultBinding {
+            schema_version: p::WORKER_RESULT_SCHEMA_VERSION,
+            installation_ref,
+            job_id: record.job.job_id.clone(),
+            owner_ref: record.job.owner_ref.clone(),
+            action_ref: record.job.action_ref.clone(),
+            workspace_scope: record.job.workspace_scope.clone(),
+            plan_digest: record.job.plan_digest.clone(),
+            normalized_action_digest,
+            permit_ref: record.permit.permit_ref.clone(),
+            permit_digest: p::canonical_digest(&record.permit)?,
+            authority_epoch: record.job.authority_epoch,
+            nonce: record.job.nonce.clone(),
+            receipt_ref,
+            output_budget_bytes,
+        };
+        binding.validate()?;
+        Ok(binding)
+    }
 }
 
 fn observation(record: &WorkerRecord, now: p::Timestamp) -> p::WorkerObservation {
-    let (outcome, receipt_ref, safe_result_ref, ground_truth_refs) = record
+    let (outcome, receipt_ref, receipt_result_ref, ground_truth_refs) = record
         .receipt
         .as_ref()
         .map(|receipt| {
@@ -617,6 +706,12 @@ fn observation(record: &WorkerRecord, now: p::Timestamp) -> p::WorkerObservation
                 Vec::new(),
             )
         });
+    let safe_result_ref = receipt_result_ref.or_else(|| {
+        record
+            .result_manifest
+            .as_ref()
+            .and_then(|manifest| manifest.result_ref.clone())
+    });
     p::WorkerObservation {
         schema_version: p::SchemaVersion(1),
         job_id: record.job.job_id.clone(),

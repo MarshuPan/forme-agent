@@ -53,6 +53,7 @@ mod worker_binding;
 mod worker_client;
 mod worker_config;
 mod worker_host;
+mod worker_results;
 
 pub use desktop_helper::{DesktopHelperAdapter, UnavailableDesktopHelper};
 pub use host::*;

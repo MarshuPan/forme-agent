@@ -398,6 +398,20 @@ fn worker_broker_client_dispatches_typed_spec_and_reuses_original_job() {
     };
     assert_eq!(observation.state, p::WorkerState::Completed);
     assert_eq!(observation.outcome, Some(p::WorkerOutcome::Completed));
+
+    let manifest = client.result_manifest(&duplicate.job_id).unwrap();
+    assert_eq!(manifest.status, p::WorkerResultStatus::Available);
+    let chunk = client
+        .read_result(p::WorkerResultRead {
+            schema_version: p::WORKER_RESULT_SCHEMA_VERSION,
+            binding: manifest.binding.clone(),
+            manifest_digest: manifest.manifest_digest.clone(),
+            offset: 0,
+            max_bytes: p::WORKER_RESULT_MAX_CHUNK_BYTES,
+        })
+        .unwrap();
+    assert_eq!(chunk.bytes, b"worker fixture result\n");
+    assert!(chunk.finished);
 }
 
 #[test]

@@ -29,6 +29,8 @@ pub trait WorkerBrokerTransport: Send + Sync {
     fn dispatch(&self, request: p::WorkerDispatchRequest) -> p::Result<p::WorkerObservation>;
     fn probe(&self, job_id: &str) -> p::Result<p::WorkerObservation>;
     fn cancel(&self, job_id: &str) -> p::Result<p::WorkerCancelReceipt>;
+    fn result_manifest(&self, job_id: &str) -> p::Result<p::WorkerResultManifest>;
+    fn read_result(&self, request: p::WorkerResultRead) -> p::Result<p::WorkerResultChunk>;
 }
 
 /// Loopback HTTP client for the AgentExecution domain.
@@ -246,6 +248,43 @@ impl WorkerBrokerTransport for WorkerBrokerClient {
         }
         Ok(receipt)
     }
+
+    fn result_manifest(&self, job_id: &str) -> p::Result<p::WorkerResultManifest> {
+        validate_job_id(job_id)?;
+        let body = self.json(
+            "GET",
+            &format!("/v1/agent/workers/{job_id}/result"),
+            None::<&()>,
+            Operation::ResultManifest,
+        )?;
+        let manifest: p::WorkerResultManifest = decode(&body, Operation::ResultManifest)?;
+        manifest.validate()?;
+        if manifest.binding.job_id != job_id {
+            return Err(p::Error(
+                "agent execution result is bound to another job".into(),
+            ));
+        }
+        Ok(manifest)
+    }
+
+    fn read_result(&self, request: p::WorkerResultRead) -> p::Result<p::WorkerResultChunk> {
+        request.validate()?;
+        let job_id = request.binding.job_id.clone();
+        let body = self.json(
+            "POST",
+            &format!("/v1/agent/workers/{job_id}/result/read"),
+            Some(&request),
+            Operation::ResultRead,
+        )?;
+        let chunk: p::WorkerResultChunk = decode(&body, Operation::ResultRead)?;
+        chunk.validate()?;
+        if chunk.manifest_digest != request.manifest_digest {
+            return Err(p::Error(
+                "agent execution result chunk is bound to another manifest".into(),
+            ));
+        }
+        Ok(chunk)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -253,6 +292,8 @@ enum Operation {
     Dispatch,
     Probe,
     Cancel,
+    ResultManifest,
+    ResultRead,
 }
 
 impl Operation {
@@ -265,6 +306,10 @@ impl Operation {
             Self::Cancel => p::Error(
                 "agent execution cancellation outcome is unknown; probe the original job".into(),
             ),
+            Self::ResultManifest => {
+                p::Error("agent execution result manifest is unavailable".into())
+            }
+            Self::ResultRead => p::Error("agent execution result read is unavailable".into()),
         }
     }
 }

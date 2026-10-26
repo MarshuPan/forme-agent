@@ -4,13 +4,13 @@ use std::net::TcpStream;
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::worker_routes;
 use super::{now_ms, EndpointDomain};
 use forme_execution::installed::{HostManagement, IsolatedExecutorHost, ProductHostBroker};
 use forme_protocol as p;
 
 const MAX_REQUEST: usize = 4 * 1024 * 1024;
 const MAX_HEADERS: usize = 16_384;
-
 pub(super) trait HostConnection: Read + Write {
     fn prepare(&mut self) -> p::Result<()>;
     fn local_authority(&self) -> Option<String>;
@@ -188,6 +188,9 @@ fn route(
     auth: &forme_execution::installed::HostAuth,
     domain: EndpointDomain,
 ) -> p::Result<(u16, Vec<u8>)> {
+    if let Some(result) = worker_routes::route(request, worker, auth, now_ms()) {
+        return result.map(|body| (200, body));
+    }
     let body = match (request.method.as_str(), request.path.as_str()) {
         ("GET", "/healthz") => serde_json::to_vec(&serde_json::json!({"status":"ok"}))
             .map_err(|_| p::Error("host health response failed".into()))?,

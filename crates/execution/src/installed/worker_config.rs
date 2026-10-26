@@ -143,8 +143,10 @@ impl WorkerRuntimeConfig {
     /// Preflight product files against every writable worker path. This is
     /// not a substitute for platform ACLs or execution-time identity checks.
     pub fn validate_protected_paths(&self, protected: &[&Path]) -> p::Result<()> {
+        let result_root = self.result_root();
         let writable: Vec<_> = [&self.journal_path, &self.runtime_root]
             .into_iter()
+            .chain(std::iter::once(&result_root))
             .chain(self.workspace_roots.values())
             .map(|path| path_identity(path))
             .collect::<p::Result<_>>()?;
@@ -169,6 +171,10 @@ impl WorkerRuntimeConfig {
             }
         }
         Ok(())
+    }
+
+    pub fn result_root(&self) -> PathBuf {
+        self.journal_path.with_extension("results")
     }
 
     /// Service default: a config file cannot assert that a platform sandbox

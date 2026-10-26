@@ -32,15 +32,15 @@ pub enum WorkerOutcome {
     Unknown,
 }
 
-fn validate_worker_ref(value: &str, name: &str) -> Result<()> {
+pub(super) fn validate_worker_ref(value: &str, name: &str) -> Result<()> {
     validate_product_id(value).map_err(|_| Error(format!("{name} is invalid")))
 }
 
-fn validate_worker_plan_digest(value: &PlanDigest) -> Result<()> {
+pub(super) fn validate_worker_plan_digest(value: &PlanDigest) -> Result<()> {
     validate_product_digest(&SchemaDigest(value.0.clone()))
 }
 
-fn validate_workspace_scope(value: &Scope) -> Result<()> {
+pub(super) fn validate_workspace_scope(value: &Scope) -> Result<()> {
     if value.0.len() > 512
         || !value.0.starts_with("workspace:")
         || value.0.contains(['\\', '\0'])
@@ -55,15 +55,15 @@ fn validate_workspace_scope(value: &Scope) -> Result<()> {
     Ok(())
 }
 
-fn validate_worker_nonce(value: &Nonce) -> Result<()> {
+pub(super) fn validate_worker_nonce(value: &Nonce) -> Result<()> {
     validate_worker_ref(&value.0, "worker nonce")
 }
 
-fn validate_worker_principal(value: &VerifiedPrincipal) -> Result<()> {
+pub(super) fn validate_worker_principal(value: &VerifiedPrincipal) -> Result<()> {
     validate_worker_ref(&value.0, "worker owner")
 }
 
-fn validate_worker_action(value: &ActionId) -> Result<()> {
+pub(super) fn validate_worker_action(value: &ActionId) -> Result<()> {
     validate_worker_ref(&value.0, "worker action")
 }
 

@@ -1,20 +1,35 @@
 use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
+pub(super) fn validate_workspace_scope(value: &p::Scope) -> p::Result<()> {
+    if value.0.len() > 512
+        || !value.0.starts_with("workspace:")
+        || value.0.contains(['\\', '\0'])
+        || value.0.chars().any(char::is_control)
+        || value
+            .0
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+    {
+        return Err(p::Error("worker workspace scope is invalid".into()));
+    }
+    Ok(())
+}
+
 /// The journal keeps only the immutable execution binding, not the full
 /// action parameters. This is enough to reject a changed duplicate request
 /// without copying potentially large payloads into the product journal.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct WorkerExecutionBinding {
-    schema_version: p::SchemaVersion,
-    backend: p::BackendKind,
-    scope: p::Scope,
-    normalized_action_digest: p::SchemaDigest,
-    timeout: p::DurationMs,
-    output_budget_bytes: u64,
+    pub(super) schema_version: p::SchemaVersion,
+    pub(super) backend: p::BackendKind,
+    pub(super) scope: p::Scope,
+    pub(super) normalized_action_digest: p::SchemaDigest,
+    pub(super) timeout: p::DurationMs,
+    pub(super) output_budget_bytes: u64,
     #[serde(default)]
-    desktop_session: Option<p::DesktopSessionBinding>,
+    pub(super) desktop_session: Option<p::DesktopSessionBinding>,
 }
 
 impl WorkerExecutionBinding {

@@ -216,6 +216,7 @@ impl ProcessWorkerIsolation {
             .env("FORME_WORKER_WORKSPACE_PATH", workspace)
             .env("FORME_WORKER_WORKSPACE_SCOPE", &job.workspace_scope.0)
             .env("FORME_WORKER_DEADLINE", job.deadline.to_string())
+            .env("FORME_WORKER_RESULT_PATH", run_dir.join("result.bin"))
             .stdin(Stdio::null())
             // Worker output is not a result channel. Discard it here so a
             // noisy child cannot grow an unbounded product log or fill the
@@ -388,6 +389,10 @@ impl WorkerIsolation for ProcessWorkerIsolation {
         };
         children.remove(&job.job_id);
         Ok(Some(Self::receipt(job, started_at, now, outcome)?))
+    }
+
+    fn result_path(&self, job: &p::WorkerJob) -> p::Result<Option<PathBuf>> {
+        Ok(Some(self.run_dir(job)?.join("result.bin")))
     }
 }
 

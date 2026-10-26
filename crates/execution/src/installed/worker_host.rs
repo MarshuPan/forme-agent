@@ -1,5 +1,5 @@
 use std::collections::BTreeSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use forme_protocol as p;
@@ -9,6 +9,10 @@ use super::desktop_helper::{
     UnavailableDesktopHelper,
 };
 use super::worker::WorkerJournal;
+use super::worker_binding::validate_workspace_scope;
+use super::worker_results::{
+    installation_ref, WorkerResultHostExt, WorkerResultSealRequest, WorkerResultStore,
+};
 use super::{HostAuth, HostCredentialDomain};
 
 /// An isolation implementation must represent real OS-level admission. The
@@ -46,6 +50,12 @@ pub trait WorkerIsolation: Send + Sync {
         _job: &p::WorkerJob,
         _now: p::Timestamp,
     ) -> p::Result<Option<p::WorkerReceipt>> {
+        Ok(None)
+    }
+
+    /// Return the adapter-owned bounded result path after a terminal
+    /// observation. The Host reads it before publishing the receipt.
+    fn result_path(&self, _job: &p::WorkerJob) -> p::Result<Option<PathBuf>> {
         Ok(None)
     }
 
@@ -115,19 +125,39 @@ pub trait IsolatedExecutorHost: Send + Sync {
         receipt: p::WorkerReceipt,
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation>;
+    fn result_manifest(
+        &self,
+        auth: &HostAuth,
+        job_id: &str,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerResultManifest> {
+        let _ = (auth, job_id, now);
+        Err(p::Error("worker result channel is unavailable".into()))
+    }
+    fn read_result(
+        &self,
+        auth: &HostAuth,
+        request: p::WorkerResultRead,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerResultChunk> {
+        let _ = (auth, request, now);
+        Err(p::Error("worker result channel is unavailable".into()))
+    }
 }
 
 pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDesktopHelper> {
     // Keep the durable transition and platform effect in one control-plane
     // critical section. Journal locking alone cannot prevent probe/cancel
     // from observing the gap between Started and process creation.
-    operations: Mutex<()>,
-    journal: WorkerJournal,
+    pub(super) operations: Mutex<()>,
+    pub(super) journal: WorkerJournal,
     agent_credential_digest: p::SchemaDigest,
     authority_epoch: p::AuthorityEpoch,
     allowed_scopes: BTreeSet<p::Scope>,
     isolation: I,
     desktop_helper: D,
+    pub(super) result_store: WorkerResultStore,
+    pub(super) installation_ref: String,
 }
 
 impl WorkerExecutorHost<UnavailableWorkerIsolation, UnavailableDesktopHelper> {
@@ -194,6 +224,8 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         for scope in &allowed_scopes {
             validate_workspace_scope(scope)?;
         }
+        let installation_ref = installation_ref(&agent_credential_digest)?;
+        let result_root = journal_path.with_extension("results");
         Ok(Self {
             operations: Mutex::new(()),
             journal: WorkerJournal::open(journal_path)?,
@@ -202,10 +234,12 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             allowed_scopes,
             isolation,
             desktop_helper,
+            result_store: WorkerResultStore::open(&result_root)?,
+            installation_ref,
         })
     }
 
-    fn verify(&self, auth: &HostAuth) -> p::Result<()> {
+    pub(super) fn verify(&self, auth: &HostAuth) -> p::Result<()> {
         if auth.domain() != HostCredentialDomain::AgentExecution
             || auth.proof_ref() != &self.agent_credential_digest
         {
@@ -267,7 +301,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         Ok(Some((request, observation)))
     }
 
-    fn refresh_isolation(
+    pub(super) fn refresh_isolation(
         &self,
         job_id: &str,
         now: p::Timestamp,
@@ -280,6 +314,16 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             let job = self.journal.job(job_id)?;
             if let Some(receipt) = self.isolation.observe(&job, now)? {
                 receipt.validate_for(&job)?;
+                let source = self.isolation.result_path(&job)?;
+                self.seal_result(WorkerResultSealRequest {
+                    job: &job,
+                    receipt_ref: Some(receipt.receipt_ref.clone()),
+                    result_ref: receipt.safe_result_ref.clone(),
+                    outcome: Some(receipt.observed_outcome),
+                    source: source.as_deref(),
+                    evidence_refs: receipt.ground_truth_refs.clone(),
+                    now,
+                })?;
                 self.journal.record_receipt(receipt, now)?;
             }
         }
@@ -389,6 +433,15 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
                 }
             };
             let worker_receipt = worker_receipt(&request, receipt, now)?;
+            self.seal_result(WorkerResultSealRequest {
+                job: &job,
+                receipt_ref: Some(worker_receipt.receipt_ref.clone()),
+                result_ref: worker_receipt.safe_result_ref.clone(),
+                outcome: Some(worker_receipt.observed_outcome),
+                source: None,
+                evidence_refs: worker_receipt.ground_truth_refs.clone(),
+                now,
+            })?;
             return self.journal.record_receipt(worker_receipt, now);
         }
 
@@ -485,6 +538,15 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
             }
         };
         receipt.validate_for(&job)?;
+        self.seal_result(WorkerResultSealRequest {
+            job: &job,
+            receipt_ref: receipt.receipt_ref.clone(),
+            result_ref: None,
+            outcome: Some(receipt.outcome),
+            source: None,
+            evidence_refs: Vec::new(),
+            now,
+        })?;
         self.journal.record_cancel_receipt(receipt.clone(), now)?;
         Ok(receipt)
     }
@@ -500,23 +562,36 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         if receipt.authority_epoch != self.authority_epoch {
             return Err(p::Error("worker receipt authority epoch is stale".into()));
         }
+        let job = self.journal.job(&receipt.job_id)?;
+        self.seal_result(WorkerResultSealRequest {
+            job: &job,
+            receipt_ref: Some(receipt.receipt_ref.clone()),
+            result_ref: receipt.safe_result_ref.clone(),
+            outcome: Some(receipt.observed_outcome),
+            source: None,
+            evidence_refs: receipt.ground_truth_refs.clone(),
+            now,
+        })?;
         self.journal.record_receipt(receipt, now)
     }
-}
 
-fn validate_workspace_scope(value: &p::Scope) -> p::Result<()> {
-    if value.0.len() > 512
-        || !value.0.starts_with("workspace:")
-        || value.0.contains(['\\', '\0'])
-        || value.0.chars().any(char::is_control)
-        || value
-            .0
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
-    {
-        return Err(p::Error("worker workspace scope is invalid".into()));
+    fn result_manifest(
+        &self,
+        auth: &HostAuth,
+        job_id: &str,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerResultManifest> {
+        self.result_manifest_endpoint(auth, job_id, now)
     }
-    Ok(())
+
+    fn read_result(
+        &self,
+        auth: &HostAuth,
+        request: p::WorkerResultRead,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerResultChunk> {
+        self.read_result_endpoint(auth, request, now)
+    }
 }
 
 fn storage_error() -> p::Error {
