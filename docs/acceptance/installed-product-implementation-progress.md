@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-26 当前产品化分支 `c48073f` 完成一轮绑定当前 HEAD 的综合复验：`tools/verify-code-quality.ps1` 退出码 0，Rust workspace 全量测试、fmt、workspace check、strict Clippy、前端类型/行为测试/生产构建、bundle/离线发布校验、Windows 访问控制、POSIX 安装钩子、只读防火墙策略、原创与许可证合规均通过；资源检查通过但提示 `target` 约 `105.62 GiB` logical、`102.82 GiB` allocated，超过缓存预算，未执行清理。`verify-installed-host.ps1` 的宿主永久合同门 PASS；产品配置门为 `65/65`、网络 fence `4/4`、脑偏好 `3/3`、managed skills `2/2`，受管产品二进制构建 PASS；Web 身份 `25` 项、入口 `10` 项、Web process smoke、工作台 `8` 项均 PASS。所有这些是当前源码/临时 fixture/loopback 组件证据；本机未注册 `NT SERVICE\\forme-brain`，没有执行管理员安装、原生服务 manager、真实 Provider、正式安装后浏览器 claim、Linux/macOS 原生服务或 IP01–IP24，因此这些范围继续为 `NOT_RUN`。Worker 结果通道 proposal 仍未获 owner 激活，不在本轮越过文档批准边界。
+
 2026-10-26 `f3cf915` 修正并复验产品配置验收脚本：当前源码实际执行的配置/激活/维护/skills/network/settings 场景为 `65/65` PASS，网络 fence `4/4`、脑偏好 `3/3`、managed skills `2/2` PASS，受管产品二进制构建 PASS。该修正只消除旧计数器造成的假阴性，不提升受管 Host/Web/core 服务桥、原生安装、真实 Provider 或 IP01–IP24 状态；本机没有注册 `NT SERVICE\\forme-brain`，这些范围继续为 `NOT_RUN`。
 
 2026-10-26 `c247c44` 修正受管产品 fixture 的 Host 启动边界：正式 `forme-hostd --config <absolute-path>` 继续保持受管模式，并在缺少 SCM/Service SID 时 fail closed；仓库自有开发/集成 fixture 改用显式 `forme-hostd --development-config <absolute-path>`，复用 closed 配置 schema 与路径/凭据校验，但只运行非受管 loopback 前台 Host。新增参数解析与受管 transport 回归、managed configuration/network/cognition fixture 均通过；这不构成系统服务注册、原生 peer identity、worker sandbox、安装包或 IP01–IP24 证据。
