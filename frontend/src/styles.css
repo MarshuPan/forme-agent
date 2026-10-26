@@ -2,7 +2,7 @@
 
 :root { font-family: 'Segoe UI Variable', 'PingFang SC', 'Microsoft YaHei', sans-serif; font-size: 15px; color: #292e2b; background: #fafaf7; font-synthesis: none; --accent: #324f42; --muted: #747c75; --line: #e5e7df; --paper: #fff; --soft: #f0f2eb; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; }
+body { margin: 0; min-width: 0; }
 button, input, textarea { font: inherit; }
 button, a, input, textarea, summary { -webkit-tap-highlight-color: transparent; }
 button, a, summary { touch-action: manipulation; }
@@ -95,3 +95,16 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .privacy-hidden .app-shell { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
 @media (max-width: 640px) { .model-form-grid { grid-template-columns: minmax(0, 1fr); } .wide-field { grid-column: auto; } }
+@media (max-width: 640px) {
+  .topbar > button { flex-shrink: 0; white-space: nowrap; }
+  .service-state { min-width: 0; }
+  .service-state i { flex-shrink: 0; }
+  .view-header { flex-wrap: wrap; }
+}
+@media (max-width: 420px) {
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; height: auto; min-height: 4.2rem; padding: .6rem 1rem; row-gap: .5rem; }
+  .topbar .brand { grid-column: 1; grid-row: 1; }
+  .topbar .mobile-menu { grid-column: 2; grid-row: 1; }
+  .topbar .text-button { grid-column: 3; grid-row: 1; }
+  .service-state { grid-column: 1 / -1; grid-row: 2; margin-left: 0; }
+}
