@@ -67,4 +67,4 @@
 
 当前 Windows 会话不是管理员；固定摘要的 Inno 6.6.1 已基于实现提交 `5391750` 重新编译 Windows 未签名、未安装开发候选，详见 `installed-product-windows-candidate-20261026.md`；2026-10-24 候选保留为历史。Linux/macOS 原生目标与签名身份未提供。继续完成可实现的代码/工具与本机证据，不伪造原生支持、签名或管理员安装结论；这些限制只阻断依赖它们的验收，不阻断其余工作。
 
-安装 worker 的有界结果读取/ProductionRuntime 接入，以及 POSIX 有限服务恢复的兼容变更，已整理为 `architecture/proposals/installed-worker-result-and-posix-recovery.md`。两项仍待 owner 确认、未激活；不由组件测试或本清单自动批准，不放宽正式 managed backend 的 unavailable/blocked 边界。
+安装 worker 的有界结果读取/Host manifest-chunk 通道，以及 POSIX 有限服务恢复的兼容变更，已整理为 `architecture/proposals/installed-worker-result-and-posix-recovery.md`。owner 已批准结果通道并选择 POSIX 方案 A：结果 DTO、Host 私有封存、journal manifest 投影、AgentExecution 只读路由和开发 Process worker 已实施并有定向证据；ProductionRuntime 正式接入、应用层密钥加密、原生平台隔离与 IP 证据仍开放。Linux/macOS 保持 `release_ready=false`，不宣称原生产品完成。

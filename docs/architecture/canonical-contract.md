@@ -699,10 +699,12 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 ### 29.9 原生平台边界与安全代码例外
 
 - `execution` 是唯一承载 worker OS 隔离 adapter 的既有 crate；不新增内部 crate 或依赖边。默认配置继续使用 `UnavailableWorkerIsolation`，直到完整平台证据闭合。
+- **Worker 结果通道是产品事实，不是脑事件**：Host 为原 job 提供固定、有界的结果文件入口，终态顺序必须是“读取并校验源文件 → 封存 Host 私有工件 → 追加 `WorkerResultManifest` → 追加原 `WorkerReceipt`”。manifest/read/chunk 绑定安装 authority ref、owner/job/action/scope、plan/normalized-action digest、permit、authority epoch、nonce 和 output budget，明确 `Available`、`Empty`、`Pending`、`Missing`、`Corrupt`、`Cleaned` 及真实 `WorkerOutcome`。总量受最终 output budget 与 64 MiB 上限双重约束，单 chunk ≤256 KiB；读取只接受 opaque binding/manifest digest，不接受路径、URL、程序、环境或新授权。结果正文不进入 brain EventStore、普通日志、管理回执或公共配置；Web 只能经 core/产品授权投影读取。结果工件的应用层加密必须接入产品执行数据域的真实 key resolver，私有目录权限不得冒充加密。未知副作用只能取原 job 的 manifest/probe，不能换 job 重派。
 - Windows AppContainer adapter 只允许在 `crates/execution/src/installed/windows_appcontainer_acl.rs` 与 `windows_appcontainer_native.rs` 使用受审计的 `windows-sys` FFI；Windows AgentExecution peer transport 另允许在 `windows_agent_execution_native.rs` 这一项独立审计边界内使用同一 FFI。`execution` 根和 `installed` 模块使用 `deny(unsafe_code)`；仓库质量门拒绝其他源文件的 `unsafe` 或 `allow(unsafe_code)`。三个边界各自只覆盖最小的句柄/SID/token/ACL/Job/pipe 封装，不允许向业务层泄漏裸句柄或绕过既有 typed worker permit。
 - AppContainer identity、ACL mutation、token readback、Job custody 和 cleanup 都必须绑定同一个 `WorkerJob`/`plan_digest`，按独立 sandbox lease journal 记录。进程创建时原子加入确定性命名的 kill-on-close Job Object，完成 AppContainer token/ACL/Job 回读前不得 resume；启动恢复只操作原命名 Job 和原 lease，ACL/profile/目录清理均须可幂等重试，任何身份、路径或恢复不确定都保持 blocked/Unknown。细节见 prd/24 §4.1.2。
 - 该代码实现只表示 adapter 组件已存在，不表示服务账户、安装 ACL、网络拒绝、重启回收和真实 IP10/IP24 通过。产品门仍以真实 Windows service identity 和正反访问证据为准。
 - owner 已选择 Windows 每 job 私有副本/overlay + Host 核验回写（prd/24 §4.1.3）：仅副本降低完整性，原 workspace 不授予 worker、不改变标签；baseline/最终计划/permit 精确绑定、原句柄 custody、冲突整批拒绝和 durable writeback intent/receipt 是承重条件。回写不明保留原副本并阻断恢复，不盲重试；不增加脑 EventKind。新增 Low label/文件 identity/按句柄删除/child-process restriction FFI 仍仅限上述两个文件。
+- POSIX 服务恢复采取 **选择 A：保持当前有限策略与不发布边界**。Linux/macOS 继续 `release_ready=false`，有限 systemd/launchd 模板和通用代码不能推出规范目标的原生支持；不实施 one-shot wrapper、无限 KeepAlive 或进程内第二个 supervisor。结果通道的实现不改变这一发布边界。
 
 ### 29.10 交互桌面会话 helper
 

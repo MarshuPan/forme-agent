@@ -1,6 +1,6 @@
 # 安装运行时剩余承重契约草案
 
-状态：**待 owner 确认，未激活**。本稿使现存两项协议决策可审阅；不修改 canonical、PRD24 的冻结签名，不宣称实现或 IP 通过。确认后先回填 PRD24、architecture/10 和必要的 canonical 条款，再按模块实现、验证与提交。
+状态：**owner 已批准，结果通道已激活；POSIX 恢复选择 A**。本稿记录现存两项承重决策及其实现边界；不修改既有脑事件、crate 图或执行授权语义，也不宣称原生平台/IP 通过。结果通道的协议、Host 封存、AgentExecution 只读路由和开发 Process worker 已实现并接受定向测试；正式 ProductionRuntime 接入、原生平台隔离、安装包和完整 IP 仍按总清单独立验收。
 
 ## 1. 已核实的缺口
 
@@ -10,7 +10,7 @@ POSIX 恢复也不能沿用 Windows 的支持结论。当前 systemd 模板提�
 
 ## 2. 决策一：有界、原操作绑定的 worker 结果通道
 
-建议批准本节的 additive 产品契约。保持 18-crate 图、99 EventKinds、原 ActionResult、原 policy/approval 和现有三个方法的语义。新增独立结果读取接口，不给旧 transport 增加必需方法；旧客户端保持兼容，但不能据此宣布安装执行可用。
+本节已批准为 additive 产品契约。保持现有 crate 图、99 EventKinds、原 ActionResult、原 policy/approval 和既有 dispatch/probe/cancel 语义。结果读取是独立的只读接口；旧 transport 调用保持兼容，只有实现了结果通道并通过对应 Host/平台门的 backend 才能声明结果可用。
 
 ### 2.1 归属与身份
 
@@ -36,7 +36,7 @@ POSIX 恢复也不能沿用 Windows 的支持结论。当前 systemd 模板提�
 
 1. 隔离 worker 只向本 job 的有限输出通道写数据；没有 Host/brain key，不能写 Host manifest、receipt 或 journal。读取与输出都要同时限制内存、磁盘、时间和句柄。
 2. Host 校验结果结构、预算、执行绑定与实际退出。文件动作另核对完整变更集、baseline 与回写 receipt，不能把 exit 0 当作文件已提交。
-3. 输出由 Host 封存为不可变、应用层加密的结果工件，密钥归产品执行数据域；journal 只留摘要/引用。不能把原文复制到日志、管理回执或公共配置。临时输出与 overlay 的原生权限和清理须分别验证。
+3. 输出由 Host 封存为不可变、受安装数据目录权限保护的结果工件；journal 只留摘要/引用。结果工件的应用层加密必须接入产品执行数据域的真实密钥解析后才能宣称完成，本轮不以自制密码学或 AgentExecution bearer digest 冒充加密。不能把原文复制到日志、管理回执或公共配置。临时输出与 overlay 的原生权限和清理须分别验证。
 4. 先发布内容并同步，再提交绑定 manifest/终态 receipt。发布中断只能读取已完成的原工件；孤立工件不成为成功事实，终态指向缺失工件时继续拒绝成功。恢复不重新启动 worker、不重复回写。
 5. 保留/清理有独立产品数据记录和读取 fence；显式清理后结果显示不可用，不把缺失正文解释为成功，也不通过备份恢复重开旧执行权限。原审计元数据不包含正文。
 
@@ -50,8 +50,8 @@ Harness 继续负责最终计划、policy/envelope/能力门、审批和 nonce�
 
 ### 2.5 实施顺序与拒绝证据
 
-1. 协议、manifest 校验与独立只读接口；保持旧 wire/trait 的正反兼容。
-2. Host 加密工件、分块、原 job receipt 与中断恢复；重复读取零 driver/零回写。
+1. 协议、manifest 校验与独立只读接口；保持旧 wire/trait 的正反兼容。**已完成。**
+2. Host 私有工件、分块、原 job receipt 与中断恢复；重复读取零 driver/零回写。**本轮已完成 bounded/private artifact；应用层加密仍以 product key-domain 接入门为准。**
 3. worker 的真实有限执行入口和三个 OS adapter 的结果封存；单平台先证明，再声明该平台可用。
 4. 正式 backend/ProductionRuntime 装配与 core→peer→worker→原结果→Verifier 的完整路径。
 5. 产品浏览器与原生 IP10/IP17/IP18/IP24；真实 provider、实际服务身份和临时/模拟证据分开记录。
@@ -62,7 +62,7 @@ Harness 继续负责最终计划、policy/envelope/能力门、审批和 nonce�
 
 | 选择 | 实施影响 |
 |---|---|
-| A：保持当前契约与不发布边界 | 继续要求原有限恢复策略；Linux/macOS 的 release_ready=false/IP NOT_RUN 保留。可推进不依赖该决策的实现，但不宣布三平台产品完成。无需放宽任何治理。 |
+| A：保持当前契约与不发布边界（已选择） | 继续要求原有限恢复策略；Linux/macOS 的 `release_ready=false`/IP NOT_RUN 保留。可推进不依赖该决策的实现，但不宣布三平台产品完成。无需放宽任何治理。 |
 | B：先定义 one-shot 启动门，再逐平台实现 | OS 仍是唯一重启管理者。每次 OS 启动只允许一次有界、持久化准入；门可拒绝启动或报告冷却，绝不在进程内做重启 loop。必须先确认下列细节与实际平台可表达性，不能仅修改模板。 |
 
 B 需在写代码前明确：失败计数/24 小时重置的唯一持久 writer；有意停服与崩溃的区分；OS 重启、时钟回拨、torn write 和并发启动处理；systemd 的 RestartPreventExitStatus 与 launchd 的 SuccessfulExit/手动启动差异；连续失败阈值后的确切退出码和人工恢复动作。退避必须说明是从真实失败时间还是启动观察时间计算。
@@ -73,6 +73,6 @@ B 需在写代码前明确：失败计数/24 小时重置的唯一持久 writer�
 
 ## 4. 明确未完成的部分
 
-本稿不增加第四内核、M6、第二大脑或新的脑事件。桌面 helper 的真实 OS 会话/隐私授权、管理员 SCM 安装、各目标原生构建签名、真实 provider 及完整 IP01–IP24 仍按总交付清单开放。
+本稿不增加第四内核、M6、第二大脑或新的脑事件。桌面 helper 的真实 OS 会话/隐私授权、管理员 SCM 安装、各目标原生构建签名、真实 provider、结果工件应用层密钥接入及完整 IP01–IP24 仍按总交付清单开放。
 
 浏览器组件截图、源码质量门及已有 AppContainer 临时目录证据不能替代上述批准、实现或原生验收。两项决策只阻断依赖它们的工作。

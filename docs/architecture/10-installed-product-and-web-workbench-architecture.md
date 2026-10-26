@@ -168,7 +168,17 @@ broker 不签发新 permission；安装权限、登录、trust 或能力安装�
 
 正式 core driver 通过当前 schema 1 的 `WorkerDispatchRequest` 兼容新增字段发送可选的 `WorkerExecutionSpec`：它绑定最终 `ExecutionPlan` 的 digest、`ActionIntent`、backend、scope、affected resources、timeout 与 output budget。它不携带解析后的 secret、任意环境、程序路径或新的授权字段；Host 必须逐项核对 `WorkerJob`/`WorkerPermit`，并在隔离器之前重新验证 digest、expiry、authority epoch 与当前 worker 配置。没有 spec 的旧请求仅保留控制面兼容，不构成已接入 core driver 的证据。
 
-Host 把经过验证的 spec 写入该 job 专属、受保护的运行目录，通过固定的 `FORME_WORKER_EXECUTION_PATH` 交给已注册 launch profile；子进程不得读取兄弟 job、brain、keys、管理 journal 或 Web 凭据。写入、启动或回执不明均保留原 job 为 `Unknown`，probe/cancel 只查原 job，不能换号重做。`WorkerBrokerTransport` 只负责 AgentExecution 的 admission/probe/cancel wire 调用，不拥有 permission、不重新规划、不调模型。
+Host 把经过验证的 spec 写入该 job 专属、受保护的运行目录，通过固定的 `FORME_WORKER_EXECUTION_PATH` 交给已注册 launch profile；子进程不得读取兄弟 job、brain、keys、管理 journal 或 Web 凭据。写入、启动或回执不明均保留原 job 为 `Unknown`，probe/cancel/result-read 只查原 job，不能换号重做。`WorkerBrokerTransport` 只负责 AgentExecution 的 admission/probe/cancel/result manifest/chunk wire 调用，不拥有 permission、不重新规划、不调模型。
+
+#### 7.1.1 结果读取通道
+
+worker 的 stdout/stderr 不是结果事实源。受管 Host 为每个 job 提供固定的、不可由 worker 改写的 `FORME_WORKER_RESULT_PATH`；worker 只能向该受限文件写有界正文。Host 在观察到终态后按以下顺序执行：读取并校验实际文件、按 `WorkerResultBinding` 封存不可变工件、追加 `WorkerResultManifest` 到产品 worker journal，最后追加原 `WorkerReceipt`。任何读取、摘要、绑定或持久化失败都保持原 job `Unknown`，不能用 worker 自报的 `safe_result_ref` 合成成功正文。
+
+结果 DTO 是 `WorkerResultBinding`、`WorkerResultManifest`、`WorkerResultRead` 和 `WorkerResultChunk`，均带 `schema_version`、`deny_unknown_fields` 和 owner/job/action/scope/plan/permit/authority/nonce 绑定。manifest 明确区分 `Available`、`Empty`、`Pending`、`Missing`、`Corrupt`、`Cleaned`，并同时记录真实 `WorkerOutcome`；正文总量同时受最终 output budget 与 64 MiB 上限约束，单次 chunk 不超过 256 KiB。读取只接受 opaque binding 与 manifest digest，不接受路径、URL、程序、环境或新的授权参数；Host 每次读取都复核文件长度和整体摘要，跨 chunk 由 offset/next_offset/finished 重组。
+
+AgentExecution 只读路由为 `GET /v1/agent/workers/{job_id}/result`（manifest）和 `POST /v1/agent/workers/{job_id}/result/read`（chunk）。两者只允许 AgentExecution credential/peer，Web、OwnerMaintenance、worker 均不能直接访问；Web 若需要展示产物，必须通过既有 core/产品授权投影。未知副作用只能读取原 job 的 manifest/probe，不能因结果缺失、超时或响应丢失新派发。
+
+当前实现使用 Host 私有结果目录和独立 manifest/data 文件，journal 只保存绑定和 manifest，不复制正文。应用层加密必须接入产品执行数据域的真实 key resolver 后才能宣称完成；私有目录权限不是应用层加密的替代品。开发 Process worker 已提供受限结果文件和真实分块读取证据；该证据不提升 Windows/Linux/macOS 原生隔离、ProductionRuntime 或 IP10/IP24 的状态。
 
 这条接缝闭合的是 core→broker 的协议和数据边界，不等于平台级沙箱。Windows `WindowsJobWorkerIsolation` 现在提供了真实 Job Object adapter，并以 kill-on-close 和进程首次执行前接管证明进程树生命周期；Windows managed Host 还会在加载 worker 配置前证明固定 SCM 入口与当前 `LocalSystem` 身份，再组合 AppContainer、Job Object 和 per-job workspace overlay。缺少受管配置、SCM 绑定或 `LocalSystem` 身份时仍 fail closed；该代码接入不等于真实安装、服务账户/peer、ACL、逐 job 文件/网络/credential scope 或桌面会话的完整产品证据。Linux 已加入 `LinuxSystemdWorkerIsolation`：受管 Host 先验证 root、固定 `forme-host.service`、systemd 控制面和 `forme-exec`，每个 job 使用私有 workspace 副本并由 Host 核验回写；当前仅有目标交叉检查和通用回归，尚无 Linux 原生服务/账户/回写运行证据。macOS 已接入 `MacOsLaunchdWorkerIsolation` 的代码路径：受管 Host 先验证 root、固定 `com.forme.host` LaunchDaemon、`launchctl`、`sandbox-exec` 和 `_formeexec`，每个 job 使用私有 workspace 副本，由 Host 核验回写，网络 shell 在当前无 scoped adapter 时拒绝；当前没有 macOS 主机上的 LaunchDaemon、账户、sandbox、TCC、安装包或回写运行证据，IP10/IP24 仍需原生验收。
 

@@ -94,9 +94,24 @@ AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/work
 
 Host 将已校验 spec 写入本 job 的受保护运行目录，按注册 launch profile 通过固定的 `FORME_WORKER_EXECUTION_PATH` 只读入口交给 worker；worker 只能读取该 job 自己的文件。spec 丢失、损坏、过期、与 job/permit 不一致或写入结果不明时，该原 job 进入 `Unknown`，不能换 job 重发。probe/cancel 只引用原 job，不重新提交 spec；重启后未终态 job 仍只做 Unknown 恢复。
 
-Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，绑定固定 loopback endpoint、独立 credential、请求/响应大小和超时；它不能调用 OwnerMaintenance，也不能让 Web 直接取得该 credential。该 transport 只负责 admission/probe/cancel 和 receipt 投影，不在 transport 内产生 permission、重算 plan 或执行模型。正式 ProductionRuntime 在没有真实平台隔离 adapter 时继续将对应 capability 标为 unavailable/blocked；开发 process worker 仅用于 transport/协议验证。
+Core 侧使用受限 `WorkerBrokerTransport` 调用 AgentExecution listener，绑定固定 loopback endpoint、独立 credential、请求/响应大小和超时；它不能调用 OwnerMaintenance，也不能让 Web 直接取得该 credential。该 transport 负责 admission/probe/cancel 以及只读的 result manifest/chunk 投影，不在 transport 内产生 permission、重算 plan 或执行模型。正式 ProductionRuntime 在没有真实平台隔离 adapter 时继续将对应 capability 标为 unavailable/blocked；开发 process worker 仅用于 transport/协议验证。
 
-#### 4.1.1a Windows AgentExecution 原生 peer identity
+#### 4.1.1a Worker 结果 manifest/chunk 通道
+
+worker 的 stdout/stderr 丢弃，不是结果事实源。Host 为已注册 launch profile 提供固定的 `FORME_WORKER_RESULT_PATH`，worker 只能写当前 job 的这一处有限结果文件。Host 在 `observe` 得到终态后，必须按“读取源文件 → 校验绑定/长度/整体摘要 → 写 Host 私有工件 → 追加 `WorkerResultManifest` → 追加原 `WorkerReceipt`”顺序完成；中间任何失败都把原 job 留在 `Unknown`，不得用 `safe_result_ref` 虚构正文。
+
+协议对象为：
+
+- `WorkerResultBinding`：安装 authority ref、job/owner/action/scope、plan digest、可选 normalized action digest、permit digest/ref、authority epoch、nonce、可选 receipt ref 和 output budget。
+- `WorkerResultManifest`：binding、manifest digest、可选 result ref、`Available/Empty/Pending/Missing/Corrupt/Cleaned` 状态、真实 `WorkerOutcome`、字节数/正文 digest/encoding/截断标记、产生时间和 evidence refs。
+- `WorkerResultRead`：binding、manifest digest、offset、max bytes；只接受 opaque ref，不接受路径、URL、程序、环境或新授权。
+- `WorkerResultChunk`：manifest digest、offset、bounded bytes、chunk digest、next offset 和 finished。
+
+正文总量同时受最终 `WorkerExecutionSpec.output_budget_bytes` 与 64 MiB 上限约束，单 chunk 不超过 256 KiB。Host 每次读取都复核工件是普通文件、长度与整体 digest 一致；跨 chunk 的 UTF-8 不在 chunk 边界截断。`Pending`、正文 `Missing`、`Corrupt`、`Cleaned` 和动作 `Unknown` 不能被合成普通成功结果。
+
+AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/agent/workers/{job_id}/result/read`；两条路由使用 AgentExecution credential/peer，OwnerMaintenance、Web 和 worker 均拒绝。Host journal 只保存 manifest/binding，结果正文保存在独立私有 result store，不能复制进 brain event、普通日志、管理回执或公共配置。当前实现已闭合协议、Host 私有封存、Process worker 受限结果文件和 HTTP/typed transport 定向测试；应用层加密仍须接入产品执行数据域的真实 key resolver，不能用 bearer digest 或自制算法冒充完成。该组件证据不等同 ProductionRuntime、原生平台隔离或 IP10/IP24 通过。
+
+#### 4.1.1b Windows AgentExecution 原生 peer identity
 
 Windows managed Host 不把 loopback TCP 当作 Brain 身份证明。正式 AgentExecution 接缝使用固定名称空间下的 named pipe：`\\.\pipe\forme-agent-execution-v1-<install_digest>`，其中 `<install_digest>` 是 `sha256` 的小写十六进制摘要（摘要输入为 `("forme-agent-execution-pipe-v1", install_id)`，去掉 `sha256:` 前缀）。该名称只能由安装清单绑定的 `install_id` 派生，不能由 Web、模型或请求 payload 选择。
 
