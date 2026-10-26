@@ -10,6 +10,7 @@ use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 mod skills;
+mod worker;
 
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -32,6 +33,9 @@ pub struct ManagedBrainConfig {
     /// to a brain-process backend.
     #[serde(default)]
     pub worker_binding: Option<ManagedWorkerBinding>,
+    /// Host-owned readonly placement projection, separate from the binding.
+    #[serde(default)]
+    pub worker_file_roots: std::collections::BTreeMap<String, PathBuf>,
     #[serde(default)]
     pub model_proxy: Option<p::ProductProxyConfig>,
     #[serde(default)]

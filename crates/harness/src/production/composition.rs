@@ -9,6 +9,7 @@ pub(super) fn compose(
     access: forme_store::StoreAccessGuard,
     managed_mode: bool,
     worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
+    worker_file_roots: BTreeMap<String, PathBuf>,
 ) -> p::Result<ProductionRuntime> {
     if !store.is_file_backed()? {
         return Err(p::Error(
@@ -232,6 +233,15 @@ pub(super) fn compose(
             &binding.backend_kinds,
         ))?,
         None => capability_snapshot,
+    };
+    let capability_snapshot = if worker_file_roots.is_empty() {
+        capability_snapshot
+    } else {
+        p::canonical_digest(&(
+            "forme-installed-file-placement-v1",
+            capability_snapshot,
+            worker_file_roots,
+        ))?
     };
     let capability_snapshot = match model_registry.role_routing_digest()? {
         Some(roles) => p::canonical_digest(&(

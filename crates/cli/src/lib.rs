@@ -1,6 +1,7 @@
 //! Thin CLI client over the same RunRequest/EventStream protocol as the gateway (prd/14).
 #![forbid(unsafe_code)]
 
+pub mod hostctl_backup_verification;
 pub mod hostctl_data;
 pub mod hostctl_install;
 pub mod hostctl_release;

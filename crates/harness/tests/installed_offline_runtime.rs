@@ -30,6 +30,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
             "credential_path":key}]))
         .unwrap(),
         worker_binding: None,
+        worker_file_roots: Default::default(),
         model_proxy: None,
         model_routing: Default::default(),
         capabilities: None,

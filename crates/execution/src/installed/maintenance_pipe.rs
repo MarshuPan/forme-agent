@@ -89,6 +89,21 @@ impl ReleaseDataProgram {
         &self,
         deadline: Instant,
     ) -> p::Result<MaintenancePipe<T>> {
+        self.spawn_command("maintenance-release-data", deadline)
+    }
+
+    pub(super) fn spawn_backup_verification<T: DeserializeOwned + Send + 'static>(
+        &self,
+        deadline: Instant,
+    ) -> p::Result<MaintenancePipe<T>> {
+        self.spawn_command("maintenance-verify-backup", deadline)
+    }
+
+    fn spawn_command<T: DeserializeOwned + Send + 'static>(
+        &self,
+        command_name: &'static str,
+        deadline: Instant,
+    ) -> p::Result<MaintenancePipe<T>> {
         self.preflight()?;
         if Instant::now() >= deadline {
             return Err(unavailable());
@@ -115,7 +130,7 @@ impl ReleaseDataProgram {
         }
         let mut command = Command::new(&self.program);
         command
-            .args(["maintenance-release-data", "--installation-manifest"])
+            .args([command_name, "--installation-manifest"])
             .arg(&self.manifest_path)
             .current_dir(&self.installation.paths.host_state)
             .env_clear()

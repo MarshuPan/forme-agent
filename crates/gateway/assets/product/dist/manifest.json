@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "be7ec9b4443481a87890db96a914699c523f9c013409f584c625fca2d30a7c69",
+  "source_digest": "f02e8e1df41bd083c5585d74b0f92eb148315cad390cfa9775c4e9af365f0886",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "d3254aa2252a4495f7383bbd4ab0ad6edc01901209052b0d5e60a347286cde0d"
+      "sha256": "5321940615f5a92f2bd89d2ad5612fb6e06bdb671d57361de305eccba122799f"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -64,7 +64,7 @@
     },
     {
       "path": "frontend/src/components/DataManagement.tsx",
-      "sha256": "b61981630575d0640984ef528e78937b1c838629d8676ca0e79e4cc6d372c288"
+      "sha256": "1c7714c45ffb74625251cc9f97a2fbdeaa1267507277a94d91ae7ba4c1e6a950"
     },
     {
       "path": "frontend/src/components/Entry.tsx",
@@ -72,7 +72,7 @@
     },
     {
       "path": "frontend/src/components/Maintenance.tsx",
-      "sha256": "96f51a3b92c04ecff1ba6441fad4eab3460640b9f19a3d46031c0e21e324b960"
+      "sha256": "00e0bccbe3d240b2f112c2367d709c49c1e47cb25ebc189278220ac2a998d8ee"
     },
     {
       "path": "frontend/src/components/MemoryMaterial.tsx",
@@ -156,11 +156,15 @@
     },
     {
       "path": "frontend/src/maintenance.ts",
-      "sha256": "aac0fd68f52bd4c546c80d836813d64452a7f11d964cea99204fedb79346c4c5"
+      "sha256": "528e7d0530a03d2cd976a040963cac3aa3e585810fcfcc4f33a61f347216c5f1"
     },
     {
       "path": "frontend/src/memory-material.ts",
       "sha256": "fd5cc2626822c8074f7109b50741b7ebc9933c26935c9d0204256b3b0cc2bffb"
+    },
+    {
+      "path": "frontend/src/offline-backup.ts",
+      "sha256": "37b9dcc382d8baec9226619a9e3fae133b1579cb28e8078ab9e11eee0631e829"
     },
     {
       "path": "frontend/src/project-routes.ts",
@@ -232,11 +236,15 @@
     },
     {
       "path": "frontend/src/tests/maintenance.test.ts",
-      "sha256": "79ac1cade3f77dd5a6fe19fb2ebbda5b41211f66b8d108250ac32d56391d3331"
+      "sha256": "ecf4ffb270987a92a8e2fef4dbc097645165629fb27e5572bb4e8db211da2e40"
     },
     {
       "path": "frontend/src/tests/memory-material.test.ts",
       "sha256": "aef42189ee027a003c8615ed432159d199e003778e877a513b83be18e7cdc9fd"
+    },
+    {
+      "path": "frontend/src/tests/offline-backup.test.ts",
+      "sha256": "318937019541cc893f4a51ceab9337f5d3ebb8a3c03b0fd6b86ca826709bf777"
     },
     {
       "path": "frontend/src/tests/project-routes.test.ts",
@@ -281,14 +289,14 @@
   ],
   "files": [
     {
+      "path": "assets/index-B8O_GEKB.js",
+      "sha256": "f1914eddfd1effc3e6b54bc90b55a1b844c9ce72b82ec1ac7d5bcacb440f7ce3",
+      "bytes": 373984
+    },
+    {
       "path": "assets/index-BbhQ1fO8.css",
       "sha256": "4375a8d4833de33a7f9616a54330385a391954c6c0b0366de498b8f47a313aa7",
       "bytes": 14769
-    },
-    {
-      "path": "assets/index-BnSTrHhq.js",
-      "sha256": "f87e9249b7736ac2d29ef340c57e0ed2d6d52018602999ecc71b6d3e01ebb78c",
-      "bytes": 370838
     },
     {
       "path": "dependencies.json",
@@ -302,7 +310,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "e6682771e387273dae7d88ec3d7f3d94758359917f3234587a597e6f5f4ba4d0",
+      "sha256": "474abe408651b9a7db01c599a418c78c89ddea7d033dbbe07c118669c87b9236",
       "bytes": 595
     },
     {

@@ -8,6 +8,9 @@ use super::worker_routes;
 use super::{now_ms, EndpointDomain};
 use forme_execution::installed::{HostManagement, IsolatedExecutorHost, ProductHostBroker};
 use forme_protocol as p;
+#[path = "http_paths.rs"]
+mod paths;
+use paths::{is_agent_path, is_configuration_path, is_configuration_status_path};
 
 const MAX_REQUEST: usize = 4 * 1024 * 1024;
 const MAX_HEADERS: usize = 16_384;
@@ -231,6 +234,15 @@ fn route(
             serde_json::to_vec(&broker.bind_configuration_owner(auth, binding)?)
                 .map_err(|_| p::Error("host configuration response failed".into()))?
         }
+        ("POST", "/v1/host/configuration/data/verify")
+            if matches!(domain, EndpointDomain::Configuration) =>
+        {
+            let request: p::ProductBackupVerificationRequest =
+                serde_json::from_slice(&request.body)
+                    .map_err(|_| p::Error("host backup verification body is invalid".into()))?;
+            serde_json::to_vec(&broker.verify_installed_backup(auth, request)?)
+                .map_err(|_| p::Error("host backup verification response failed".into()))?
+        }
         ("POST", "/v1/host/configuration/validate")
             if matches!(domain, EndpointDomain::Configuration) =>
         {
@@ -363,27 +375,6 @@ fn authenticate_request(
     }
 }
 
-fn is_agent_path(path: &str) -> bool {
-    path == "/v1/agent/workers/dispatch" || path.starts_with("/v1/agent/workers/")
-}
-
-fn is_configuration_path(path: &str) -> bool {
-    matches!(
-        path,
-        "/v1/host/configuration"
-            | "/v1/host/configuration/v2"
-            | "/v1/host/configuration/owner"
-            | "/v1/host/configuration/validate"
-            | "/v1/host/configuration/activate"
-            | "/v1/host/configuration/maintenance"
-    ) || path.starts_with("/v1/host/configuration/operations/")
-        || path.starts_with("/v1/host/configuration/maintenance/operations/")
-}
-
-fn is_configuration_status_path(path: &str) -> bool {
-    path == "/v1/host/status"
-}
-
 #[cfg(test)]
 mod tests {
     use super::{is_configuration_path, is_configuration_status_path};
@@ -394,6 +385,13 @@ mod tests {
         assert!(!is_configuration_path("/v1/host/status"));
         assert!(!is_configuration_path("/v1/host/plan"));
         assert!(!is_configuration_path("/v1/host/operations/inspect"));
+        assert!(is_configuration_path("/v1/host/configuration/data/verify"));
+        assert!(!is_configuration_path(
+            "/v1/host/configuration/data/verify/extra"
+        ));
+        assert!(!is_configuration_path(
+            "/v1/host/configuration/data/restore"
+        ));
     }
 }
 

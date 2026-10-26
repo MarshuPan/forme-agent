@@ -12,6 +12,8 @@ const TOKEN: &str = "lifecycle-test-token-0123456789abcdef0123456789abcdef";
 const KEY_ENV: &str = "FORME_GATEWAY_LIFECYCLE_FIXTURE_KEY";
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+#[path = "server_lifecycle_tests/installed_backup_verification.rs"]
+mod installed_backup_verification;
 #[path = "server_lifecycle_tests/installed_release.rs"]
 mod installed_release;
 #[path = "server_lifecycle_tests/installed_restore.rs"]

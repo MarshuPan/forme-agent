@@ -387,6 +387,9 @@ pub(super) fn core_config(
         config["brain"]["capabilities"] =
             serde_json::to_value(capabilities).map_err(|_| invalid())?;
     }
+    if let Some(worker) = &state.worker {
+        worker.materialize(&mut config["brain"])?;
+    }
     if let Some(proxy) = &state.proxy {
         validate_proxy(proxy)?;
         config["model_proxy"] = serde_json::to_value(proxy).map_err(|_| invalid())?;
@@ -479,6 +482,7 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         network: None,
         proxy: None,
         release: None,
+        worker: None,
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

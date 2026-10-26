@@ -116,6 +116,17 @@ impl LocalConfigurationClient {
         self.request("GET", "/v1/host/configuration/maintenance", None::<&()>)
     }
 
+    pub(super) fn verify_backup(
+        &self,
+        request: p::ProductBackupVerificationRequest,
+    ) -> p::Result<p::ProductBackupVerificationResponse> {
+        request.validate()?;
+        let response: p::ProductBackupVerificationResponse =
+            self.request("POST", "/v1/host/configuration/data/verify", Some(&request))?;
+        response.validate_for(&request)?;
+        Ok(response)
+    }
+
     pub(super) fn maintain(
         &self,
         request: p::ProductMaintenanceRequest,
@@ -147,6 +158,7 @@ impl LocalConfigurationClient {
                 | ("POST", "/v1/host/configuration/owner")
                 | ("POST", "/v1/host/configuration/validate")
                 | ("POST", "/v1/host/configuration/activate")
+                | ("POST", "/v1/host/configuration/data/verify")
                 | ("GET", "/v1/host/configuration/maintenance")
                 | ("POST", "/v1/host/configuration/maintenance")
         ) && !(method == "GET"

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ApiError, WorkbenchClient } from '../api/client.ts';
-import { configureNetworkCommand, maintenanceComplete, restoreCommand } from '../maintenance.ts';
+import { configureNetworkCommand, maintenanceComplete, releaseMaintenanceCommand, restoreCommand } from '../maintenance.ts';
 import type { MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 import type { RestoreCandidate } from '../data.ts';
 import type { ProductConfigValidation, ProductConfigView } from '../types.ts';
@@ -44,6 +44,35 @@ const config: ProductConfigView = { schema_version: 1, configured: true, install
   proxy: { schema_version: 1, mode: 'direct', endpoint_configured: false }, proxy_source: 'installation_template' };
 const snapshot: MaintenanceSnapshot = { schema_version: 1, product_revision: 31, owner: 'owner:fixture',
   host: { schema_version: 1, product_state: 'ready', core_health: 'ready', active_release: '0.0.1', allowed_operations: ['commit_restore'] }, operations: [] };
+
+test('release changes bind exact version, digest, backup and operation and never resend on lost response', async () => {
+  for (const kind of ['upgrade', 'rollback_compatible_release'] as const) {
+    const view = { ...snapshot, host: { ...snapshot.host, allowed_operations: [kind] } };
+    const command = releaseMaintenanceCommand(kind, '0.0.2', digest('a'), 'backup:original', view, 'release:original', 1_000);
+    assert.deepEqual(command, { schema_version: 1, operation_id: 'release:original', expected_revision: 31,
+      requested_deadline: 121_000, action: { kind, release_id: '0.0.2', release_digest: digest('a'), backup_ref: 'backup:original' } });
+    const calls: { path: string; init: RequestInit }[] = [];
+    const api = new WorkbenchClient(async (path, init) => {
+      calls.push({ path: String(path), init: init! });
+      if (init?.method === 'POST') throw new TypeError('release response lost');
+      return Response.json({ schema_version: 1, operation_id: command.operation_id, stage: 'recovery_required', pending_stage: 'checking' });
+    });
+    await assert.rejects(api.maintain(command, 'fixture-release-password'));
+    const receipt = await api.maintenanceOperation(command.operation_id);
+    assert.equal(maintenanceComplete(receipt), false);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].init.method, 'GET');
+    assert.equal(calls[1].init.body, undefined);
+    assert.equal(calls[1].path, '/api/v1/product/maintenance/operations/release%3Aoriginal');
+    const body = JSON.parse(String(calls[0].init.body));
+    assert.deepEqual(body.action, command.action);
+    for (const field of ['owner', 'program', 'path', 'principal', 'verified']) assert.equal(Object.hasOwn(body, field), false);
+    assert.throws(() => releaseMaintenanceCommand(kind, '0.0.2', digest('a'), 'backup:original', snapshot, 'release:original', 1_000));
+    assert.throws(() => releaseMaintenanceCommand(kind, '../foreign', digest('a'), 'backup:original', view, 'release:original', 1_000));
+    assert.throws(() => releaseMaintenanceCommand(kind, '0.0.2', 'unbound', 'backup:original', view, 'release:original', 1_000));
+    assert.throws(() => releaseMaintenanceCommand(kind, '0.0.2', digest('a'), 'C:/backup', view, 'release:original', 1_000));
+  }
+});
 
 const networkConfig = { ...config, network_active: false };
 const networkSnapshot = { ...snapshot, host: { ...snapshot.host, allowed_operations: ['configure_lan'] } };

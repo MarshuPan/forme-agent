@@ -39,6 +39,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
             credential_path: key,
         }],
         worker_binding: None,
+        worker_file_roots: Default::default(),
         model_proxy: None,
         model_routing: Default::default(),
         capabilities: Some(settings(&f.config.workspace.0)),

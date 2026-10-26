@@ -41,6 +41,21 @@ fn offline_projection_ignores_known_routing_but_rejects_unknown_storage_fields()
         assert_eq!(parsed.brain.workspace.0, "workspace:managed");
         assert_eq!(parsed.brain.store_path, PathBuf::from("fixture.db"));
     }
+    for runtime in [
+        serde_json::Value::Null,
+        serde_json::json!({"store_path":"wrong.db","url":"unavailable"}),
+    ] {
+        value["model_proxy"] = runtime.clone();
+        value["brain"]["worker_binding"] = runtime.clone();
+        value["brain"]["worker_file_roots"] = runtime;
+        let parsed: StorageConfig = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(parsed.brain.owner.0, "owner:offline");
+        assert_eq!(parsed.brain.store_path, PathBuf::from("fixture.db"));
+        assert_eq!(parsed.brain.artifact_root, PathBuf::from("artifacts"));
+    }
+    let mut unknown = value.clone();
+    unknown["runtime_override"] = serde_json::json!({});
+    assert!(serde_json::from_value::<StorageConfig>(unknown).is_err());
     value["brain"]["unknown_storage_override"] = serde_json::json!("other.db");
     assert!(serde_json::from_value::<StorageConfig>(value).is_err());
 }

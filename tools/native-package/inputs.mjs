@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { lstat, open, readdir, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { productBinaries } from '../product-binaries.mjs';
 
 export const invalid = () => new Error('Native package input is invalid or changed; existing files are retained');
 export const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -118,7 +119,7 @@ export async function verifyBundle(root, allowDevelopment = false) {
   const sums = `${inventory.files.map((file) => `${file.sha256}  ${file.path}`).join('\n')}\n`;
   if ((await bounded(join(root, 'SHA256SUMS'), 8 * 1024 ** 2)).toString('utf8') !== sums) throw invalid();
   const suffix = inventory.target.startsWith('windows-') ? '.exe' : '';
-  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl']) {
+  for (const name of productBinaries) {
     const path = `bin/${name}${suffix}`;
     if (!names.includes(path)) throw invalid();
     const file = await open(join(root, path), 'r');

@@ -9,6 +9,7 @@ pub struct ProductionRuntimeBuilder {
     managed_key_directory: Option<PathBuf>,
     managed_mode: bool,
     worker_binding: Option<ManagedWorkerBinding>,
+    worker_file_roots: BTreeMap<String, PathBuf>,
     // None is development; Some(None) is a managed, unrestored store.
     required_restoration_fence: Option<Option<p::SchemaDigest>>,
 }
@@ -32,6 +33,7 @@ impl ProductionRuntimeBuilder {
             managed_key_directory: None,
             managed_mode: false,
             worker_binding: None,
+            worker_file_roots: BTreeMap::new(),
             required_restoration_fence: None,
         })
     }
@@ -54,6 +56,7 @@ impl ProductionRuntimeBuilder {
             None => None,
         };
         let worker_binding = config.worker_binding.clone();
+        let worker_file_roots = config.worker_file_roots.clone();
         let runtime = config.runtime_config()?;
         let key_directory = config.content_key_directory()?;
         let expected_fence = config.expected_restoration_fence.clone();
@@ -72,6 +75,7 @@ impl ProductionRuntimeBuilder {
             managed_key_directory: Some(key_directory),
             managed_mode: true,
             worker_binding,
+            worker_file_roots,
             required_restoration_fence: Some(expected_fence),
         })
     }
@@ -144,6 +148,7 @@ impl ProductionRuntimeBuilder {
             access,
             self.managed_mode,
             self.worker_binding,
+            self.worker_file_roots,
         )?;
         runtime.data_operation_root = data_operation_root;
         Ok(runtime)

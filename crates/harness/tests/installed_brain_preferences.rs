@@ -32,6 +32,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
         agent_profile: f.config.agent_profile.clone(),
         models: serde_json::from_value(serde_json::json!(profiles)).unwrap(),
         worker_binding: None,
+        worker_file_roots: Default::default(),
         model_proxy: None,
         model_routing: p::ProductModelRouting {
             schema_version: p::SchemaVersion(1),

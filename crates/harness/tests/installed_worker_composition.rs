@@ -32,6 +32,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
             credential_path: key,
         }],
         worker_binding: None,
+        worker_file_roots: Default::default(),
         model_proxy: None,
         model_routing: Default::default(),
         capabilities: None,
@@ -167,5 +168,75 @@ fn managed_worker_placement_is_composition_bound_stable_and_secret_free() {
         .build()
         .unwrap();
     assert_eq!(runtime.manifest().digest, legacy.digest);
+    assert_eq!(f.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn installed_file_roots_are_scope_bound_rechecked_and_part_of_composition() {
+    let f = Fixture::new();
+    let mut config = managed(&f);
+    let root = config
+        .store_path
+        .parent()
+        .unwrap()
+        .join("installed-workspace");
+    fs::create_dir(&root).unwrap();
+    let mut worker = binding(&f);
+    worker.backend_kinds = [p::BackendKind::File].into_iter().collect();
+    config.worker_binding = Some(worker);
+    config
+        .worker_file_roots
+        .insert(config.workspace.0.clone(), root.clone());
+    let runtime_config = config.runtime_config().unwrap();
+    assert!(runtime_config.capabilities.file.enabled);
+    assert_eq!(
+        runtime_config.capabilities.file.roots,
+        vec![root.to_string_lossy().replace('\\', "/")]
+    );
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    let first = runtime.manifest().clone();
+    assert!(!format!("{first:?}").contains("installed-workspace"));
+    // A missing transport credential is never a reason to use FileBackend.
+    assert!(runtime
+        .services()
+        .backends
+        .backend(p::BackendKind::File)
+        .is_err());
+    drop(runtime);
+    let next_root = root.with_file_name("installed-workspace-next");
+    fs::create_dir(&next_root).unwrap();
+    config
+        .worker_file_roots
+        .insert(config.workspace.0.clone(), next_root);
+    let runtime = ProductionRuntimeBuilder::from_managed_config(config.clone())
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_ne!(runtime.manifest().digest, first.digest);
+    drop(runtime);
+    let mut unknown = config.clone();
+    unknown.workspace = p::WorkspaceRef("workspace:unregistered".into());
+    assert!(!unknown.runtime_config().unwrap().capabilities.file.enabled);
+    let mut unbound = config.clone();
+    unbound.worker_binding = None;
+    assert!(unbound.runtime_config().is_err());
+    config
+        .worker_binding
+        .as_mut()
+        .unwrap()
+        .backend_kinds
+        .clear();
+    assert!(config.runtime_config().is_err());
+    let mut unsafe_root = unknown;
+    unsafe_root.worker_file_roots = [(
+        unsafe_root.workspace.0.clone(),
+        unsafe_root.store_path.parent().unwrap().to_owned(),
+    )]
+    .into_iter()
+    .collect();
+    assert!(unsafe_root.runtime_config().is_err());
     assert_eq!(f.calls.load(Ordering::SeqCst), 0);
 }

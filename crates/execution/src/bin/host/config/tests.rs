@@ -127,6 +127,86 @@ fn native_account(service: &str) -> &'static str {
     service.required_account(native_target())
 }
 
+#[cfg(windows)]
+#[test]
+fn installed_file_projection_requires_the_exact_manifest_profile_epoch_and_roots() {
+    let fixture = Fixture::new();
+    fixture.key(
+        "maintenance.key",
+        b"fixture-maintenance-credential-0123456789",
+    );
+    fixture.key("agent.key", b"fixture-agent-credential-0123456789");
+    let root = &fixture.0;
+    std::fs::create_dir_all(root.join("releases/bin")).unwrap();
+    std::fs::create_dir_all(root.join("workspaces/default")).unwrap();
+    std::fs::write(
+        root.join("releases/bin/forme-executord.exe"),
+        b"registered-program-metadata-fixture",
+    )
+    .unwrap();
+    let worker_path = root.join("config/worker.json");
+    let worker = serde_json::json!({
+        "schema_version": 1, "authority_epoch": 1,
+        "journal_path": root.join("host-state/file-worker.journal"),
+        "runtime_root": root.join("host-state/file-worker-runtime"),
+        "allowed_scopes": ["workspace:default"],
+        "workspace_roots": { "workspace:default": root.join("workspaces/default") },
+        "launch_profiles": [{ "schema_version": 1, "sandbox_profile_ref": "sandbox:installed-file-v1",
+            "program": root.join("releases/bin/forme-executord.exe"), "args": ["--installed-file-worker"] }]
+    });
+    let mut doc = fixture.document();
+    doc["worker_config_path"] = serde_json::to_value(&worker_path).unwrap();
+    let path = fixture.save(&doc);
+    std::fs::write(&worker_path, serde_json::to_vec(&worker).unwrap()).unwrap();
+    let runtime = from_managed_config(&path).unwrap();
+    assert!(runtime.installed_file.is_some());
+    assert!(!fixture.journal().exists());
+    assert!(from_development_config(&path)
+        .unwrap()
+        .installed_file
+        .is_none());
+    for case in ["epoch", "profile", "args", "program", "root", "scope"] {
+        let mut changed = worker.clone();
+        match case {
+            "epoch" => changed["authority_epoch"] = 2.into(),
+            "profile" => {
+                changed["launch_profiles"][0]["sandbox_profile_ref"] = "sandbox:foreign".into()
+            }
+            "args" => changed["launch_profiles"][0]["args"] = serde_json::json!([]),
+            "program" => {
+                let foreign = root.join("releases/bin/other.exe");
+                std::fs::write(&foreign, b"foreign fixture").unwrap();
+                changed["launch_profiles"][0]["program"] = serde_json::to_value(foreign).unwrap();
+            }
+            "root" => {
+                changed["workspace_roots"]["workspace:default"] =
+                    serde_json::to_value(root.join("workspaces")).unwrap()
+            }
+            "scope" => {
+                changed["allowed_scopes"] = serde_json::json!(["workspace:foreign"]);
+                changed["workspace_roots"] =
+                    serde_json::json!({ "workspace:foreign": root.join("workspaces/default") });
+            }
+            _ => unreachable!(),
+        }
+        std::fs::write(&worker_path, serde_json::to_vec(&changed).unwrap()).unwrap();
+        assert!(from_managed_config(&path).is_err(), "accepted {case}");
+        assert!(!fixture.journal().exists());
+        assert!(!root.join("host-state/file-worker.journal").exists());
+        assert!(!root.join("brain/forme.db").exists());
+    }
+    let mut custom = worker;
+    custom["launch_profiles"][0]["sandbox_profile_ref"] = "sandbox:legacy-custom".into();
+    custom["launch_profiles"][0]["args"] = serde_json::json!(["--custom-entry"]);
+    std::fs::write(&worker_path, serde_json::to_vec(&custom).unwrap()).unwrap();
+    assert!(from_managed_config(&path).unwrap().installed_file.is_none());
+    assert!(from_development_config(&path)
+        .unwrap()
+        .installed_file
+        .is_none());
+    assert!(!fixture.journal().exists());
+}
+
 #[test]
 fn managed_host_load_is_closed_bounded_and_side_effect_free() {
     let fixture = Fixture::new();

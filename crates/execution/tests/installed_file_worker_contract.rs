@@ -338,6 +338,189 @@ fn installed_file_entry_checks_budget_encoding_and_link_custody_before_mutations
     }
 }
 
+#[test]
+fn installed_file_entry_result_creation_failure_never_modifies_the_original() {
+    let fixture = Fixture::new(p::FileOperation::Write, Some(b"private update\n".to_vec()));
+    // The entry may validate a missing result parent, but publication must
+    // fail after the private write. It must not claim success or touch origin.
+    fs::remove_dir(fixture.run.join("results")).unwrap();
+    let output = fixture.execute();
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(!fixture.run.join("results/result.bin").exists());
+    assert_eq!(
+        fs::read(fixture.run.join("workspace/sample.txt")).unwrap(),
+        b"private update\n"
+    );
+    assert_eq!(
+        fs::read(fixture.original.join("sample.txt")).unwrap(),
+        b"original\n"
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn installed_file_entry_rejects_a_junction_inside_the_job_root() {
+    let mut fixture = Fixture::new(p::FileOperation::Write, Some(b"forbidden\n".to_vec()));
+    fixture.target.relative_path = "linked/sample.txt".into();
+    let junction = fixture.run.join("workspace").join("linked");
+    let output = Command::new("cmd.exe")
+        .args(["/d", "/c", "mklink", "/J"])
+        .arg(&junction)
+        .arg(
+            fixture
+                .original
+                .to_string_lossy()
+                .trim_start_matches(r"\\?\"),
+        )
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.assert_rejected();
+    fs::remove_dir(junction).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn installed_file_entry_rejects_target_and_parent_symlinks() {
+    for parent in [false, true] {
+        let mut fixture = Fixture::new(p::FileOperation::Write, Some(b"forbidden".to_vec()));
+        if parent {
+            fixture.target.relative_path = "linked/sample.txt".into();
+            std::os::unix::fs::symlink(&fixture.original, fixture.run.join("workspace/linked"))
+                .unwrap();
+        } else {
+            fs::remove_file(fixture.run.join("workspace/sample.txt")).unwrap();
+            std::os::unix::fs::symlink(
+                fixture.original.join("sample.txt"),
+                fixture.run.join("workspace/sample.txt"),
+            )
+            .unwrap();
+        }
+        fixture.assert_rejected();
+    }
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore = "requires Windows symbolic-link creation permission; no elevation performed"]
+fn native_file_entry_rejects_a_symbolic_link_target() {
+    let fixture = Fixture::new(p::FileOperation::Write, Some(b"forbidden".to_vec()));
+    fs::remove_file(fixture.run.join("workspace/sample.txt")).unwrap();
+    std::os::windows::fs::symlink_file(
+        fixture.original.join("sample.txt"),
+        fixture.run.join("workspace/sample.txt"),
+    )
+    .unwrap();
+    fixture.assert_rejected();
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore = "runs the real file entry in native AppContainers; no installed services"]
+fn native_file_entry_cancel_failure_and_post_execution_replacement_never_write_back() {
+    use forme_execution::installed::{
+        WindowsAppContainerWorkerIsolation, WorkerIsolation, WorkerLaunchRegistry, WorkerLaunchSpec,
+    };
+    use std::collections::BTreeMap;
+    use std::time::{Duration, Instant};
+    for case in ["cancel", "replacement", "failed"] {
+        let temporary = tempfile::tempdir().unwrap();
+        let original = temporary.path().join("original");
+        fs::create_dir(&original).unwrap();
+        let before = if case == "failed" {
+            vec![0xff]
+        } else {
+            b"original\n".to_vec()
+        };
+        fs::write(original.join("sample.txt"), &before).unwrap();
+        let original = fs::canonicalize(original).unwrap();
+        let runtime = temporary.path().join("runtime");
+        let registry = WorkerLaunchRegistry::from_specs([WorkerLaunchSpec::new(
+            "sandbox:file-worker",
+            PathBuf::from(env!("CARGO_BIN_EXE_forme-executord")),
+            vec!["--installed-file-worker".into()],
+        )
+        .unwrap()])
+        .unwrap();
+        let roots = BTreeMap::from([("workspace:file-worker".into(), original.clone())]);
+        let isolation = WindowsAppContainerWorkerIsolation::open(
+            runtime.clone(),
+            registry.clone(),
+            roots.clone(),
+        )
+        .unwrap();
+        let operation = if case == "failed" {
+            p::FileOperation::Read
+        } else {
+            p::FileOperation::Write
+        };
+        let request = request(
+            &original,
+            operation,
+            (operation == p::FileOperation::Write).then(|| b"updated\n".to_vec()),
+        );
+        isolation
+            .admit_with_execution(
+                &request.job,
+                &request.permit,
+                request.execution.as_ref(),
+                now(),
+            )
+            .unwrap();
+        if case == "cancel" {
+            // If the short-lived worker has already exited, the adapter must
+            // retain Unknown rather than inventing an in-flight cancellation.
+            let receipt = isolation.cancel_at(&request.job, now()).unwrap();
+            assert!(matches!(
+                receipt.outcome,
+                p::WorkerOutcome::Cancelled | p::WorkerOutcome::Unknown
+            ));
+        } else {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            if case == "replacement" {
+                let root = loop {
+                    let found = fs::read_dir(&runtime)
+                        .unwrap()
+                        .flatten()
+                        .find(|entry| entry.path().join("results/result.bin").is_file());
+                    if let Some(entry) = found {
+                        break entry.path();
+                    }
+                    assert!(Instant::now() < deadline);
+                    std::thread::sleep(Duration::from_millis(5));
+                };
+                let outside = temporary.path().join("outside.txt");
+                fs::write(&outside, b"outside custody\n").unwrap();
+                fs::remove_file(root.join("workspace/sample.txt")).unwrap();
+                fs::hard_link(&outside, root.join("workspace/sample.txt")).unwrap();
+            }
+            loop {
+                if let Some(receipt) = isolation.observe(&request.job, now()).unwrap() {
+                    assert_eq!(receipt.observed_outcome, p::WorkerOutcome::Failed);
+                    break;
+                }
+                assert!(Instant::now() < deadline);
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        assert_eq!(fs::read(original.join("sample.txt")).unwrap(), before);
+        // Standalone adapter evidence: explicitly acknowledge inspected source
+        // custody. AEAD sealing is covered by the separate real Host test.
+        isolation.result_sealed(&request.job, now()).unwrap();
+        drop(isolation);
+        let reopened =
+            WindowsAppContainerWorkerIsolation::open(runtime.clone(), registry, roots).unwrap();
+        assert_eq!(fs::read(original.join("sample.txt")).unwrap(), before);
+        assert_eq!(fs::read_dir(&runtime).unwrap().flatten().count(), 1);
+        drop(reopened);
+    }
+}
+
 #[cfg(windows)]
 #[test]
 #[ignore = "executes the actual installed file binary in a native Low AppContainer; no services are installed"]

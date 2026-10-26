@@ -17,7 +17,8 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use forme_execution::installed::{
-    HostCredentials, ReleaseStager, ReleaseStagingConfig, WorkerRuntimeConfig,
+    HostCredentials, InstalledFileProvisioning, ReleaseStager, ReleaseStagingConfig,
+    WorkerRuntimeConfig,
 };
 use forme_protocol as p;
 use serde::Deserialize;
@@ -202,6 +203,7 @@ pub(crate) struct HostRuntimeConfig {
     pub bootstrap_config_path: Option<PathBuf>,
     pub worker_config_path: Option<PathBuf>,
     pub product_config_template_path: Option<PathBuf>,
+    pub installed_file: Option<InstalledFileProvisioning>,
     pub release_stager: Option<std::sync::Arc<ReleaseStager>>,
     pub restore_worker: Option<std::sync::Arc<forme_execution::installed::InstalledRestoreWorker>>,
     pub release_updater:
@@ -348,6 +350,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         bootstrap_config_path: std::env::var_os("FORME_BOOTSTRAP_CONFIG_PATH").map(PathBuf::from),
         worker_config_path: std::env::var_os("FORME_WORKER_CONFIG_PATH").map(PathBuf::from),
         product_config_template_path: None,
+        installed_file: None,
         release_stager: None,
         restore_worker: None,
         release_updater: None,
@@ -420,6 +423,33 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         .map(Path::to_path_buf)
         .collect::<Vec<_>>();
     protected_paths.push(path.to_path_buf());
+    #[cfg(windows)]
+    let installed_file = config
+        .worker_config_path
+        .as_deref()
+        .map(|worker_path| {
+            let worker = WorkerRuntimeConfig::load(worker_path)?;
+            let claims_file = worker.launch_profiles.iter().any(|profile| {
+                profile.sandbox_profile_ref == forme_execution::installed::INSTALLED_FILE_PROFILE
+                    || profile
+                        .args
+                        .iter()
+                        .any(|arg| arg == "--installed-file-worker")
+            });
+            if !claims_file {
+                return Ok(None);
+            }
+            InstalledFileProvisioning::derive(
+                &manifest,
+                &worker,
+                &config.agent_execution_credential_path,
+            )
+            .map(Some)
+        })
+        .transpose()?
+        .flatten();
+    #[cfg(not(windows))]
+    let installed_file = None;
     Ok(HostRuntimeConfig {
         journal_path: config.journal_path,
         install_id: config.install_ref,
@@ -431,6 +461,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         bootstrap_config_path: config.bootstrap_config_path,
         worker_config_path: config.worker_config_path,
         product_config_template_path: config.product_config_template_path,
+        installed_file,
         release_stager,
         release_updater,
         restore_worker,
@@ -454,6 +485,7 @@ pub(super) fn from_development_config(path: &Path) -> p::Result<HostRuntimeConfi
     let mut runtime = from_managed_config(path)?;
     runtime.managed = false;
     runtime.development_workers = false;
+    runtime.installed_file = None;
     Ok(runtime)
 }
 

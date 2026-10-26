@@ -161,7 +161,9 @@ fn run_host(
     let product_config = runtime
         .product_config_template_path
         .as_deref()
-        .map(ProductConfigStore::open)
+        .map(|path| {
+            ProductConfigStore::open_with_installed_file(path, runtime.installed_file.clone())
+        })
         .transpose()?
         .map(Arc::new);
     let has_configuration = credentials.web_configuration().is_some() && product_config.is_some();

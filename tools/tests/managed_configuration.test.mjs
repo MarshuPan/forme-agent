@@ -222,6 +222,24 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.ok(configuredEvents.includes('openai-compatible:fixture-foreground-model'));
   const callsAfterPreferences = modelRequests.length;
   await product.stop(core);
+  // The explicit offline route reaches a fixed installed hostctl process,
+  // not the stopped core or the fixture provider. No restore capability.
+  const configBeforeVerification = await fs.readFile(product.template.core_config_path);
+  const verified = await product.request('/api/v1/product/data/verify', { method: 'POST',
+    body: { schema_version: 1, source: 'offline-process-source.sqlite', config_revision: 2 } });
+  assert.equal(verified.config_revision, 2);
+  assert.equal(verified.verification.object, 'offline-process-source.sqlite');
+  assert.equal(verified.verification.verified, true);
+  assert.equal(verified.verification.restoration, undefined);
+  assert.equal(JSON.stringify(verified).includes(product.root), false);
+  assert.deepEqual(await fs.readFile(product.template.core_config_path), configBeforeVerification);
+  assert.equal(modelRequests.length, callsAfterPreferences);
+  // A reachable configuration bridge rejects a stale revision as 502;
+  // 503 is reserved here for an absent configuration bridge/core capability.
+  await product.request('/api/v1/product/data/verify', { method: 'POST', expected: 502,
+    body: { schema_version: 1, source: 'offline-process-source.sqlite', config_revision: 1 } });
+  await product.request('/api/v1/product/data/verify', { method: 'POST', expected: 400,
+    body: { schema_version: 1, source: '../offline-process-source.sqlite', config_revision: 2 } });
   // This is an explicit temporary test-process selection, not a production
   // active-pointer/Host restore transaction or a native service restart.
   await new Promise((resolve) => setTimeout(resolve, product.template.authority_lease + 200));

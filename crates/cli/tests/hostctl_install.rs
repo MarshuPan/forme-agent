@@ -75,6 +75,34 @@ fn first_run_creates_unclaimed_web_setup_without_core_config() {
         serde_json::from_slice(&fs::read(&report.manifest_path).unwrap()).unwrap();
     assert_eq!(manifest.install_id, report.install_ref);
     assert_eq!(manifest.services.len(), 3);
+    let host: serde_json::Value =
+        serde_json::from_slice(&fs::read(&report.host_config_path).unwrap()).unwrap();
+    let worker_path = root.join("config/worker.json");
+    assert_eq!(
+        serde_json::from_value::<PathBuf>(host["worker_config_path"].clone()).unwrap(),
+        worker_path
+    );
+    let worker: serde_json::Value =
+        serde_json::from_slice(&fs::read(&worker_path).unwrap()).unwrap();
+    assert_eq!(worker["authority_epoch"], 1);
+    assert_eq!(
+        worker["allowed_scopes"],
+        serde_json::json!(["workspace:default"])
+    );
+    assert_eq!(
+        serde_json::from_value::<PathBuf>(worker["workspace_roots"]["workspace:default"].clone())
+            .unwrap(),
+        root.join("state/workspaces/default")
+    );
+    assert_eq!(
+        worker["launch_profiles"][0]["args"],
+        serde_json::json!(["--installed-file-worker"])
+    );
+    assert_eq!(
+        worker["launch_profiles"][0]["sandbox_profile_ref"],
+        "sandbox:installed-file-v1"
+    );
+    assert!(root.join("state/workspaces/default").is_dir());
     assert_eq!(
         fs::read(root.join("state/keys/bootstrap.key"))
             .unwrap()
@@ -112,6 +140,52 @@ fn repeated_prepare_is_idempotent_and_different_release_is_rejected() {
     assert!(error.contains("another release or path set"));
 
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn reopening_legacy_installation_does_not_provision_a_worker() {
+    let root = temporary_root("no-worker-migration");
+    let initial = request(&root);
+    let first = prepare(initial.clone()).unwrap();
+    let worker_path = root.join("config/worker.json");
+    fs::remove_file(&worker_path).unwrap();
+    let mut host: serde_json::Value =
+        serde_json::from_slice(&fs::read(&first.host_config_path).unwrap()).unwrap();
+    host["worker_config_path"] = serde_json::Value::Null;
+    let bytes = serde_json::to_vec(&host).unwrap();
+    fs::write(&first.host_config_path, &bytes).unwrap();
+    let reopened = prepare(initial).unwrap();
+    assert!(!reopened.created);
+    assert!(!worker_path.exists());
+    assert_eq!(fs::read(&reopened.host_config_path).unwrap(), bytes);
+    assert!(fs::read_dir(root.join("state/brain"))
+        .unwrap()
+        .next()
+        .is_none());
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn posix_preparation_keeps_file_worker_unprovisioned() {
+    for target in [
+        p::ProductTarget::Ubuntu2404X86_64,
+        p::ProductTarget::MacosArm64,
+    ] {
+        let root = temporary_root("posix-no-worker");
+        let mut request = request(&root);
+        request.target = target;
+        let report = prepare(request).unwrap();
+        let host: serde_json::Value =
+            serde_json::from_slice(&fs::read(report.host_config_path).unwrap()).unwrap();
+        assert!(host["worker_config_path"].is_null());
+        assert!(!root.join("config/worker.json").exists());
+        assert!(!root.join("state/workspaces/default").exists());
+        assert!(fs::read_dir(root.join("state/brain"))
+            .unwrap()
+            .next()
+            .is_none());
+        fs::remove_dir_all(root).unwrap();
+    }
 }
 
 #[test]

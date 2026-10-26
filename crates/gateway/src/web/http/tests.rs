@@ -10,6 +10,7 @@ use serde_json::{json, Value};
 use super::*;
 use crate::web::identity::{SensitivePassword, WebIdentityStore};
 
+mod backup_verification;
 mod proposals;
 
 const PASSWORD: &str = "web HTTP fixture password 15";

@@ -428,3 +428,38 @@ fn stale_config_owner_and_expired_approval_do_not_stop_the_brain() {
         assert!(f.effects.calls.lock().unwrap().is_empty());
     }
 }
+
+#[test]
+fn backup_verification_rejects_wrong_domain_owner_revision_and_lifecycle_fence_before_a_worker() {
+    let f = Fixture::new("stop");
+    let request = p::ProductBackupVerificationRequest {
+        schema_version: p::SchemaVersion(1),
+        install_ref: "install:config-test".into(),
+        owner: p::OwnerPrincipalRef("owner:test".into()),
+        expected_config_revision: 1,
+        source: "backup.sqlite".into(),
+    };
+    let admin = f.host.authenticate(ADMIN).unwrap();
+    assert!(f
+        .host
+        .verify_installed_backup(&admin, request.clone())
+        .is_err());
+    let web = f.host.authenticate_web_configuration(WEB).unwrap();
+    for case in ["owner", "revision", "install"] {
+        let mut changed = request.clone();
+        match case {
+            "owner" => changed.owner = p::OwnerPrincipalRef("owner:foreign".into()),
+            "revision" => changed.expected_config_revision = 2,
+            _ => changed.install_ref = "install:foreign".into(),
+        }
+        assert!(f.host.verify_installed_backup(&web, changed).is_err());
+    }
+    assert!(f.effects.calls.lock().unwrap().is_empty());
+    assert!(f.host.journal.operations(0).unwrap().is_empty());
+    assert_eq!(f.execute().stage, p::MaintenanceStage::RecoveryRequired);
+    let before = f.effects.calls.lock().unwrap().clone();
+    let records = f.host.journal.operations(0).unwrap();
+    assert!(f.host.verify_installed_backup(&web, request).is_err());
+    assert_eq!(*f.effects.calls.lock().unwrap(), before);
+    assert_eq!(f.host.journal.operations(0).unwrap(), records);
+}

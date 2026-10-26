@@ -101,10 +101,17 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
         allowed_hosts: [], tls: null, firewall: null });
     }
     await writeJson(host.product_config_template_path, template);
+    const installedBin = path.join(installationManifest.paths.releases, 'bin');
+    await fs.mkdir(installedBin, { recursive: true });
+    await fs.copyFile(executable('forme-hostctl'), path.join(installedBin, 'forme-hostctl' + suffix));
     if (process.platform === 'win32') {
       const image = path.join(installationManifest.paths.releases, 'bin', 'forme-gatewayd.exe');
       await fs.mkdir(path.dirname(image), { recursive: true });
       await fs.writeFile(image, Buffer.from('managed brain image fixture'));
+      // New installations validate the fixed file-worker image even in
+      // foreground development mode. Supply the real current binary; this
+      // fixture still does not claim a registered service or sandbox dispatch.
+      await fs.copyFile(executable('forme-executord'), path.join(path.dirname(image), 'forme-executord.exe'));
     }
     function clientFor(address) {
       const clientOrigin = `http://${address}`;

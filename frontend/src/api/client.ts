@@ -13,6 +13,7 @@ import type { WorkbenchItem } from '../workbench.ts';
 import { parseCorrectionReceipt, parseCorrectionsView } from '../correction.ts';
 import type { CognitionCorrection } from '../correction.ts';
 import { parseProductSettings } from '../settings-schema.ts';
+import { parseOfflineBackupVerification } from '../offline-backup.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -204,6 +205,12 @@ export class WorkbenchClient {
   dashboard() { return this.json<Record<string, unknown>>('brain/dashboard'); }
   queryData(query: DataRead) {
     return this.json<DataView>('data/query', 'POST', { schema_version: 1, query }, newKey('data-query'));
+  }
+  async verifyOfflineBackup(source: string, config_revision: number) {
+    const value = await this.json<unknown>('product/data/verify', 'POST', {
+      schema_version: 1, source, config_revision,
+    }, newKey('backup-query'));
+    return parseOfflineBackupVerification(value, source, config_revision);
   }
   commandData(command: DataCommand, password: string) {
     return this.json<DataReceipt>('data/command', 'POST', { command, password }, command.command);

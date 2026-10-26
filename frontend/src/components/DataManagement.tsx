@@ -92,8 +92,15 @@ export function DataManagement({ api, connected, materialTarget, consumeMaterial
   }
   async function verify() {
     setBusy(true); setError('');
-    try { const result = await api.queryData({ VerifyBackup: { source } });
-      if (result.kind === 'Verification') setNotice(result.verified ? `备份 ${result.object} 的完整性、事件连续性与重放检查通过；没有导入或切换主脑。` : '备份尚未通过完整验证。');
+    try {
+      if (connected) {
+        const result = await api.queryData({ VerifyBackup: { source } });
+        if (result.kind === 'Verification') setNotice(result.verified ? `备份 ${result.object} 的完整性、事件连续性与重放检查通过；没有导入或切换主脑。` : '备份尚未通过完整验证。');
+      } else {
+        const configuration = await api.productConfig();
+        const result = await api.verifyOfflineBackup(source, configuration.active_revision);
+        setNotice(`备份 ${result.verification.object} 的离线核验通过；没有启动、导入或切换主脑。`);
+      }
     } catch (problem) { setError(problem instanceof Error ? problem.message : '备份验证失败。'); }
     finally { setBusy(false); }
   }
@@ -112,7 +119,7 @@ export function DataManagement({ api, connected, materialTarget, consumeMaterial
   const applicable = (item: DataReceipt) => !operations?.operations.some((other) => other.prepared_by === item.command);
 
   return <section aria-label="数据管理"><header className="view-header"><h2 ref={heading} tabIndex={-1}>数据、备份与遗忘</h2><button className="secondary-button" disabled={busy || !connected} onClick={() => void refresh().catch((problem: unknown) => setError(problem instanceof Error ? problem.message : '刷新失败。'))}>刷新数据状态</button></header>
-    {!connected && <p className="notice">主脑离线，个人数据操作暂不可用；账号与安装维护独立运行。</p>}
+    {!connected && <p className="notice">主脑离线，数据更改暂不可用。你可以单独核验当前安装下的已有备份；这不会启动主脑或恢复数据。</p>}
     <p className="muted">归档与永久删除不同。恢复只建立新的数据对象；切换主脑需要独立维护流程。</p>
     {selected?.lifecycle_version !== undefined && <p className="notice">已从记忆核对来源范围，尚未执行清理。该范围可能含多条来源及派生对象，请先生成预览，再核对正式计划。若数据版本改变，须重新选择来源。</p>}
     {catalog?.pending_cleanup && <p className="notice">存在未完成清理，主脑数据读取已受保护性阻断。请核实原操作，不重复删除。</p>}
@@ -128,7 +135,7 @@ export function DataManagement({ api, connected, materialTarget, consumeMaterial
       <label>当前登录密码<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required maxLength={128} /></label>
       <button className="primary-button" disabled={busy}>{mode === 'Apply' ? '批准并执行原计划' : mode === 'Backup' ? '创建备份' : '生成安全预览'}</button>
     </fieldset>{pending.current && <p className="notice">原操作 {pending.current.command} 尚未确认。<button type="button" className="text-button" disabled={busy} onClick={() => void probe(pending.current!.command)}>只查询原回执</button></p>}</form>
-    <div className="surface"><h3>只读验证已有备份</h3><label>备份名称<input value={source} maxLength={96} onChange={(event) => setSource(event.target.value)} /></label><button type="button" className="secondary-button" disabled={busy || !source || !connected} onClick={() => void verify()}>验证完整性与重放</button></div>
+    <div className="surface"><h3>只读验证已有备份</h3><label>备份名称<input value={source} maxLength={96} onChange={(event) => setSource(event.target.value)} /></label><button type="button" className="secondary-button" disabled={busy || !source} onClick={() => void verify()}>{connected ? '验证完整性与重放' : '离线核验已有备份'}</button></div>
     {restoration && <RestoreActivation api={api} candidate={restoration} lock={setRestoreLocked} />}
     {current && <Receipt item={current} applicable={applicable(current)} confirm={selectPlan} probe={(key) => void probe(key)} activate={setRestoration} locked={restoreLocked} />}
     <h3>原操作与回执</h3><div className="content-grid">{operations?.operations.map((item) => <Receipt key={item.command} item={item} applicable={applicable(item)} confirm={selectPlan} probe={(key) => void probe(key)} activate={setRestoration} locked={restoreLocked} />)}</div>

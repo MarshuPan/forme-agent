@@ -3,6 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+. (Join-Path $PSScriptRoot 'build-resources.ps1')
 Push-Location $repoRoot
 try {
     function Invoke-NamedTest {
@@ -11,6 +12,7 @@ try {
         $previous = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
         try {
+            Assert-FormeBuildSpace $repoRoot
             $output = @(& cargo @testArgs 2>&1 | ForEach-Object { "$_" })
             $code = $LASTEXITCODE
         }
@@ -278,7 +280,8 @@ try {
     foreach ($name in @(
         "installed_file_entry_reads_writes_and_deletes_only_the_private_copy",
         "installed_file_entry_rejects_mapping_permit_and_scope_substitutions_before_writes",
-        "installed_file_entry_checks_budget_encoding_and_link_custody_before_mutations"
+        "installed_file_entry_checks_budget_encoding_and_link_custody_before_mutations",
+        "installed_file_entry_result_creation_failure_never_modifies_the_original"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_file_worker_contract") $name }
 
     Invoke-NamedTest "forme-execution" @("--lib") "installed::worker_socket::tests::fragmented_tcp_bytes_cannot_extend_the_absolute_request_deadline"
@@ -292,7 +295,8 @@ try {
 
     foreach ($name in @(
         "managed_missing_or_invalid_worker_stays_blocked_without_local_fallback",
-        "managed_worker_placement_is_composition_bound_stable_and_secret_free"
+        "managed_worker_placement_is_composition_bound_stable_and_secret_free",
+        "installed_file_roots_are_scope_bound_rechecked_and_part_of_composition"
     )) { Invoke-NamedTest "forme-harness" @("--test", "installed_worker_composition") $name }
 
     foreach ($name in @(
@@ -311,7 +315,8 @@ try {
     foreach ($name in @(
         "restore_stages_precede_effects_and_commit_releases_work_only_after_exact_readiness",
         "every_interrupted_restore_keeps_original_operation_and_never_retries_side_effects",
-        "stale_config_owner_and_expired_approval_do_not_stop_the_brain"
+        "stale_config_owner_and_expired_approval_do_not_stop_the_brain",
+        "backup_verification_rejects_wrong_domain_owner_revision_and_lifecycle_fence_before_a_worker"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_restore_tests::$name" }
 
     foreach ($name in @(
@@ -319,6 +324,14 @@ try {
         "installed_restore_worker_rejects_stale_revision_foreign_owner_digest_and_cross_operation_steps",
         "managed_work_admission_rechecks_each_claim_and_cannot_use_foreign_or_missing_release"
     )) { Invoke-NamedTest "forme-gateway" @("--lib") "server::lifecycle_tests::installed_restore::$name" }
+
+    foreach ($name in @(
+        "offline_backup_verification_checks_real_encrypted_snapshot_without_loading_runtime",
+        "offline_backup_verification_refuses_owner_revision_installation_and_path_substitution",
+        "offline_backup_verification_refuses_lock_contention_and_corruption_without_repair"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") "server::lifecycle_tests::installed_backup_verification::$name" }
+    Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::backup_verification::offline_verification_requires_authenticated_owner_and_csrf_before_configuration_io"
+    Invoke-NamedTest "forme-protocol" @("--lib") "installed_product::backup_verification::tests::offline_verification_binds_owner_revision_installation_and_opaque_object"
 
     foreach ($name in @(
         "restored_history_never_regains_model_action_resume_or_intention_authority",

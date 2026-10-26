@@ -72,7 +72,13 @@ impl ProductConfigStore {
         }
         let digest = p::canonical_digest(&("forme-release-configuration-v1", takeover, &binding))?;
         let mut state = self.state.clone();
-        state.schema_version = p::SchemaVersion(if state.proxy.is_some() { 8 } else { 7 });
+        state.schema_version = p::SchemaVersion(if state.worker.is_some() {
+            9
+        } else if state.proxy.is_some() {
+            8
+        } else {
+            7
+        });
         state.revision = binding.config_revision;
         state.release = Some(binding.clone());
         state.validate(&self.template)?;

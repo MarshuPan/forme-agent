@@ -17,6 +17,8 @@ mod worker_result;
 pub use worker_result::*;
 mod worker_file;
 pub use worker_file::*;
+mod backup_verification;
+pub use backup_verification::*;
 mod desktop_session;
 pub use desktop_session::*;
 mod restore;

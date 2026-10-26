@@ -4,6 +4,8 @@
 mod hostctl_install_filesystem;
 #[path = "hostctl_install_layout.rs"]
 mod hostctl_install_layout;
+#[path = "hostctl_install_worker.rs"]
+mod hostctl_install_worker;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -110,6 +112,10 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     let core_session_fence_path = paths.brain.join("runtime").join("core-auth.sqlite");
 
     let manifest = installation_manifest(&request, &paths, &install_ref)?;
+    let worker = hostctl_install_worker::configuration(&manifest);
+    if worker.is_some() {
+        ensure_directory(&paths.workspaces.join("default"))?;
+    }
     let bootstrap = serde_json::json!({
         "schema_version": 1,
         "install_ref": install_ref,
@@ -130,7 +136,7 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         "agent_execution_credential_path": paths.keys.join("agent-execution.token"),
         "web_configuration_credential_path": web_configuration_credential_path,
         "product_config_template_path": template_path,
-        "worker_config_path": serde_json::Value::Null,
+        "worker_config_path": worker.as_ref().map(|(path, _)| path),
         "bootstrap_config_path": bootstrap_config_path,
         "host_bind": HOST_BIND,
         "agent_execution_bind": AGENT_BIND,
@@ -203,7 +209,7 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     };
     web.validate().map_err(|error| error.0)?;
 
-    let files = [
+    let mut files = vec![
         (
             paths.keys.join("bootstrap.key"),
             bootstrap_key.to_vec(),
@@ -269,6 +275,9 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
             0o600,
         ),
     ];
+    if let Some((path, config)) = worker {
+        files.push((path, json_bytes(&config)?, 0o600));
+    }
     let result = write_transaction(&files, &manifest_path, &manifest);
     result?;
     Ok(PreparationReport {

@@ -6,6 +6,7 @@ import { copyFile, lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/pr
 import { constants } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { productBinaries } from './product-binaries.mjs';
 
 const targets = Object.freeze({
   'windows-x86_64': 'windows_x86_64', 'macos-arm64': 'macos_arm64',
@@ -161,7 +162,7 @@ export async function signBundle(config) {
   mapped.sort((a, b) => ordered(a.relative_path, b.relative_path));
   const files = mapped.map(({ schema_version, relative_path, digest: hash, size }) => ({ schema_version, relative_path, digest: hash, size }));
   const suffix = inventory.target === 'windows-x86_64' ? '.exe' : '';
-  for (const binary of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl']) {
+  for (const binary of productBinaries) {
     if (!collision.has(`bin/${binary}${suffix}`)) throw invalid();
   }
   const ui = files.filter((file) => file.relative_path.startsWith('web/'));

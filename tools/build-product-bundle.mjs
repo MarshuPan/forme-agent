@@ -5,9 +5,9 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { productBinaries } from './product-binaries.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const binaryNames = ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl'];
 const requiredPackagingFiles = Object.freeze({
   windows: ['forme.iss', 'install-access.ps1', 'service-access.psm1'],
   linux: ['forme-brain.service', 'forme-host.service', 'forme-web.service', 'forme.control', 'forme.preinst', 'forme.postinst', 'forme.prerm', 'forme.spec'],
@@ -121,7 +121,7 @@ export async function buildBundle(config, root = repository) {
   await checkedPath(output, true);
   await checkedPath(binaryDir);
   const target = targets[config.target];
-  const inputs = binaryNames.map((name) => ({ source: join(binaryDir, name + target.extension), path: `bin/${name}${target.extension}` }));
+  const inputs = productBinaries.map((name) => ({ source: join(binaryDir, name + target.extension), path: `bin/${name}${target.extension}` }));
   inputs.push(...await webInputs(root));
   for (const name of ['LICENSE', 'NOTICE']) inputs.push({ source: join(root, name), path: name });
   const templates = join(root, 'packaging', target.template);

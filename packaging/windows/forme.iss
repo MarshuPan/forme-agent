@@ -36,6 +36,7 @@ Source: "{#ReleaseRoot}\bin\forme-webd.exe"; DestDir: "{app}\bin"; Flags: ignore
 Source: "{#ReleaseRoot}\bin\forme-gatewayd.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#ReleaseRoot}\bin\forme-cli.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#ReleaseRoot}\bin\forme-hostctl.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#ReleaseRoot}\bin\forme-executord.exe"; DestDir: "{app}\bin"; Flags: ignoreversion
 Source: "{#ReleaseRoot}\share\forme\web\*"; DestDir: "{app}\share\forme\web"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#ReleaseRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ReleaseRoot}\NOTICE"; DestDir: "{app}"; Flags: ignoreversion

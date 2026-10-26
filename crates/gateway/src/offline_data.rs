@@ -15,6 +15,8 @@ pub use restore::OfflineRestoreWorker;
 mod bindings;
 mod release;
 pub use release::OfflineReleaseWorker;
+mod verification;
+pub use verification::verify_installed_backup;
 #[cfg(test)]
 mod config_tests;
 
@@ -31,6 +33,8 @@ struct StorageConfig {
     _transport: IgnoredAny,
     #[serde(rename = "drain_timeout_ms")]
     _drain_timeout: IgnoredAny,
+    #[serde(default, rename = "model_proxy")]
+    _model_proxy: Option<IgnoredAny>,
 }
 
 #[derive(Deserialize)]
@@ -57,6 +61,10 @@ struct StorageBinding {
     // or disaster-recovery admission.
     #[serde(default, rename = "capabilities")]
     _capabilities: Option<IgnoredAny>,
+    #[serde(default, rename = "worker_binding")]
+    _worker_binding: Option<IgnoredAny>,
+    #[serde(default, rename = "worker_file_roots")]
+    _worker_file_roots: Option<IgnoredAny>,
     #[serde(rename = "scheduler_enabled")]
     _scheduler_enabled: IgnoredAny,
     #[serde(rename = "scheduler")]

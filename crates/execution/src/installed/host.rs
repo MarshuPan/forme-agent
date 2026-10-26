@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use forme_protocol as p;
 
+#[path = "host_backup_verification.rs"]
+mod host_backup_verification;
 #[path = "host_configuration.rs"]
 mod host_configuration;
 #[path = "host_maintenance.rs"]

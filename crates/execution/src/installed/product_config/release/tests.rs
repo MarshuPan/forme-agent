@@ -61,6 +61,25 @@ fn readiness(binding: &p::ProductReleaseBinding, revision: u64) -> p::ProductRel
 }
 
 #[test]
+fn release_publication_preserves_installed_worker_in_schema_nine() {
+    let (directory, path, store) = fixture();
+    let mut store = store.into_inner().unwrap();
+    let worker = super::super::worker_tests::placement(&store, directory.path());
+    store.installed_file = Some(worker.clone());
+    store.apply(patch("worker:initial", 0)).unwrap();
+    let takeover = takeover(&mut store);
+    store
+        .publish_release_binding(&takeover, binding(&takeover), 100)
+        .unwrap();
+    assert_eq!(store.state.schema_version, p::SchemaVersion(9));
+    assert_eq!(store.state.worker, Some(worker.clone()));
+    drop(store);
+    let reopened =
+        ProductConfigStore::open_with_installed_file(&path, Some(worker.clone())).unwrap();
+    assert_eq!(reopened.lock().unwrap().state.worker, Some(worker));
+}
+
+#[test]
 fn release_publication_preserves_old_revision_and_cannot_acknowledge_old_readiness() {
     let (_root, template_path, store) = fixture();
     let mut store = store.into_inner().unwrap();

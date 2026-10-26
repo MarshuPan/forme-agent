@@ -1,6 +1,7 @@
 //! Independent Web ingress; no ProductionRuntime, provider or brain-store access.
 mod assets;
 mod auth;
+mod backup_verification;
 mod bootstrap;
 mod configuration;
 mod connections;
@@ -220,6 +221,10 @@ fn router(state: Arc<WebState>) -> Router {
         .route("/api/v1/sessions/{session}", put(sessions::update))
         .route("/api/v1/data/query", post(data::query))
         .route("/api/v1/data/command", post(data::command))
+        .route(
+            "/api/v1/product/data/verify",
+            post(backup_verification::verify),
+        )
         .route(
             "/api/v1/product/config",
             get(configuration::read)

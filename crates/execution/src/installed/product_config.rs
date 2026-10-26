@@ -20,18 +20,23 @@ mod settings_schema;
 mod settings_schema_tests;
 #[cfg(test)]
 mod skill_tests;
+mod state;
 mod storage;
 #[cfg(test)]
 pub(crate) mod tests;
+#[cfg(test)]
+mod worker_tests;
 
+#[cfg(test)]
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use forme_protocol as p;
-use serde::{Deserialize, Serialize};
-
 use journal::{ConfigJournal, Intent, SnapshotRef};
+use state::ConfigState;
 use storage::invalid;
 
 const MAX_CONFIG_BYTES: u64 = 256 * 1024;
@@ -41,152 +46,27 @@ pub struct ProductConfigStore {
     template: p::ProductConfigTemplate,
     state: ConfigState,
     journal: ConfigJournal,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ConfigState {
-    schema_version: p::SchemaVersion,
-    install_ref: String,
-    owner: Option<p::OwnerPrincipalRef>,
-    revision: u64,
-    models: Vec<p::ProductModelProfileView>,
-    credentials: BTreeMap<String, PathBuf>,
-    #[serde(default)]
-    active_data: Option<p::ProductDataBinding>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    brain: Option<p::ProductBrainPreferences>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    capabilities: Option<p::ProductCapabilitySettings>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    network: Option<p::ProductNetworkConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    proxy: Option<p::ProductProxyConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    release: Option<p::ProductReleaseBinding>,
-}
-
-impl ConfigState {
-    fn empty(install: &str) -> Self {
-        Self {
-            schema_version: p::SchemaVersion(3),
-            install_ref: install.to_owned(),
-            owner: None,
-            revision: 0,
-            models: Vec::new(),
-            credentials: BTreeMap::new(),
-            active_data: None,
-            brain: None,
-            capabilities: None,
-            network: None,
-            proxy: None,
-            release: None,
-        }
-    }
-
-    fn validate(&self, template: &p::ProductConfigTemplate) -> p::Result<()> {
-        if !matches!(
-            self.schema_version,
-            p::SchemaVersion(2)
-                | p::SchemaVersion(3)
-                | p::SchemaVersion(4)
-                | p::SchemaVersion(5)
-                | p::SchemaVersion(6)
-                | p::SchemaVersion(7)
-                | p::SchemaVersion(8)
-        ) || self.install_ref != template.install_ref
-            || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
-            || (self.schema_version.0 < 4 && self.brain.is_some())
-            || (self.schema_version.0 < 5 && self.capabilities.is_some())
-            || (self.schema_version.0 == 5 && self.capabilities.is_none())
-            || (self.schema_version.0 < 6 && self.network.is_some())
-            || (self.schema_version == p::SchemaVersion(6) && self.network.is_none())
-            || (self.schema_version.0 < 8 && self.proxy.is_some())
-            || (self.schema_version == p::SchemaVersion(8) && self.proxy.is_none())
-            || self.revision > 1_000_000_000
-            || self.models.len() != self.credentials.len()
-            || (self.revision == 0) != self.models.is_empty()
-            || (self.revision > 0 && self.owner.is_none())
-        {
-            return Err(invalid());
-        }
-        release::validate_state(self, template)?;
-        if let Some(owner) = &self.owner {
-            owner.validate()?;
-        }
-        if let Some(brain) = &self.brain {
-            brain.validate(
-                &self
-                    .models
-                    .iter()
-                    .map(|model| model.id.clone())
-                    .collect::<Vec<_>>(),
-            )?;
-        }
-        if let Some(capabilities) = &self.capabilities {
-            capabilities.validate()?;
-        }
-        if let Some(network) = &self.network {
-            network.validate_material_root(template.web_material_directory.as_deref())?;
-        }
-        if let Some(proxy) = &self.proxy {
-            materialize::validate_proxy(proxy)?;
-        }
-        if let Some(binding) = &self.active_data {
-            binding.validate()?;
-            let owner = self.owner.as_ref().ok_or_else(invalid)?;
-            if binding.owner_digest != p::sha256_content_digest(owner.0.as_bytes())
-                || binding.store_path == template.brain_store_path
-                || binding.store_path.starts_with(&template.artifact_root)
-                || binding
-                    .content_key_directory
-                    .starts_with(&template.artifact_root)
-                || binding
-                    .store_path
-                    .starts_with(&template.model_credentials_directory)
-                || binding
-                    .content_key_directory
-                    .starts_with(&template.model_credentials_directory)
-                || binding
-                    .store_path
-                    .starts_with(&binding.content_key_directory)
-                || binding
-                    .content_key_directory
-                    .starts_with(&binding.store_path)
-            {
-                return Err(invalid());
-            }
-            let parent = template.brain_store_path.parent().ok_or_else(invalid)?;
-            if !binding.store_path.starts_with(parent) {
-                return Err(invalid());
-            }
-        }
-        let mut ids = std::collections::BTreeSet::new();
-        for model in &self.models {
-            materialize::validate_model(&materialize::patch_from_view(model))?;
-            if !model.credential_configured || !ids.insert(&model.id) {
-                return Err(invalid());
-            }
-            let path = self.credentials.get(&model.id).ok_or_else(invalid)?;
-            storage::check(path)?;
-            if !path.starts_with(&template.model_credentials_directory) {
-                return Err(invalid());
-            }
-        }
-        if !self.models.is_empty() && self.models.iter().filter(|model| model.default).count() != 1
-        {
-            return Err(invalid());
-        }
-        Ok(())
-    }
+    installed_file: Option<super::InstalledFileProvisioning>,
 }
 
 impl ProductConfigStore {
     /// Own the OS writer lock until drop. Corrupt or unbound state never becomes
     /// an empty configuration; pending publication resumes only its original intent.
     pub fn open(template_path: &Path) -> p::Result<Mutex<Self>> {
+        Self::open_with_installed_file(template_path, None)
+    }
+
+    /// Attach trusted installation inputs without changing any revision. Only
+    /// the next new owner save may persist them; replay keeps its old revision.
+    pub fn open_with_installed_file(
+        template_path: &Path,
+        installed_file: Option<super::InstalledFileProvisioning>,
+    ) -> p::Result<Mutex<Self>> {
         let template = storage::json::<p::ProductConfigTemplate>(template_path, MAX_CONFIG_BYTES)?;
         materialize::validate_template(&template, template_path)?;
+        if let Some(worker) = &installed_file {
+            worker.validate_template(&template)?;
+        }
         let journal_path = template.core_config_path.with_extension("journal.jsonl");
         if !journal_path.try_exists().map_err(|_| invalid())?
             && template
@@ -204,6 +84,7 @@ impl ProductConfigStore {
             state: ConfigState::empty(&template.install_ref),
             template,
             journal,
+            installed_file,
         };
         if let Some(reference) = store.journal.current() {
             store.state = store.load_state(reference)?;
@@ -304,8 +185,15 @@ impl ProductConfigStore {
         let id = materialize::new_ref()?;
         let credentials = materialize::credential_paths(&self.template, &id, &prepared)?;
         let active_network = self.active_network()?;
+        let worker = self
+            .state
+            .worker
+            .clone()
+            .or_else(|| self.installed_file.clone());
         let state = ConfigState {
-            schema_version: p::SchemaVersion(if proxy.is_some() {
+            schema_version: p::SchemaVersion(if worker.is_some() {
+                9
+            } else if proxy.is_some() {
                 8
             } else if self.state.release.is_some() {
                 7
@@ -329,6 +217,7 @@ impl ProductConfigStore {
             network,
             proxy,
             release: self.state.release.clone(),
+            worker,
         };
         state
             .validate(&self.template)
@@ -496,6 +385,7 @@ impl ProductConfigStore {
         }
         let state: ConfigState = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
         state.validate(&self.template)?;
+        self.verify_installed_file(&state)?;
         if state.revision != reference.revision {
             return Err(invalid());
         }
@@ -504,6 +394,7 @@ impl ProductConfigStore {
 
     fn verify_published(&self) -> p::Result<()> {
         self.state.validate(&self.template)?;
+        self.verify_installed_file(&self.state)?;
         if let Some(reference) = self
             .journal
             .current()
@@ -580,6 +471,15 @@ impl ProductConfigStore {
 
     fn import_legacy(&mut self) -> p::Result<()> {
         materialize::import_legacy(self)
+    }
+
+    fn verify_installed_file(&self, state: &ConfigState) -> p::Result<()> {
+        if let (Some(current), Some(expected)) = (&state.worker, &self.installed_file) {
+            if current != expected {
+                return Err(invalid());
+            }
+        }
+        Ok(())
     }
 }
 
