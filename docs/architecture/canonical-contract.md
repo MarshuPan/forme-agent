@@ -653,6 +653,8 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 ### 29.2 身份与认领
 
 - 安装认领先证明本机管理权，再建立账号密码并绑定唯一 OwnerId，不能由 LAN 首个访问者抢占。headless 通过本机管理通道/SSH tunnel 完成。
+- **唯一 Web 产品角色**：当前产品只建立一个网页登录账户，该账户同时是唯一的 `SuperAdmin` 与 `Owner`。不存在普通 Web 用户、第二套 Web 角色或多租户权限层；登录成功即拥有当前产品控制面的完整管理权限，包括模型/配置、workspace、任务控制、主脑生命周期、维护、备份/恢复和数据管理。
+- `SuperAdmin` 是产品控制面角色，不是 Agent 的行动授权，也不是操作系统身份。它不能绕过固定内核、Harness、Policy、permission、AutonomyEnvelope、CompetenceGate、审批/nonce、Unknown 恢复和 OS worker 隔离；高风险操作的近期重新认证只是具体 operation 的绑定/二次确认，不产生第二个角色。
 - 账号、稳定 owner、OS 服务身份和行动权限分离。登录只建立入口身份，不提高 trust/permission/envelope。改密码/本地恢复不得更换 OwnerId、清空脑或重建数据 keys。
 - 浏览器只有 Web session，不持内部 Gateway bearer/provider key/数据 key。可信 AuthContext 来自已认证 transport/session，不能由 payload、转发头或 loopback 来源伪造。
 
@@ -673,6 +675,8 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 ### 29.5 配置、数据与恢复
 
 - 已安装服务以版本化持久 typed config 为主要来源；开发环境兼容显式标注来源，不能静默覆盖网页保存值。保存/校验/应用/核心 ack 分开；进行中 run 保持固定快照。
+- 配置保存成功后，Host 作为唯一产品生命周期协调者，使用同一已认证的 Web 配置域自动为有效主脑配置启动 Brain；若已有 Brain 正在运行且尚未确认新 revision，则执行同一产品 journal 约束下的受控重启。浏览器不再为正常首次启动或配置变更再次提交密码，也不需要用户手动点击“启动主脑”。
+- Host/系统服务恢复时重复执行同一确定性协调检查：已认领、配置有效且无 RecoveryRequired 时恢复 Brain；没有有效配置、已有未决/未知生命周期事务、服务未安装或状态不可判定时保持可诊断状态，不盲目重试。手动 `StartCore`/`RestartCore` 只作为维护和故障恢复入口。
 - 服务能无交互解密原脑，登录口令不能是唯一数据 key。数据和备份沿用 §28.7；外部 key resolver 不入普通备份，恢复材料单独管理，缺 key 不得虚报恢复。
 - 旧脑接管、历史明文迁移和 restore 先只读校验/备份，在新目标验证后 owner 显式切换；错误 key/owner/占用库不能自动退为空脑。
 - 程序、数据、配置、key、日志/backup/workspace 路径独立且绝对化。卸载默认保留 owner 数据；额外删除必须另有明确范围。

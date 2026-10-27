@@ -17,9 +17,9 @@
 | IP03 崩溃与恢复 | P02/P03 / 24 | 终止核心进程后 OS 按上限恢复，同一 owner/store 恢复；Web 故障不停止 core。 | 每个进程只有一个重启监管者；双启动零重复 writer/任务；Unknown 不重做。 |
 | IP04 未配置可达 | P04/P15 / 25 | 清洁安装无模型/owner config，Web 显示初始化；配置错误或核心离线时维护页面仍可登录。 | 不启动空 context 大脑，不把错误配置覆盖成空库，不开放匿名管理。 |
 | IP05 抢占防护 | P05 / 25 | 本地证明换有限 setup、验证/选择脑后认领，事务中断可恢复；headless 通过本地终端/SSH tunnel 完成。 | LAN 先访问、重放证明、并发认领、过期证明、setup 越权、日志/URL 泄露均不能夺取 owner。 |
-| IP06 登录与恢复 | P06 / 25 | 登录、过期、退出、全会话撤销、改密码和 OS 管理员恢复均可验证，OwnerId 与脑数据不变。 | 错误密码不泄露账户存在性；恢复不要求删除脑，不丢失数据解密能力。 |
+| IP06 登录与恢复 | P06 / 25 | 登录后明确返回唯一 `SuperAdmin/Owner` 产品角色；登录、过期、退出、全会话撤销、改密码和 OS 管理员恢复均可验证，OwnerId 与脑数据不变。 | 错误密码不泄露账户存在性；恢复不要求删除脑，不丢失数据解密能力；角色声明不能提升 Agent/OS 权限。 |
 | IP07 入口身份绑定 | P03/P06 / 25 | Web 验证登录后经内部认证绑定 AuthContext，core 审计记录真实 owner/会话来源。 | payload 伪造 principal、跨 owner、直连内部 Gateway 或伪造 forward header 均被拒，driver=0。 |
-| IP08 配置生效 | P07 / 25 | 保存→校验→应用有版本与结果；重启后仍加载同一 profile；记录实际 provider；环境覆盖可见。 | 保存失败不覆盖好配置；改模型不改变治理；密钥不回显、不进日志/事件/诊断包。 |
+| IP08 配置生效 | P07 / 25 | 保存→校验→Host 自动启动/受控重启→core acknowledgement 有版本与结果；重启后仍加载同一 profile；记录实际 provider；环境覆盖可见。 | 保存失败不覆盖好配置；自动启动结果不明不盲重试；改模型不改变治理；密钥不回显、不进日志/事件/诊断包。 |
 | IP09 LAN 边界 | P08 / 25 | 默认仅本地；启用 LAN 后正确 HTTPS/Host/Origin/firewall，跨设备登录可用。 | HTTP、未信任证书、DNS rebinding、CSRF、错误 Host、未授权网卡不被静默放行；不默认开公网。 |
 | IP10 权限分离 | P09 / 24 | 检查服务账户/ACL；经审批 typed system action 可执行且有完整事件/permit/receipt。 | 模型、Web、shell worker 无权改服务二进制/配置/brain DB/keys；缺权限、陈旧审批、重放许可 driver=0。 |
 | IP11 交互会话桥 | P09 / 24 | 真实登录会话 helper 绑定 OS 用户、session generation、desktop grant、exact plan/permit 与受保护 peer；许可有效时完成一次桌面动作并返回原 job receipt。 | 注销、锁屏、TCC/portal 拒绝、会话切换、过期/重放 nonce、参数或 plan digest 替换、helper 失联均阻断；`Started` 无终态进入 Unknown；不退回高权限服务直接点桌面。 |

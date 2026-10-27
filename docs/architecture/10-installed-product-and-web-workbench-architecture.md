@@ -109,6 +109,10 @@ config 的 staged、validated、active revision 和 core 的 acknowledged revisi
 
 单 owner 账号使用 Argon2id（初始最低 64 MiB、3 iterations、parallelism 1；参数随 hash 保存，可升级）。口令接受 12–128 个字符且 UTF-8 不超过 1024 bytes，不静默 trim/改变口令；统一错误反馈。限制密码计算并发和登录速率，不以永久锁住唯一 owner 作为防护。
 
+网页登录只有一个产品账户，它的产品角色固定为 `SuperAdmin`，并与唯一 `OwnerId` 绑定。登录后该账户拥有当前 Web 产品控制面的完整权限：配置、workspace、任务/会话、主脑生命周期、维护、备份恢复和数据管理均不再分普通管理员/普通用户。重新认证只是在高风险 operation 上绑定本次操作，不是第二套角色或权限等级。
+
+该角色仍不等于 Agent 的无限行动权限、Windows `SYSTEM`/Linux `root` 或任意 shell。所有 Agent 真实动作继续由固定内核、Harness、最终 plan、policy、permission/envelope、能力门、审批/nonce、Unknown 恢复和 OS 隔离共同约束。
+
 登录成功生成 256-bit 随机 opaque session；服务端只存摘要。默认 idle TTL 30 分钟、absolute TTL 12 小时，可调整；注销/改密码/恢复/全会话撤销使对应 epoch 失效。Cookie host-only、HttpOnly、SameSite=Strict，HTTPS 时 Secure；仅严格 loopback 的本地 HTTP 开发/安装模式允许无 Secure 的独立 cookie 名，不可沿用到 LAN。
 
 改网络、改口令、导出/恢复数据、升级/卸载等高影响操作要求 5 分钟内重新认证，并将凭据绑定具体 operation digest；不授予一个可被任意复用的“管理员模式”。OS 管理员可本机恢复登录，必须记录维护事实、撤销旧会话，保留 OwnerId 和数据 keys；它不是远程匿名重置接口。
@@ -119,7 +123,7 @@ config 的 staged、validated、active revision 和 core 的 acknowledged revisi
 
 服务模式不继承交互 shell 环境。开发命令仍兼容 `FORME_*`；显式 environment override 模式必须在有效配置中显示每项来源，不能出现网页显示“已生效”而旧 env 实际生效。禁止运行时修改全局 process env 假装 typed config 热更新。
 
-启动/模型/工具集/网络等变更先 validate，生成影响报告，再以 expected_revision 提交；需要重启则受控排空。进行中的 run 保持原快照，不热换 provider/toolset/policy。运行前实际绑定 provider 和 SessionBound/composition 的行为仍服从 canonical §28。
+启动/模型/工具集/网络等变更先 validate，生成影响报告，再以 expected_revision 提交；有效配置保存后由 Host 自动启动或受控重启 Brain，浏览器不再为正常路径再次输入密码或手动点击启动。需要重启则受控排空；Host/系统服务启动恢复会重复同一确定性协调检查，未知/未安装/恢复中的状态不盲重试，手动启动只保留为维护入口。进行中的 run 保持原快照，不热换 provider/toolset/policy。运行前实际绑定 provider 和 SessionBound/composition 的行为仍服从 canonical §28。
 
 ### 5.3 Web → core
 

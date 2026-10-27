@@ -444,6 +444,10 @@ helper 生命周期为 `Absent -> Starting -> Ready -> Revoked/Expired/Unavailab
 
 ### 5.1 安装与启动
 
+网页登录账户是安装产品唯一的 `SuperAdmin/Owner`，拥有产品控制面的完整权限；安装器、Host、Web、Brain 和 Agent worker 的 OS 身份仍按 §1 分域。该角色不授予模型任意 shell、SYSTEM/root 或绕过 Harness 的能力。
+
+安装完成后首次只启动 Host/Web，让 owner 完成认领和有效模型配置。配置事务提交成功后由 Host 自动生成与该配置 revision 绑定的确定性启动 operation，并启动或受控重启 Brain；正常路径不要求再次输入网页登录密码，也不要求手动点击启动。系统重启时由 OS 服务和 Host 启动恢复协调同一 operation，重用原回执，未知/未安装/恢复中的状态保持可诊断而不盲重试。手动 `StartCore` 仅保留为故障恢复和明确维护入口。
+
 1. 校验 OS/CPU、包签名、磁盘、目标路径/ACL、端口；发现旧 installation/store 时进入接管路径，不覆盖。
 2. 创建 release staging，逐文件校验；建立服务账户与私有 IPC；设目录权限后原子提交安装 manifest。
 3. 先注册 broker/Web/core；启动 broker 与 Web。未认领/配置不全时 core 保持等待状态，不循环报错重启。

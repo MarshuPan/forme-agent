@@ -126,6 +126,8 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 
 ### 5.1 认领与口令恢复
 
+认领创建的唯一网页登录账户固定为产品 `SuperAdmin/Owner`。当前不支持普通 Web 用户、角色切换或多租户；该账户可以管理本产品控制面的全部设置、项目、任务、主脑生命周期、维护、备份恢复和数据。高风险操作要求的近期密码重新认证是 operation 绑定，不是第二个角色，也不能提升 Agent 的 trust、permission、envelope 或 OS 身份。
+
 未认领服务只有最小公开状态和证明交换；proof 的生成、期限和交付按 architecture/10 §3。prove 先 broker CAS 预留 installation，换取有限 setup session；在其 scope 内验证新脑/原脑/恢复候选后，claim 才绑定正确 OwnerId、以 Web transaction 创建账号 hash 并 broker commit。中断恢复根据双方 operation refs 核对；pending claim 只能由原 setup session/本机管理身份恢复或显式撤销，不能让另一个访问者补填密码夺取账户。
 
 已有脑/备份的 owner 来自解密与完整性验证，不能先随机创建 owner 再修改它适配旧数据。认领完成或本机撤销/轮换证明使 setup session 无效。已认领账号恢复不能导入另一个 owner 的脑；owner 不匹配应拒绝，而不是改写账户/数据身份。
@@ -137,6 +139,8 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 改密码的 Idempotency-Key 按 §4.1 绑定目标和当前认证版本。未知结果只允许原操作重试；提交后旧 session 必须失效，用户以新口令重新登录确认，不通过旧 cookie 查询或重复设置第二个目标口令。候选哈希在事务提交时清除；过期候选只能得到 Conflict，不能以相同 key 创建新的目标。
 
 ### 5.2 配置与启动
+
+有效配置保存是启动主脑的自动触发点：Host 在同一已认证配置域完成 CAS/journal 提交后，自动选择 `Start` 或 `Restart` 并执行既有受控服务事务。浏览器只等待/查询真实产品回执，不再为正常配置启用再次提交密码；配置保存与 core acknowledgement 仍分开，只有 core 返回对应 revision 的正式 acknowledgement 才显示“已生效”。Host 启动和系统重启重复执行同一确定性 reconciliation；无配置、未安装、RecoveryRequired、Unknown 或状态不明时不盲重试，返回可诊断状态，手动启动只作维护入口。
 
 初始化顺序：本机证明/有限 setup → 验证/选择脑数据 → 完成账号认领 → 配置模型/key/proxy → workspace/能力 → 静态 doctor → 受控启动 → runtime readiness → 可选正式模型连接测试。doctor 分清格式、密钥存在、网络可达、真实模型工具兼容；未执行的测试显示未验证。
 

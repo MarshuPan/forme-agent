@@ -134,6 +134,10 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 ### 5.1 全局外壳与初始化
 
+登录后的唯一产品账户以 `SuperAdmin/Owner` 身份进入工作台。页面不提供普通 Web 角色切换；该账户可进入当前产品控制面的全部设置、workspace、任务控制、主脑生命周期、维护、备份恢复和数据管理页面。界面展示完整控制面不等于 Agent 获得无限权限，后端仍必须执行固定内核和最终动作治理。
+
+首次认领或有效配置保存后，用户不需要再次输入密码来启动主脑。Host 会自动协调 Brain，页面只显示真实的 `starting/ready/degraded/recovery_required/stopped` 状态；手动启动按钮只出现在维护/故障恢复上下文，不是正常初始化步骤。
+
 采用左侧导航/会话/工作空间列表、中间工作区、右侧可折叠详情/产物。五个主入口只有一套 router、会话状态与命令 client。窄屏左/右栏抽屉化，主对话保持可用；无需模仿 NAS 桌面窗口系统。
 
 路由门先读 session/ProductState：Unclaimed 进认领；ConfigurationRequired 进配置；Starting 显示真实启动进度；Ready 正常进入；Degraded 明确受影响能力；Maintenance/RecoveryRequired/Stopped 进入相应维护视图。core 离线时 shell/设置/诊断可用，对话 mutation 显示不可用及原因，不能无限 spinner。
