@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "f02e8e1df41bd083c5585d74b0f92eb148315cad390cfa9775c4e9af365f0886",
+  "source_digest": "7b74552b7e493821e764f196d6d83f9648199ffce9ab2b50e5b5cf626def3329",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,11 +20,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "2f798f7ed0652693abd747880e626473183a3e3fe7631e371567e3c0bde65137"
+      "sha256": "4e517beeb2e293e1f561cf8cfb82c61b907eb028127bf213fdfe0f21d8f4c010"
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "5321940615f5a92f2bd89d2ad5612fb6e06bdb671d57361de305eccba122799f"
+      "sha256": "f6a0e2d52cd267efa3d21d529da2132a40a6621ea750a017560f0a99e4c753a1"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -52,7 +52,7 @@
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
-      "sha256": "5565418e0f4e3e62b302a0f46a24fbefccf0513c16a99930a89990e18301d326"
+      "sha256": "12545f8b8d5f6a49d1463ae969684900458c7167eff974d25ae78bc2fa230781"
     },
     {
       "path": "frontend/src/components/ConfigurationAvailability.tsx",
@@ -268,7 +268,7 @@
     },
     {
       "path": "frontend/src/types.ts",
-      "sha256": "0f6f0914d2dfba51eb341ee3a53f4e4aa983f7697c5364d8fe8d04060d26152a"
+      "sha256": "288adcc4857872d7f788bc21c070b8be79c5ea4997ec86e34ac365ed60596bab"
     },
     {
       "path": "frontend/src/workbench.ts",
@@ -289,14 +289,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-B8O_GEKB.js",
-      "sha256": "f1914eddfd1effc3e6b54bc90b55a1b844c9ce72b82ec1ac7d5bcacb440f7ce3",
-      "bytes": 373984
-    },
-    {
       "path": "assets/index-BbhQ1fO8.css",
       "sha256": "4375a8d4833de33a7f9616a54330385a391954c6c0b0366de498b8f47a313aa7",
       "bytes": 14769
+    },
+    {
+      "path": "assets/index-Df2Ec-F4.js",
+      "sha256": "381a16e743e53a256861d122868c2c7b77e01c53fe5aa6919ae3096b28395bb8",
+      "bytes": 372191
     },
     {
       "path": "dependencies.json",
@@ -310,7 +310,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "474abe408651b9a7db01c599a418c78c89ddea7d033dbbe07c118669c87b9236",
+      "sha256": "4b030be77f2df354ff91d0f0312907f7159610042d423a113a1a9caa9a86da63",
       "bytes": 595
     },
     {

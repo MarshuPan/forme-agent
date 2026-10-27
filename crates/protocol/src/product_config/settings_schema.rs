@@ -82,6 +82,15 @@ pub struct ProductConfigViewV2 {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ProductCoreActivationResponseV2 {
+    pub schema_version: SchemaVersion,
+    pub operation: crate::MaintenanceOperation,
+    pub configuration: ProductConfigViewV2,
+    pub service: crate::NativeServiceStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ProductConfigPatchV2 {
     pub schema_version: SchemaVersion,
     pub operation_id: String,
@@ -131,6 +140,8 @@ pub struct ProductConfigResponseV2 {
     pub view: ProductConfigViewV2,
     pub applied: bool,
     pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub core_activation: Option<ProductCoreActivationResponseV2>,
 }
 
 impl ProductConfigAvailability {

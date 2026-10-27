@@ -41,6 +41,7 @@ impl Account {
             account_ref: self.account_ref.clone(),
             owner: self.owner.clone(),
             login_name: self.login_name.clone(),
+            role: p::WebAccountRole::SuperAdmin,
             auth_epoch: self.auth_epoch,
             idle_expires_at: idle,
             absolute_expires_at: absolute,

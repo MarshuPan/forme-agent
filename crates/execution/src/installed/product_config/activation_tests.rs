@@ -16,13 +16,18 @@ struct Services {
     calls: Arc<Mutex<Vec<p::NativeServiceAction>>>,
     unknown: bool,
     failure: bool,
+    state: Arc<Mutex<Option<p::NativeServiceState>>>,
 }
 impl NativeServiceManager for Services {
     fn inspect(&self, service: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus> {
         Ok(p::NativeServiceStatus {
             schema_version: p::SchemaVersion(1),
             service,
-            state: p::NativeServiceState::Running,
+            state: self
+                .state
+                .lock()
+                .unwrap()
+                .unwrap_or(p::NativeServiceState::Running),
         })
     }
     fn apply(&self, change: p::ValidatedServiceChange) -> p::Result<p::NativeReceipt> {
@@ -32,6 +37,12 @@ impl NativeServiceManager for Services {
             return Err(p::Error(
                 "fixture lost receipt after possible effect".into(),
             ));
+        }
+        if !self.unknown {
+            *self.state.lock().unwrap() = Some(match change.action {
+                p::NativeServiceAction::Start => p::NativeServiceState::Running,
+                p::NativeServiceAction::Stop => p::NativeServiceState::Stopped,
+            });
         }
         Ok(p::NativeReceipt {
             schema_version: p::SchemaVersion(1),
@@ -210,4 +221,81 @@ fn verified_restart_orders_stop_then_start_and_does_not_forge_core_ack() {
     assert_eq!(result.operation.stage, p::MaintenanceStage::Committed);
     assert_eq!(result.configuration.acknowledged_revision, None);
     assert!(result.configuration.pending_restart);
+}
+
+#[test]
+fn configuration_write_automatically_starts_a_stopped_brain() {
+    let (directory, _path, store) = fixture();
+    let services = Services {
+        state: Arc::new(Mutex::new(Some(p::NativeServiceState::Stopped))),
+        ..Services::default()
+    };
+    let host = broker(directory.path(), Arc::new(store), services.clone());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+
+    let response = host
+        .apply_configuration(&auth, patch("save:auto-start", 0))
+        .unwrap();
+
+    assert_eq!(
+        *services.calls.lock().unwrap(),
+        vec![p::NativeServiceAction::Start]
+    );
+    assert_eq!(
+        response.core_activation.as_ref().unwrap().operation.stage,
+        p::MaintenanceStage::Committed
+    );
+}
+
+#[test]
+fn configuration_write_automatically_restarts_a_running_brain_for_new_revision() {
+    let (directory, _path, store) = fixture();
+    let services = Services::default();
+    let host = broker(directory.path(), Arc::new(store), services.clone());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+
+    let response = host
+        .apply_configuration(&auth, patch("save:auto-restart", 0))
+        .unwrap();
+
+    assert_eq!(
+        *services.calls.lock().unwrap(),
+        vec![p::NativeServiceAction::Stop, p::NativeServiceAction::Start]
+    );
+    assert_eq!(
+        response.core_activation.as_ref().unwrap().operation.stage,
+        p::MaintenanceStage::Committed
+    );
+}
+
+#[test]
+fn automatic_reconciliation_does_not_touch_unknown_service_or_repeat_a_committed_operation() {
+    let (directory, _path, store) = fixture();
+    let unknown_services = Services {
+        state: Arc::new(Mutex::new(Some(p::NativeServiceState::Unknown))),
+        ..Services::default()
+    };
+    let unknown_host = broker(directory.path(), Arc::new(store), unknown_services.clone());
+    let auth = unknown_host.authenticate_web_configuration(WEB).unwrap();
+    let response = unknown_host
+        .apply_configuration(&auth, patch("save:auto-unknown", 0))
+        .unwrap();
+    assert!(response.core_activation.is_none());
+    assert!(unknown_services.calls.lock().unwrap().is_empty());
+
+    let (directory, _path, store) = fixture();
+    let services = Services {
+        state: Arc::new(Mutex::new(Some(p::NativeServiceState::Stopped))),
+        ..Services::default()
+    };
+    let config = Arc::new(store);
+    let host = broker(directory.path(), config, services.clone());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+    host.apply_configuration(&auth, patch("save:auto-replay", 0))
+        .unwrap();
+    host.reconcile_core_startup().unwrap();
+    assert_eq!(
+        *services.calls.lock().unwrap(),
+        vec![p::NativeServiceAction::Start]
+    );
 }

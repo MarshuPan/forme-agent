@@ -466,6 +466,7 @@ impl ProductConfigStore {
             view: self.snapshot()?,
             applied,
             operation_id: Some(operation),
+            core_activation: None,
         })
     }
 

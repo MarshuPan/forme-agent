@@ -275,6 +275,11 @@ fn run_host(
             EndpointDomain::Configuration,
         )?);
     }
+    if has_configuration {
+        // Configuration and AgentExecution listeners are ready before the
+        // Host asks the native manager to restore the Brain service.
+        broker.reconcile_core_startup()?;
+    }
     if announce {
         for endpoint in &endpoints {
             let name = match endpoint.domain {

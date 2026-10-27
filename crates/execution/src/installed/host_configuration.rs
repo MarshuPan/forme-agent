@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use forme_protocol as p;
 
 use super::{HostAuth, HostCredentialDomain, NativeServiceManager, ProductHostBroker};
@@ -60,21 +62,35 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .product_config
             .as_ref()
             .ok_or_else(|| p::Error("managed product configuration is unavailable".into()))?;
-        let mut store = store
-            .lock()
-            .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
-        if self.journal.operations(0)?.iter().any(|operation| {
-            operation.stage != p::MaintenanceStage::Committed
-                && self
-                    .journal
-                    .command_kind(&operation.operation_id)
-                    .map_or(true, |kind| kind.is_lifecycle_transaction())
-        }) {
-            return Err(p::Error(
-                "configuration cannot change during an unresolved lifecycle operation".into(),
-            ));
-        }
-        store.apply(patch)
+        let response = {
+            let mut store = store
+                .lock()
+                .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
+            if self.journal.operations(0)?.iter().any(|operation| {
+                operation.stage != p::MaintenanceStage::Committed
+                    && self
+                        .journal
+                        .command_kind(&operation.operation_id)
+                        .map_or(true, |kind| kind.is_lifecycle_transaction())
+            }) {
+                return Err(p::Error(
+                    "configuration cannot change during an unresolved lifecycle operation".into(),
+                ));
+            }
+            store.apply(patch)?
+        };
+        let mut response = response;
+        response.core_activation = self
+            .reconcile_core_after_configuration(
+                auth,
+                response.view.owner.as_ref(),
+                response.view.active_revision,
+                response.view.configured,
+                response.view.pending_restart,
+            )
+            .ok()
+            .flatten();
+        Ok(response)
     }
 
     pub fn apply_configuration_v2(
@@ -87,21 +103,67 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .product_config
             .as_ref()
             .ok_or_else(|| p::Error("managed product configuration is unavailable".into()))?;
-        let mut store = store
+        let response = {
+            let mut store = store
+                .lock()
+                .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
+            if self.journal.operations(0)?.iter().any(|operation| {
+                operation.stage != p::MaintenanceStage::Committed
+                    && self
+                        .journal
+                        .command_kind(&operation.operation_id)
+                        .map_or(true, |kind| kind.is_lifecycle_transaction())
+            }) {
+                return Err(p::Error(
+                    "configuration cannot change during an unresolved lifecycle operation".into(),
+                ));
+            }
+            store.apply_settings_v2(patch)?
+        };
+        let mut response = response;
+        response.core_activation = self
+            .reconcile_core_after_configuration_v2(
+                auth,
+                response.view.owner.as_ref(),
+                response.view.active_revision,
+                response.view.configured,
+                response.view.pending_restart,
+            )
+            .ok()
+            .flatten();
+        Ok(response)
+    }
+
+    /// Reconcile the Brain once after Host has restored its product state.
+    /// Service failures remain diagnosable through the normal status and
+    /// maintenance surfaces; startup must remain available for recovery.
+    pub fn reconcile_core_startup(&self) -> p::Result<()> {
+        let store = self
+            .product_config
+            .as_ref()
+            .ok_or_else(configuration_unavailable)?;
+        let view = store
             .lock()
-            .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
-        if self.journal.operations(0)?.iter().any(|operation| {
-            operation.stage != p::MaintenanceStage::Committed
-                && self
-                    .journal
-                    .command_kind(&operation.operation_id)
-                    .map_or(true, |kind| kind.is_lifecycle_transaction())
-        }) {
-            return Err(p::Error(
-                "configuration cannot change during an unresolved lifecycle operation".into(),
-            ));
+            .map_err(|_| configuration_unavailable())?
+            .snapshot()?;
+        let Some(owner) = view.owner.as_ref() else {
+            return Ok(());
+        };
+        if !view.configured || view.active_revision == 0 {
+            return Ok(());
         }
-        store.apply_settings_v2(patch)
+        let Some(bearer) = self.web_configuration_bearer.as_deref() else {
+            return Ok(());
+        };
+        let auth = self.authenticate_web_configuration(bearer)?;
+        let _ = self.reconcile_core(
+            &auth,
+            owner,
+            view.active_revision,
+            view.pending_restart,
+            current_timestamp()?,
+        );
+        Ok(())
     }
 
     pub fn bind_configuration_owner(
@@ -301,6 +363,121 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         })
     }
 
+    fn reconcile_core_after_configuration(
+        &self,
+        auth: &HostAuth,
+        owner: Option<&p::OwnerPrincipalRef>,
+        revision: u64,
+        configured: bool,
+        pending_restart: bool,
+    ) -> p::Result<Option<p::ProductCoreActivationResponse>> {
+        let Some(owner) = owner else {
+            return Ok(None);
+        };
+        if !configured || revision == 0 {
+            return Ok(None);
+        }
+        self.reconcile_core(auth, owner, revision, pending_restart, current_timestamp()?)
+    }
+
+    fn reconcile_core_after_configuration_v2(
+        &self,
+        auth: &HostAuth,
+        owner: Option<&p::OwnerPrincipalRef>,
+        revision: u64,
+        configured: bool,
+        pending_restart: bool,
+    ) -> p::Result<Option<p::ProductCoreActivationResponseV2>> {
+        let Some(activation) = self.reconcile_core_after_configuration(
+            auth,
+            owner,
+            revision,
+            configured,
+            pending_restart,
+        )?
+        else {
+            return Ok(None);
+        };
+        let store = self
+            .product_config
+            .as_ref()
+            .ok_or_else(configuration_unavailable)?;
+        let configuration = store
+            .lock()
+            .map_err(|_| configuration_unavailable())?
+            .snapshot_settings_v2()?;
+        Ok(Some(p::ProductCoreActivationResponseV2 {
+            schema_version: p::SchemaVersion(1),
+            operation: activation.operation,
+            configuration,
+            service: activation.service,
+        }))
+    }
+
+    fn reconcile_core(
+        &self,
+        auth: &HostAuth,
+        owner: &p::OwnerPrincipalRef,
+        revision: u64,
+        pending_restart: bool,
+        now: p::Timestamp,
+    ) -> p::Result<Option<p::ProductCoreActivationResponse>> {
+        let status = match self.services.inspect(p::BuiltinServiceId::Brain) {
+            Ok(status) => status,
+            Err(_) => return Ok(None),
+        };
+        let action = match status.state {
+            p::NativeServiceState::Stopped => p::ProductCoreAction::Start,
+            p::NativeServiceState::Running if pending_restart => {
+                if self.has_automatic_operation(revision, p::ProductCoreAction::Start)? {
+                    p::ProductCoreAction::Start
+                } else {
+                    p::ProductCoreAction::Restart
+                }
+            }
+            _ => return Ok(None),
+        };
+        let operation_id = self.automatic_core_operation_id(revision, action)?;
+        let request = p::ProductCoreActivation {
+            schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
+            operation_id,
+            expected_revision: revision,
+            owner: owner.clone(),
+            action,
+            requested_deadline: now.saturating_add(120_000),
+        };
+        self.activate_configuration(auth, request, now).map(Some)
+    }
+
+    fn has_automatic_operation(
+        &self,
+        revision: u64,
+        action: p::ProductCoreAction,
+    ) -> p::Result<bool> {
+        let operation_id = self.automatic_core_operation_id(revision, action)?;
+        Ok(self
+            .journal
+            .operations(0)?
+            .iter()
+            .any(|operation| operation.operation_id == operation_id))
+    }
+
+    fn automatic_core_operation_id(
+        &self,
+        revision: u64,
+        action: p::ProductCoreAction,
+    ) -> p::Result<String> {
+        let digest = p::canonical_digest(&(
+            "forme-automatic-core-activation-v1",
+            &self.install_id,
+            revision,
+            action,
+        ))?;
+        let id = format!("core-auto-{}", digest.0.trim_start_matches("sha256:"));
+        p::validate_product_id(&id)?;
+        Ok(id)
+    }
+
     fn configuration_stage(
         &self,
         operation: &p::MaintenanceOperation,
@@ -396,4 +573,12 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
 
 fn configuration_unavailable() -> p::Error {
     p::Error("managed product configuration is unavailable".into())
+}
+
+fn current_timestamp() -> p::Result<p::Timestamp> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .and_then(|duration| i64::try_from(duration.as_millis()).ok())
+        .ok_or_else(|| p::Error("system clock is unavailable".into()))
 }

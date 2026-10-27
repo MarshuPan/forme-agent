@@ -282,6 +282,7 @@ fn web_login_logout_and_reauth_revoke_enforce_live_sessions() {
     );
     assert_eq!(view.status, 200);
     assert_eq!(view.json()["session"]["owner"], "owner:http-fixture");
+    assert_eq!(view.json()["session"]["role"], "super_admin");
     for secret in [
         "password_hash",
         "credential_revision",

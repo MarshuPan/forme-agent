@@ -434,6 +434,10 @@ pub struct ProductConfigResponse {
     pub view: ProductConfigView,
     pub applied: bool,
     pub operation_id: Option<String>,
+    /// Present when the Host automatically reconciled the Brain service after
+    /// this configuration write. It is deliberately separate from core ack.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub core_activation: Option<ProductCoreActivationResponse>,
 }
 
 /// Static validation deliberately does not assert provider availability.

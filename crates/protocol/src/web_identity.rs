@@ -38,6 +38,16 @@ pub struct SignedWebClaimCommit {
     pub signature: Vec<u8>,
 }
 
+/// The installed Web product currently has exactly one account role. This is
+/// a product-control role, not an Agent permission or an operating-system
+/// identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum WebAccountRole {
+    #[default]
+    SuperAdmin,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebSessionView {
@@ -45,6 +55,9 @@ pub struct WebSessionView {
     pub account_ref: String,
     pub owner: OwnerPrincipalRef,
     pub login_name: String,
+    /// Additive for schema v1: older clients may omit the only supported role.
+    #[serde(default)]
+    pub role: WebAccountRole,
     pub auth_epoch: u64,
     pub idle_expires_at: Timestamp,
     pub absolute_expires_at: Timestamp,

@@ -116,6 +116,7 @@ impl ProductConfigStore {
             view: self.snapshot_settings_v2()?,
             applied: response.applied,
             operation_id: response.operation_id,
+            core_activation: None,
         })
     }
 

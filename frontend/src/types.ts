@@ -1,7 +1,8 @@
 // Small views of the versioned Rust wire objects. Guards fail on unknown schema.
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+export type WebAccountRole = 'super_admin';
 export interface SessionView {
-  schema_version: 1; account_ref: string; owner: string; login_name: string;
+  schema_version: 1; account_ref: string; owner: string; login_name: string; role: WebAccountRole;
   auth_epoch: number; idle_expires_at: number; absolute_expires_at: number;
 }
 export interface SessionResponse { schema_version: 1; session: SessionView; csrf: string; revoke_operation?: string }

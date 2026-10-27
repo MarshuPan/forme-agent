@@ -139,7 +139,7 @@ export class WorkbenchClient {
       tls: network.tls && { schema_version: network.tls.schema_version, material_ref: network.tls.material_ref },
       firewall: network.firewall,
     };
-    const response = await this.json<{ schema_version: 2; view: unknown; applied: boolean; operation_id: string | null }>(
+    const response = await this.json<{ schema_version: 2; view: unknown; applied: boolean; operation_id: string | null; core_activation?: unknown }>(
       'product/config', 'POST', { schema_version: 2, operation_id: operation, expected_revision, models,
         ...(brain ? { brain } : {}), ...(capabilities ? { capabilities } : {}), ...(networkPatch ? { network: networkPatch } : {}), ...(proxy ? { proxy } : {}) }, operation, 2,
     );

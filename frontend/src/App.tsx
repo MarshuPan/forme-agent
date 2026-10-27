@@ -122,7 +122,7 @@ export function App() {
     {['unclaimed', 'login'].includes(entry) && <Entry key={entry} api={api} unclaimed={entry === 'unclaimed'} authenticated={authenticated} />}
     {entry === 'checking' && <main id="main-content" className="entry-status" role="status">正在确认本机服务与登录状态…</main>}
     {entry === 'unavailable' && <main id="main-content" className="entry-status"><h1>暂时无法连接</h1><p role="alert">{issue}</p><button className="primary-button" onClick={() => location.reload()}>重新检查</button></main>}
-    {entry === 'ready' && session && <div className="app-shell"><aside className={`sidebar ${menu ? 'is-open' : ''}`} id="main-navigation"><p className="sidebar-owner">{session.login_name}<span>你的工作台</span></p>
+    {entry === 'ready' && session && <div className="app-shell"><aside className={`sidebar ${menu ? 'is-open' : ''}`} id="main-navigation"><p className="sidebar-owner">{session.login_name}<span>SuperAdmin · 你的工作台</span></p>
       <nav aria-label="主导航">{tabs.map(([key, label], index) => <button key={key} ref={index === 0 ? firstMobileNavItem : undefined} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); if (key === 'conversation') setWorkspaceRevision((value) => value + 1); setMenu(false); }}>{label}<span aria-hidden="true">↗</span></button>)}</nav>
       <p className="section-label">最近运行</p><div className="recent-runs">{runs.slice(-12).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small>{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">还没有运行记录</p>}</div>
       <p className="sidebar-footnote">一个主脑，持续协同。</p>
