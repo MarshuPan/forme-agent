@@ -82,7 +82,7 @@ trait IsolatedExecutorHost {
 
 ### 4.1 Worker 控制面与受管配置（24.2 增量）
 
-内部原型使用两个独立 loopback listener：`FORME_HOST_BIND`（默认 `127.0.0.1:8766`）仅提供 OwnerMaintenance；`FORME_AGENT_EXECUTION_BIND`（默认 `127.0.0.1:8767`）仅提供 AgentExecution。即使持有正确 token，调用另一个 listener 上的路由也被拒绝。两个域分别限制连接；该原型仍不是原生 IPC peer identity 或完整安装验收。
+内部原型使用两个独立 loopback listener：`FORME_HOST_BIND`（开发默认 `127.0.0.1:18766`）仅提供 OwnerMaintenance；`FORME_AGENT_EXECUTION_BIND`（开发默认 `127.0.0.1:18767`）仅提供 AgentExecution；配置桥接端点的开发默认值为 `127.0.0.1:18768`。正式安装不盲目固定这些内部端口：`forme-hostctl` 会从受控 loopback 范围逐个探测可绑定端口，并把 Host/AgentExecution/Configuration/Core 的实际地址原子写入同一安装配置；因此 Windows 动态排除端口不会把安装配置预先写进不可绑定端口。即使持有正确 token，调用另一个 listener 上的路由也被拒绝。两个域分别限制连接；该原型仍不是原生 IPC peer identity 或完整安装验收。
 
 AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/workers/{job_id}`、`POST /v1/agent/workers/{job_id}/cancel`。dispatch 使用版本化 closed `WorkerDispatchRequest { schema_version, job, permit }`，验证 exact job/permit binding；查询和取消只引用原 job，不创建替代任务。
 

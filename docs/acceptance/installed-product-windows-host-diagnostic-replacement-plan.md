@@ -1,6 +1,6 @@
 # Windows Host 开发诊断替换计划
 
-状态：待 owner 批准，NOT_RUN。承接[原生验收计划 §3](installed-product-windows-native-acceptance-plan.md)、[实际安装失败](installed-product-windows-native-install-20261027.md)和[诊断候选](installed-product-windows-candidate-20261027-694b6bb.md)。此前批准的 observer 已启动一次旧 Host 并失败，不能沿用该批准替换程序或重试。
+状态：已按 owner 批准执行一次，`failed_preserved`。承接[原生验收计划 §3](installed-product-windows-native-acceptance-plan.md)、[实际安装失败](installed-product-windows-native-install-20261027.md)和[诊断候选](installed-product-windows-candidate-20261027-694b6bb.md)。此前批准的 observer 已启动一次旧 Host 并失败；本次仅按新的明确批准替换候选 Host 并再次启动一次。
 
 本计划是一次明确例外的本机开发诊断，**不是签名发布、升级事务或 IP 验收**。不修改正式 active-release/staging/updater 契约，不运行首装安装器，不新增服务或放宽产品的身份/权限检查。原生完整产品继续未通过。
 
@@ -33,8 +33,12 @@
 
 脚本在 Windows PowerShell 5.1 与 PowerShell 7 完成语法解析及**独立临时目录**夹具：原子替换、原 ACL 保留、备份/数据字节保留、备份覆盖拒绝均通过。夹具曾发现 PowerShell 将 `$null` 转为非法空路径，已改为明确的 `[NullString]::Value` 并在两种 PowerShell 复验通过。
 
-这些是脚本准备证据；真正安装目录的管理员预检、替换和服务启动仍为 NOT_RUN。默认不带 `-Apply` 时仅只读核对，不创建备份、替换文件、启动服务或写结果报告。批准必须覆盖本表脚本摘要及本节边界，不能由 UAC 出现或工具可运行推定批准。
+这些是脚本准备证据；默认不带 `-Apply` 时仅只读核对，不创建备份、替换文件、启动服务或写结果报告。批准必须覆盖本表脚本摘要及本节边界，不能由 UAC 出现或工具可运行推定批准。
 
 2026-10-27 12:40:38（Asia/Shanghai）曾在当前交互 PowerShell 以默认只读模式运行该脚本。当前进程不是管理员，预检在管理员读取权限检查处安全停止；输出为 `failed_preserved`、`failure_stage=preflight`、`start_requests=[]`、`replaced_host=false`、`backup_verified=false`。四个服务仍为 Stopped，安装程序、配置、密钥、备份和 Host 文件均未改变。该结果只证明当前 shell 没有执行替换所需的权限，不构成替换失败、Host 根因结论或 IP 验收结果。
 
-随后在 UAC 管理员上下文中以默认只读模式复跑，结果为 `preflight_passed_no_change`。候选 `forme-hostd.exe` 摘要、原 Host 摘要、四服务固定绑定与恢复策略、安装 ACL、端口和原始数据均通过；`replaced_host=false`、`backup_verified=false`、`start_requests=[]`，没有创建备份、替换文件或启动服务。证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement-preflight-7.txt`。本次只读预检不消耗 `-Apply` 授权；替换、一次 Host/Web 诊断启动及结果报告仍为 NOT_RUN。
+随后在 UAC 管理员上下文中以默认只读模式复跑，结果为 `preflight_passed_no_change`。候选 `forme-hostd.exe` 摘要、原 Host 摘要、四服务固定绑定与恢复策略、安装 ACL、端口和原始数据均通过；`replaced_host=false`、`backup_verified=false`、`start_requests=[]`，没有创建备份、替换文件或启动服务。证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement-preflight-7.txt`。本次只读预检不消耗 `-Apply` 授权。
+
+随后 owner 明确批准执行本表脚本的唯一一次 `-Apply`。备份原 Host、核对候选摘要、原子替换唯一 Host 文件均成功；配置、密钥、其他五个程序、服务绑定和原始数据保持不变。Host 只请求启动一次，在 `StartPending` 后回到 `Stopped`、PID `0`、退出码 `1`；由于 Host 未稳定运行，没有请求 Web，Brain/updater 仍未启动，四个服务最终均为 `Stopped`。结果为 `failed_preserved`，证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement.json` 与 `native-host-diagnostic-replacement-console-9.txt`。脚本未自动回滚或重试。
+
+本次候选已写入的脱敏 Host 诊断阶段为 `management_endpoints`。只读核对显示本机 Windows 动态 TCP 排除范围包含 `8730–8829`，而已安装旧配置中的 Host `8766`、Configuration `8768`（以及预留 Agent `8767`）均在该范围内；因此绑定失败根因已闭合为旧安装的固定内部端口与本机排除范围冲突，不是密钥、服务账户或数据损坏。源码已改为安装准备阶段探测并持久化可绑定的内部 loopback 端口；该修复尚未覆盖当前安装，后续替换/重启必须另行批准。

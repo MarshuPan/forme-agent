@@ -67,4 +67,6 @@
 
 当前 Windows 交互会话不是管理员；2026-10-27 已经 owner 批准通过 UAC 执行 `7cb5b8b` 的开发安装及一次限定恢复。目录与四个 SCM 注册已存在；Grant/Verify 通过后 Host 启动失败并耗尽有限重试，四服务目前停止，原配置/密钥字节保持。准确失败与源码修复见[本机安装报告](installed-product-windows-native-install-20261027.md)。[候选构建报告](installed-product-windows-candidate-20261027.md)的未安装字段只描述构建时状态和不可改写的原回执，不代表当前机器。2026-10-24/26 候选保留为历史。Linux/macOS 原生目标与签名身份未提供，正式签名与完整 IP 仍开放；这些限制只阻断依赖它们的验收，不阻断其余工作。
 
+本次 Host 诊断替换已按新的 owner 批准执行一次：候选 Host 原子替换成功，但因旧安装内部端口 `8766/8767/8768` 落入本机 Windows `8730–8829` 动态排除范围，在 `management_endpoints` 阶段失败，现场保留且未自动回滚。源码修复 `4bc4eec` 已让新安装在准备阶段探测并持久化可绑定内部端口；当前安装尚未改写，后续替换/启动仍须单独批准。
+
 安装 worker 的有界结果读取/Host manifest-chunk 通道，以及 POSIX 有限服务恢复的兼容变更，见 `architecture/proposals/installed-worker-result-and-posix-recovery.md`。owner 已批准结果通道并选择 POSIX 方案 A。`1ae55c6` 的 ProductionRuntime adapter、应用层 AEAD、结果核验与双向 peer 之后，`cc43440`、`1270e54`、`7cb5b8b` 已补齐有限文件入口、首次安装的 profile/workspace/capability 装配与活动发布程序定位，证据见[文件 worker 与离线维护报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。原生 SCM/LocalSystem、桌面 helper、正式安装及完整 IP 仍开放。下一项权限边界已形成[具体草案](../architecture/proposals/installed-windows-desktop-helper-native-boundary.md)，尚未扩大 unsafe 白名单；本机安装按[原生验收计划](installed-product-windows-native-acceptance-plan.md)另行批准。Linux/macOS 保持 `release_ready=false`，不宣称原生产品完成。

@@ -53,8 +53,12 @@ owner 随后明确批准 `native-host-start-observer.ps1 -StartServices`。实�
 
 后续源码组件回归另见[已提交发布补开放修复报告](installed-product-updater-admission-20261027.md)：`0afe809` 修复大型文件复核耗尽 live-proof 窗口的问题，Host 门与完整源码质量门通过。这不是旧安装启动失败的根因结论，也没有更新安装中的二进制；原安装仍保留失败状态。
 
-随后对[Host 诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)执行了一次默认只读预检。当前交互 PowerShell 不是管理员，脚本在管理员读取权限检查处停止；没有写安装目录、替换 Host、创建备份或启动服务。该预检不消耗替换授权，后续 `-Apply` 仍须单独批准。
+随后对[Host 诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)执行了一次默认只读预检。当前交互 PowerShell 不是管理员，脚本在管理员读取权限检查处停止；没有写安装目录、替换 Host、创建备份或启动服务。该预检不消耗替换授权。
 
 在上述失败后，按限定诊断范围通过 UAC 以管理员再次执行了同一 observer。Host 的唯一一次启动请求实际进入 `StartPending`，随后回到 `Stopped`，SCM/Win32 退出码为 `1`；脚本因此没有请求 Web，Brain/updater 仍未启动，四个服务最终均为 `Stopped`、PID `0`。原安装程序、配置、密钥和服务绑定摘要保持不变。证据为 `target/installed-file-worker-evidence/native-host-observed-start.json`。
 
-随后以管理员运行了 Host 诊断替换脚本的无 `-Apply` 预检，结果为 `preflight_passed_no_change`：候选 Host、原 Host 摘要、服务 SID/账户/启动参数/恢复策略、ACL、端口和原始数据边界均通过核对；没有创建备份、替换文件或启动服务。证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement-preflight-7.txt`。该预检不等于替换授权；`-Apply` 仍为 NOT_RUN，Host 失败根因也不能由旧二进制的退出码 `1` 推断。
+随后以管理员运行了 Host 诊断替换脚本的无 `-Apply` 预检，结果为 `preflight_passed_no_change`：候选 Host、原 Host 摘要、服务 SID/账户/启动参数/恢复策略、ACL、端口和原始数据边界均通过核对；没有创建备份、替换 Host 或启动服务。证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement-preflight-7.txt`。
+
+owner 随后明确批准执行一次 `native-host-diagnostic-replacement.ps1 -Apply`。原 Host 备份、候选摘要核对和唯一 Host 文件原子替换均成功；配置、密钥、其他程序、服务绑定和原始数据保持不变。新 Host 只请求启动一次，随后在 `management_endpoints` 阶段失败，Host 回到 `Stopped`、PID `0`、退出码 `1`；Web 未请求，Brain/updater 未启动，四服务最终均为 `Stopped`。失败现场未自动回滚或重试，证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement.json`。
+
+根因已由脱敏诊断和本机只读 OS 核对闭合：Windows 动态 TCP 排除范围为 `8730–8829`，覆盖旧安装配置的内部 Host `8766`、Configuration `8768` 和预留 Agent `8767`，所以 Host 的管理端点无法绑定。源码已修复为安装准备阶段探测可绑定的内部 loopback 端口并将同一结果写入 Host/Web/Core 配置；当前已安装实例仍保持失败诊断状态，修复尚未写入该实例。该结果不提升任何 IP01–IP24 状态。
