@@ -4,7 +4,9 @@
 
 2026-10-27 已按 owner 批准真实运行 `7cb5b8b` 的 Windows 开发安装候选，并在首装 ACL inventory 漏项失败后执行一次获批的限定恢复。四个 SCM 服务和受保护目录已经创建；修正矩阵的 Grant/Verify 通过，但 Host 正式启动退出 1，有限 OS 重试后四服务均停止，Web/Brain 未启动，原配置/密钥字节保持。前台 managed 入口的 SCM 身份缺口、纯测试对真实安装目录的依赖与安装器错误退出码已在源码修复，增加脱敏启动阶段诊断；修复未静默覆盖安装。完整过程与当前待验证边界见[本机安装报告](installed-product-windows-native-install-20261027.md)。下文“未安装/未注册”的较早条目均为其各自提交时的历史状态，不能代表当前本机。
 
-2026-10-27 基于修复后的源码提交 `694b6bb` 生成独立的[Windows Host 诊断候选](installed-product-windows-candidate-20261027-694b6bb.md)：release、18-file bundle 与 Inno 6.6.1 编译均通过，安装包 SHA-256 为 `906713301d8076ec71566214b1d512d0db9e0373bad0af4a464c1a5242b381e`。候选仍为未签名、未安装、`release_ready=false`；未进入现有 SCM，不能用它替代旧安装失败的复核证据。
+2026-10-27 基于修复后的源码提交 `694b6bb` 生成独立的[Windows Host 诊断候选](installed-product-windows-candidate-20261027-694b6bb.md)：release、18-file bundle 与 Inno 6.6.1 编译均通过，安装包 SHA-256 为 `906713301d8076ec71566214b1d512d0db9e0373bad0af4a464c1a5242b381e9`。候选仍为未签名、未安装、`release_ready=false`；未进入现有 SCM，不能用它替代旧安装失败的复核证据。
+
+2026-10-27 获批的 observer 已对旧 Host 请求启动一次，实测仍为退出 1；Web/Brain/updater 未启动，原配置/密钥及程序摘要保持。后续 `97e6e0c` / `0afe809` 明确并修复已提交发布的补开放 probe 时限，Host 永久门与完整源码质量门均退出 0（1090 Rust tests / 0 failed，前端 92/92，完整合规）；证据边界见[补开放回归报告](installed-product-updater-admission-20261027.md)。这项组件修复没有覆盖旧安装，也没有重建 `694b6bb` 候选；[Host 诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)仍待批准、NOT_RUN。
 
 2026-10-27，`cc43440`、`1270e54` 和 `7cb5b8b` 已实现真实有限文件 worker、Windows 首装 profile/workspace/core capability 装配、core 离线的只读备份核验、六程序完整包，以及由原 journal 的已验证活动发布派生 core peer/file worker/hostctl image。初始安装与 worker 配置原字节保留，自定义 profile 不自动启用。当前源码统一质量门 PASS：176 Rust targets、1088 passed / 0 failed / 15 默认 ignored，前端 92/92、bundle 10/10、打包边界 18/18、签名校验 5/5、strict Clippy/规模/完整合规通过；Host/配置/原生文件场景和 release audit 的后续结果见[本批组件报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。当前生产桌面 helper 仍不可用，原生 SCM/LocalSystem、真实 Provider、签名安装和 IP01–IP24 尚未关闭。Linux/macOS 按 owner 选择保持有限恢复与 `release_ready=false`。待审[桌面 Win32 边界草案](../architecture/proposals/installed-windows-desktop-helper-native-boundary.md)和[本机原生验收计划](installed-product-windows-native-acceptance-plan.md)均不构成操作授权或通过结论。
 

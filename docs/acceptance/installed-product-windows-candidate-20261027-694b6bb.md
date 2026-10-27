@@ -13,11 +13,13 @@
 | Native compiler | Inno Setup 6.6.1；SHA-256 `f8deb3e9e54303c178fd3513357ebc4d580a63bd072e24c221442b06f884b8fc` |
 | 安装包 | `target/product-bundles/forme-windows-x86_64-20261027-694b6bb-package/artifacts/forme-0.0.1-windows-x86_64.exe` |
 | 安装包大小 | 73,222,084 bytes |
-| 安装包 SHA-256 | `906713301d8076ec71566214b1d512d0db9e0373bad0af4a464c1a5242b381e` |
+| 安装包 SHA-256 | `906713301d8076ec71566214b1d512d0db9e0373bad0af4a464c1a5242b381e9` |
 | 签名/安装 | `NotSigned` / `not_performed` |
 | release ready | `false` |
 
 构建回执位于 `target/product-bundles/forme-windows-x86_64-20261027-694b6bb-package/native-build-receipt.json`。候选目录与此前的 `7cb5b8b` 候选完全分离，未覆盖旧包。
+
+上表安装包摘要已按实际文件和原构建回执重新核对，修正此前抄录漏掉末尾 `9` 的错误（原文只有 63 位）；包文件没有改变。
 
 ## 诊断范围
 

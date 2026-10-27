@@ -44,3 +44,11 @@
 Host 正式启动、Web 初始化、独立测试 owner 认领、真实 provider/worker、注销/冷启动、原生升级/恢复/卸载均未因此通过。IP01 的正式签名、IP11 helper、跨平台与完整 IP24 继续开放；Linux/macOS 保持既定不发布边界。
 
 后续重试、替换安装程序或移除服务/目录必须遵守原生计划 §3 的具体恢复确认；不可重新跑首装安装器，也不可用新代码测试通过宣称旧安装已经修复。
+
+## 已批准的限定诊断启动
+
+owner 随后明确批准 `native-host-start-observer.ps1 -StartServices`。实际证据 `target/installed-file-worker-evidence/native-host-observed-start.json` 记录：2026-10-27 03:29:36–03:29:38 UTC 只请求启动 `forme-host` 一次，随后观察到 Stopped、PID 0、Win32 exit 1；Host 未稳定，故没有请求启动 Web，Brain/updater 也没有启动。原配置/密钥和程序逐文件摘要核对通过，报告为 `failed_preserved`。
+
+后续当前只读查询仍为四服务全部 Stopped。这次批准的启动已经执行完毕，不能重复使用该批准再次 Start。旧二进制没有新阶段诊断，退出 1 仍不足以判断具体失败模块；待审的[Host 开发诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)只准备了候选、原件备份与一次启动的具体路径，尚未执行。
+
+后续源码组件回归另见[已提交发布补开放修复报告](installed-product-updater-admission-20261027.md)：`0afe809` 修复大型文件复核耗尽 live-proof 窗口的问题，Host 门与完整源码质量门通过。这不是旧安装启动失败的根因结论，也没有更新安装中的二进制；原安装仍保留失败状态。
