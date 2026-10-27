@@ -171,7 +171,7 @@
 
 24.1 是 prd/24 的第一笔组件交付；25 的账号/session 是另一笔组件交付，均不表示 prd/24、prd/25 或 prd/26 整体完成。后续按依赖推进，不能以组件测试提前宣布独立部署/Web 产品已可用。
 
-最新增量和证据边界见 [主脑投影与认知处置组件验收](installed-product-brain-views-acceptance.md)；前批见 [安装权限分区组件验收](installed-product-service-access-acceptance.md)、[模型配置与主脑启停验收](installed-product-configuration-acceptance.md)，2026-10-21 历史见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。当前在 `shu/installed-product`，不是 main/发布版本；本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
+最新增量和证据边界见 [主脑投影与认知处置组件验收](installed-product-brain-views-acceptance.md)；前批见 [安装权限分区组件验收](installed-product-service-access-acceptance.md)、[模型配置与主脑启停验收](installed-product-configuration-acceptance.md)，2026-10-21 历史见 [受管服务与工作台组件记录](installed-product-managed-workbench.md)。这些产品增量现已合入本地 `main`；本地 `main` 不是远端发布版本，且本轮没有读取真实 owner 密钥、迁移个人数据或注册系统服务。
 
 ### 最新主脑工作台（2026-10-22，`477ef52`）
 
@@ -200,7 +200,7 @@
 - 宿主拆分：`26ce4b4` 将 783 行的 `forme-hostd.rs` 按配置/凭据、HTTP、进程生命周期与 SCM 分开，入口剩 40 行并移除旧规模豁免。最终 workspace 688 passed / 0 failed / 5 默认 ignored，宿主专项 60 个命名场景通过；当前扫描 341 个文件、65 处历史规模债务，详见 [可维护性记录](installed-product-maintainability-progress.md)。`57e34b8` 同步修复 M4/M5 审计的旧文件定位，保留缺失实现/案例时的阻断。
 - 认证：`12b3f5d` 只写独立认证库，不打开脑库。签名账号认领接缝、Argon2id、session/CSRF/epoch、operation-bound reauth、口令替换与重启持久性详见 [组件报告](installed-product-25-identity-foundation.md)。`52808df` 增加了本机证明、有限 setup scope、候选绑定、签名 claim、journal hash chain 和丢响应恢复，详见 [claim 组件报告](installed-product-25-bootstrap-claim.md)。当前没有安装服务或可登录的新网页地址。
 - Web 入口：`49674b7` 增加 `forme-webd`、精确 loopback Host/Origin/CSRF、独立限流、有界连接/密码工作、登录挑战和已知认证 schema 升级；`52808df` 将 `/api/v1/bootstrap/prove|data|claim` 接到有限 setup client。原有 HTTP/进程门与新增 setup 单测通过；联合 hostd+webd 初始化链路和真实浏览器仍待验收，尚无业务页面或 LAN TLS。
-- 上述实现位于 `shu/installed-product`；该组件记录的历史状态曾写为已快进合入本地 `main`，当前实际产品增量尚未合入 `main`，也未推送远端。本轮未读取真实模型密钥或迁移个人数据。原生安装、五面 UI 和 IP01–IP24 仍未由本组件门验收。
+- 上述实现最初位于 `shu/installed-product`，随后已合入本地 `main`；本段其余内容仍是该组件时期的历史证据边界，不代表当前产品验收已完成。本轮未读取真实模型密钥或迁移个人数据。原生安装、五面 UI 的完整浏览器联调和 IP01–IP24 仍未由本组件门验收。
 
 ## 2. 宿主底板的实现边界
 
