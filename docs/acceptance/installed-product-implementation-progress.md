@@ -2,6 +2,19 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-10-28 当前安装现场快照
+
+通过已登录的本地浏览器访问固定 Product URL `http://127.0.0.1:18765/`，并以只读方式核对 Windows SCM，当前安装实例观察到：
+
+- Web 控制面可达，账号 `shu` 已登录；页面显示 `已登录 · 主脑离线`。
+- `bootstrap/status` 返回 `claimed=true`、`setup_needed=false`；这只证明认领状态，不证明主脑就绪。
+- 当前安装版本显示为 `forme-windows-x86_64-20261027-7cb5b8b`，不是尚未安装的 `0cdec99` 候选。
+- 产品配置显示 revision `1` 已保存、主脑确认版本为空；页面显示“产品配置没有被后台接受”和“主脑服务不可用”。
+- `forme-host` 与 `forme-web` 为 `Running/Automatic`；`forme-brain` 为 `Stopped/Manual`。`Manual` 是 Host 协调启动的内部服务注册方式，不是用户应执行的正常启动步骤；但本次现场尚未证明 Host 已将该配置自动协调到 BrainReady。
+- 维护页出现“启动主脑”操作，属于故障/维护入口。正常初始化和配置保存路径仍应由 Host 自动启动或受控重启 Brain，不能把该按钮的存在记作产品完成。
+
+这份快照证明了“同一个 Product URL + 同一个 Owner 的 Web 控制面”已经可见，也明确保留了当前主脑离线和配置未被 core 确认的未完成状态。它不提升真实模型、worker、原生安装、升级或 IP01–IP24 的状态；旧的未认领/未配置历史记录仍保留为当时的观察，不被本条覆盖。
+
 2026-10-27，既有开发安装的端口修复与获批 Host/Web 启动序列已完成：Host Running/PID `55500`、Web Running/PID `49552`，Brain/updater 仍停止；真实浏览器访问 `http://127.0.0.1:18765`，初始化页完整渲染，公开状态为 `claimed=false`、`setup_needed=true`。四配置十值按白名单更新且 ACL 保持；密钥/程序和失败现场保留。纯启动观察器曾把初始旧状态误判为失败，原报告与之后实际 Running/首次 Web 成功报告分别留存，不改写历史；详情见[端口恢复 §7–8](installed-product-windows-port-recovery-plan.md#7-已批准的纯启动修正)。未认领、未启动 Brain、未配置真实 provider，IP01–IP24 不因此整体通过。
 
 2026-10-27，当前源码 `da0d686` 的 A/B/C/D 逐名回归 **47/50/36/71（共 204）** 全通过并重新 seal；六类各两次真实 C24 为 `Pass (LiveConfigured)`，独立 typed/源码验证通过。新四波工件和封闭清单已回填仓库，`--verify --require-pass` 退出 `0`，总清单 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。随后 clean-tree core release audit 的 9 项检查也全部 PASS，当前 receipt 见 [core 闭合报告](core-brain-closure-acceptance-report.md) 与 acceptance 工件；M5 receipt 与完整 Final 继续按独立发布门记录，认知长期质量与真实安装继续分开。
