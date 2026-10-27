@@ -8,7 +8,7 @@
 
 状态分为：已有基线、实现中、待实现、待验证、环境受阻。整体完成必须同时有实现和要求层级的证据；模拟、组件、真实进程、浏览器、真实 provider/backend、原生平台和发布证据分别登记。环境受阻保留缺项，不折算为 PASS。
 
-产品主施工分支为 `shu/installed-product`；受管 skills、公共设置 v2、网络健康与回退增量已合入该分支，并已快进合入本地 `main`（当前尚未推送远端或发布）。提交与工作树状态以当前 Git 状态为准；核心验收与历史回执见 `core-brain-closure-acceptance-report.md`，产品状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
+产品主施工分支为 `shu/installed-product`；受管 skills、公共设置 v2、网络健康与回退增量已合入该分支。当前产品分支尚未合入本地 `main`，也尚未推送远端或发布；提交与工作树状态以当前 Git 状态为准。核心验收与历史回执见 `core-brain-closure-acceptance-report.md`，产品状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
 
 ## 2. 核心与跨切面覆盖
 
