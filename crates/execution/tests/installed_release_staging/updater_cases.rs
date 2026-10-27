@@ -11,10 +11,14 @@ const WEB_TOKEN: &str = "updater-fixture-web-configuration-0000000000000001";
 struct Platform {
     launches: AtomicUsize,
     changes: Mutex<Vec<(p::BuiltinServiceId, p::NativeServiceAction)>>,
+    next_image_check_delay: Mutex<Option<std::time::Duration>>,
 }
 impl ReleaseUpdaterPlatform for Platform {
     fn verify_host_image(&self, image: &Path, expected: &p::SchemaDigest) -> p::Result<()> {
         // Controlled platform observation only; the production adapter checks current_exe.
+        if let Some(delay) = self.next_image_check_delay.lock().unwrap().take() {
+            std::thread::sleep(delay);
+        }
         if file_digest(image)? != *expected {
             return Err(p::Error("fixture target image mismatch".into()));
         }
@@ -514,6 +518,9 @@ fn updater_transfers_real_writers_and_child_pipe_then_leaves_target_checking_clo
             .unwrap(),
     );
     let broker = make_broker(&f, config, updater);
+    // A slow read-only image check must not consume the post-commit network
+    // proof window or trigger another stop/switch/backup.
+    *platform.next_image_check_delay.lock().unwrap() = Some(std::time::Duration::from_millis(2100));
     broker.reconcile_release_checking().unwrap(); // lost post-commit opening only rechecks this operation
     proof_server.join().unwrap();
     let admission: p::ProductReleaseAdmission =
@@ -526,7 +533,7 @@ fn serve_proofs(listener: std::net::TcpListener, readiness: p::ProductReleaseRea
     use std::io::{BufRead, Read, Write};
     use std::time::Duration;
     listener.set_nonblocking(true).unwrap();
-    for forged in [true, false, false] {
+    for (index, forged) in [true, false, false].into_iter().enumerate() {
         let deadline = Instant::now() + Duration::from_secs(15);
         let (mut stream, _) = loop {
             match listener.accept() {
@@ -536,9 +543,11 @@ fn serve_proofs(listener: std::net::TcpListener, readiness: p::ProductReleaseRea
                 {
                     std::thread::sleep(Duration::from_millis(10))
                 }
-                Err(error) => panic!("proof was not requested: {error}"),
+                Err(error) => panic!("proof {index} was not requested: {error}"),
             }
         };
+        // Windows accepted sockets can inherit the listener's nonblocking mode.
+        stream.set_nonblocking(false).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(3)))
             .unwrap();

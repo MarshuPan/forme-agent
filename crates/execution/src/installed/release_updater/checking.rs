@@ -21,22 +21,14 @@ impl InstalledReleaseUpdater {
                     }
                     // A lost post-commit release can only be repaired by new
                     // live proof of this same committed binding; no OS effects.
-                    if self
-                        .verify(
-                            journal,
-                            config,
-                            &checking,
-                            Instant::now() + Duration::from_secs(2),
-                        )
-                        .is_ok()
-                    {
+                    if self.verify(journal, config, &checking, None).is_ok() {
                         config.release_work_admission(&checking.binding, now()?)?;
                     }
                 }
                 continue;
             }
             let result = deadline(checking.takeover.deadline)
-                .and_then(|limit| self.verify(journal, config, &checking, limit));
+                .and_then(|limit| self.verify(journal, config, &checking, Some(limit)));
             match result {
                 Ok(proof) => {
                     if operation.stage == p::MaintenanceStage::Switching
@@ -100,7 +92,7 @@ impl InstalledReleaseUpdater {
         journal: &ProductJournal,
         config: &mut ProductConfigStore,
         checking: &p::ProductReleaseChecking,
-        limit: Instant,
+        limit: Option<Instant>,
     ) -> p::Result<p::ProductReleaseReadiness> {
         checking.validate()?;
         let takeover = &checking.takeover;
@@ -143,7 +135,11 @@ impl InstalledReleaseUpdater {
                 Some(p::NativeServiceState::Running),
             )?;
         }
-        let ready = config.live_release_readiness(&checking.binding, limit)?;
+        // An uncommitted operation retains its original absolute deadline.
+        // After commit, the fresh network proof gets its own bounded window;
+        // read-only release/image checks must not consume that window first.
+        let probe_deadline = limit.unwrap_or_else(|| Instant::now() + Duration::from_secs(2));
+        let ready = config.live_release_readiness(&checking.binding, probe_deadline)?;
         if ready.data_identity.owner_digest != checking.data_identity.owner_digest
             || ready.data_identity.store_identity != checking.data_identity.store_identity
         {
