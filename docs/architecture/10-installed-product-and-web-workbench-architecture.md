@@ -8,6 +8,8 @@
 
 方案建立前的基线是 `forme-gatewayd` 从环境构建完整 ProductionRuntime 后才绑定 loopback listener。当前产品分支已增加 Web/账号、显式受管 core 配置、同一 ProductionRuntime 与 SCM host 接缝；这些组件进度不等于已完成原生安装验收。本方案把 Web 定义为 ForMe 产品的统一控制面，而不是另一个系统的桥接器；安装后产品像 appliance 一样由 OS 服务常驻，但不替换宿主 OS。内部 Gateway 的 loopback 限制、进程分域和开发环境兼容继续保留；M1 的“无桌面壳、无第二 Node 服务”仍成立，新增边界为 Rust Web 控制面进程，不是 Node 或另一套 Agent 服务端。
 
+这里的 appliance-like 只描述用户体验和生命周期归属，不改变宿主 OS 的所有权：安装器把 ForMe 的程序、配置、认证、脑数据、恢复状态和 Web 静态资源部署到受保护的产品目录，并注册系统服务；OS 负责启动和监管，ForMe 负责产品内状态和主脑。用户看到的是一个地址、一个登录账户和一个产品状态，而不是一组需要手工拼装的进程。产品内 Runtime Ingress 是安全隔离通道，不能出现在用户工作流中，也不能被描述成外部桥接层。
+
 ## 1. 运行单元与归属
 
 ```mermaid

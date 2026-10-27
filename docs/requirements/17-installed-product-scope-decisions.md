@@ -39,6 +39,38 @@
 
 P02 的“秒级可达”定义为：在受支持平台上，从 OS 服务管理器确认 Web 控制面进程进入 `Running` 起计，固定本地 Product URL 在 **5 秒预算内**返回可渲染的登录、初始化、维护或启动页面；不把浏览器进程启动和操作系统整机启动时间计入该预算。模型连接、历史脑校验和 BrainReady 可以更慢，但不能阻塞 Web shell，也不能以空白页或无限 spinner 掩盖真实状态。该预算在每个支持平台的 IP01/IP02/IP04 证据中单独记录。
 
+### 2.1 Appliance 参考：飞牛 fnOS 与 ForMe 的对应边界
+
+2026-10-28 对飞牛官方产品页及帮助中心的安装、访问、端口、配置恢复和账号说明进行了核对。飞牛的关键经验不是某个页面样式，而是“安装后得到一个持续运行的设备级产品，浏览器进入该产品的初始化和管理界面”：系统启动后通过浏览器访问设备地址，首次访问完成设备名称和管理员账号设置；本地账号负责设备内登录，云端账号只在使用其远程服务时参与；端口和系统配置由 Web 设置统一管理。
+
+| 飞牛 fnOS 的可核实行为 | ForMe 的对应设计 | 不复制的部分 |
+|---|---|---|
+| 系统镜像写入设备，系统启动后自身持有服务、数据和 Web 入口 | ForMe 用原生安装器部署 release、数据目录和 OS 常驻服务，在宿主 OS 之上形成软件 appliance；启动后用户只认一个 Product URL | 不刷写/替换宿主 OS，不把 ForMe 伪装成完整 NAS 操作系统 |
+| 首次启动后浏览器进入初始化，创建本地管理员账号，再进入桌面 | 安装后 Web 先进入认领/初始化；唯一账号同时是 `SuperAdmin/Owner`，配置有效后 Host 自动启动 Brain，ready 后进入同一工作台 | 不增加第二套云账号、多租户或普通 Web 角色 |
+| 本地登录、系统设置、应用/服务状态由同一个系统 Web 控制面承载 | 对话、workspace、收件箱、记忆/认知、模型/能力设置、维护、备份/恢复和服务状态都属于同一个 ForMe 控制面 | 不引入飞牛的存储池、媒体、应用中心或其服务端/插件体系 |
+| 端口修改会影响访问并需要明确提示；HTTPS、证书和远程访问是独立配置 | Web 网络配置是版本化产品事务；默认 loopback，LAN 必须显式启用 HTTPS/Host/Origin/防火墙边界，切换失败回到可维护的 loopback | 不默认公网开放、不把发现或 mDNS 当认证、不自动修改防火墙 |
+| 配置备份/恢复区分系统配置与数据，并说明版本和缺失依赖 | ForMe 分离程序、产品配置、认证、脑数据、密钥、workspace 和备份；恢复必须先校验、再由 owner 显式切换，未知结果不能重做 | 不把网页登录成功当作数据恢复完成，也不以空脑覆盖旧脑 |
+| 设备关闭网页、拔掉显示器后系统仍由主机运行 | 关闭网页、退出登录、宿主用户注销不停止非交互任务；WebAvailable 与 BrainReady 分开展示 | 主机休眠、关机、断电时本地计算停止；不能宣传“电脑关机后仍运行” |
+
+这项参考把 ForMe 的产品模型固定为：
+
+```text
+一个安装实例 = 一个 Product URL + 一组 OS 常驻服务 + 一个认证 Owner
+              + 一个 ProductionRuntime/主脑 + 一套持久数据/配置/恢复状态
+```
+
+用户不需要认识 `forme-webd`、`forme-hostd`、`forme-gatewayd` 或 worker。它们只是为了权限、故障和生命周期隔离而存在的内部单元；Web 与主脑仍然是同一个 ForMe 产品的两个运行面。关闭网页不停止服务，登录也不是启动主脑的开关。
+
+官方参考：
+
+- [飞牛 fnOS 官网](https://www.fnnas.com/)
+- [安装和初始化](https://help.fnnas.com/articles/fnosV1/start/install-os.md)
+- [远程访问](https://help.fnnas.com/articles/fnosV1/access/how-access.md)
+- [端口修改](https://help.fnnas.com/articles/fnosV1/settings/port-customization.md)
+- [系统配置备份还原](https://help.fnnas.com/articles/fnosV1/settings/sysrestore.md)
+- [管理员与普通用户](https://help.fnnas.com/articles/fnosV1/contact/user-role.md)
+- [本地账号与云端账号](https://help.fnnas.com/articles/fnosV1/contact/account-diff.md)
+
 ## 3. 交付形式与平台目标
 
 | 平台 | 交付选择 | 常驻机制 | 首批验证目标 |

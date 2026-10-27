@@ -648,6 +648,7 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - 服务模式 CLI、Web、scheduler 复用同一 owner/store/writer；不为每设备、浏览器、workspace 或 child agent 新建大脑。始终保留 18-crate 图、99 EventKinds 与现有治理。
 - 用户只认知一个 ForMe 实例、一个访问地址、一个登录账户、一个产品状态和一个主脑；`forme-webd`、`forme-gatewayd`、`forme-hostd` 与 worker 是该实例内部的运行单元。内部认证通道可以存在，但不得在产品 API、UI、安装说明或验收中把它表述成另一个被 Web 代理的系统。
 - 对外只暴露一个由安装配置确定的 ForMe Product URL；内部 loopback/IPC 地址、服务名、端口和凭据不进入用户工作流。安装或系统重启后，Web 控制面以秒级优先可达，目标是从 Web 服务进入 `Running` 起 **5 秒内**先呈现登录、初始化、维护或启动状态，再等待主脑 readiness；“秒级可达”不等于模型调用已经完成。
+- **产品术语约束**：对外文档、UI、公共 API 说明和验收统一使用“统一 Web 控制面 / Product URL / 产品内 Runtime Ingress”。不得把 ForMe 描述成“Web 桥接一个外部 Agent”或把内部进程称为多个产品。现有源码中的 `*Bridge` 仅表示受认证的内部传输实现名，不是产品概念、用户入口或第二主脑；新公开命名不得继续扩散该歧义。
 - Web 会话关联的 workspace 是后续对话 run 的可信上下文绑定，不只是列表标签。Web 服务须从已认证 owner 的持久会话记录解析，不接受 run payload 自报 workspace；正式 core ingress 将解析结果传给既有 `ProductionRuntime::submit_workspace_run`，由其校验 workspace 注册、charter 和 scope，并在既有 `SessionBound` 固定该 run 的 workspace。
 - Web identity DB 与 brain DB 之间不做分布式事务。发送前，在 identity DB 单写者事务中以 owner、session、command/idempotency key 和规范化 request digest 原子固定 workspace 绑定；同 key 同请求始终沿用原绑定并核实原 core receipt，同 key 不同请求冲突。结果未知时保留绑定，禁止换 workspace 或新 key 自动重试；已接纳 run 的绑定不可被后续会话关联修改热切换。
 - Workspace 关联更新与 run 绑定以 identity DB 事务形成线性化顺序：并发发生时 run 使用事务中观察到的完整旧值或新值。归档会话拒绝新的 command；相同 key 的既有命令只允许核实原回执。解除关联后的新 run 使用默认 workspace，既有 run 仍保留 `SessionBound` 的原 workspace。
