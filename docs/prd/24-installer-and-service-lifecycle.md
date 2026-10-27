@@ -8,7 +8,7 @@
 
 ## 1. 职责与边界
 
-交付完整原生安装包、长期服务、管理 broker、受限 worker、版本/配置/data 路径、升级恢复和卸载。用户无需开发环境，也无需开终端维持服务。
+交付完整原生安装包、长期服务、管理 broker、受限 worker、版本/配置/data 路径、升级恢复和卸载。用户无需开发环境，也无需开终端维持服务。所有这些组件共同组成一个 ForMe 产品实例；Web 是统一控制面，内部服务拆分只用于权限、故障和生命周期隔离。
 
 安装器构建为 Inno Setup `.exe`、签名公证 `.pkg`、`.deb/.rpm`；只向已验证的 OS/CPU 组合发布。进程、账户和路径直接使用 architecture/10 §1–2，不另造平行清单。
 
@@ -82,7 +82,7 @@ trait IsolatedExecutorHost {
 
 ### 4.1 Worker 控制面与受管配置（24.2 增量）
 
-内部原型使用两个独立 loopback listener：`FORME_HOST_BIND`（开发默认 `127.0.0.1:18766`）仅提供 OwnerMaintenance；`FORME_AGENT_EXECUTION_BIND`（开发默认 `127.0.0.1:18767`）仅提供 AgentExecution；配置桥接端点的开发默认值为 `127.0.0.1:18768`。正式安装不盲目固定这些内部端口：`forme-hostctl` 会从受控 loopback 范围逐个探测可绑定端口，并把 Host/AgentExecution/Configuration/Core 的实际地址原子写入同一安装配置；因此 Windows 动态排除端口不会把安装配置预先写进不可绑定端口。即使持有正确 token，调用另一个 listener 上的路由也被拒绝。两个域分别限制连接；该原型仍不是原生 IPC peer identity 或完整安装验收。
+内部原型使用两个独立 loopback listener：`FORME_HOST_BIND`（开发默认 `127.0.0.1:18766`）仅提供 OwnerMaintenance；`FORME_AGENT_EXECUTION_BIND`（开发默认 `127.0.0.1:18767`）仅提供 AgentExecution；产品内部 Runtime Ingress 的开发默认值为 `127.0.0.1:18768`。正式安装不盲目固定这些内部端口：`forme-hostctl` 会从受控 loopback 范围逐个探测可绑定端口，并把 Host/AgentExecution/Configuration/Core 的实际地址原子写入同一安装配置；因此 Windows 动态排除端口不会把安装配置预先写进不可绑定端口。即使持有正确 token，调用另一个 listener 上的路由也被拒绝。两个域分别限制连接；该原型仍不是原生 IPC peer identity 或完整安装验收。
 
 AgentExecution 路由为 `POST /v1/agent/workers/dispatch`、`GET /v1/agent/workers/{job_id}`、`POST /v1/agent/workers/{job_id}/cancel`。dispatch 使用版本化 closed `WorkerDispatchRequest { schema_version, job, permit }`，验证 exact job/permit binding；查询和取消只引用原 job，不创建替代任务。
 
@@ -261,7 +261,7 @@ Windows 包使用随包、固定入口的 PowerShell/.NET ACL helper；它不是
 
 ### 4.4.1 POSIX 原生权限与后续发布
 
-Linux/macOS 使用同一有限权限矩阵：管理域与 backups 仅 root；brain/workspaces 仅 Brain；web-auth 仅 Web；config/keys 父目录只允许遍历。`core-owner.token`、`agent-execution.token` 仅额外授予 Brain 组读取；`core-web.token` 由专用 bridge 组供 Brain/Web 读取，该组不拥有其他管理凭据。Web 不能读取 Brain/owner/model/management secrets，也不能写 core 配置；Brain 不能写管理配置或全局 keys。Brain 自身内容 vault 位于 brain 数据域，不需要全局 keys 写权限。
+Linux/macOS 使用同一有限权限矩阵：管理域与 backups 仅 root；brain/workspaces 仅 Brain；web-auth 仅 Web；config/keys 父目录只允许遍历。`core-owner.token`、`agent-execution.token` 仅额外授予 Brain 组读取；`core-web.token` 由专用 Runtime Ingress 组供 Brain/Web 读取，该组不拥有其他管理凭据。Web 不能读取 Brain/owner/model/management secrets，也不能写 core 配置；Brain 不能写管理配置或全局 keys。Brain 自身内容 vault 位于 brain 数据域，不需要全局 keys 写权限。
 
 `config/core` 与 `keys/model-credentials` 由 root 拥有，Brain 组只读并设置 setgid；后续 Host 创建的共享 revision 目录继承同组与 `2750`，共享文件为 `0640`。配置日志及内部 state revision 继续 root 私有。发布前核对实际继承 gid/父目录模式，再给新 inode 最小读取权限，原子替换不能让下一个 core 配置退回 `0600`。没有安装器明确设置的 setgid 共享父目录时，开发路径仍保持 `0700/0600`，不全局放宽文件权限。
 
@@ -446,7 +446,7 @@ helper 生命周期为 `Absent -> Starting -> Ready -> Revoked/Expired/Unavailab
 
 网页登录账户是安装产品唯一的 `SuperAdmin/Owner`，拥有产品控制面的完整权限；安装器、Host、Web、Brain 和 Agent worker 的 OS 身份仍按 §1 分域。该角色不授予模型任意 shell、SYSTEM/root 或绕过 Harness 的能力。
 
-安装完成后首次只启动 Host/Web，让 owner 完成认领和有效模型配置。配置事务提交成功后由 Host 自动生成与该配置 revision 绑定的确定性启动 operation，并启动或受控重启 Brain；正常路径不要求再次输入网页登录密码，也不要求手动点击启动。系统重启时由 OS 服务和 Host 启动恢复协调同一 operation，重用原回执，未知/未安装/恢复中的状态保持可诊断而不盲重试。手动 `StartCore` 仅保留为故障恢复和明确维护入口。
+安装完成后由 ForMe 产品栈先使 Host/Web 控制面可达，让 owner 完成认领和有效模型配置；用户看到的是同一个 ForMe 初始化页面，不需要理解底层服务拆分。配置事务提交成功后由 Host 自动生成与该配置 revision 绑定的确定性启动 operation，并启动或受控重启 Brain；正常路径不要求再次输入网页登录密码，也不要求手动点击启动。系统重启时由 OS 服务和 Host 启动恢复协调同一 operation，重用原回执，未知/未安装/恢复中的状态保持可诊断而不盲重试。手动 `StartCore` 仅保留为故障恢复和明确维护入口。
 
 1. 校验 OS/CPU、包签名、磁盘、目标路径/ACL、端口；发现旧 installation/store 时进入接管路径，不覆盖。
 2. 创建 release staging，逐文件校验；建立服务账户与私有 IPC；设目录权限后原子提交安装 manifest。

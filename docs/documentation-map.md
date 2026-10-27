@@ -130,7 +130,7 @@
 | [requirements/18](requirements/18-installed-product-verification-strategy.md) | IP01–IP24 原生验收。 | requirements/17、永久 S/C 门。 | 已有组件门和实施记录；完整原生 IP01–IP24 仍未执行。 |
 | [architecture/10](architecture/10-installed-product-and-web-workbench-architecture.md) | 系统服务、认领/身份/网络、分权、数据、升级、Web。 | requirements/17–18、canonical §29、architecture/03/09。 | 宿主、worker、认证和工作台已分阶段落地；原生服务/强隔离/完整产品仍开放，18-crate/99-kind 不变。 |
 | [prd/24](prd/24-installer-and-service-lifecycle.md) | 安装与系统服务生命周期。 | architecture/10、requirements/17–18。 | 宿主协议、worker admission/控制面和打包基础已有组件实现；原生账户/逐 job 强隔离、安装事务、升级回滚与 IP 仍待完成。 |
-| [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 独立账号/session、配置事务、loopback API 和 core bridge 已有组件实现；旧脑接管、恢复材料、LAN/完整渠道能力与 IP 仍待完成。 |
+| [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 独立账号/session、配置事务、loopback API 和内部 Runtime Ingress 已有组件实现；旧脑接管、恢复材料、LAN/完整渠道能力与 IP 仍待完成。 |
 | [prd/26](prd/26-web-workbench.md) | 五面 Web 工作台。 | architecture/10、prd/25 API。 | 静态 UI、会话/项目/认知/收件箱和来源材料组件已分阶段实现；真实浏览器完整流程、剩余设置和 IP17–24 仍待完成。 |
 | [frontend-reuse-policy](compliance/frontend-reuse-policy.md) | owner 指定的前端许可/来源边界。 | canonical §12/§29.8、DeepSeek 公开来源。 | prd/17/26、导入前 gate；当前未导入源码/依赖。 |
 
@@ -208,7 +208,7 @@ flowchart TD
   ProductArc --> Product24["prd/24\n安装/服务"]
   Product24 --> Product25["prd/25\n初始化/认证/配置/API"]
   Product25 --> Product26["prd/26\nWeb 工作台"]
-  Product26 --> ProductGate["产品验收（未开始）\nIP24 联合 + 原 S/C 回归"]
+   Product26 --> ProductGate["产品验收（进行中）\nIP01-IP24 联合 + 原 S/C 回归"]
 ```
 
 ## 后续写作准入

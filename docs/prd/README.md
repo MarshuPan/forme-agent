@@ -45,7 +45,7 @@
 | `22-m5-program-prd.md` | M5 Program PRD：publisher/admission、plan-bound lifecycle/registry、federated distribution/release，以及 S85–S99 分波门。 | 完成：M5-A/B/C、S1-S99、真实 ecosystem golden、typed artifacts 与 release audit 均 PASS。 |
 | `23-v1-core-brain-closure-program-prd.md` | V1 核心大脑闭合 Program PRD：默认 composition、持续认知、长期项目/编排、多模型、dashboard、数据保护与 C1–C24。 | 文档与承重协议已冻结；当前分波、真实 C24、Final 与 main 状态统一见 `../acceptance/core-brain-closure-acceptance-report.md`；明确不是 M6。 |
 | [24-installer-and-service-lifecycle.md](24-installer-and-service-lifecycle.md) | 原生安装、系统常驻、宿主管理、隔离执行、升级/恢复/卸载。 | 24.1 宿主底板、24.2 worker admission 与受注册入口的真实子进程基础已实现；24.3、原生强隔离与安装验收待完成。 |
-| [25-bootstrap-auth-and-web-access.md](25-bootstrap-auth-and-web-access.md) | 初始化认领、单 owner 账号/session、typed config、LAN HTTPS 与 Web/core 认证/API。 | 进行中：独立认证、loopback HTTP、本机证明/有限 setup/新脑 claim 已提交实施分支；旧脑验证、配置、LAN TLS、bridge 与产品验收待完成。 |
+| [25-bootstrap-auth-and-web-access.md](25-bootstrap-auth-and-web-access.md) | 初始化认领、单 owner 账号/session、typed config、LAN HTTPS 与 Web/core 认证/API。 | 进行中：独立认证、loopback HTTP、本机证明/有限 setup/新脑 claim 已提交实施分支；旧脑验证、配置、LAN TLS、内部 Runtime Ingress 余项与产品验收待完成。 |
 | [26-web-workbench.md](26-web-workbench.md) | 对话、工作空间、收件箱、记忆/认知、设置五面与前端限定复用。 | 基础工作台、对话/审批和工作空间命令层已实施；附件/产物、完整设置维护、浏览器联合验收待完成。 |
 
 ## 实施状态

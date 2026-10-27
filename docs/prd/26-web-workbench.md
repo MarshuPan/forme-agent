@@ -74,7 +74,7 @@ reducer 为纯函数：`reduce(snapshot, ordered_event) -> view`，重复 event 
 
 ### 4.2 数据工作台的安全适配
 
-Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/workbench/query`（目录、原操作状态、备份验证）与 `POST /v1/data/workbench/command`（备份、准备恢复、准备生命周期、批准原计划）。浏览器入口为 `/api/v1/data/query|command`；不经过通配 brain proxy，mutation 先验证 owner、CSRF、命令号与本次命令摘要绑定的口令，再由签名 bridge 发往 core。口令不进入 core、journal 或日志。
+Web 数据工作台使用同一 ForMe Runtime 的封闭查询/命令：`POST /v1/data/workbench/query`（目录、原操作状态、备份验证）与 `POST /v1/data/workbench/command`（备份、准备恢复、准备生命周期、批准原计划）。浏览器入口为 `/api/v1/data/query|command`；不经过通配 brain proxy，mutation 先验证 owner、CSRF、命令号与本次命令摘要绑定的口令，再由产品内部认证 Runtime Ingress 发往 core。口令不进入 core、journal 或日志。
 
 目录仅展示 scope、subject digest、对象/投影数量、生命周期版本与 pending fence，不返回表名、row key、加密 envelope 或 key digest。分页使用实际目录 digest，快照改变返回冲突。生命周期范围预览展示直接与派生对象总数及不可逆性；计划内部明细留在 core。恢复只创建新的 opaque 本地对象，不切换 active brain，不接受任意路径；完成不能宣称已经恢复外部世界或旧 key。
 
@@ -108,7 +108,7 @@ Web 数据工作台使用正式 core 的封闭查询/命令：`POST /v1/data/wor
 
 Web 在同一 identity DB 单写者事务中读取会话当前关联，并为首次提交的 `(owner, session, idempotency_key)` 持久固定 workspace、规范化请求 digest 和操作状态。操作 key 重用但 digest 不同必须冲突；会话关联变更与 run 首次绑定由该事务线性化，后续改关联只影响之后的新 command。创建请求的响应丢失、Web/core 任一方重启或 core 接纳结果未知时，保留原 binding，重发/核实只能使用同 key、同 digest、同 workspace；不得按新会话关联换 workspace，也不得自动换 key。core receipt 确认已有 run 后保存 run ref；unknown 保持可核实，不盲目重提副作用。
 
-产品化 Web adapter 将服务端解析并固定的上下文经现有签名 Web→core bridge 发至专用受认证 run ingress。该 ingress 校验 `RunRequest.session` 与 envelope session 一致、owner 来自当前 AuthContext，并调用现有 `ProductionRuntime::submit_workspace_run`；core 再校验 workspace 已注册及 scope/charter 边界，使用既有 `SessionBound` 事件固定实际上下文。该适配不得扩充脑 `EventKind`、改冻结 `RunRequest`/Harness trait、直接写 brain DB 或绕开既有 gateway/harness、policy、context、competence 和 execution 治理。内部 envelope 必须版本化且被 bridge request digest 完整绑定。
+产品化 Web adapter 将服务端解析并固定的上下文经产品内部认证 Runtime Ingress 发至专用受认证 run ingress。该 ingress 校验 `RunRequest.session` 与 envelope session 一致、owner 来自当前 AuthContext，并调用现有 `ProductionRuntime::submit_workspace_run`；core 再校验 workspace 已注册及 scope/charter 边界，使用既有 `SessionBound` 事件固定实际上下文。该适配不得扩充脑 `EventKind`、改冻结 `RunRequest`/Harness trait、直接写 brain DB 或绕开既有 gateway/harness、policy、context、competence 和 execution 治理。内部 envelope 必须版本化且被 Runtime Ingress request digest 完整绑定。
 
 会话 workspace 关联只决定默认项目上下文，不授予该 workspace 的任意工具、文件系统或外部动作权限；Workspace 注册/charter 也不替代 Permission/Trust/AutonomyEnvelope。run 已接纳后不热切换；解除关联影响之后的 run，不改写历史 `SessionBound` 或历史 run workspace。
 
@@ -116,7 +116,7 @@ Web 在同一 identity DB 单写者事务中读取会话当前关联，并为首
 
 Web identity DB 是该恢复记录的唯一 owner；不把普通建议处置命令写入前端持久存储、brain DB 或新增 EventKind。提交 `/api/v1/brain/workbench/proposal` 前，Web 先在 identity DB 单写者事务中插入恢复记录，字段为 `schema_version, owner_digest, command, binding_digest, run, proposal, payload, created_at`；`payload` 是已校验的封闭 `WorkbenchProposalCommand` JSON，不含自由文本、秘密或浏览器提供的 actor。owner 摘要与命令规范化绑定必须可校验，数据库 ACL 保持 Web 服务专属。identity DB 最多保留 256 条 owner 未决记录，超限时在转发主脑前 fail closed。`command` 全局唯一；`(owner, run, proposal)` 同时唯一，阻止同一目标并发生成第二个恢复命令。
 
-同 owner、同 command、同 binding 的预登记是幂等读取；异 owner 或异 binding 重用 command 一律冲突。记录成功后才经现有签名 Web→core bridge 转发原命令。只有解析到版本/command/binding 一致且状态为 `Confirmed` 或 `Rejected` 的正式 `WorkbenchCommandReceipt`，或收到 core 对该原命令的 HTTP 409（该状态只由 command 开始前的确定性冲突返回），才按 owner+command+binding 条件删除记录。Unknown、其他 HTTP/transport 错误、超时、进程中断或删除回执失败均保留记录；不得因刷新、重登、重启或换浏览器生成新 key。
+同 owner、同 command、同 binding 的预登记是幂等读取；异 owner 或异 binding 重用 command 一律冲突。记录成功后才经产品内部认证 Runtime Ingress 转发原命令。只有解析到版本/command/binding 一致且状态为 `Confirmed` 或 `Rejected` 的正式 `WorkbenchCommandReceipt`，或收到 core 对该原命令的 HTTP 409（该状态只由 command 开始前的确定性冲突返回），才按 owner+command+binding 条件删除记录。Unknown、其他 HTTP/transport 错误、超时、进程中断或删除回执失败均保留记录；不得因刷新、重登、重启或换浏览器生成新 key。
 
 认证后 `GET /api/v1/workbench/proposals/pending` 返回 `{schema_version: 1, commands: WorkbenchProposalCommand[]}`，最多 256 条且只含当前 owner 未决记录。读回时逐条验证 owner、schema 与 binding digest；坏记录导致恢复错误，不跳过或部分显示。前端仅以内存将列表按 `(run, proposal)` 关联 Inbox；匹配不到当前 Suggestion 时仍展示安全的“原处置待核实”条目。恢复动作必须由 owner 显式触发，并原样重发列表中的命令。页面加载/刷新只读不发命令；终态后刷新正式 brain projection。此记录只用于找回命令，不替代主脑回执或主脑事件作为事实源。
 
@@ -220,7 +220,7 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 准备后显示正式 core 的对象/派生项总数、范围、有效期与不可逆性：一个主体可能包含多条来源或派生记忆，不能宣称只删除当前卡片。实际 Delete/CryptoShred 继续用独立、显式确认、口令和 plan digest 绑定的既有 Apply 命令；Unknown 只查原回执，不能通过换号或刷新重试删除。确认后显示本地清理/key 销毁和真实远端状态，旧正文、下载及主脑上下文均遵守原 data fence。认知撤回仍只进入 governor/重评，不因这一入口被等同为永久遗忘。
 
-验收须有 source→subject 的正反绑定、只读零写入、陈旧/跨 owner/伪造/内部引用拒绝，以及正式 Web→core 准备/批准/真实清理/原号核实的临时数据证据；浏览器跨页与整包 IP20/IP24 继续独立取证。
+验收须有 source→subject 的正反绑定、只读零写入、陈旧/跨 owner/伪造/内部引用拒绝，以及 ForMe Web 控制面→Runtime Ingress→core 的准备/批准/真实清理/原号核实临时数据证据；浏览器跨页与整包 IP20/IP24 继续独立取证。
 
 #### 5.6.3 文字纠正与原认知失效
 
@@ -238,7 +238,7 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 页面先让 owner 审阅原对象、影响范围和纠正文本，再显式提交。处理中/未确认时固定原 key/body，注销清草稿；刷新后从认证的主脑只读回执恢复原操作，不能从浏览器持久层重建事实。原文/纠正内容只按已有授权正文规则读取。新候选仍需正式 governor 的证据、冲突和谨慎不对称检查；确认 owner 反馈不伪造多时点的结果证据。纠正不删除历史，永久遗忘继续走 §5.6.2。
 
-验收覆盖候选与稳定对象、原派生链立即失效、纠正后候选未提升、文本注入仅为数据、跨 owner/伪造来源/陈旧页面/固定层拒绝、CAS 与事务中故障零半提交、同号重启核实/异义冲突、加密落盘/真实生命周期清理，以及 Web→bridge→core 和浏览器交互；未取到对应层级证据不得声称完整 IP20/IP24 通过。
+验收覆盖候选与稳定对象、原派生链立即失效、纠正后候选未提升、文本注入仅为数据、跨 owner/伪造来源/陈旧页面/固定层拒绝、CAS 与事务中故障零半提交、同号重启核实/异义冲突、加密落盘/真实生命周期清理，以及 ForMe Web 控制面→Runtime Ingress→core 和浏览器交互；未取到对应层级证据不得声称完整 IP20/IP24 通过。
 
 ### 5.7 设置与维护
 

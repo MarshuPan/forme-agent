@@ -6,14 +6,14 @@
 
 **这是已确认的产品化设计；宿主底板、worker admission 与独立认证基础已分阶段实施，原生平台验收、安装包和完整 Web 工作台仍未完成。** 它不改写 M0–M5/V1 的历史验收，不增加内核、crate 或内部依赖边。实施拆为 [prd/24](../prd/24-installer-and-service-lifecycle.md)、[prd/25](../prd/25-bootstrap-auth-and-web-access.md)、[prd/26](../prd/26-web-workbench.md)。当前分支和组件证据见 `../acceptance/installed-product-implementation-progress.md`。
 
-方案建立前的基线是 `forme-gatewayd` 从环境构建完整 ProductionRuntime 后才绑定 loopback listener。当前产品分支已增加独立 Web/账号、显式受管 core 配置、同一 ProductionRuntime 与 SCM host 接缝；这些组件进度不等于已完成原生安装验收。本方案保留内部 Gateway 的 loopback 限制和开发环境兼容。M1 的“无桌面壳、无第二 Node 服务”仍成立，新增边界为 Rust Web 接入进程，不是 Node 或另一套 Agent 服务端。
+方案建立前的基线是 `forme-gatewayd` 从环境构建完整 ProductionRuntime 后才绑定 loopback listener。当前产品分支已增加 Web/账号、显式受管 core 配置、同一 ProductionRuntime 与 SCM host 接缝；这些组件进度不等于已完成原生安装验收。本方案把 Web 定义为 ForMe 产品的统一控制面，而不是另一个系统的桥接器；安装后产品像 appliance 一样由 OS 服务常驻，但不替换宿主 OS。内部 Gateway 的 loopback 限制、进程分域和开发环境兼容继续保留；M1 的“无桌面壳、无第二 Node 服务”仍成立，新增边界为 Rust Web 控制面进程，不是 Node 或另一套 Agent 服务端。
 
 ## 1. 运行单元与归属
 
 ```mermaid
 flowchart LR
-    B[浏览器] --> W[Web 接入服务]
-    W -->|认证身份与正式协议| G[内部 loopback Gateway]
+    B[浏览器] --> W[ForMe Web 控制面]
+    W -->|内部认证 Runtime Ingress| G[同一 ForMe Runtime]
     G --> R[唯一 ProductionRuntime]
     R --> S[权威 EventStore / cognition]
     W -->|限定的 owner 维护命令| H[系统管理 broker]
@@ -22,17 +22,17 @@ flowchart LR
     H --> O[OS 服务与安装生命周期]
 ```
 
-图中的管理命令和 Agent 动作是**不同协议、凭据与授权域**，不能互相转换。broker 不调模型、不生成任务、不订阅认知并自行行动。
+图中的所有单元都属于**同一个 ForMe 产品实例**。管理命令和 Agent 动作仍是不同协议、凭据与授权域，不能互相转换；内部 Ingress 只负责受保护的产品内调用，不是用户可见的外部桥接产品。broker 不调模型、不生成任务、不订阅认知并自行行动。
 
 | 单元/计划二进制 | 放置位置 | 身份与权限 | 唯一职责 |
 |---|---|---|---|
-| Web 接入 `forme-webd` | 现有 `gateway` crate 的新 bin/模块 | 独立受限 Web 服务身份；只能读静态 UI、自有认证库和有限 IPC credential。 | bootstrap、登录、外部 HTTP/TLS、转发、维护页面。不能读 brain DB/provider keys。 |
-| 核心 `forme-gatewayd` | 现有 `gateway` crate | 独立 brain 服务身份；拥有 brain store/key resolver，内部 listener 仅 loopback。 | 唯一 ProductionRuntime、scheduler、认知、治理与事实源。 |
+| Web 控制面 `forme-webd` | 现有 `gateway` crate 的新 bin/模块 | ForMe 的唯一外部产品入口；独立受限 Web 服务身份，只能读静态 UI、自有认证库和有限 IPC credential。 | bootstrap、登录、产品 API、工作台、维护页面。不能读 brain DB/provider keys，也不直接调模型/工具。 |
+| 主脑 Runtime `forme-gatewayd` | 现有 `gateway` crate | 独立 brain 服务身份；拥有 brain store/key resolver，内部 listener 仅 loopback。 | 同一 ForMe 实例的唯一 ProductionRuntime、scheduler、认知、治理与事实源。 |
 | 系统管理 `forme-hostd` | 现有 `execution` crate 的新 bin/模块 | 安装时配置系统管理权限，接口与可操作对象严格列举。 | 服务控制、受保护配置/版本切换、typed 特权动作、隔离 worker 生命周期；无大脑。 |
 | 操作工具 `forme-hostctl` | 现有 `cli` crate 的子命令入口 | 本机 operator 身份，经 OS ACL/管理授权调用 broker。 | headless bootstrap、状态、离线修复和恢复；不另起大脑。 |
 | `forme-executord` / 会话 helper | 现有 `execution` crate 的 bin/模块 | 工具专用低权限账户或指定登录会话身份。 | 执行 exact plan/job、限时返回结果；无认知和 stable write。 |
 
-这些名称是本次新增产品入口，不能据此改名或复制上游工程。共享 wire DTO 仅放现有 `protocol`；OS 适配与 worker 在 `execution`，不让 gateway 新增直依赖 execution/config/store。gateway 通过现有 Harness 外观与 protocol client 接口集成，cli 仍只依赖 gateway/protocol。平台 binding 采用可审计封装，项目默认保持 `forbid(unsafe_code)`；owner 已批准的 Windows AppContainer 两文件 FFI 例外严格按 canonical §29.9 和质量门约束，不能扩展到其他模块或增加内部依赖边。
+这些名称是同一产品实例的内部运行单元，不能据此形成第二套产品入口，也不能复制上游工程。共享 wire DTO 仅放现有 `protocol`；OS 适配与 worker 在 `execution`，不让 gateway 新增直依赖 execution/config/store 边。gateway 通过现有 Harness 外观与 protocol client 接口集成，cli 仍只依赖 gateway/protocol。平台 binding 采用可审计封装，项目默认保持 `forbid(unsafe_code)`；owner 已批准的 Windows AppContainer 两文件 FFI 例外严格按 canonical §29.9 和质量门约束，不能扩展到其他模块或增加内部依赖边。
 
 OS 服务管理器分别监管三个长期服务。broker 可以要求 OS 开始/停止 core，但不另设抢跑的崩溃重启 loop；每个长期进程只有一个 supervisor。短期 worker 由 broker 管理截止、取消与清理，不做自动副作用重试。Web 崩溃不影响核心；核心崩溃不影响登录与诊断。
 
@@ -72,6 +72,8 @@ Windows `.exe` 采用 Inno Setup 构建并签名；macOS `.pkg` 使用签名和�
 | `Stopped` | owner 明确停止核心。 | 登录、维护、受控启动。 |
 
 broker 管理安装/config/lifecycle 的版本化事实；core health 从其就绪/心跳和 OS 状态派生。Web 不得仅凭端口可连接设置 Ready；必须验证 owner/store binding、composition、doctor 和预期 config revision。
+
+外部产品可达性与主脑就绪分开：固定 Product URL 在 Web 服务进入 `Running` 后应在 5 秒预算内先进入认证、初始化、维护或启动页面，达到秒级可达目标；`Ready` 仍只表示唯一 ProductionRuntime 完成全部就绪检查。模型加载、配置校验或主脑恢复较慢时，页面显示真实状态并继续可用的控制面，不阻塞在空白页或无限 spinner，也不把 Web HTTP 成功伪装成 `Ready`。
 
 ### 3.1 OS 服务监管契约
 
@@ -125,11 +127,11 @@ config 的 staged、validated、active revision 和 core 的 acknowledged revisi
 
 启动/模型/工具集/网络等变更先 validate，生成影响报告，再以 expected_revision 提交；有效配置保存后由 Host 自动启动或受控重启 Brain，浏览器不再为正常路径再次输入密码或手动点击启动。需要重启则受控排空；Host/系统服务启动恢复会重复同一确定性协调检查，未知/未安装/恢复中的状态不盲重试，手动启动只保留为维护入口。进行中的 run 保持原快照，不热换 provider/toolset/policy。运行前实际绑定 provider 和 SessionBound/composition 的行为仍服从 canonical §28。
 
-### 5.3 Web → core
+### 5.3 产品 Web 控制面与 Runtime Ingress
 
-浏览器只持 Web session + CSRF nonce，不持 Gateway bearer、provider key、master key 或 helper credential。Web 在严格授权的本机 IPC/loopback 通道转发请求；core 认证 Web 服务身份，并验证服务端生成的短时登录会话 assertion，绑定不可由 payload/header 伪造的 `AuthContext/VerifiedPrincipal`。
+浏览器只持 Web session + CSRF nonce，不持内部 Runtime bearer、provider key、master key 或 helper credential。Web 作为 ForMe 的统一产品控制面，在严格授权的本机 IPC/loopback 通道调用同一 ProductionRuntime；core 认证 Web 服务身份，并验证服务端生成的短时登录会话 assertion，绑定不可由 payload/header 伪造的 `AuthContext/VerifiedPrincipal`。该通道是内部最小权限与身份绑定边界，不是另一个产品或外部 Agent 的桥接服务。
 
-assertion 至少绑定 InstallId、OwnerId、session 摘要、auth epoch、audience、request digest、expiry 与 nonce，签名/验证材料只由本机受保护通道配置。core 不接受公网转发头作为身份，也不把“来自 127.0.0.1”视为认证；Agent worker 不能读 bridge credential。Web 被攻陷属于认证边界失守，不能宣称 bridge 能抵御持有其有效凭据的同权限恶意进程。
+assertion 至少绑定 InstallId、OwnerId、session 摘要、auth epoch、audience、request digest、expiry 与 nonce，签名/验证材料只由本机受保护通道配置。core 不接受公网转发头作为身份，也不把“来自 127.0.0.1”视为认证；Agent worker 不能读 Runtime Ingress credential。Web 被攻陷属于认证边界失守，不能宣称内部通道能抵御持有其有效凭据的同权限恶意进程。
 
 内部 Gateway 保持 loopback-only；private discovery descriptor 由服务保存以支持当前动态端口。CLI 在安装模式发现并使用它，不能同时 embedded 打开同一 store；无 active service 时 embedded 仍遵守同一独占锁。
 
@@ -151,7 +153,7 @@ assertion 至少绑定 InstallId、OwnerId、session 摘要、auth epoch、audie
 
 brain 路由的 command/control/approval 都保留既有 idempotency/CAS/final-plan 语义。公共 API 新增的是 transport adapter，不能修改冻结 Harness/Store trait。具体 API DTO、错误及 stream cursor 见 prd/25。
 
-`POST /api/v1/brain/runs` 是产品化 Web 对话的唯一正式提交通道：Web 使用已认证 owner/session 从 identity DB 读取 session→workspace 关联，并在该 DB 以 command key/request digest 原子固定首次绑定；随后通过现有已签名 bridge 调用专用 `/v1/workbench/runs`。core 只接受有效 bridge assertion，将 versioned envelope 中的 request/session/workspace 一致性校验后交给现有 `ProductionRuntime::submit_workspace_run`。该路径不接受浏览器给出的 workspace，不由 Web 打开 brain DB，也不增加 EventKind、公开 RunRequest 字段或冻结 trait。Web/core 响应不明时以原 binding 和原幂等 key 核实；workspace 关联只对后续新 command 生效。
+`POST /api/v1/brain/runs` 是产品化 Web 对话的唯一正式提交通道：Web 使用已认证 owner/session 从 identity DB 读取 session→workspace 关联，并在该 DB 以 command key/request digest 原子固定首次绑定；随后通过产品内部认证 Runtime Ingress 调用专用 `/v1/workbench/runs`。core 只接受有效的内部 assertion，将 versioned envelope 中的 request/session/workspace 一致性校验后交给现有 `ProductionRuntime::submit_workspace_run`。该路径不接受浏览器给出的 workspace，不由 Web 打开 brain DB，也不增加 EventKind、公开 RunRequest 字段或冻结 trait。Web/core 响应不明时以原 binding 和原幂等 key 核实；workspace 关联只对后续新 command 生效。
 
 限流分为 login、mutation、read/event、artifact 四类；SSE 使用每会话/连接数和背压，不按每个读取 chunk 算一次 mutation。客户端尊重 Retry-After，指数退避带抖动，停止盲轮询。高频状态读取不能耗尽正常对话/审批额度。
 

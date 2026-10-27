@@ -4,11 +4,11 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P03–P08、P10、P15，主验 IP04–IP09、IP13、IP21–IP22，参与 IP12/IP18/IP24。架构以 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §3–6、§8 为准，canonical §10/15/24/28/29 不可回退。
 
-**状态：正在实施；独立账号/session、loopback Web、本机证明/有限新脑 claim、正式 core bridge、模型/brain/skills 设置与 managed Web 网络事务已有组件实现。** 当前页面可在自建临时安装中完成认领、登录、设置和正式 Run，但尚未取得 IP 整体验收。旧脑/备份接管、OS 口令恢复、其他能力消费者、真实外部 provider、原生安装和完整工作台仍待实施或验收。具体分支及证据以 `../acceptance/installed-product-implementation-progress.md` 为准，不能由固定 bearer 或组件通过推导完整产品就绪。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
+**状态：正在实施；独立账号/session、loopback Web、本机证明/有限新脑 claim、产品内部认证 Runtime Ingress、模型/brain/skills 设置与 managed Web 网络事务已有组件实现。** 当前页面可在自建临时安装中完成认领、登录、设置和正式 Run，但尚未取得 IP 整体验收。旧脑/备份接管、OS 口令恢复、其他能力消费者、真实外部 provider、原生安装和完整工作台仍待实施或验收。具体分支及证据以 `../acceptance/installed-product-implementation-progress.md` 为准，不能由固定 bearer 或组件通过推导完整产品就绪。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
 
 ## 1. 职责与边界
 
-在受限 `forme-webd` 中实现可独立于核心启动的静态页面、认领、登录/session、配置控制、LAN TLS、正式 API/SSE 转发、附件/产物授权。持久认证状态独立于 brain store，只有 Web 写者。
+在受限 `forme-webd` 中实现 ForMe 的统一 Web 控制面：静态页面、认领、登录/session、配置控制、LAN TLS、正式 API/SSE、附件/产物授权。持久认证状态独立于 brain store，只有 Web 写者；Web 与 Brain 的进程分域是安全边界，不改变它们属于同一产品实例的事实。
 
 认领、配置提交和服务启动与 prd/24 的 broker 对接；业务组件由 prd/26 实现。Web 不接 provider SDK、不调模型、不执行工具、不读 memory SQLite，也不安装上游服务端/插件系统。账号只支持单 owner，不能添加第二个拥有不同脑的普通用户。
 
@@ -39,7 +39,7 @@
 | `StreamResume` | `stream_scope, opaque_cursor, snapshot_watermark, schema_version`。run events 内部排序仍只认 stream_seq。 |
 | `ApiProblem` | `code, safe_message, issue_ref, retryable, retry_after?, required_action?, correlation_ref`。拒绝返回 raw error stack、secret/path。 |
 
-`ProductConfigSnapshot` 的 provider key/channel credential/内部 bridge secrets 只以设置状态与可安全显示的 metadata 表示。浏览器不可读的数据也不能藏在 JSON 的未展示字段中。
+`ProductConfigSnapshot` 的 provider key/channel credential/内部 Runtime Ingress secrets 只以设置状态与可安全显示的 metadata 表示。浏览器不可读的数据也不能藏在 JSON 的未展示字段中。
 
 ## 4. 接口与签名
 
@@ -67,7 +67,7 @@
 | `POST /product/config/validate` | 指定 revision → ValidationReport。 | 不把格式检查等同于模型实测。 |
 | `POST /product/commands` | typed MaintenanceCommand → OperationRef。 | 必需的 reauth + broker allowlist；不是 shell。 |
 | `GET /product/operations/{id}` | 安全进度/receipt。 | 按 product cursor 重连，不读取 brain journal。 |
-| `GET /brain/runtime/doctor` | 原 `/v1/runtime/doctor` 的版本化安全投影（checks、blocking、digest）。 | owner session 经签名 bridge 只读同一 ProductionRuntime；无参数、无模型/工具调用，不推进脑事件。仅此 GET 映射，禁止 tick、reload 或任意 runtime 代理。 |
+| `GET /brain/runtime/doctor` | 原 `/v1/runtime/doctor` 的版本化安全投影（checks、blocking、digest）。 | owner session 经内部认证 Runtime Ingress 只读同一 ProductionRuntime；无参数、无模型/工具调用，不推进脑事件。仅此 GET 映射，禁止 tick、reload 或任意 runtime 代理。 |
 | `GET/POST /brain/runs`、`GET /brain/runs/{id}` | 正式 run list/submit/read。 | owner assertion；同一 ProductionRuntime。 |
 | `GET /brain/runs/{id}/events` | 正式事件 SSE。 | run scope + cursor，heartbeat/重连；无隐藏 CoT。 |
 | `POST /brain/runs/{id}/control` | 原有 typed cancel/resume/approval union。 | exact pending binding；不允许通用 retry unknown。 |
@@ -87,6 +87,7 @@ trait WebIdentityService {
     fn revoke(&self, owner: &AuthenticatedWebOwner,
               command: RevokeSessions) -> Result<AuthRevision>;
 }
+// CoreWebBridge is the existing internal transport seam, not a second product boundary.
 trait CoreWebBridge {
     fn submit(&self, owner: &AuthenticatedWebOwner,
               command: BoundBrainCommand) -> Result<WebCommandReceipt>;
@@ -97,9 +98,9 @@ trait CoreWebBridge {
 }
 ```
 
-`AuthenticatedWebOwner` 只能由认证 middleware 创建。bridge 为每次 mutation 生成 audience/request/session-bound 短时 assertion，内部 Gateway 重新验证服务身份与当前 session/epoch；必要的 introspection 走私有认证 IPC。注销后不能只等旧 token 到期才停止接受新 mutation，core 无法核实有效会话时拒绝。读长连接也周期确认会话，失效后结束连接，但已授权 run 不随之取消。
+`AuthenticatedWebOwner` 只能由认证 middleware 创建。内部 Runtime Ingress 为每次 mutation 生成 audience/request/session-bound 短时 assertion，内部 Gateway 重新验证服务身份与当前 session/epoch；必要的 introspection 走私有认证 IPC。注销后不能只等旧 token 到期才停止接受新 mutation，core 无法核实有效会话时拒绝。读长连接也周期确认会话，失效后结束连接，但已授权 run 不随之取消。
 
-### 4.3 Loopback bridge 实施约束
+### 4.3 Loopback Runtime Ingress 实施约束
 
 - Web 与 CLI 使用不同内部凭据；安装身份、验证公钥和独立认证 fence 路径必须一并配置，缺项阻断启动。assertion 绑定实际 method、path/query、完整 body 摘要、owner、session 摘要、epoch 和 nonce，有效期最长 30 秒；内部凭据/签名材料不进入浏览器。
 - core 在签名、请求摘要和安装/owner 校验后，原子检查 epoch 并消费 nonce，再进入原 Gateway。nonce 去重与会话/全局撤销下界保存在独立的、OS 单写者锁定的认证 SQLite 中，使用 FULL 同步事务；不写脑库/脑事件。重启不得清除仍有效的 nonce 或撤销下界；格式/身份/完整性不明拒绝恢复，不自动重建。
@@ -195,7 +196,7 @@ API 错误包括 `Unauthenticated / Forbidden / CsrfRejected / ClaimUnavailable 
 2. Web 独立启动与安全静态资源；无模型配置也能看到 bootstrap，公开面最小化。
 3. 认领、Argon2id/session/CSRF/epoch/本机恢复；先做抢占、伪造与并发否定测试。
 4. 持久 typed config + secret resolver + effective source + doctor/start/ack，不依赖用户手工 env。
-5. 内部认证 bridge 与正式 Gateway 协议；验证 owner/approver 不可被 payload 替换。
+5. 内部认证 Runtime Ingress 与正式 Gateway 协议；验证 owner/approver 不可被 payload 替换。
 6. LAN HTTPS/firewall/Host/证书信任；SSE/backpressure/idempotency 和附件授权。
 7. 与 prd/26 五个工作面联调，完成主验 IP 和 IP24；前端 stub 不代替本模块后端完成。
 

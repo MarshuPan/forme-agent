@@ -644,8 +644,10 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 ### 29.1 一个产品、一个大脑
 
 - 原生安装包部署完整产品，OS 系统服务负责长期运行，用户只需浏览器。关闭网页/网页登录退出/OS 用户注销不停止非交互任务；主机休眠或关机时本机计算停止。
-- Web、系统管理、核心与执行辅助职责分开；只有现有 ProductionRuntime/authority EventStore 拥有主脑。Web 和 core 可独立故障/恢复，core 未配置或离线时仍能受认证初始化/维护。
+- ForMe 在产品层是一个完整的系统级常驻产品，Web 是它唯一的主要用户入口和控制面；系统管理、核心与执行辅助的分域只是内部安全/故障隔离，不是多个产品，也不是 Web 去桥接外部 Agent。只有现有 ProductionRuntime/authority EventStore 拥有主脑。Web 和 core 可以独立故障/恢复，但用户仍面对同一个 ForMe 产品，core 未配置或离线时 Web 进入同一产品内的认证维护态。
 - 服务模式 CLI、Web、scheduler 复用同一 owner/store/writer；不为每设备、浏览器、workspace 或 child agent 新建大脑。始终保留 18-crate 图、99 EventKinds 与现有治理。
+- 用户只认知一个 ForMe 实例、一个访问地址、一个登录账户、一个产品状态和一个主脑；`forme-webd`、`forme-gatewayd`、`forme-hostd` 与 worker 是该实例内部的运行单元。内部认证通道可以存在，但不得在产品 API、UI、安装说明或验收中把它表述成另一个被 Web 代理的系统。
+- 对外只暴露一个由安装配置确定的 ForMe Product URL；内部 loopback/IPC 地址、服务名、端口和凭据不进入用户工作流。安装或系统重启后，Web 控制面以秒级优先可达，目标是从 Web 服务进入 `Running` 起 **5 秒内**先呈现登录、初始化、维护或启动状态，再等待主脑 readiness；“秒级可达”不等于模型调用已经完成。
 - Web 会话关联的 workspace 是后续对话 run 的可信上下文绑定，不只是列表标签。Web 服务须从已认证 owner 的持久会话记录解析，不接受 run payload 自报 workspace；正式 core ingress 将解析结果传给既有 `ProductionRuntime::submit_workspace_run`，由其校验 workspace 注册、charter 和 scope，并在既有 `SessionBound` 固定该 run 的 workspace。
 - Web identity DB 与 brain DB 之间不做分布式事务。发送前，在 identity DB 单写者事务中以 owner、session、command/idempotency key 和规范化 request digest 原子固定 workspace 绑定；同 key 同请求始终沿用原绑定并核实原 core receipt，同 key 不同请求冲突。结果未知时保留绑定，禁止换 workspace 或新 key 自动重试；已接纳 run 的绑定不可被后续会话关联修改热切换。
 - Workspace 关联更新与 run 绑定以 identity DB 事务形成线性化顺序：并发发生时 run 使用事务中观察到的完整旧值或新值。归档会话拒绝新的 command；相同 key 的既有命令只允许核实原回执。解除关联后的新 run 使用默认 workspace，既有 run 仍保留 `SessionBound` 的原 workspace。
@@ -663,7 +665,7 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - 安装获得服务管理权，日常 Web/brain/工具按实际 OS 身份分权。工具进程不得继承 brain keys/DB/管理目录的访问权；无法隔离则能力 blocked。
 - 特权 helper 只接受分域的 typed owner maintenance 或 Harness-bound AgentExecution；不暴露任意 shell。Agent 动作仍经最终计划、当前 policy/permission/envelope/能力门、审批/nonce 与未知副作用治理。
 - 交互桌面依赖已授权用户会话与 OS 隐私权限；系统服务常驻不等于能在注销/锁屏时绕过桌面限制。
-- Web 默认本地，LAN 显式开启 HTTPS/Host/Origin/firewall，证书真实信任单独确认；内部 Gateway 继续 loopback-only，不默认公网开放。
+- Web 默认本地，LAN 显式开启 HTTPS/Host/Origin/firewall，证书真实信任单独确认；内部 Runtime Ingress/Gateway 继续 loopback-only，不默认公网开放。该 loopback 通道是产品内部的最小权限边界，不是第二个用户入口。
 
 ### 29.4 产品管理事实与大脑事实
 
@@ -675,6 +677,7 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 ### 29.5 配置、数据与恢复
 
 - 已安装服务以版本化持久 typed config 为主要来源；开发环境兼容显式标注来源，不能静默覆盖网页保存值。保存/校验/应用/核心 ack 分开；进行中 run 保持固定快照。
+- 产品可达性分为两个独立观察面：`WebAvailable` 表示固定 Product URL 的认证/初始化/维护页面可用，`BrainReady` 表示唯一 ProductionRuntime 已通过 owner/store/config/doctor/composition 检查。WebAvailable 不得因模型慢启动而被阻塞，BrainReady 也不得因 Web 返回 HTTP 200 而伪造；验收分别记录服务启动到 WebAvailable、以及配置有效到 BrainReady 的证据。
 - 配置保存成功后，Host 作为唯一产品生命周期协调者，使用同一已认证的 Web 配置域自动为有效主脑配置启动 Brain；若已有 Brain 正在运行且尚未确认新 revision，则执行同一产品 journal 约束下的受控重启。浏览器不再为正常首次启动或配置变更再次提交密码，也不需要用户手动点击“启动主脑”。
 - Host/系统服务恢复时重复执行同一确定性协调检查：已认领、配置有效且无 RecoveryRequired 时恢复 Brain；没有有效配置、已有未决/未知生命周期事务、服务未安装或状态不可判定时保持可诊断状态，不盲目重试。手动 `StartCore`/`RestartCore` 只作为维护和故障恢复入口。
 - 服务能无交互解密原脑，登录口令不能是唯一数据 key。数据和备份沿用 §28.7；外部 key resolver 不入普通备份，恢复材料单独管理，缺 key 不得虚报恢复。
