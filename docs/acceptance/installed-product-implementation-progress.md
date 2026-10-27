@@ -2,6 +2,10 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-10-28 当前源码候选
+
+基于当前提交 `ad99caf86d6ddd26ce8f5d74fddfb8563101b8cc` 生成了新的 [Windows 安装候选](installed-product-windows-candidate-20261028-ad99caf.md)：18-file bundle、固定 Inno Setup 6.6.1 原生编译和安装包摘要核对均通过。安装包 SHA-256 为 `42d094e3925ca25c40e39eec8cdf7d497629802fd6988ea541eafb02a431cb01`。候选仍未签名、未安装，`release_ready=false`；当前安装实例仍运行旧候选，未因此改变任何服务或 IP01–IP24 状态。
+
 ## 2026-10-28 当前安装现场快照
 
 通过已登录的本地浏览器访问固定 Product URL `http://127.0.0.1:18765/`，并以只读方式核对 Windows SCM，当前安装实例观察到：
