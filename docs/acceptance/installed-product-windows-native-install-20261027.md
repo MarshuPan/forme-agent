@@ -54,3 +54,7 @@ owner 随后明确批准 `native-host-start-observer.ps1 -StartServices`。实�
 后续源码组件回归另见[已提交发布补开放修复报告](installed-product-updater-admission-20261027.md)：`0afe809` 修复大型文件复核耗尽 live-proof 窗口的问题，Host 门与完整源码质量门通过。这不是旧安装启动失败的根因结论，也没有更新安装中的二进制；原安装仍保留失败状态。
 
 随后对[Host 诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)执行了一次默认只读预检。当前交互 PowerShell 不是管理员，脚本在管理员读取权限检查处停止；没有写安装目录、替换 Host、创建备份或启动服务。该预检不消耗替换授权，后续 `-Apply` 仍须单独批准。
+
+在上述失败后，按限定诊断范围通过 UAC 以管理员再次执行了同一 observer。Host 的唯一一次启动请求实际进入 `StartPending`，随后回到 `Stopped`，SCM/Win32 退出码为 `1`；脚本因此没有请求 Web，Brain/updater 仍未启动，四个服务最终均为 `Stopped`、PID `0`。原安装程序、配置、密钥和服务绑定摘要保持不变。证据为 `target/installed-file-worker-evidence/native-host-observed-start.json`。
+
+随后以管理员运行了 Host 诊断替换脚本的无 `-Apply` 预检，结果为 `preflight_passed_no_change`：候选 Host、原 Host 摘要、服务 SID/账户/启动参数/恢复策略、ACL、端口和原始数据边界均通过核对；没有创建备份、替换文件或启动服务。证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement-preflight-7.txt`。该预检不等于替换授权；`-Apply` 仍为 NOT_RUN，Host 失败根因也不能由旧二进制的退出码 `1` 推断。

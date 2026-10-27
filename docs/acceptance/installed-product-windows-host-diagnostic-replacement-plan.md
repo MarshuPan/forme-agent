@@ -36,3 +36,5 @@
 这些是脚本准备证据；真正安装目录的管理员预检、替换和服务启动仍为 NOT_RUN。默认不带 `-Apply` 时仅只读核对，不创建备份、替换文件、启动服务或写结果报告。批准必须覆盖本表脚本摘要及本节边界，不能由 UAC 出现或工具可运行推定批准。
 
 2026-10-27 12:40:38（Asia/Shanghai）曾在当前交互 PowerShell 以默认只读模式运行该脚本。当前进程不是管理员，预检在管理员读取权限检查处安全停止；输出为 `failed_preserved`、`failure_stage=preflight`、`start_requests=[]`、`replaced_host=false`、`backup_verified=false`。四个服务仍为 Stopped，安装程序、配置、密钥、备份和 Host 文件均未改变。该结果只证明当前 shell 没有执行替换所需的权限，不构成替换失败、Host 根因结论或 IP 验收结果。
+
+随后在 UAC 管理员上下文中以默认只读模式复跑，结果为 `preflight_passed_no_change`。候选 `forme-hostd.exe` 摘要、原 Host 摘要、四服务固定绑定与恢复策略、安装 ACL、端口和原始数据均通过；`replaced_host=false`、`backup_verified=false`、`start_requests=[]`，没有创建备份、替换文件或启动服务。证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement-preflight-7.txt`。本次只读预检不消耗 `-Apply` 授权；替换、一次 Host/Web 诊断启动及结果报告仍为 NOT_RUN。
