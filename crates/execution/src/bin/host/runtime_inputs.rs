@@ -10,7 +10,9 @@ use forme_execution::installed::{HostCredentials, IsolatedExecutorHost, WorkerRu
 use forme_protocol as p;
 
 pub(super) fn default_configuration_bind() -> SocketAddr {
-    "127.0.0.1:8768".parse().expect("static configuration bind")
+    "127.0.0.1:18768"
+        .parse()
+        .expect("static configuration bind")
 }
 
 pub(super) fn loopback_address(key: &str, default: &str) -> p::Result<SocketAddr> {

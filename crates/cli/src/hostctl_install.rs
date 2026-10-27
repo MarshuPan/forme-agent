@@ -7,7 +7,9 @@ mod hostctl_install_layout;
 #[path = "hostctl_install_worker.rs"]
 mod hostctl_install_worker;
 
+use std::collections::BTreeSet;
 use std::fs;
+use std::net::{SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 
 use ed25519_dalek::SigningKey;
@@ -16,11 +18,17 @@ use forme_protocol as p;
 
 use hostctl_install_filesystem::*;
 
-const HOST_BIND: &str = "127.0.0.1:8766";
-const AGENT_BIND: &str = "127.0.0.1:8767";
-const CONFIG_BIND: &str = "127.0.0.1:8768";
-const CORE_BIND: &str = "127.0.0.1:8769";
 const WEB_BIND: &str = "127.0.0.1:8765";
+const INTERNAL_PORT_START: u16 = 18_766;
+const INTERNAL_PORT_END: u16 = 29_999;
+
+#[derive(Debug, Clone, Copy)]
+struct InternalBinds {
+    host: SocketAddr,
+    agent: SocketAddr,
+    configuration: SocketAddr,
+    core: SocketAddr,
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrepareRequest {
     pub install_root: PathBuf,
@@ -79,6 +87,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     }
 
     ensure_fresh_domains(&request, &paths)?;
+    let binds = select_internal_binds()?;
+    let web_bind = parse_bind(WEB_BIND, "Web")?;
     for path in product_directories(&paths) {
         ensure_directory(path)?;
     }
@@ -138,9 +148,9 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         "product_config_template_path": template_path,
         "worker_config_path": worker.as_ref().map(|(path, _)| path),
         "bootstrap_config_path": bootstrap_config_path,
-        "host_bind": HOST_BIND,
-        "agent_execution_bind": AGENT_BIND,
-        "configuration_bind": CONFIG_BIND
+        "host_bind": binds.host,
+        "agent_execution_bind": binds.agent,
+        "configuration_bind": binds.configuration
     });
     let template = p::ProductConfigTemplate {
         schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
@@ -154,12 +164,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         core_web_credential_path: core_web_credential_path.clone(),
         core_web_assertion_verifying_key: web_assertion_signing.verifying_key().to_bytes(),
         core_session_fence_path,
-        core_bind: CORE_BIND
-            .parse()
-            .map_err(|_| "core bind is invalid".to_owned())?,
-        web_bind: WEB_BIND
-            .parse()
-            .map_err(|_| "Web bind is invalid".to_owned())?,
+        core_bind: binds.core,
+        web_bind,
         web_network_config_path: Some(web_network_config_path.clone()),
         web_material_directory: Some(web_material_directory.clone()),
         workspace: p::WorkspaceRef("workspace:default".into()),
@@ -179,30 +185,22 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         install_ref: install_ref.clone(),
         identity_directory: paths.web_auth.clone(),
         claim_verifying_key: bootstrap_signing.verifying_key().to_bytes(),
-        bind: WEB_BIND
-            .parse()
-            .map_err(|_| "Web bind is invalid".to_owned())?,
+        bind: web_bind,
         network_config_path: Some(web_network_config_path.clone()),
         network_material_directory: Some(web_material_directory),
         bootstrap_bridge: Some(WebBootstrapBridgeConfig {
             schema_version: p::SchemaVersion(1),
-            address: HOST_BIND
-                .parse()
-                .map_err(|_| "host bind is invalid".to_owned())?,
+            address: binds.host,
             credential_path: paths.web_auth.join("bootstrap-web.token"),
         }),
         configuration_bridge: Some(forme_gateway::web::WebConfigurationBridgeConfig {
             schema_version: p::SchemaVersion(1),
-            address: CONFIG_BIND
-                .parse()
-                .map_err(|_| "configuration bind is invalid".to_owned())?,
+            address: binds.configuration,
             credential_path: web_configuration_credential_path.clone(),
         }),
         core_bridge: Some(forme_gateway::web::WebCoreBridgeConfig {
             schema_version: p::SchemaVersion(1),
-            address: CORE_BIND
-                .parse()
-                .map_err(|_| "core bind is invalid".to_owned())?,
+            address: binds.core,
             credential_path: core_web_credential_path.clone(),
             signing_key_path: web_assertion_key_path.clone(),
         }),
@@ -266,12 +264,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         ),
         (
             web_network_config_path,
-            serde_json::to_vec_pretty(&p::ProductNetworkConfig::loopback(
-                WEB_BIND
-                    .parse()
-                    .map_err(|_| "Web bind is invalid".to_owned())?,
-            ))
-            .map_err(|_| "Web network configuration encoding failed".to_owned())?,
+            serde_json::to_vec_pretty(&p::ProductNetworkConfig::loopback(web_bind))
+                .map_err(|_| "Web network configuration encoding failed".to_owned())?,
             0o600,
         ),
     ];
@@ -399,6 +393,56 @@ fn validate_request(request: &PrepareRequest) -> Result<(), String> {
     p::validate_product_digest(&request.release_digest).map_err(|error| error.0)?;
     Ok(())
 }
+
+fn parse_bind(value: &str, label: &str) -> Result<SocketAddr, String> {
+    let address = value
+        .parse::<SocketAddr>()
+        .map_err(|_| format!("{label} bind is invalid"))?;
+    if !address.ip().is_loopback() || address.port() == 0 {
+        return Err(format!(
+            "{label} bind must be a loopback address with a port"
+        ));
+    }
+    Ok(address)
+}
+
+fn select_internal_binds() -> Result<InternalBinds, String> {
+    let web = parse_bind(WEB_BIND, "Web")?;
+    let mut used = BTreeSet::from([web.port()]);
+    let host = select_internal_port(&mut used, INTERNAL_PORT_START, "Host")?;
+    let agent = select_internal_port(&mut used, INTERNAL_PORT_START + 1, "AgentExecution")?;
+    let configuration = select_internal_port(&mut used, INTERNAL_PORT_START + 2, "Configuration")?;
+    let core = select_internal_port(&mut used, INTERNAL_PORT_START + 3, "Core")?;
+    Ok(InternalBinds {
+        host,
+        agent,
+        configuration,
+        core,
+    })
+}
+
+fn select_internal_port(
+    used: &mut BTreeSet<u16>,
+    preferred: u16,
+    label: &str,
+) -> Result<SocketAddr, String> {
+    for port in preferred..=INTERNAL_PORT_END {
+        if used.contains(&port) {
+            continue;
+        }
+        let address = SocketAddr::from(([127, 0, 0, 1], port));
+        let Ok(listener) = TcpListener::bind(address) else {
+            continue;
+        };
+        drop(listener);
+        used.insert(port);
+        return Ok(address);
+    }
+    Err(format!(
+        "{label} internal loopback port is unavailable in the approved installation range"
+    ))
+}
+
 fn product_paths(request: &PrepareRequest) -> Result<p::ProductPaths, String> {
     let paths = p::ProductPaths {
         schema_version: p::SchemaVersion(1),

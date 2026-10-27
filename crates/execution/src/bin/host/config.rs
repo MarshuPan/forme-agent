@@ -319,9 +319,9 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         std::env::var("FORME_AGENT_EXECUTION_TOKEN").ok(),
     )?;
     let has_agent_endpoint = credentials.agent_execution().is_some();
-    let host_bind = loopback_address("FORME_HOST_BIND", "127.0.0.1:8766")?;
-    let agent_execution_bind = loopback_address("FORME_AGENT_EXECUTION_BIND", "127.0.0.1:8767")?;
-    let configuration_bind = loopback_address("FORME_CONFIGURATION_BIND", "127.0.0.1:8768")?;
+    let host_bind = loopback_address("FORME_HOST_BIND", "127.0.0.1:18766")?;
+    let agent_execution_bind = loopback_address("FORME_AGENT_EXECUTION_BIND", "127.0.0.1:18767")?;
+    let configuration_bind = loopback_address("FORME_CONFIGURATION_BIND", "127.0.0.1:18768")?;
     let mut protected_paths = vec![journal_path.clone()];
     for key in [
         "FORME_HOST_MAINTENANCE_TOKEN_PATH",
