@@ -141,3 +141,11 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 2026-10-26，在 `shu/installed-product@5726a5a` 上完成当前树最终回归。`tools/verify-m5.ps1` 退出码为 `0`，终线为 `M5 FINAL ACCEPTANCE: PASS`；S1–S99、V1 C1–C24、18-crate workspace、97 EventKinds、fmt/check、strict Clippy、89 项 Python 门（1 项因本机无法创建 symlink 按规则跳过）、M4/M5 goldens、原创/许可证合规及当前 M5 release receipt 的生成、独立验证与 current-tree 比较全部通过。当前仓库回执为 `sha256:81d40c41322af7e1ff455dd2fe2f62aa096541bb2a88afcc8055d7c6f18e18fd`。本轮同时包含已批准的 bounded worker result channel 组件验收（Process worker 4/4、typed transport 8/8、Windows Job worker 2/2）；结果通道专项报告明确其不等于正式 ProductionRuntime worker backend。
 
 本轮最终门禁记录的 RustSec 观察项只影响非 `x86_64-pc-windows-gnu` target，按审计规则不构成当前目标的 blocking finding。最终构建资源报告显示 `C:\code\forme\target` 为 `116234168572` logical bytes、`113246893538` allocated bytes，超过 64 GiB 缓存预算；没有执行清理。以下边界仍未被本轮折算为通过：正式 ProductionRuntime 隔离 worker backend、结果工件应用层加密与真实 key resolver、Windows SCM/LocalSystem 真实安装运行、Linux/macOS 原生服务与安装包、正式签名、真实 Provider、Windows AppContainer 三项原生测试（默认 ignored）以及完整 IP01–IP24。Linux/macOS 继续保持 `release_ready=false`。
+
+2026-10-27，在干净的 `shu/installed-product@14aef92` 上完整执行 `tools/verify-m5.ps1`，退出码 `0`，终线为 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、18-crate graph、历史 97-kind strict prefix、workspace、fmt/check/strict Clippy、89 项 Python 门（1 项因本机 symlink 权限不足跳过）、M3/M4/M5 goldens、完整默认合规，以及当前 M5 release receipt 的生成、独立验证和仓库比较均通过。8 个发布审计检查通过，当前回执为 `sha256:fa4d2ae80e31fdf41d9677a4dff81c556e2b1fa522800d93cee65e5b0ab2bb8f`；日志 `target/installed-file-worker-evidence/final-m5.log`。上文旧快照不因本次结果而改写。
+
+同一源码随后显式复跑 closure A、B、C 和 D runtime-only，命名场景实际执行数分别为 `47/47`、`50/50`、`36/36`、`71/71`，全部 PASS；18-crate/99-kind 当前 V1 契约检查通过。A/B/C 当前源码 runtime 回执及 D runtime-only 回执保存在同一 evidence 目录。D 使用 `-RuntimeOnly`，没有重新调用真实 Provider，故不声称新的 C24 live、D/Final 或 IP 产品验收通过。
+
+本批统一质量门的唯一 workspace 总数为 176 targets、1088 passed / 0 failed / 15 默认 ignored，不能把后续重复运行相加。Host 命名门 211/211、配置临时真实进程 4/4，以及显式原生文件入口 7/7 的具体行为和证据限制见[文件 worker 与离线维护组件报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。该报告 §4 中的当前源码 S/M5/适用 closure 重验义务由本节承接。唯一原生 symlink 用例仍未运行；桌面 helper、完整原生安装生命周期、正式签名、跨平台与 IP01–IP24 仍未闭合。
+
+空间报告为 `target/installed-file-worker-evidence/final-build-resources.json`：当前 checkout target 为 `148201553979` logical bytes / `145200444254` allocated bytes，超过 64 GiB 报告预算；未执行清理。此后另获批准的本机安装尝试与任何恢复操作须独立记录，不从本次源码回归推导安装成功。
