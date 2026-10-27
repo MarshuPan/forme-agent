@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-27，基于当前提交 `9dd5dff1a899d54f4075018edc4a1dd83fdb7934` 重新生成[Windows 端口修复候选](installed-product-windows-candidate-20261027-9dd5dff.md)：release、18-file bundle、固定 Inno 6.6.1 原生编译和独立 `verifyBundle` 均通过；安装包 SHA-256 为 `d2cefc093c00c87dee93c7ae2e098c750c958c919fc1b2d95984904c35e3223e`。该候选仍未签名、未安装、`release_ready=false`，尚未覆盖当前旧安装；当前 Host/Web/Brain/updater 和 IP01-IP24 状态不因本次构建改变。实际替换/启动需针对该新候选另行批准。
+
 2026-10-27，按 owner 批准执行一次 Host 诊断替换 `-Apply`：原 Host 备份、候选摘要核对和唯一 Host 文件原子替换成功，但新 Host 在 `management_endpoints` 阶段因旧安装的 `8766/8767/8768` 落入本机 Windows `8730–8829` 动态排除范围而退出；Web/Brain/updater 未启动，四服务保持停止，现场未自动回滚或重试。源码修复提交 `4bc4eec` 将安装准备改为探测并持久化可绑定的内部 loopback 端口，完整 workspace tests、strict Clippy、质量门和合规门通过；该修复尚未写入当前安装，IP01–IP24 仍未因此通过。详见[Host 诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)与[本机安装报告](installed-product-windows-native-install-20261027.md)。
 
 2026-10-27 已按 owner 批准真实运行 `7cb5b8b` 的 Windows 开发安装候选，并在首装 ACL inventory 漏项失败后执行一次获批的限定恢复。四个 SCM 服务和受保护目录已经创建；修正矩阵的 Grant/Verify 通过，但 Host 正式启动退出 1，有限 OS 重试后四服务均停止，Web/Brain 未启动，原配置/密钥字节保持。前台 managed 入口的 SCM 身份缺口、纯测试对真实安装目录的依赖与安装器错误退出码已在源码修复，增加脱敏启动阶段诊断；修复未静默覆盖安装。完整过程与当前待验证边界见[本机安装报告](installed-product-windows-native-install-20261027.md)。下文“未安装/未注册”的较早条目均为其各自提交时的历史状态，不能代表当前本机。
