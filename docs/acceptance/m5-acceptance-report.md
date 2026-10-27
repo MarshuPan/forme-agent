@@ -146,7 +146,7 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 ## 11. 产品化分支的 M5 current-tree 收口（2026-10-27）
 
-在 clean `shu/installed-product@0190695` 上独立运行 `py -3 tools/m5_release_audit.py --root C:\code\forme --output <ignored-output>`，9 项检查全部 PASS，预收口回执为 `sha256:dec0e62a3f5eed5b88d3b26f0bfb39933251e5fcef1948f15d92c29232b7c379`，并通过独立 `--verify`。由于本报告属于 core release audit 的受测输入，记录本事实后会先刷新 core receipt，再在包含最终 core receipt 的 clean tree 上重新生成 M5；因此本节的预收口回执不替代最终 tracked M5 receipt。最终结果以 `docs/acceptance/m5-release-audit-artifacts/` 中唯一 receipt 及其 `--verify/--compare` 为准。
+在 clean `shu/installed-product@0190695` 上独立运行 `py -3 tools/m5_release_audit.py --root C:\code\forme --output <ignored-output>`，9 项检查全部 PASS，并通过独立 `--verify`。该次是中间预收口，随后已完成 core receipt 与最终 M5 receipt 的依赖顺序收敛；中间回执不替代最终 tracked M5 receipt。最终结果以 `docs/acceptance/m5-release-audit-artifacts/` 中唯一 receipt 及其 `--verify/--compare` 为准。
 
 2026-10-27，在干净的 `shu/installed-product@14aef92` 上完整执行 `tools/verify-m5.ps1`，退出码 `0`，终线为 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、18-crate graph、历史 97-kind strict prefix、workspace、fmt/check/strict Clippy、89 项 Python 门（1 项因本机 symlink 权限不足跳过）、M3/M4/M5 goldens、完整默认合规，以及当前 M5 release receipt 的生成、独立验证和仓库比较均通过。8 个发布审计检查通过，当前回执为 `sha256:fa4d2ae80e31fdf41d9677a4dff81c556e2b1fa522800d93cee65e5b0ab2bb8f`；日志 `target/installed-file-worker-evidence/final-m5.log`。上文旧快照不因本次结果而改写。
 
