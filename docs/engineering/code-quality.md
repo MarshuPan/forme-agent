@@ -101,4 +101,6 @@
 
 安装代码也纳入结构门：`packaging/` 的 PowerShell module、安装入口与 Inno 脚本按同一规模规则检查。Windows 统一门额外构建当前 hostctl 并运行真实临时 NTFS 权限/继承/替换与拒绝场景；它不注册服务、不使用真实 owner 数据，不能替代管理员安装和服务 token 验收。
 
+本机有已审查的 Inno 编译器时，统一门另传 `-WindowsInstallerToolchain <absolute-toolchain-json>`，运行实际安装 helper 的低权限原生成功/失败夹具，证明 post-install 失败返回非零。它不安装 ForMe、不注册服务、不请求 UAC；未提供工具链时明确记为 `NOT_RUN`，不能用结构断言替代这份原生证据。
+
 当前公开维护债务约 63 个文件。已完成的第一批是 `harness/src/brain_orchestration.rs`：路线状态机仍留在原模块，节点构造/输出归并/验证/签名转换已移到 `brain_orchestration/support.rs`，保留原有 API、事件和恢复语义，并移除已偿还的规模豁免。下一批优先级固定为：`harness/src/lib.rs` 的入口/控制域、`harness/src/production.rs` 的 composition/服务域、`store/src/sqlite.rs` 的事务/投影域；每次只处理一个事务边界。`memory`、`protocol` 等承重协议文件除非有明确收益，不做机械按行切割。

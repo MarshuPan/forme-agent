@@ -245,6 +245,8 @@ host/Web 自动启动；core 在认领与配置通过前按需启动，注册时
 
 `forme-hostd --config <absolute-path>` 加载有界、closed schema 的 HostServiceConfig：安装/release/本机 target、独立 loopback 双域地址、管理 journal、两个私有 credential 文件及可选 worker/bootstrap 配置。路径无链接/别名/交叠，凭据按私有文件读取；服务模式不能读取 shell 环境作为回退，不能开启开发进程 worker。它是正式受管服务入口：Windows 上缺少已核验的 SCM/Service SID 绑定时必须 fail closed。
 
+Windows 的前台 `--config` 必须在读取凭据、创建 journal 或绑定监听器前拒绝；全机已注册 Brain Service SID 不构成当前进程的 SCM 身份。正式服务加载并验证配置后，若后续启动或运行失败，可在 manifest 指定的 Host 私有日志目录原子保存一份有界诊断：版本、固定安全错误码、失败阶段和不含原错误正文的摘要引用。该诊断不写脑表、不替代产品 journal，不包含凭据、配置正文或私有路径；写入失败仍保持服务原来的非零失败结果，不触发额外重试。
+
 仓库自有集成测试和前台开发若需要复用同一配置文件 schema，必须显式使用 `forme-hostd --development-config <absolute-path>`。该入口将同一文件校验结果装配为非受管、loopback-only 的前台运行，不声明 SCM/Service SID、AgentExecution peer、系统服务注册或生产 worker 隔离，也不能作为安装/IP01–IP24 证据。无参数环境模式仍仅保留开发兼容。此配置不是脑事件；坏配置不能创建 journal 或替代脑。
 
 ### 4.4 Windows 首次安装的权限分区与失败边界

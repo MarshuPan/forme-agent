@@ -65,6 +65,6 @@
 
 最终必须核对全部 P/IP、S1–S99、相关 C1–C24、冻结 graph/taxonomy、strict Clippy、质量棘轮、完整默认合规、typed artifacts 与当前源码 release audit；main 集成与远端发布按既有授权分别处理。
 
-当前 Windows 会话不是管理员；固定摘要的 Inno 6.6.1 已基于实现提交 `7cb5b8b` 重新编译六程序 Windows 未签名、未安装开发候选，详见[2026-10-27 候选报告](installed-product-windows-candidate-20261027.md)；2026-10-24/26 候选保留为历史。Linux/macOS 原生目标与签名身份未提供。继续完成可实现的代码/工具与本机证据，不伪造原生支持、签名或管理员安装结论；这些限制只阻断依赖它们的验收，不阻断其余工作。
+当前 Windows 交互会话不是管理员；2026-10-27 已经 owner 批准通过 UAC 执行 `7cb5b8b` 的开发安装及一次限定恢复。目录与四个 SCM 注册已存在；Grant/Verify 通过后 Host 启动失败并耗尽有限重试，四服务目前停止，原配置/密钥字节保持。准确失败与源码修复见[本机安装报告](installed-product-windows-native-install-20261027.md)。[候选构建报告](installed-product-windows-candidate-20261027.md)的未安装字段只描述构建时状态和不可改写的原回执，不代表当前机器。2026-10-24/26 候选保留为历史。Linux/macOS 原生目标与签名身份未提供，正式签名与完整 IP 仍开放；这些限制只阻断依赖它们的验收，不阻断其余工作。
 
 安装 worker 的有界结果读取/Host manifest-chunk 通道，以及 POSIX 有限服务恢复的兼容变更，见 `architecture/proposals/installed-worker-result-and-posix-recovery.md`。owner 已批准结果通道并选择 POSIX 方案 A。`1ae55c6` 的 ProductionRuntime adapter、应用层 AEAD、结果核验与双向 peer 之后，`cc43440`、`1270e54`、`7cb5b8b` 已补齐有限文件入口、首次安装的 profile/workspace/capability 装配与活动发布程序定位，证据见[文件 worker 与离线维护报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。原生 SCM/LocalSystem、桌面 helper、正式安装及完整 IP 仍开放。下一项权限边界已形成[具体草案](../architecture/proposals/installed-windows-desktop-helper-native-boundary.md)，尚未扩大 unsafe 白名单；本机安装按[原生验收计划](installed-product-windows-native-acceptance-plan.md)另行批准。Linux/macOS 保持 `release_ready=false`，不宣称原生产品完成。
