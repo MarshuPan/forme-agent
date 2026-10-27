@@ -140,3 +140,7 @@ core release receipt 为 `sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01
 独立 typed verifier 与源码一致性 verifier 均通过，产品 digest 为 `sha256:4e0ba7ec7ea83c83fbbc99cd8914417a6572242268b69be8d9e654d1b8b772af`；D 封闭清单和四波汇总 `--verify --require-pass` 通过，汇总 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。便携工件已回填当前目录，旧版本保留 Git 历史，本机模型配置仍忽略。
 
 这是当前源码有界运行/真实模型证据；clean-tree core/M5 receipt 和整条 Final 终线尚待后续，不在此提前声明。真实安装、服务生命周期和 IP01–IP24 单独记录于产品化实施状态；长期认知质量仍未由本轮短周期试验证明。
+
+## 10. 产品化分支的 current-tree core audit（2026-10-27）
+
+文档与四波工件提交后，干净 `shu/installed-product@a838e15ad42c52d21e2135a9a07ba4bf392625a5` 上运行 `py -3 tools/core_brain_release_audit.py --root C:\code\forme --output <ignored-output>`，9 项检查全部 PASS；独立 `--verify` 返回 `0`。当前 core receipt 为 `sha256:41b8e0b43a051fd105f54df0ae63f8013c2aa626f5750516591b28fb6728e2fb`。该 receipt 已替换 acceptance 当前文件，旧 receipt 仍由 Git 历史保留；M5 receipt 尚待在包含此 core receipt 的新 clean tree 上刷新。此项不把 core audit 单独提升为完整 Final，也不改变安装/IP01–IP24 的独立边界。
