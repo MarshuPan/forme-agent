@@ -2,6 +2,8 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-27，当前提交 `d2e0133` 完成一次从当前源码重新开始的完整质量门：结构/规模 21 项、Rust fmt/check/workspace 全量测试、strict Clippy、前端依赖/类型/行为与可重复资源 92/92、bundle 10/10、原生包输入与 POSIX 控制流 18/18、实际 Rust 签名验证 5/5、Windows NTFS 安全/hostctl 8/8、只读防火墙策略 25/25、真实 Inno 成功/失败退出 2/2、原创与许可证合规均 PASS，最终脚本退出 0。构建资源检查仍报告 `target` 约 140.17 GiB logical / 137.35 GiB allocated，超过缓存预算但剩余空间约 200.5 GiB；本轮未清理任何构建缓存或用户数据。该门只证明当前源码与受控夹具，不提升真实安装、服务账户/worker token、真实 Provider、签名发布或 IP01–IP24；当前机器仍保留旧安装失败现场，新端口修复候选尚未覆盖它。
+
 2026-10-27，基于当前提交 `9dd5dff1a899d54f4075018edc4a1dd83fdb7934` 重新生成[Windows 端口修复候选](installed-product-windows-candidate-20261027-9dd5dff.md)：release、18-file bundle、固定 Inno 6.6.1 原生编译和独立 `verifyBundle` 均通过；安装包 SHA-256 为 `d2cefc093c00c87dee93c7ae2e098c750c958c919fc1b2d95984904c35e3223e`。该候选仍未签名、未安装、`release_ready=false`，尚未覆盖当前旧安装；当前 Host/Web/Brain/updater 和 IP01-IP24 状态不因本次构建改变。实际替换/启动需针对该新候选另行批准。
 
 2026-10-27，按 owner 批准执行一次 Host 诊断替换 `-Apply`：原 Host 备份、候选摘要核对和唯一 Host 文件原子替换成功，但新 Host 在 `management_endpoints` 阶段因旧安装的 `8766/8767/8768` 落入本机 Windows `8730–8829` 动态排除范围而退出；Web/Brain/updater 未启动，四服务保持停止，现场未自动回滚或重试。源码修复提交 `4bc4eec` 将安装准备改为探测并持久化可绑定的内部 loopback 端口，完整 workspace tests、strict Clippy、质量门和合规门通过；该修复尚未写入当前安装，IP01–IP24 仍未因此通过。详见[Host 诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)与[本机安装报告](installed-product-windows-native-install-20261027.md)。
