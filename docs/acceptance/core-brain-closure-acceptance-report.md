@@ -76,4 +76,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-clos
 
 四波工件与汇总清单已回填；`tools/core_brain_evidence.py --verify --require-pass` 返回 `0`，总清单 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。A/B/C 保持 `ControlledRuntime`，D 为 `LiveConfigured`，不混淆等级。运行日志在本地 `target/installed-file-worker-evidence/closure-da0d686-{a,b,c,d}.log`，秘密未导出。
 
-当前提交已完成 clean-tree core release audit：9 项检查全部 PASS，core receipt 为 `sha256:bae0a156c339c549ec56b8a741727702518cad5d03a7e9dbe45af212b8e897c9`，独立 `--verify` 返回 `0`。M5 receipt 与完整 Final 是独立发布门，具体状态以 `m5-acceptance-report.md` 的当前记录为准；core audit 单独不提升为完整 Final。原生开发安装已恢复到 Host/Web 运行与未认领初始化页面，但 Brain/真实 provider/worker 与 IP01–IP24 继续独立验收，不据源码门推断。
+当前提交已完成 clean-tree core release audit：9 项检查全部 PASS，core receipt 为 `sha256:89294813276b54e6b161f67e8535e6cee35f0e3d8654e1e12670644d55c6de99`，独立 `--verify` 返回 `0`。M5 receipt 与完整 Final 是独立发布门，具体状态以 `m5-acceptance-report.md` 的当前记录为准；core audit 单独不提升为完整 Final。原生开发安装已恢复到 Host/Web 运行与未认领初始化页面，但 Brain/真实 provider/worker 与 IP01–IP24 继续独立验收，不据源码门推断。
