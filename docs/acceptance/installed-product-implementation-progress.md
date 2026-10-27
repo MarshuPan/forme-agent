@@ -4,7 +4,7 @@
 
 2026-10-27，既有开发安装的端口修复与获批 Host/Web 启动序列已完成：Host Running/PID `55500`、Web Running/PID `49552`，Brain/updater 仍停止；真实浏览器访问 `http://127.0.0.1:18765`，初始化页完整渲染，公开状态为 `claimed=false`、`setup_needed=true`。四配置十值按白名单更新且 ACL 保持；密钥/程序和失败现场保留。纯启动观察器曾把初始旧状态误判为失败，原报告与之后实际 Running/首次 Web 成功报告分别留存，不改写历史；详情见[端口恢复 §7–8](installed-product-windows-port-recovery-plan.md#7-已批准的纯启动修正)。未认领、未启动 Brain、未配置真实 provider，IP01–IP24 不因此整体通过。
 
-2026-10-27，当前源码 `da0d686` 的 A/B/C/D 逐名回归 **47/50/36/71（共 204）** 全通过并重新 seal；六类各两次真实 C24 为 `Pass (LiveConfigured)`，独立 typed/源码验证通过。新四波工件和封闭清单已回填仓库，`--verify --require-pass` 退出 `0`，总清单 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。随后 clean-tree core release audit 的 9 项检查也全部 PASS，current core receipt 为 `sha256:41b8e0b43a051fd105f54df0ae63f8013c2aa626f5750516591b28fb6728e2fb`；M5 receipt 仍待在包含它的新干净树上刷新，不提前记 Final；认知长期质量与真实安装继续分开。
+2026-10-27，当前源码 `da0d686` 的 A/B/C/D 逐名回归 **47/50/36/71（共 204）** 全通过并重新 seal；六类各两次真实 C24 为 `Pass (LiveConfigured)`，独立 typed/源码验证通过。新四波工件和封闭清单已回填仓库，`--verify --require-pass` 退出 `0`，总清单 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。随后 clean-tree core release audit 的 9 项检查也全部 PASS，current core receipt 为 `sha256:41b8e0b43a051fd105f54df0ae63f8013c2aa626f5750516591b28fb6728e2fb`；M5 receipt 与完整 Final 继续按独立发布门记录，认知长期质量与真实安装继续分开。
 
 2026-10-27，按 owner 分别批准执行[既有安装端口恢复](installed-product-windows-port-recovery-plan.md#5-原版-apply-的实际结果)的原版及 V2。原版被 staging ACL 校验拦截；V2 完成四文件十值修改并通过启动前全域复核，但 PowerShell 5.1 Job 未加载 ServiceController 程序集，Host 启动尝试未能证明实际 SCM 调用，当时四服务仍停止。独立管理员只读核对证明四新配置/原 ACL、其他 keys/程序、两套备份和旧空 staging 保持。纯启动 helper 在两种 PowerShell 各 9 项只读断言和管理员无启动预检通过；后续实际执行与当前运行状态见上条，不把准备阶段当作恢复成功。
 
