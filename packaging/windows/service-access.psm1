@@ -160,9 +160,10 @@ function Get-ForMeAccessPlan {
         @((Join-Path $DataRoot 'logs\brain'), $true, @{ $BrainSid = 'Modify' }),
         @((Join-Path $DataRoot 'backups'), $true, @{}),
         @((Join-Path $DataRoot 'workspaces'), $true, @{ $BrainSid = 'Modify' }),
+        @((Join-Path $DataRoot 'workspaces\default'), $true, @{ $BrainSid = 'Modify' }),
         @((Join-Path $DataRoot 'ipc'), $true, @{})
     )
-    foreach ($name in @('host.json', 'bootstrap.json', 'product-template.json', 'installation.json')) {
+    foreach ($name in @('host.json', 'bootstrap.json', 'product-template.json', 'installation.json', 'worker.json')) {
         $rows += ,@((Join-Path $DataRoot "config\$name"), $false, @{})
     }
     $rows += ,@((Join-Path $DataRoot 'config\web.json'), $false, @{ $WebSid = 'Read' })
@@ -243,7 +244,19 @@ function Assert-ForMePreparedLayout {
     }
 }
 
+function Assert-ForMePreparedInventory {
+    param([string]$DataRoot, [object[]]$Plan)
+    # Initial preparation is a closed inventory, not an inheritance wildcard.
+    # Validate the whole tree before the caller changes any of its permissions.
+    foreach ($item in @(Get-ForMeTree $DataRoot)) {
+        $entry = @($Plan | Where-Object Path -IEQ $item.FullName)
+        if ($entry.Count -ne 1 -or $entry[0].Directory -ne $item.PSIsContainer) {
+            throw 'Unexpected data exists; retain it for explicit recovery'
+        }
+    }
+}
+
 Export-ModuleMember -Function Assert-ForMePath, Get-ForMeTree, New-ForMeSecurity,
     Get-ForMeRuleSignature, Assert-ForMeSecurity, New-ForMeProtectedDirectory,
     Set-ForMeSecurity, Assert-ForMeInstallRoots, Get-ForMeAccessPlan, Get-ForMePlannedSecurity,
-    Assert-ForMePreparedLayout
+    Assert-ForMePreparedLayout, Assert-ForMePreparedInventory

@@ -1,6 +1,6 @@
 # The same blocking source-quality gate runs locally and on CI. No owner data.
 [CmdletBinding()]
-param([switch]$AllowMissingCorpus)
+param([switch]$AllowMissingCorpus, [string]$WindowsInstallerToolchain)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -47,6 +47,11 @@ try {
         Invoke-QualityStep 'current installation preparation binary' 'cargo' @('build', '--locked', '-p', 'forme-cli', '--bin', 'forme-hostctl')
         Invoke-QualityStep 'native NTFS access descriptors and safe installation refusal' 'powershell.exe' @('-NoProfile', '-NonInteractive', '-File', 'tools/tests/windows_service_access.tests.ps1')
         Invoke-QualityStep 'read-only firewall policy (fixture observations, no native rule changes)' 'powershell.exe' @('-NoProfile', '-NonInteractive', '-File', 'tools/tests/windows_firewall_policy.tests.ps1')
+        if ($WindowsInstallerToolchain) {
+            Invoke-QualityStep 'native installer success/failure exits (no ForMe install or elevation)' 'powershell.exe' @('-NoProfile', '-NonInteractive', '-File', 'tools/tests/windows_installer_exit.tests.ps1', '-Toolchain', $WindowsInstallerToolchain)
+        } else {
+            Write-Host 'Native Inno exit fixture: NOT_RUN (supply -WindowsInstallerToolchain with the reviewed compiler config)'
+        }
     }
     $complianceArguments = @('tools/compliance-doctor.sh')
     if ($AllowMissingCorpus) { $complianceArguments += '--allow-missing-corpus' }

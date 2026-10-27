@@ -46,13 +46,7 @@ try {
         $plan = @(Get-ForMeAccessPlan $ProgramRoot $DataRoot $web $brain)
         Assert-ForMePreparedLayout $ProgramRoot $DataRoot
         # The initial brain and host state stay empty; no existing data is re-ACL'd.
-        $dataItems = @(Get-ForMeTree $DataRoot)
-        foreach ($item in $dataItems) {
-            $entry = @($plan | Where-Object Path -IEQ $item.FullName)
-            if ($entry.Count -ne 1 -or $entry[0].Directory -ne $item.PSIsContainer) {
-                throw 'Unexpected data exists; retain it for explicit recovery'
-            }
-        }
+        Assert-ForMePreparedInventory $DataRoot $plan
         foreach ($entry in $plan) {
             if (-not (Test-Path -LiteralPath $entry.Path)) {
                 if ($Mode -ne 'Grant' -or -not $entry.Directory -or

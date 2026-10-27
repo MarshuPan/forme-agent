@@ -4,6 +4,7 @@ pub(super) mod config;
 pub(super) mod http;
 #[cfg(windows)]
 mod service;
+mod startup;
 #[cfg(windows)]
 mod updater_service;
 pub(super) mod worker_routes;
@@ -86,6 +87,14 @@ pub(super) fn run() -> p::Result<()> {
 }
 
 fn run_foreground(launch: Launch) -> p::Result<()> {
+    #[cfg(windows)]
+    if matches!(&launch, Launch::Managed(_)) {
+        // A registered Brain SID is not proof that this process belongs to SCM.
+        // Reject before loading credentials, creating journals, or binding IPC.
+        return Err(p::Error(
+            "managed Windows Host requires its fixed SCM service".into(),
+        ));
+    }
     #[cfg(not(windows))]
     let managed_service_bound = matches!(&launch, Launch::Managed(_));
     #[cfg(windows)]
@@ -105,6 +114,7 @@ fn run_foreground(launch: Launch) -> p::Result<()> {
         true,
         runtime,
         managed_service_bound,
+        |_| {},
         || Ok(()),
         || Ok(()),
     )
@@ -141,9 +151,11 @@ fn run_host(
     announce: bool,
     runtime: HostRuntimeConfig,
     managed_service_bound: bool,
+    on_stage: impl Fn(startup::Stage),
     on_ready: impl FnOnce() -> p::Result<()>,
     on_stopping: impl FnOnce() -> p::Result<()>,
 ) -> p::Result<()> {
+    on_stage(startup::Stage::SetupAuthority);
     let journal = runtime.journal_path.clone();
     let install_id = runtime.install_id.clone();
     let credentials = runtime.credentials.clone();
@@ -158,6 +170,7 @@ fn run_host(
         .agent_execution()
         .map(|value| p::canonical_digest(&value))
         .transpose()?;
+    on_stage(startup::Stage::ProductConfiguration);
     let product_config = runtime
         .product_config_template_path
         .as_deref()
@@ -167,6 +180,7 @@ fn run_host(
         .transpose()?
         .map(Arc::new);
     let has_configuration = credentials.web_configuration().is_some() && product_config.is_some();
+    on_stage(startup::Stage::HostJournal);
     let mut broker = ProductHostBroker::open_with_service_manager_and_config(
         &journal,
         &install_id,
@@ -187,6 +201,7 @@ fn run_host(
     }
     let broker = Arc::new(broker);
     if runtime.managed {
+        on_stage(startup::Stage::InstallationVerification);
         broker.record_installation_verification(
             runtime
                 .installation_manifest_digest
@@ -204,6 +219,7 @@ fn run_host(
     } else {
         None
     };
+    on_stage(startup::Stage::Worker);
     let worker = load_worker_host(
         &journal,
         agent_digest,
@@ -215,6 +231,7 @@ fn run_host(
             active_release: active_release.as_ref(),
         },
     )?;
+    on_stage(startup::Stage::AgentEndpoint);
     #[cfg(windows)]
     let core_image_path = active_release
         .as_ref()
@@ -233,6 +250,7 @@ fn run_host(
     };
     #[cfg(windows)]
     let agent_pipe_connections = Arc::new(AtomicUsize::new(0));
+    on_stage(startup::Stage::ManagementEndpoints);
     let mut endpoints = vec![HostEndpoint::bind(
         runtime.host_bind,
         EndpointDomain::Maintenance,
@@ -281,7 +299,9 @@ fn run_host(
         }
         let _ = std::io::stdout().flush();
     }
+    on_stage(startup::Stage::Readiness);
     on_ready()?;
+    on_stage(startup::Stage::Serving);
     let mut checked_release = std::time::Instant::now() - Duration::from_secs(1);
     loop {
         if let Some(receiver) = shutdown.as_ref() {
@@ -371,6 +391,7 @@ fn run_host(
     #[cfg(windows)]
     connections.push(agent_pipe_connections);
     drop(endpoints);
+    on_stage(startup::Stage::Draining);
     on_stopping()?;
     let deadline = std::time::Instant::now() + Duration::from_secs(60);
     while connections.iter().any(|n| n.load(Ordering::Acquire) != 0) {

@@ -253,9 +253,8 @@ fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
 #[test]
 #[cfg(windows)]
 fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
-    // The repository fixture deliberately has no registered Brain Service SID.
-    // A managed Windows Host must therefore fail before opening either TCP
-    // fallback or the named pipe; this is the platform-side negative proof.
+    // This foreground process has no SCM binding even when this machine has
+    // real ForMe services. A registered Brain SID must not authorize this Host.
     let mut fixture = Fixture::new();
     fixture.configure();
     assert!(fixture.start().is_empty());
@@ -271,6 +270,8 @@ fn managed_host_uses_file_config_and_keeps_both_credential_domains_separate() {
         .root
         .join("environment-must-not-exist.jsonl")
         .exists());
+    assert!(!fixture.root.join("host-state/host.journal").exists());
+    assert!(!fixture.root.join("host-state/host.worker.jsonl").exists());
 }
 
 #[test]
@@ -328,9 +329,8 @@ fn managed_host_binds_installation_verification_once_and_rejects_manifest_replac
 #[test]
 #[cfg(windows)]
 fn managed_host_binds_installation_verification_once_and_rejects_manifest_replacement() {
-    // Without an installed service identity the managed listener remains
-    // fail-closed. Replacing the manifest does not create a TCP fallback or a
-    // second management journal fact.
+    // A valid file or its replacement cannot turn a foreground process into a
+    // service. Neither launch may open a journal or listener.
     let mut fixture = Fixture::new();
     fixture.configure();
     assert!(fixture.start().is_empty());
@@ -361,6 +361,8 @@ fn managed_host_binds_installation_verification_once_and_rejects_manifest_replac
         .root
         .join("environment-must-not-exist.jsonl")
         .exists());
+    assert!(!fixture.root.join("host-state/host.journal").exists());
+    assert!(!fixture.root.join("host-state/host.worker.jsonl").exists());
 }
 
 #[test]

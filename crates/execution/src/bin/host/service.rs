@@ -1,5 +1,5 @@
 //! SCM status and control signals; OS remains the sole service supervisor.
-use super::{config::managed_from_process_args, run_host};
+use super::{config::managed_from_process_args, run_host, startup};
 use forme_protocol as p;
 use std::path::Path;
 use std::time::Duration;
@@ -58,16 +58,24 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
         wait_hint: Duration::from_secs(10),
         process_id: None,
     });
+    let stage = std::cell::Cell::new(startup::Stage::ReportingStartup);
+    let mut diagnostic_directory = None;
     let result = starting
         .map_err(|_| p::Error("host service could not report startup".into()))
-        .and_then(|()| forme_execution::installed::bind_windows_host_service())
+        .and_then(|()| {
+            stage.set(startup::Stage::ScmBinding);
+            forme_execution::installed::bind_windows_host_service()
+        })
         .and_then(|binding| {
+            stage.set(startup::Stage::Configuration);
             let runtime = managed_from_process_args()?;
+            diagnostic_directory = runtime.diagnostic_directory.clone();
             run_host(
                 Some(shutdown_rx),
                 false,
                 runtime,
                 true,
+                |next| stage.set(next),
                 || {
                     status
                         .set_service_status(ServiceStatus {
@@ -98,6 +106,9 @@ fn windows_service_main(_arguments: Vec<std::ffi::OsString>) {
                 },
             )
         });
+    if let (Err(error), Some(directory)) = (&result, diagnostic_directory.as_deref()) {
+        let _ = startup::record_failure(directory, stage.get(), error);
+    }
     let _ = status.set_service_status(ServiceStatus {
         service_type: ServiceType::OWN_PROCESS,
         current_state: ServiceState::Stopped,

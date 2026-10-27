@@ -194,6 +194,8 @@ impl HostServiceConfig {
 #[derive(Clone)]
 pub(crate) struct HostRuntimeConfig {
     pub journal_path: PathBuf,
+    #[cfg(windows)]
+    pub diagnostic_directory: Option<PathBuf>,
     pub install_id: String,
     pub credentials: HostCredentials,
     pub target: p::ProductTarget,
@@ -340,6 +342,8 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
     }
     Ok(HostRuntimeConfig {
         journal_path,
+        #[cfg(windows)]
+        diagnostic_directory: None,
         install_id,
         credentials,
         target: target_from_environment()?,
@@ -452,6 +456,8 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
     let installed_file = None;
     Ok(HostRuntimeConfig {
         journal_path: config.journal_path,
+        #[cfg(windows)]
+        diagnostic_directory: Some(manifest.paths.logs.join("host")),
         install_id: config.install_ref,
         credentials,
         target: config.product_target,

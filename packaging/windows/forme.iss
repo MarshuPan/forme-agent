@@ -58,6 +58,16 @@ Name: "{commonappdata}\ForMe\workspaces"
 Filename: "http://127.0.0.1:8765"; Description: "Open forme"; Flags: shellexec postinstall skipifsilent runasoriginaluser
 
 [Code]
+var
+  InstallStagesCompleted: Boolean;
+
+function GetCustomSetupExitCode(): Integer;
+begin
+  { A post-install exception can otherwise leave Setup's native result at zero.
+    Only completion of ALL service/access steps is installation success. }
+  if InstallStagesCompleted then Result := 0 else Result := 1;
+end;
+
 function AccessArguments(Mode: String): String;
 begin
   Result := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
@@ -119,6 +129,7 @@ begin
   RequireStep(PowerShellPath, AccessArguments('Verify'), 'verify installed access');
   RequireStep(PowerShellPath, AccessArguments('Start'), 'start Host and Web');
   { Brain is on-demand until owner claim and validated model configuration. }
+  InstallStagesCompleted := True;
 end;
 
 function InitializeUninstall(): Boolean;

@@ -169,6 +169,8 @@ test('Windows installer registers and removes all three resident services', asyn
   for (const stage of stages) { const index = install.indexOf(stage); assert.ok(index > previous); previous = index; }
   assert.match(template, /Result := Result and \(ExitCode = 0\)/);
   assert.match(template, /if not RunChecked[\s\S]*?RaiseException/);
+  assert.match(template, /function GetCustomSetupExitCode\(\): Integer;[\s\S]*?if InstallStagesCompleted then Result := 0 else Result := 1;/);
+  assert.ok(install.indexOf('InstallStagesCompleted := True;') > install.indexOf("AccessArguments('Start')"));
   assert.ok(template.indexOf("AccessArguments('Prepare')") < template.indexOf('procedure CurStepChanged'));
   assert.doesNotMatch(template.slice(template.indexOf('[Run]'), template.indexOf('[Code]')), /install-service/);
   assert.doesNotMatch(template, /\[UninstallRun\]/);

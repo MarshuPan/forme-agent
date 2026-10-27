@@ -1,10 +1,10 @@
 use super::*;
 
-fn info() -> ServiceInfo {
+fn info(root: &Path) -> ServiceInfo {
     desired(
         p::BuiltinServiceId::Web,
-        Path::new(r"C:\forme\config\web.json"),
-        PathBuf::from(r"C:\Program Files\forme\bin\forme-webd.exe"),
+        &root.join("config/web.json"),
+        root.join("program files/bin/forme-webd.exe"),
     )
     .unwrap()
 }
@@ -15,7 +15,7 @@ fn existing(info: &ServiceInfo) -> ServiceConfig {
         start_type: info.start_type,
         error_control: info.error_control,
         executable_path: PathBuf::from(format!(
-            "\"{}\" --config {}",
+            "\"{}\" --config \"{}\"",
             info.executable_path.display(),
             info.launch_arguments[1].to_string_lossy()
         )),
@@ -29,13 +29,21 @@ fn existing(info: &ServiceInfo) -> ServiceConfig {
 
 #[test]
 fn native_registration_rejects_foreign_command_account_or_startup() {
-    let wanted = info();
+    // A machine with a real, protected installation must remain testable by a
+    // non-administrator. Pure registration fixtures never inspect that install.
+    let root = tempfile::tempdir().unwrap();
+    let wanted = info(root.path());
     let original = existing(&wanted);
     assert!(matches_config(&original, &wanted));
+    let image = wanted.executable_path.display();
+    let config = wanted.launch_arguments[1].to_string_lossy();
     for command in [
-        r"C:\Program Files\forme\bin\forme-webd.exe --config C:\forme\config\web.json",
-        r#""C:\Program Files\forme\bin\forme-webd.exe" --config C:\forme\config\other.json"#,
-        r#""C:\Program Files\forme\bin\forme-webd.exe" --config C:\forme\config\web.json --development-process-workers"#,
+        format!("{image} --config \"{config}\""),
+        format!(
+            "\"{image}\" --config \"{}\"",
+            root.path().join("config/other.json").display()
+        ),
+        format!("\"{image}\" --config \"{config}\" --development-process-workers"),
     ] {
         let mut changed = original.clone();
         changed.executable_path = command.into();
@@ -54,6 +62,7 @@ fn native_registration_rejects_foreign_command_account_or_startup() {
 
 #[test]
 fn native_registration_has_fixed_identity_and_finite_recovery() {
+    let root = tempfile::tempdir().unwrap();
     let policy = p::ServiceRecoveryPolicy::product_default();
     policy.validate().unwrap();
     assert!(policy.is_product_default());
@@ -69,23 +78,23 @@ fn native_registration_has_fixed_identity_and_finite_recovery() {
         policy.decide(3).unwrap(),
         p::ServiceRecoveryDecision::RequireDiagnosis
     );
-    let web = info();
+    let web = info(root.path());
     assert_eq!(
         web.account_name.unwrap(),
         OsString::from("NT SERVICE\\forme-web")
     );
     let host = desired(
         p::BuiltinServiceId::Host,
-        Path::new(r"C:\forme\host.json"),
-        PathBuf::from(r"C:\forme\bin\forme-hostd.exe"),
+        &root.path().join("host.json"),
+        root.path().join("bin/forme-hostd.exe"),
     )
     .unwrap();
     assert!(host.account_name.is_none());
     assert!(host.dependencies.is_empty());
     let brain = desired(
         p::BuiltinServiceId::Brain,
-        Path::new(r"C:\forme\core.json"),
-        PathBuf::from(r"C:\forme\bin\forme-gatewayd.exe"),
+        &root.path().join("core.json"),
+        root.path().join("bin/forme-gatewayd.exe"),
     )
     .unwrap();
     assert_eq!(brain.start_type, ServiceStartType::OnDemand);

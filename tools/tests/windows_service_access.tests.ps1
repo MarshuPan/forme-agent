@@ -43,7 +43,7 @@ try {
     $data = Join-Path $scratch 'data'
     $plan = @(Get-ForMeAccessPlan $program $data $web $brain)
     Test-Access 'closed role matrix separates management, Web, Brain and absent workers' {
-        Assert-That ($plan.Count -eq 32) 'Unexpected matrix size'
+        Assert-That ($plan.Count -eq 34) 'Unexpected matrix size'
         foreach ($row in $plan) {
             $security = New-ForMeSecurity -Directory $row.Directory -Grants $row.Grants
             Assert-That $security.AreAccessRulesProtected 'Inherited broad grants must be removed'
@@ -51,11 +51,11 @@ try {
                 ForEach-Object { $_.IdentityReference.Value })
             Assert-That (@($sids | Where-Object { $_ -notin @('S-1-5-18', 'S-1-5-32-544', $web, $brain) }).Count -eq 0) 'Unexpected principal'
         }
-        foreach ($relative in @('host-state', 'backups', 'ipc', 'keys\bootstrap.key', 'keys\host-maintenance.token')) {
+        foreach ($relative in @('host-state', 'backups', 'ipc', 'keys\bootstrap.key', 'keys\host-maintenance.token', 'config\worker.json')) {
             $row = $plan | Where-Object Path -EQ (Join-Path $data $relative)
             Assert-That ($row.Grants.Count -eq 0) 'Management must remain private'
         }
-        foreach ($pair in @(@('brain', $brain), @('web-auth', $web), @('workspaces', $brain))) {
+        foreach ($pair in @(@('brain', $brain), @('web-auth', $web), @('workspaces', $brain), @('workspaces\default', $brain))) {
             $row = $plan | Where-Object Path -EQ (Join-Path $data $pair[0])
             Assert-That ($row.Grants.Count -eq 1 -and $row.Grants[$pair[1]] -eq 'Modify') 'Wrong data writer'
         }
@@ -208,6 +208,27 @@ try {
         $output = @(& $hostctl @arguments)
         Assert-That ($LASTEXITCODE -eq 0) 'Installation preparation failed'
         Assert-ForMePreparedLayout $program $data
+        Assert-ForMePreparedInventory $data $plan
+        $workerPath = Join-Path $data 'config\worker.json'
+        $workerHash = (Get-FileHash -LiteralPath $workerPath).Hash
+        $unexpected = Join-Path $data 'config\unapproved.json'
+        [IO.File]::WriteAllText($unexpected, 'unapproved fixture')
+        Assert-Refused { Assert-ForMePreparedInventory $data $plan }
+        Assert-That ([IO.File]::ReadAllText($unexpected) -eq 'unapproved fixture') 'Unexpected data was changed'
+        [IO.File]::Delete($unexpected)
+        $defaultWorkspace = Join-Path $data 'workspaces\default'
+        $retainedWorkspace = Join-Path $scratch 'retained-default'
+        [IO.Directory]::Move($defaultWorkspace, $retainedWorkspace)
+        try {
+            [IO.File]::WriteAllText($defaultWorkspace, 'wrong-kind fixture')
+            Assert-Refused { Assert-ForMePreparedInventory $data $plan }
+            Assert-That ([IO.File]::ReadAllText($defaultWorkspace) -eq 'wrong-kind fixture') 'Wrong-kind data was changed'
+        } finally {
+            [IO.File]::Delete($defaultWorkspace)
+            [IO.Directory]::Move($retainedWorkspace, $defaultWorkspace)
+        }
+        Assert-ForMePreparedInventory $data $plan
+        Assert-That ((Get-FileHash -LiteralPath $workerPath).Hash -eq $workerHash) 'Worker config was replaced'
         $templatePath = Join-Path $data 'config\product-template.json'
         $original = [IO.File]::ReadAllText($templatePath)
         $keyPath = Join-Path $data 'keys\bootstrap.key'
