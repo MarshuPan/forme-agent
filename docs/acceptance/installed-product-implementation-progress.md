@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+2026-10-27，既有开发安装的端口修复与获批 Host/Web 启动序列已完成：Host Running/PID `55500`、Web Running/PID `49552`，Brain/updater 仍停止；真实浏览器访问 `http://127.0.0.1:18765`，初始化页完整渲染，公开状态为 `claimed=false`、`setup_needed=true`。四配置十值按白名单更新且 ACL 保持；密钥/程序和失败现场保留。纯启动观察器曾把初始旧状态误判为失败，原报告与之后实际 Running/首次 Web 成功报告分别留存，不改写历史；详情见[端口恢复 §7–8](installed-product-windows-port-recovery-plan.md#7-已批准的纯启动修正)。未认领、未启动 Brain、未配置真实 provider，IP01–IP24 不因此整体通过。
+
+2026-10-27，当前源码 `da0d686` 的 A/B/C/D 逐名回归 **47/50/36/71（共 204）** 全通过并重新 seal；六类各两次真实 C24 为 `Pass (LiveConfigured)`，独立 typed/源码验证通过。新四波工件和封闭清单已回填仓库，`--verify --require-pass` 退出 `0`，总清单 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。这一步尚未刷新 clean-tree core/M5 release receipts，也不是新的 Final 终线；认知长期质量与真实安装继续分开。
+
+2026-10-27，按 owner 分别批准执行[既有安装端口恢复](installed-product-windows-port-recovery-plan.md#5-原版-apply-的实际结果)的原版及 V2。原版被 staging ACL 校验拦截；V2 完成四文件十值修改并通过启动前全域复核，但 PowerShell 5.1 Job 未加载 ServiceController 程序集，Host 启动尝试未能证明实际 SCM 调用，当时四服务仍停止。独立管理员只读核对证明四新配置/原 ACL、其他 keys/程序、两套备份和旧空 staging 保持。纯启动 helper 在两种 PowerShell 各 9 项只读断言和管理员无启动预检通过；后续实际执行与当前运行状态见上条，不把准备阶段当作恢复成功。
+
+2026-10-27，在 `da0d686` 源码上运行新的 C24 六类真实模型工作流，每类两次；runner 返回 `Pass (LiveConfigured)`，独立 `core_brain_release_audit.py --verify-product` 退出 `0`。新工件保存在本地 `target/installed-file-worker-evidence/current-product-da0d686/`，后续按封闭清单更新当前树证据；旧真实模型回执因 crate 源码变更被拒，未冒充当前证据。完整 M5 本次场景/质量/合规、goldens 和新 S99 审计均通过，但最终旧仓库回执比较失败、脚本退出 `1`，不能记作新的 FINAL PASS。公共 `8765` 也落在保留范围，拟显式改为 `18765`；实际恢复进展见上条，不以准备预检冒充恢复成功。
+
 2026-10-27，当前提交 `d2e0133` 完成一次从当前源码重新开始的完整质量门：结构/规模 21 项、Rust fmt/check/workspace 全量测试、strict Clippy、前端依赖/类型/行为与可重复资源 92/92、bundle 10/10、原生包输入与 POSIX 控制流 18/18、实际 Rust 签名验证 5/5、Windows NTFS 安全/hostctl 8/8、只读防火墙策略 25/25、真实 Inno 成功/失败退出 2/2、原创与许可证合规均 PASS，最终脚本退出 0。构建资源检查仍报告 `target` 约 140.17 GiB logical / 137.35 GiB allocated，超过缓存预算但剩余空间约 200.5 GiB；本轮未清理任何构建缓存或用户数据。该门只证明当前源码与受控夹具，不提升真实安装、服务账户/worker token、真实 Provider、签名发布或 IP01–IP24；当前机器仍保留旧安装失败现场，新端口修复候选尚未覆盖它。
 
 2026-10-27，基于当前提交 `9dd5dff1a899d54f4075018edc4a1dd83fdb7934` 重新生成[Windows 端口修复候选](installed-product-windows-candidate-20261027-9dd5dff.md)：release、18-file bundle、固定 Inno 6.6.1 原生编译和独立 `verifyBundle` 均通过；安装包 SHA-256 为 `d2cefc093c00c87dee93c7ae2e098c750c958c919fc1b2d95984904c35e3223e`。该候选仍未签名、未安装、`release_ready=false`，尚未覆盖当前旧安装；当前 Host/Web/Brain/updater 和 IP01-IP24 状态不因本次构建改变。实际替换/启动需针对该新候选另行批准。

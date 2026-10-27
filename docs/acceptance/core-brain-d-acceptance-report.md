@@ -132,3 +132,11 @@ core release receipt 为 `sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01
 本轮 18 个 workspace crate 的 Cargo metadata 均解析为 MIT。当前 core receipt 为 `sha256:8c2fbe9679dad28344cc3efe8dd3d1ca31999a05559d93365499ae7414c807b3`；四波清单 digest 为 `sha256:ff13bf88ff28ecdea52b691ea429841200143b9df9afe24b5618c1429ffbe9a6`。C24 产品工件绑定 `2f65fcee4c0b9ba793fdc9045825ecd1af807e68`，grade 为 `LiveConfigured`，内容 digest 为 `sha256:2fd21a8e253d107251d5e6c0c87d683cae25c1bfccc0bcc727af05903d2e7465`；ColdDialogue、ComplexTools、LongWorkspace、MultiAgent、AskToLearn、FailureRecoordination 六类各 2/2，费用仍为 unknown。
 
 本轮一次先行 Final 在嵌套 D RuntimeOnly 复跑时被 core 审计拒绝，未计为通过；随后独立 D RuntimeOnly、core audit 和完整 Final 重跑均返回 0。日志仅保留在本机 OS temp；模型端点、凭证和 owner 数据未进入 Git 或便携工件。上述技术证据不证明长期认知收益，也不替代 owner 日常使用验收、安装包发布或远端发布授权。
+
+## 9. 产品化分支的当前 D/C24 证据（2026-10-27）
+
+`shu/installed-product@da0d686e3806e0452d6687dfb0f67fd2f591891e` 的 D RuntimeOnly 实际执行 **71/71** 项并 seal 成功；A/B/C 另为 47/50/36 项，当前四波合计 204。正式真实模型 runner 在同源码运行 ColdDialogue、ComplexTools、LongWorkspace、MultiAgent、AskToLearn、FailureRecoordination 六类各两次；产品 `Pass (LiveConfigured)`，质量/直接模型质量基线/工作流各类均 2/2、不可验证 0、费用 unknown。
+
+独立 typed verifier 与源码一致性 verifier 均通过，产品 digest 为 `sha256:4e0ba7ec7ea83c83fbbc99cd8914417a6572242268b69be8d9e654d1b8b772af`；D 封闭清单和四波汇总 `--verify --require-pass` 通过，汇总 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。便携工件已回填当前目录，旧版本保留 Git 历史，本机模型配置仍忽略。
+
+这是当前源码有界运行/真实模型证据；clean-tree core/M5 receipt 和整条 Final 终线尚待后续，不在此提前声明。真实安装、服务生命周期和 IP01–IP24 单独记录于产品化实施状态；长期认知质量仍未由本轮短周期试验证明。

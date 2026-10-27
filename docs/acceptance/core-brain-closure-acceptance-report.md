@@ -67,3 +67,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-clos
 - 当前 core receipt 为 `sha256:8c2fbe9679dad28344cc3efe8dd3d1ca31999a05559d93365499ae7414c807b3`，其 outcome 为 `pass`；四波清单 digest 为 `sha256:ff13bf88ff28ecdea52b691ea429841200143b9df9afe24b5618c1429ffbe9a6`。C24 产品工件绑定 `2f65fcee4c0b9ba793fdc9045825ecd1af807e68`，grade 为 `LiveConfigured`，内容 digest 为 `sha256:2fd21a8e253d107251d5e6c0c87d683cae25c1bfccc0bcc727af05903d2e7465`；六类工作流各 2/2，费用仍为 unknown。
 - 本轮一次先行 Final 在嵌套 D RuntimeOnly 复跑时被 core 审计拒绝，未计为通过；随后独立 D RuntimeOnly、core audit 和完整 Final 重跑均返回 0。日志仅保留在本机 OS temp，不作为便携证明。
 - 本地模型配置仍只在忽略目录中；当前操作未创建安装包、GitHub release 或推送远端，未代替 owner 的日常使用验收。
+
+## 6. 产品化分支当前源码的四波重采集（2026-10-27）
+
+本节保留上文 main 的历史 Final，不把其回执复用到产品化分支。`shu/installed-product@da0d686e3806e0452d6687dfb0f67fd2f591891e` 的同一运行源码重新执行 A/B/C/D，逐名 **47/50/36/71** 项全部通过，18 crates/99 EventKinds 和前 97 strict prefix 保持。A 入口、B tick/相关性、C 六份 typed 工件及四份 runtime receipt 均重新生成并独立校验。
+
+同源码 C24 正式 runner 使用本机忽略配置运行六类各两次，返回 `Pass (LiveConfigured)`；独立 `core_brain_release_audit.py --verify-product` 返回 `0`，产品 digest 为 `sha256:4e0ba7ec7ea83c83fbbc99cd8914417a6572242268b69be8d9e654d1b8b772af`。质量、直接模型质量基线和工作流每类均 2/2，不可验证为 0，费用仍 unknown。该短周期证据不证明长期收益或编排普遍优于直接模型。
+
+四波工件与汇总清单已回填；`tools/core_brain_evidence.py --verify --require-pass` 返回 `0`，总清单 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。A/B/C 保持 `ControlledRuntime`，D 为 `LiveConfigured`，不混淆等级。运行日志在本地 `target/installed-file-worker-evidence/closure-da0d686-{a,b,c,d}.log`，秘密未导出。
+
+此刻 clean-tree core/M5 receipt 尚待重新生成/独立比较，**不记新的 Final 通过**。完整 M5 先行重跑的最终旧回执 mismatch 见 `m5-acceptance-report.md` §10。原生开发安装已恢复到 Host/Web 运行与未认领初始化页面，但 Brain/真实 provider/worker 与 IP01–IP24 继续独立验收，不据源码门推断。

@@ -114,6 +114,8 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 本节只追加当前产品增量的回归记录，不改写上文 M5 历史验收，也不宣称 IP01–IP24 已通过。产品实施状态仍以 `installed-product-implementation-progress.md` 为准。
 
+2026-10-27，干净 `shu/installed-product@da0d686` 的完整 `verify-m5.ps1` 运行到最终比较，S1–S99、workspace、严格 Clippy、89 项 Python 门（1 项 symlink 权限跳过）、M3/M4/M5 goldens、完整默认合规以及新 S99 审计生成/独立验证全部通过。新临时 receipt 为 `sha256:f6aada28c0657bb74462539f1bb95a1aece9cec5aacd52e085833d33725c748a`，仓库 receipt 仍为 `sha256:ac03fbb2490eb49dc47e50c3c1345f6ff5b50a8c0b23f26215a966f59d7f01d7`，最终 compare 按规则拒绝、脚本退出 `1`。**本次不计 FINAL PASS。** 完整输出在本轮工具执行记录中，不冒用早先 `final-m5.log`。后续当前树回执刷新与独立比较单独记录；没有为匹配旧回执弱化检查。真实模型 C24 和原生安装状态仍与本门分开。
+
 2026-10-26，本轮完整 `tools/verify-m5.ps1` 已执行 `5391750` 所含相同运行代码的 S1–S99、V1 C1–C24、workspace、strict Clippy、89 项 Python 工具测试（1 项因无法创建 symlink 跳过）、格式/结构/合规及 M4/M5 工件检查。所有这些阶段通过；最终 S99 在干净 `51df714` 上生成并独立验证了新审计，但仓库 current-tree receipt 仍绑定旧源码，因此脚本以回执比较失败退出。**不将该次完整脚本记作 FINAL PASS。**
 
 其后先将浏览器组件证据、未激活契约草案与 Windows 候选报告提交，再在干净 `3499ff9` 上单独重新生成当前树 M5 审计。8 个审计检查均 PASS，`blocking=false`，新 receipt 为 `sha256:37c05fe3a1db82d88aba781386329a9b73dbea673b370d133ee3a0809ccc8547`。生成工件和仓库工件的独立 `--verify` 均 PASS，`--compare` 也 PASS。该工件替换仓库 current-tree receipt；旧 `08ff70…` 回执保留在 Git 历史。此处是同一运行代码的完整场景回归与更新后独立发布树审计证据，不声称已重跑整套脚本并取得新的 FINAL PASS 终线。
