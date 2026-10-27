@@ -6,6 +6,8 @@
 
 基于当前提交 `ad99caf86d6ddd26ce8f5d74fddfb8563101b8cc` 生成了新的 [Windows 安装候选](installed-product-windows-candidate-20261028-ad99caf.md)：18-file bundle、固定 Inno Setup 6.6.1 原生编译和安装包摘要核对均通过。安装包 SHA-256 为 `42d094e3925ca25c40e39eec8cdf7d497629802fd6988ea541eafb02a431cb01`。候选仍未签名、未安装，`release_ready=false`；当前安装实例仍运行旧候选，未因此改变任何服务或 IP01–IP24 状态。
 
+当前本地 `main@963d6ff` 已重新运行统一源码质量门并通过：结构/规模棘轮、Rust fmt/check/workspace 全量测试、strict Clippy、前端类型与 92 项行为回归、嵌入 Web 资源、bundle/离线签名验证、Windows NTFS/防火墙只读边界、原生打包输入和完整合规均 PASS。质量门同时明确记录原生服务、真实 SCM/服务身份、真实 provider、安装后浏览器全链路及 IP01–IP24 为未运行；构建缓存超过预算但剩余空间约 116 GiB，本轮未清理任何 target、安装目录或用户数据。
+
 ## 2026-10-28 当前安装现场快照
 
 通过已登录的本地浏览器访问固定 Product URL `http://127.0.0.1:18765/`，并以只读方式核对 Windows SCM，当前安装实例观察到：
