@@ -6,7 +6,7 @@
 
 基于当前提交 `ad99caf86d6ddd26ce8f5d74fddfb8563101b8cc` 生成了新的 [Windows 安装候选](installed-product-windows-candidate-20261028-ad99caf.md)：18-file bundle、固定 Inno Setup 6.6.1 原生编译和安装包摘要核对均通过。安装包 SHA-256 为 `42d094e3925ca25c40e39eec8cdf7d497629802fd6988ea541eafb02a431cb01`。候选仍未签名、未安装，`release_ready=false`；当前安装实例仍运行旧候选，未因此改变任何服务或 IP01–IP24 状态。
 
-当前本地 `main@e173bc1` 已重新运行统一源码质量门并通过：结构/规模棘轮、Rust fmt/check/workspace 全量测试、strict Clippy、前端类型与 92 项行为回归、嵌入 Web 资源、bundle/离线签名验证、Windows NTFS/防火墙只读边界、原生打包输入和完整合规均 PASS。质量门同时明确记录原生服务、真实 SCM/服务身份、真实 provider、安装后浏览器全链路及 IP01–IP24 为未运行；构建缓存超过预算但剩余空间约 116 GiB，本轮未清理任何 target、安装目录或用户数据。
+源码质量门绑定输入为 `e173bc1687f1b0ec7ae1327f30f711877b0da0ee`，该输入已通过统一源码质量门：结构/规模棘轮、Rust fmt/check/workspace 全量测试、strict Clippy、前端类型与 92 项行为回归、嵌入 Web 资源、bundle/离线签名验证、Windows NTFS/防火墙只读边界、原生打包输入和完整合规均 PASS。该门之后的本地 `main@21d68bb35310ed1ce33320d8d8dbfa7b7734e741` 只增加验收/状态文档，没有源码变化，因此不能把文档提交误写成新的代码质量门。质量门同时明确记录原生服务、真实 SCM/服务身份、真实 provider、安装后浏览器全链路及 IP01–IP24 为未运行；构建缓存超过预算但剩余空间约 116 GiB，本轮未清理任何 target、安装目录或用户数据。
 
 ## 2026-10-28 当前安装现场快照
 
