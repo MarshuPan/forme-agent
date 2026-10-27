@@ -401,6 +401,8 @@ Checking 失败由持有唯一 writer 的新 Host 写 RecoveryRequired；新 Hos
 
 持久 readiness 文件只是配置加载证据，不能独自证明当前进程仍已就绪。Checking/补开放还须向固定 core listener 发送 closed `ProductReleaseReadinessProbe` v1（install、每次新 nonce、signature），取得 `ProductReleaseReadinessProof` v1（同 nonce、当前内存 readiness、signature）。两方向签名分别绑定 domain；Ed25519 seed 由既有高熵 core-owner credential 按固定 SHA-256 domain 派生，验证公钥由两端同源计算，绝不把 bearer/seed 发到 listener。双方核对签名、installation、nonce、exact binding/config/data/image；伪造 listener、旧文件、重放响应不能通过。该内部只读端点仅在受管 release runtime 存在时提供，不开放新脑命令，不消费工作准入，使用独立限流与有界 IO；同时继续核对实际 SCM 服务目标与状态。
 
+时限分两类：未提交的 Checking 沿用原授权的绝对截止时刻，文件复核、服务观察和 live probe 均不得延长它；已 Committed 操作补开放时，先只读复核同一签名发布、程序与服务身份，再为 live probe 建立 2 秒窗口。该窗口约束网络挑战，不把大型文件复核耗时误作网络超时；它不恢复旧授权、不允许停服/切换/备份，且新鲜证明和最终文件复核全部通过后才可开放原 binding。复核或证明失败保留关闭状态。
+
 #### 4.10.4 活动发布的程序路径绑定
 
 首次 `InstallationManifest` 和受保护的 `worker.json` 保留原字节，不能因升级而把历史安装记录改写为新版本。它们的初始程序目录也不能继续代表已切换的活动程序。Host 在重放原 product journal 后，以其中的唯一 active release 派生程序：仍为首次版本时保留原安装目录；活动版本已改变时，必须通过同一安装的 committed staging record、签名、闭合文件集与实际文件重新取得 `VerifiedStagedRelease`。缺失 staging、摘要不符或文件被替换均拒绝，不能退回初始版本，也不能选择仅暂存但尚未成为 active 的候选。
