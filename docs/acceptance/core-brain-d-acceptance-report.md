@@ -143,4 +143,4 @@ core release receipt 为 `sha256:ad82603edab268efef0bf7b712738ae11201b60a1c57c01
 
 ## 10. 产品化分支的 current-tree core audit（2026-10-27）
 
-文档与四波工件提交后，干净 `shu/installed-product@a838e15ad42c52d21e2135a9a07ba4bf392625a5` 上运行 `py -3 tools/core_brain_release_audit.py --root C:\code\forme --output <ignored-output>`，9 项检查全部 PASS；独立 `--verify` 返回 `0`。当前 core receipt 为 `sha256:41b8e0b43a051fd105f54df0ae63f8013c2aa626f5750516591b28fb6728e2fb`。该 receipt 已替换 acceptance 当前文件，旧 receipt 仍由 Git 历史保留；M5 receipt 与完整 Final 作为独立发布门记录于 `m5-acceptance-report.md`。此项不把 core audit 单独提升为完整 Final，也不改变安装/IP01–IP24 的独立边界。
+文档与四波工件提交后，干净 `shu/installed-product@3d10990` 上运行 `py -3 tools/core_brain_release_audit.py --root C:\code\forme --output <ignored-output>`，9 项检查全部 PASS；独立 `--verify` 返回 `0`。当前 core receipt 为 `sha256:2a25cc3246c71e12bdca56f703529c10bcc3ccd289580d38cb8d235092f4b265`。该 receipt 已替换 acceptance 当前文件，旧 receipt 仍由 Git 历史保留；M5 receipt 与完整 Final 作为独立发布门记录于 `m5-acceptance-report.md`。此项不把 core audit 单独提升为完整 Final，也不改变安装/IP01–IP24 的独立边界。
