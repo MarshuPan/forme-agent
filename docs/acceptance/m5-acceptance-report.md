@@ -144,6 +144,10 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 本轮最终门禁记录的 RustSec 观察项只影响非 `x86_64-pc-windows-gnu` target，按审计规则不构成当前目标的 blocking finding。最终构建资源报告显示 `C:\code\forme\target` 为 `116234168572` logical bytes、`113246893538` allocated bytes，超过 64 GiB 缓存预算；没有执行清理。以下边界仍未被本轮折算为通过：正式 ProductionRuntime 隔离 worker backend、结果工件应用层加密与真实 key resolver、Windows SCM/LocalSystem 真实安装运行、Linux/macOS 原生服务与安装包、正式签名、真实 Provider、Windows AppContainer 三项原生测试（默认 ignored）以及完整 IP01–IP24。Linux/macOS 继续保持 `release_ready=false`。
 
+## 11. 产品化分支的 M5 current-tree 收口（2026-10-27）
+
+在 clean `shu/installed-product@0190695` 上独立运行 `py -3 tools/m5_release_audit.py --root C:\code\forme --output <ignored-output>`，9 项检查全部 PASS，预收口回执为 `sha256:dec0e62a3f5eed5b88d3b26f0bfb39933251e5fcef1948f15d92c29232b7c379`，并通过独立 `--verify`。由于本报告属于 core release audit 的受测输入，记录本事实后会先刷新 core receipt，再在包含最终 core receipt 的 clean tree 上重新生成 M5；因此本节的预收口回执不替代最终 tracked M5 receipt。最终结果以 `docs/acceptance/m5-release-audit-artifacts/` 中唯一 receipt 及其 `--verify/--compare` 为准。
+
 2026-10-27，在干净的 `shu/installed-product@14aef92` 上完整执行 `tools/verify-m5.ps1`，退出码 `0`，终线为 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、18-crate graph、历史 97-kind strict prefix、workspace、fmt/check/strict Clippy、89 项 Python 门（1 项因本机 symlink 权限不足跳过）、M3/M4/M5 goldens、完整默认合规，以及当前 M5 release receipt 的生成、独立验证和仓库比较均通过。8 个发布审计检查通过，当前回执为 `sha256:fa4d2ae80e31fdf41d9677a4dff81c556e2b1fa522800d93cee65e5b0ab2bb8f`；日志 `target/installed-file-worker-evidence/final-m5.log`。上文旧快照不因本次结果而改写。
 
 同一源码随后显式复跑 closure A、B、C 和 D runtime-only，命名场景实际执行数分别为 `47/47`、`50/50`、`36/36`、`71/71`，全部 PASS；18-crate/99-kind 当前 V1 契约检查通过。A/B/C 当前源码 runtime 回执及 D runtime-only 回执保存在同一 evidence 目录。D 使用 `-RuntimeOnly`，没有重新调用真实 Provider，故不声称新的 C24 live、D/Final 或 IP 产品验收通过。
