@@ -14,6 +14,7 @@ try {
         "web_configuration_rejects_plaintext_lan_and_malformed_secret_bodies_are_not_echoed",
         "web_cancelled_request_keeps_password_capacity_until_real_work_finishes",
         "web_idle_socket_capacity_is_bounded_and_recovers_when_a_connection_closes",
+        "backup_verification::offline_verification_requires_authenticated_owner_and_csrf_before_configuration_io",
         "proposals::web_unknown_proposal_preserves_exact_command_and_only_explicit_verification_forwards"
     )
     $ErrorActionPreference = "Continue"

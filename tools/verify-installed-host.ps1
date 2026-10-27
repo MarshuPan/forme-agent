@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 . (Join-Path $PSScriptRoot 'build-resources.ps1')
+$isWindowsHost = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
 Push-Location $repoRoot
 try {
     function Invoke-NamedTest {
@@ -288,7 +289,7 @@ try {
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "result_handoff_orders_manifest_cleanup_receipt_and_never_retries_failed_cleanup"
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "cancel_result_cleanup_failure_stays_unknown_without_repeating_cleanup"
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "cancellation_seals_existing_source_without_fabricating_completion"
-    if ($IsWindows) {
+    if ($isWindowsHost) {
         Invoke-NamedTest "forme-execution" @("--lib") "installed::windows_appcontainer::results::tests::unsealed_or_changed_handoff_preserves_source_and_blocks_cleanup"
         Invoke-NamedTest "forme-execution" @("--lib") "installed::windows_agent_execution_native::tests::occupied_host_pipe_rejects_before_any_credential_or_job_byte"
     }
