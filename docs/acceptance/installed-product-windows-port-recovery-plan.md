@@ -98,3 +98,9 @@ owner 明确批准后执行一次纯启动。Host 的结构化结果为 `start_i
 | 真实浏览器 | 实际打开初始化页面，显示本机一次性证明输入；资源/交互界面已渲染。未提交表单或输入凭证。 |
 
 无凭证截图保存在本地 `target/installed-file-worker-evidence/native-initialization-18765.png`。此处只关闭“旧安装端口修复后 Host/Web 能启动且初始化可见”这一诊断问题；认领、真实 provider/worker、注销/冷启动、升级/卸载、签名和完整 IP01–IP24 继续分别验收。
+
+## 9. 后续初始化与重复启动边界
+
+浏览器曾用本地验收目录中已过期的一次性证明提交 `bootstrap/prove`；服务返回“验证已过期”，没有创建 setup session、owner 账号或任何 brain 数据。该结果证明过期证明会被拒绝，不构成认领失败或成功。
+
+随后按 owner 批准再次调用 `native-post-port-start.ps1 -StartServices`。脚本在 CreateNew 证据阶段发现既有 `native-post-port-start.started` / `native-post-port-start.json`，立即停止；没有覆盖原报告、修改配置/ACL/程序或发出新的 SCM Start。之后尝试用固定本机脚本重新签发短时证明时，管理员 UAC 操作被取消，未产生新的证明。当前服务状态仍由 §8 证据和只读 OS 观察定义；owner claim、真实 provider 和 Brain 启动未执行。
