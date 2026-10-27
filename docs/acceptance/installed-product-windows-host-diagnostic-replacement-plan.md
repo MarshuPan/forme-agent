@@ -34,3 +34,5 @@
 脚本在 Windows PowerShell 5.1 与 PowerShell 7 完成语法解析及**独立临时目录**夹具：原子替换、原 ACL 保留、备份/数据字节保留、备份覆盖拒绝均通过。夹具曾发现 PowerShell 将 `$null` 转为非法空路径，已改为明确的 `[NullString]::Value` 并在两种 PowerShell 复验通过。
 
 这些是脚本准备证据；真正安装目录的管理员预检、替换和服务启动仍为 NOT_RUN。默认不带 `-Apply` 时仅只读核对，不创建备份、替换文件、启动服务或写结果报告。批准必须覆盖本表脚本摘要及本节边界，不能由 UAC 出现或工具可运行推定批准。
+
+2026-10-27 12:40:38（Asia/Shanghai）曾在当前交互 PowerShell 以默认只读模式运行该脚本。当前进程不是管理员，预检在管理员读取权限检查处安全停止；输出为 `failed_preserved`、`failure_stage=preflight`、`start_requests=[]`、`replaced_host=false`、`backup_verified=false`。四个服务仍为 Stopped，安装程序、配置、密钥、备份和 Host 文件均未改变。该结果只证明当前 shell 没有执行替换所需的权限，不构成替换失败、Host 根因结论或 IP 验收结果。

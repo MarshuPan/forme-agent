@@ -52,3 +52,5 @@ owner 随后明确批准 `native-host-start-observer.ps1 -StartServices`。实�
 后续当前只读查询仍为四服务全部 Stopped。这次批准的启动已经执行完毕，不能重复使用该批准再次 Start。旧二进制没有新阶段诊断，退出 1 仍不足以判断具体失败模块；待审的[Host 开发诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)只准备了候选、原件备份与一次启动的具体路径，尚未执行。
 
 后续源码组件回归另见[已提交发布补开放修复报告](installed-product-updater-admission-20261027.md)：`0afe809` 修复大型文件复核耗尽 live-proof 窗口的问题，Host 门与完整源码质量门通过。这不是旧安装启动失败的根因结论，也没有更新安装中的二进制；原安装仍保留失败状态。
+
+随后对[Host 诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)执行了一次默认只读预检。当前交互 PowerShell 不是管理员，脚本在管理员读取权限检查处停止；没有写安装目录、替换 Host、创建备份或启动服务。该预检不消耗替换授权，后续 `-Apply` 仍须单独批准。
