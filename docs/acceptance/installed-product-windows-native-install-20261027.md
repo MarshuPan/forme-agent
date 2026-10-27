@@ -17,7 +17,7 @@
 | 安装器退出缺陷 | 原候选的 post-install 异常仍返回 0，不能把它解释成安装成功。源码新增完整阶段成功标记与自定义退出码，并用真实 Inno 夹具验证失败退出 1、成功退出 0。 |
 | 限定恢复 | 原配置/密钥及程序摘要、服务原绑定/停止状态预检通过；修正后的 34 项矩阵 Grant、Verify 均通过。Start 阶段 Host 退出 1，Web/Brain/updater 未启动。恢复脚本返回 1，后续停止。 |
 | OS 有限恢复 | SCM 独自按 5/30/120 秒尝试后停止。系统事件记录第 4 次停止；没有添加应用重试循环。 |
-| 后续只读核验 | 四服务均 Stopped、PID 0；原配置/密钥文件逐一摘要仍等于首装诊断基线。Host 已创建 bootstrap/host/worker journal 和 sandbox lease 文件，未认领、未启动 Brain、未接入真实模型。 |
+| 该阶段只读核验 | 四服务均 Stopped、PID 0；原配置/密钥文件逐一摘要仍等于首装诊断基线。Host 已创建 bootstrap/host/worker journal 和 sandbox lease 文件，未认领、未启动 Brain、未接入真实模型。后续端口修复和 Host/Web 启动证据见文末。 |
 
 恢复 JSON 的 `original_files_unchanged=false` 是成功收尾字段没有赋值，不能据此推断原文件改变；后续逐文件只读核验已单独证明配置/密钥原字节保持。失败结果原样保留，不改写原回执。
 
@@ -27,7 +27,7 @@
 
 真实安装还暴露两处测试/入口问题：纯 registration 测试不应检查机器上的真实受保护安装，已换为独立临时路径；前台 managed Host 测试曾依赖全机没有 Brain Service SID 才退出。正式入口现提前拒绝非 SCM 的 `--config`，增加零 journal 断言；前台开发仍须显式 `--development-config`。
 
-正式服务另有脱敏的阶段诊断，用于定位此后启动/运行失败；当前安装仍是原候选字节，没有把源码修复静默覆盖到安装中。原 Host 服务失败的精确原因尚未闭合，不按猜测放宽身份、路径、恢复或沙箱检查。
+正式服务另有脱敏的阶段诊断，用于定位当时的启动/运行失败；在该阶段安装仍是原候选字节，没有把源码修复静默覆盖到安装中。后续端口修复已按独立批准执行并单独留存证据，不改写本节历史结果。
 
 专项证据目录为 `target/installed-file-worker-evidence`：
 
@@ -41,7 +41,7 @@
 
 ## 仍开放
 
-Host 正式启动、Web 初始化、独立测试 owner 认领、真实 provider/worker、注销/冷启动、原生升级/恢复/卸载均未因此通过。IP01 的正式签名、IP11 helper、跨平台与完整 IP24 继续开放；Linux/macOS 保持既定不发布边界。
+在本报告前半段记录的失败阶段，Host 正式启动、Web 初始化、独立测试 owner 认领、真实 provider/worker、注销/冷启动、原生升级/恢复/卸载均未通过。文末已补充 Host/Web 的成功启动与初始化页证据；owner claim、真实 provider/worker、IP01 的正式签名、IP11 helper、跨平台与完整 IP24 仍开放，Linux/macOS 保持既定不发布边界。
 
 后续重试、替换安装程序或移除服务/目录必须遵守原生计划 §3 的具体恢复确认；不可重新跑首装安装器，也不可用新代码测试通过宣称旧安装已经修复。
 
@@ -49,7 +49,7 @@ Host 正式启动、Web 初始化、独立测试 owner 认领、真实 provider/
 
 owner 随后明确批准 `native-host-start-observer.ps1 -StartServices`。实际证据 `target/installed-file-worker-evidence/native-host-observed-start.json` 记录：2026-10-27 03:29:36–03:29:38 UTC 只请求启动 `forme-host` 一次，随后观察到 Stopped、PID 0、Win32 exit 1；Host 未稳定，故没有请求启动 Web，Brain/updater 也没有启动。原配置/密钥和程序逐文件摘要核对通过，报告为 `failed_preserved`。
 
-后续当前只读查询仍为四服务全部 Stopped。这次批准的启动已经执行完毕，不能重复使用该批准再次 Start。旧二进制没有新阶段诊断，退出 1 仍不足以判断具体失败模块；待审的[Host 开发诊断替换计划](installed-product-windows-host-diagnostic-replacement-plan.md)只准备了候选、原件备份与一次启动的具体路径，尚未执行。
+该次 observer 结束时的只读查询为四服务全部 Stopped。这次批准的启动已经执行完毕，不能重复使用该批准再次 Start。旧二进制没有新阶段诊断，退出 1 仍不足以判断具体失败模块；随后已按独立批准完成端口修复和 Host/Web 启动，相关新证据不改写本段 observer 结果。
 
 后续源码组件回归另见[已提交发布补开放修复报告](installed-product-updater-admission-20261027.md)：`0afe809` 修复大型文件复核耗尽 live-proof 窗口的问题，Host 门与完整源码质量门通过。这不是旧安装启动失败的根因结论，也没有更新安装中的二进制；原安装仍保留失败状态。
 
@@ -61,19 +61,19 @@ owner 随后明确批准 `native-host-start-observer.ps1 -StartServices`。实�
 
 owner 随后明确批准执行一次 `native-host-diagnostic-replacement.ps1 -Apply`。原 Host 备份、候选摘要核对和唯一 Host 文件原子替换均成功；配置、密钥、其他程序、服务绑定和原始数据保持不变。新 Host 只请求启动一次，随后在 `management_endpoints` 阶段失败，Host 回到 `Stopped`、PID `0`、退出码 `1`；Web 未请求，Brain/updater 未启动，四服务最终均为 `Stopped`。失败现场未自动回滚或重试，证据为 `target/installed-file-worker-evidence/native-host-diagnostic-replacement.json`。
 
-根因已由脱敏诊断和本机只读 OS 核对闭合：Windows 动态 TCP 排除范围为 `8730–8829`，覆盖旧安装配置的内部 Host `8766`、Configuration `8768` 和预留 Agent `8767`，所以 Host 的管理端点无法绑定。源码已修复为安装准备阶段探测可绑定的内部 loopback 端口并将同一结果写入 Host/Web/Core 配置；当前已安装实例仍保持失败诊断状态，修复尚未写入该实例。该结果不提升任何 IP01–IP24 状态。
+根因已由脱敏诊断和本机只读 OS 核对闭合：Windows 动态 TCP 排除范围为 `8730–8829`，覆盖旧安装配置的内部 Host `8766`、Configuration `8768` 和预留 Agent `8767`，所以 Host 的管理端点无法绑定。源码已修复为安装准备阶段探测可绑定的内部 loopback 端口并将同一结果写入 Host/Web/Core 配置；在端口恢复执行前该修复尚未写入已安装实例，之后的恢复与启动结果见本报告末段。该结果不提升任何 IP01–IP24 状态。
 
-进一步独立 bind 核验确认公共 Web `8765` 同样返回 `10013`，而 `18765–18769` 均可绑定。已准备[四文件十个端口值的限定恢复计划](installed-product-windows-port-recovery-plan.md)，管理员只读预检退出 `0`，安装全域快照 66 项、原保护文件保持、零启动请求。主脚本和原子替换函数已固定摘要，PowerShell 5.1/7 的临时夹具各 23 项断言通过；恢复 Apply 尚未执行，四服务仍停止，不复用先前一次诊断替换批准。
+进一步独立 bind 核验确认公共 Web `8765` 同样返回 `10013`，而 `18765–18769` 均可绑定。随后执行了[四文件十个端口值的限定恢复计划](installed-product-windows-port-recovery-plan.md)：管理员只读预检和 V2 保护校验通过，主脚本和原子替换函数的 PowerShell 5.1/7 临时夹具各 23 项断言通过；Apply 及后续 Host/Web 启动结果见本报告末段。
 
 ## 端口恢复的一次执行与保护 ACL 修正
 
 owner 随后明确批准一次 `native-internal-port-recovery.ps1 -Apply`。该次已执行并退出 `1`，阶段为 `replace_config`：第一份空 staging 未获得与原配置完全相同的受保护 DACL，校验拦截，`changed_files=[]`、`start_requests=[]`；四原件备份已核对成功。没有执行任何配置原子替换或服务 Start。
 
-管理员独立只读诊断 `native-port-recovery-acl-diagnosis.json` 返回 `originals_verified_staging_preserved`：原配置、既有数据/密钥、六程序和四备份摘要保持；brain/default workspace 为空；仅留下 `host.json.internal-port-recovery.tmp` 零字节文件，原件和失败现场均保留。四个服务仍为 Stopped、PID 0。不能仅凭原报告未赋成功值的 `protected_files_unchanged=false` 推断原文件改变。
+管理员独立只读诊断 `native-port-recovery-acl-diagnosis.json` 返回 `originals_verified_staging_preserved`：原配置、既有数据/密钥、六程序和四备份摘要保持；brain/default workspace 为空；仅留下 `host.json.internal-port-recovery.tmp` 零字节文件，原件和失败现场均保留。该诊断完成时四个服务为 Stopped、PID 0。不能仅凭原报告未赋成功值的 `protected_files_unchanged=false` 推断原文件改变。
 
 根因是磁盘读取的 ACL 对象没有修改标记，传给 SetAccessControl 后新文件仍使用继承 DACL。随后准备从原 SDDL 新建安全描述符的 V2，只在新 staging 写入并精确复核 owner/group/DACL；不放宽原安装权限，不删除旧 staging。管理员 PowerShell 5.1/7 保护 ACL 夹具各 30 项通过，V2 只读预检退出 `0`、全域 67 项快照、零配置/启动变化。具体摘要及后续实际结果见[恢复计划 §6](installed-product-windows-port-recovery-plan.md#6-v2-恢复与实际结果)。预检不等于 Apply 或 IP01–IP24 通过。
 
-owner 随后另行批准并执行一次 V2。四配置的十值修改及启动前全域复核成功；脚本在唯一 Host 启动尝试处退出 `1`，Web 未尝试。管理员独立只读确认四新摘要与原 ACL 相符，其他数据/密钥、六程序、两套备份和旧 staging 均保持，四服务仍停止。旧 Host 诊断时间 `05:02:32 UTC` 早于此次 `08:30:32 UTC`，不是新的失败证据。
+owner 随后另行批准并执行一次 V2。四配置的十值修改及启动前全域复核成功；脚本在唯一 Host 启动尝试处退出 `1`，Web 未尝试。管理员独立只读确认四新摘要与原 ACL 相符，其他数据/密钥、六程序、两套备份和旧 staging 均保持；该次失败收尾时四服务仍停止。旧 Host 诊断时间 `05:02:32 UTC` 早于此次 `08:30:32 UTC`，不是新的失败证据。
 
 只读复现证明 PowerShell 5.1 的新 Job 缺少 ServiceController 程序集，构造控制器前报 TypeNotFound；原脚本在发 Job 前记的 start_requests 只能证明尝试，不能证明 SCM 接受。已准备显式加载程序集、保存子进程结构化结果的纯启动脚本；两种 PowerShell 各 9 项零 Start 观察断言和管理员只读预检通过，不再写配置。新的准确路径/摘要及限定一次启动待确认，见[恢复计划 §7](installed-product-windows-port-recovery-plan.md#7-已批准的纯启动修正)。不重复 V2、不删除失败现场，不提升 IP01–IP24。
 

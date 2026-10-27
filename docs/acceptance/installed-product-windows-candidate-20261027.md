@@ -2,7 +2,7 @@
 
 2026-10-27，`shu/installed-product` 的实现源码为 `7cb5b8bee988bdc899e9e99110908c904fdebc12`。构建期间只有验收文档和待审设计草案编辑，没有编译输入变更。该候选包含真实有限文件 worker、离线备份核验与活动发布的程序绑定；不是安装或 IP01–IP24 PASS 报告。
 
-后续状态：同日已获 owner 批准实际运行此候选及一次限定恢复，均在失败后保留现场；当前目录与四个 SCM 注册已存在，服务停止。详见[原生安装实测](installed-product-windows-native-install-20261027.md)。下表及“未完成的原生证据”保留本次构建时状态；原构建回执不因后续安装尝试而重写。
+后续状态：同日已获 owner 批准实际运行此候选及一次限定恢复，均在失败后保留现场；随后端口恢复和 Host/Web 启动已由独立证据记录，当前 Host/Web Running、Brain/updater Stopped，服务仍未认领。详见[原生安装实测](installed-product-windows-native-install-20261027.md)。下表及“未完成的原生证据”保留本次构建时状态；原构建回执不因后续安装尝试而重写。
 
 ## 构建和独立核对
 
