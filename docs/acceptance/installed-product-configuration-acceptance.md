@@ -10,7 +10,7 @@
 |---|---|
 | `verify-product-configuration.ps1` | PASS：配置/激活 62 个 Rust 场景、网络 4 个、脑偏好 3 个、managed skills 2 个，并成功构建正式 binary；组件状态通过。 |
 | 受管 Host/Web/core 进程桥 | `NOT_RUN`：当前 Windows 没有 `NT SERVICE\\forme-brain` Service SID，脚本按 fail-closed 契约不伪造或绕过 SCM 身份。 |
-| `verify-web-identity.ps1` / `verify-web-ingress.ps1` | PASS：25/25、10/10 命名场景；原生服务、真实 provider 与 IP01–IP24 仍为 `NOT_RUN`。 |
+| `verify-web-identity.ps1` / `verify-web-ingress.ps1` | PASS：25/25、11/11 命名场景；原生服务、真实 provider 与 IP01–IP24 仍为 `NOT_RUN`。 |
 | `verify-workbench-correction.ps1` | PASS：原子纠正、正式桥接组件与认证测试通过；安装 daemon 重启进程证据为 `NOT_RUN`。 |
 
 因此，本报告当前可证明的是配置/认证/网络/纠正组件契约，而不是已注册的 Windows 服务、真实服务身份下的跨进程链路或完整安装产品。测试 fixture 的 Windows brain image 现依据安装清单的 `manifest.paths.releases/bin` 创建，避免把 fixture 写入错误的目录；该修复不构成原生安装证据。为使 fixture 复用正式 HostServiceConfig schema 而不伪造服务身份，仓库 fixture 对 `forme-hostd` 显式使用 `--development-config`；正式 `--config` 仍要求受管 SCM/Service SID 绑定并在缺失时 fail closed。
@@ -38,7 +38,7 @@
 | `pwsh -File tools/verify-product-configuration.ps1` | **历史记录**：PASS。精确执行 16 个配置/激活 Rust 测试，构建四个正式 binary，并执行 1 个实际 host/web/core 进程综合场景。服务管理动作的计数由受控 adapter 验证；当前重跑结果见 §0。 |
 | `pwsh -File tools/verify-installed-host.ps1` | PASS，70 个命名场景；包含宿主、worker 控制面与受控停止组件，不是原生安装验收。 |
 | `pwsh -File tools/verify-web-identity.ps1` | **历史记录**：PASS，18 个命名测试；当前已扩展为 25 个，结果见 §0。 |
-| `pwsh -File tools/verify-web-ingress.ps1` | **历史记录**：PASS，8 个命名场景及实际 webd 空环境/kill/restart/独立认证库 smoke；当前已扩展为 10 个，结果见 §0。 |
+| `pwsh -File tools/verify-web-ingress.ps1` | **历史记录**：PASS，8 个命名场景及实际 webd 空环境/kill/restart/独立认证库 smoke；当前已扩展为 11 个，结果见 §0。 |
 | `pwsh -File tools/verify-web-workbench.ps1` | PASS，8 个命名场景，使用计数模型 fixture。 |
 | `pwsh -File tools/verify-core-brain-workspace-contract.ps1` | PASS。冻结 crate 图、精确依赖版本、97-kind strict prefix 与仅两个 additive 事件保持。 |
 | `bash tools/compliance-doctor.sh` | 按默认参数另跑 PASS，未借 `AllowMissingCorpus` 代替本地完整合规检查。 |

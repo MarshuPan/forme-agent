@@ -28,7 +28,7 @@
 | `bash tools/compliance-doctor.sh` | PASS；未修改 copy detection 或扩大许可白名单 |
 | `py -3 tools/code-quality.py` | PASS；337 个源文件，66 处历史规模债务 |
 | `tools/verify-web-identity.ps1` | 14 个命名测试真实执行，0 ignored |
-| `tools/verify-web-ingress.ps1` | 8 个命名 HTTP/TCP 测试真实执行，0 ignored |
+| `tools/verify-web-ingress.ps1` | 11 个命名 HTTP/TCP 测试真实执行，0 ignored |
 | `tools/verify-web-process.ps1` | 真实 bin、空环境启动、最小状态读取、强制停止后原目录重启均 PASS |
 | `git diff --check` | PASS |
 
