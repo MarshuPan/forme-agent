@@ -56,7 +56,7 @@ export function Entry({ api, unclaimed, authenticated }: Props) {
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-button" disabled={busy || (proved && !candidate?.available)}>{busy ? '正在确认…' : unclaimed ? proved ? '完成认领' : '验证本机证明' : '登录'}</button>
       </form>
-      <p className="entry-footnote">账号只用于访问这台 forme。登录不会改变任务权限。</p>
+      <p className="entry-footnote">登录即进入这台 forme 的 SuperAdmin 控制面，拥有产品设置、项目、维护与数据管理权限；Agent 的具体执行仍受既定治理约束。</p>
     </section>
   </main>;
 }
