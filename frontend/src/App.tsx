@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, WorkbenchClient } from './api/client.ts';
-import type { RunSummary, RuntimeView, SessionResponse, SessionView, WorkbenchSessionRecord } from './types.ts';
+import type { HostStatus, RunSummary, RuntimeView, SessionResponse, SessionView, WorkbenchSessionRecord } from './types.ts';
 import { Entry } from './components/Entry.tsx';
 import { Conversation, statusLabel } from './components/Conversation.tsx';
 import { Settings } from './components/Views.tsx';
@@ -19,6 +19,7 @@ export function App() {
   const [entry, setEntry] = useState<'checking' | 'unclaimed' | 'login' | 'ready' | 'unavailable'>('checking');
   const [session, setSession] = useState<SessionView | null>(null);
   const [runtime, setRuntime] = useState<RuntimeView | null>(null);
+  const [productStatus, setProductStatus] = useState<HostStatus | null>(null);
   const [coreConnecting, setCoreConnecting] = useState(false);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [sessions, setSessions] = useState<WorkbenchSessionRecord[]>([]);
@@ -39,7 +40,7 @@ export function App() {
     coreProbe.current?.abort();
     coreProbe.current = null;
     if (notifyPeers) authSync.current?.notifyInvalidated();
-    setSession(null); setRuntime(null); setCoreConnecting(false); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setMenu(false); setEntry('login');
+    setSession(null); setRuntime(null); setProductStatus(null); setCoreConnecting(false); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setMenu(false); setEntry('login');
   }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns((current) => items.map((run) => current.find((item) => item.run === run.run && item.last_stream_seq > run.last_stream_seq) ?? run)); }, [api]);
@@ -51,9 +52,17 @@ export function App() {
     coreProbe.current = controller;
     setCoreConnecting(true);
     try {
+      try {
+        const status = await api.productStatus();
+        if (!controller.signal.aborted) setProductStatus(status);
+      } catch (problem) {
+        if (!controller.signal.aborted) setIssue(problem instanceof Error ? problem.message : '产品状态暂不可用。');
+      }
       const next = await waitForCoreReady(() => api.runtime(), { signal: controller.signal });
       if (controller.signal.aborted) return;
       setRuntime(next); setIssue('');
+      try { setProductStatus(await api.productStatus()); }
+      catch (problem) { if (!controller.signal.aborted) setIssue(problem instanceof Error ? problem.message : '产品状态暂不可用。'); }
       try { await Promise.all([refreshSessions(), refreshRuns()]); }
       catch (problem) { if (!controller.signal.aborted) setIssue(problem instanceof Error ? problem.message : '工作台历史暂不可用。'); }
     } catch (problem) {
@@ -137,9 +146,10 @@ export function App() {
 
   async function logout() { try { await api.logout(); clear(); } catch (problem) { setIssue(problem instanceof Error ? problem.message : '退出结果未确认。'); } }
   function open(run: string) { if (!conversationPending) setSelected(run); setTab('conversation'); setMenu(false); }
+  const serviceLabel = runtime ? '主脑已连接' : coreConnecting ? '主脑启动中' : productStatus ? productStatusLabel(productStatus) : '已登录 · 主脑离线';
 
   return <><a href="#main-content" className="skip-link">跳到主要内容</a><header className="topbar"><a className="brand" href="/" aria-label="forme 首页">forme<span className="brand-dot">.</span></a>
-    <span className="service-state"><i data-ready={Boolean(runtime)} />{entry === 'ready' ? runtime ? '主脑已连接' : coreConnecting ? '主脑启动中' : '已登录 · 主脑离线' : entry === 'checking' ? '连接本机服务' : '个人 Agent 工作台'}</span>
+    <span className="service-state"><i data-ready={Boolean(runtime)} />{entry === 'ready' ? serviceLabel : entry === 'checking' ? '连接本机服务' : '个人 Agent 工作台'}</span>
     {entry === 'ready' && <><button ref={mobileMenuButton} className="mobile-menu secondary-button" aria-expanded={menu} aria-controls="main-navigation" onClick={() => setMenu((v) => !v)}>{menu ? '关闭导航' : '导航'}</button><button className="text-button" onClick={() => void logout()}>退出登录</button></>}
   </header>
     {['unclaimed', 'login'].includes(entry) && <Entry key={entry} api={api} unclaimed={entry === 'unclaimed'} authenticated={authenticated} />}
@@ -157,4 +167,15 @@ export function App() {
       {tab === 'settings' && <Settings api={api} runtime={runtime} issue={issue} refresh={() => void refreshCore()} signedOut={clear} materialTarget={materialTarget} consumeMaterialTarget={consumeMaterialTarget} />}
     </main></div>}
   </>;
+}
+
+function productStatusLabel(status: HostStatus): string {
+  switch (status.core_health) {
+    case 'unconfigured': return '主脑未配置';
+    case 'starting': return '主脑启动中';
+    case 'stopped': return '主脑已停止';
+    case 'ready': return '主脑正在接入';
+    case 'degraded': return '主脑受限';
+    case 'unreachable': return '主脑不可达';
+  }
 }
