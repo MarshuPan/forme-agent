@@ -278,7 +278,14 @@ fn run_host(
     if has_configuration {
         // Configuration and AgentExecution listeners are ready before the
         // Host asks the native manager to restore the Brain service.
-        broker.reconcile_core_startup()?;
+        match broker.reconcile_core_startup() {
+            Ok(()) => {}
+            Err(_) => {
+                // Keep the Web maintenance surface available. The broker
+                // retains a fixed diagnostic reference and will not expose
+                // the core as Ready until the next successful reconciliation.
+            }
+        }
     }
     if announce {
         for endpoint in &endpoints {

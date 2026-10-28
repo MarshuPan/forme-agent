@@ -143,38 +143,6 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         Ok(response)
     }
 
-    /// Reconcile the Brain once after Host has restored its product state.
-    /// Service failures remain diagnosable through the normal status and
-    /// maintenance surfaces; startup must remain available for recovery.
-    pub fn reconcile_core_startup(&self) -> p::Result<()> {
-        let store = self
-            .product_config
-            .as_ref()
-            .ok_or_else(configuration_unavailable)?;
-        let view = store
-            .lock()
-            .map_err(|_| configuration_unavailable())?
-            .snapshot()?;
-        let Some(owner) = view.owner.as_ref() else {
-            return Ok(());
-        };
-        if !view.configured || view.active_revision == 0 {
-            return Ok(());
-        }
-        let Some(bearer) = self.web_configuration_bearer.as_deref() else {
-            return Ok(());
-        };
-        let auth = self.authenticate_web_configuration(bearer)?;
-        let _ = self.reconcile_core(
-            &auth,
-            owner,
-            view.active_revision,
-            view.pending_restart,
-            current_timestamp()?,
-        );
-        Ok(())
-    }
-
     pub fn bind_configuration_owner(
         &self,
         auth: &HostAuth,
@@ -386,7 +354,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         if !configured || revision == 0 {
             return Ok(None);
         }
-        self.reconcile_core(auth, owner, revision, pending_restart, current_timestamp()?)
+        let result =
+            self.reconcile_core(auth, owner, revision, pending_restart, current_timestamp()?);
+        self.mark_startup_reconciliation_failed(result.is_err());
+        result
     }
 
     fn reconcile_core_after_configuration_v2(
@@ -423,7 +394,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         }))
     }
 
-    fn reconcile_core(
+    pub(super) fn reconcile_core(
         &self,
         auth: &HostAuth,
         owner: &p::OwnerPrincipalRef,
@@ -449,6 +420,13 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             _ => return Ok(None),
         };
         let operation_id = self.automatic_core_operation_id(revision, action)?;
+        if self.has_automatic_operation(revision, action)? {
+            // The original automatic operation owns the service effect and
+            // its receipt, including an unresolved outcome. Rebuilding the
+            // request with a new deadline would be a different command and
+            // could duplicate an external service transition.
+            return Ok(None);
+        }
         let request = p::ProductCoreActivation {
             schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
             operation_id,
@@ -582,11 +560,11 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
     }
 }
 
-fn configuration_unavailable() -> p::Error {
+pub(super) fn configuration_unavailable() -> p::Error {
     p::Error("managed product configuration is unavailable".into())
 }
 
-fn current_timestamp() -> p::Result<p::Timestamp> {
+pub(super) fn current_timestamp() -> p::Result<p::Timestamp> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()

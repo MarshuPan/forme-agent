@@ -358,8 +358,43 @@ fn automatic_reconciliation_failure_is_visible_without_losing_saved_configuratio
 
     // Startup recovery remains available to the Host; an unavailable service
     // manager is observed and reported, never converted into a blind action.
-    host.reconcile_core_startup().unwrap();
+    assert!(host.reconcile_core_startup().is_err());
     assert!(services.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn running_brain_is_starting_until_current_configuration_is_acknowledged() {
+    let (directory, _path, store) = fixture();
+    let config = Arc::new(store);
+    let host = broker(directory.path(), config, Services::default());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+
+    host.apply_configuration(&auth, patch("save:readiness", 0))
+        .unwrap();
+
+    let status_auth = host.authenticate(ADMIN).unwrap();
+    assert_eq!(
+        host.status(&status_auth).unwrap().core_health,
+        p::CoreHealth::Starting
+    );
+
+    let acknowledgement = p::ProductConfigAcknowledgement {
+        schema_version: p::SchemaVersion(1),
+        install_ref: "install:config-test".into(),
+        revision: 1,
+        data_identity: None,
+    };
+    let acknowledgement_path = directory.path().join("config/ack.json");
+    storage::publish(
+        &acknowledgement_path,
+        &storage::encode(&acknowledgement).unwrap(),
+    )
+    .unwrap();
+
+    let status = host.status(&status_auth).unwrap();
+    assert_eq!(status.core_health, p::CoreHealth::Ready);
+    assert_eq!(status.product_state, p::ProductState::Ready);
+    assert_eq!(status.acknowledged_config_revision, Some(1));
 }
 
 #[test]
