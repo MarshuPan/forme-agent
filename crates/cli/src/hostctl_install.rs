@@ -18,7 +18,7 @@ use forme_protocol as p;
 
 use hostctl_install_filesystem::*;
 
-const WEB_BIND: &str = "127.0.0.1:8765";
+const WEB_BIND: &str = p::DEFAULT_WEB_BIND;
 const INTERNAL_PORT_START: u16 = 18_766;
 const INTERNAL_PORT_END: u16 = 29_999;
 

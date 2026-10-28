@@ -1,6 +1,6 @@
 //! Managed Web-process configuration. No brain/model configuration is loaded.
 use std::io::Read;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::path::{Component, Path, PathBuf};
 
 use ed25519_dalek::VerifyingKey;
@@ -58,7 +58,7 @@ pub struct WebCoreBridgeConfig {
 }
 
 fn default_bind() -> SocketAddr {
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8765)
+    p::DEFAULT_WEB_BIND.parse().expect("valid default Web bind")
 }
 
 impl WebServerConfig {

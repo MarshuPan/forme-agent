@@ -39,7 +39,7 @@ const config: ProductConfigView = { schema_version: 1, configured: true, install
   active_revision: 7, acknowledged_revision: 7, owner: 'owner:fixture', pending_restart: false, models: [], issue_refs: [],
   brain_source: 'installation_template', brain: { schema_version: 1, default_workspace: 'workspace:default',
     model_routing: { schema_version: 1, foreground: null, cognition: null } },
-  network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null },
+  network: { schema_version: 1, bind: '127.0.0.1:18765', allowed_hosts: [], tls: null, firewall: null },
   network_active: true, network_source: 'installation_template',
   proxy: { schema_version: 1, mode: 'direct', endpoint_configured: false }, proxy_source: 'installation_template' };
 const snapshot: MaintenanceSnapshot = { schema_version: 1, product_revision: 31, owner: 'owner:fixture',

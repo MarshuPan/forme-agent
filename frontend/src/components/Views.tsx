@@ -190,7 +190,7 @@ function ProxySettings({ mode, endpoint, endpointConfigured, disabled, onChange 
 }
 
 function loopbackNetwork(): ProductNetworkConfig {
-  return { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null };
+  return { schema_version: 1, bind: '127.0.0.1:18765', allowed_hosts: [], tls: null, firewall: null };
 }
 
 function NetworkSettings({ value, active, disabled, onChange }: { value: ProductNetworkConfig; active: boolean; disabled: boolean; onChange: (value: ProductNetworkConfig) => void }) {
@@ -206,8 +206,8 @@ function NetworkSettings({ value, active, disabled, onChange }: { value: Product
     <p className="muted">默认只监听本机。启用 LAN 时必须使用明确的 IP、HTTPS、精确 Host（含端口）和已验证防火墙规则；保存后还要单独应用。规则由管理员预先配置，ForMe 不自动修改防火墙。</p>
     <p className={active ? 'status-pill' : 'notice'}>{active ? '当前网络配置已发布，监听与连通状态需另行核实' : '网络配置已保存，尚未发布'}</p>
     <div className="form-grid">
-      <label>监听地址<input value={value.bind} onChange={(event) => update({ bind: event.target.value, ...(isLoopback(event.target.value) ? { firewall: null } : {}) })} required disabled={disabled} placeholder="127.0.0.1:8765" /></label>
-      <label className="wide-field">允许的 Host（每行一个，必须含端口）<textarea value={hosts} onChange={(event) => update({ allowed_hosts: event.target.value.split(/[,\n]/).map((host) => host.trim()).filter(Boolean) })} disabled={disabled} placeholder={lan ? '192.168.1.20:8765' : '留空表示本机 HTTP'} rows={2} /></label>
+      <label>监听地址<input value={value.bind} onChange={(event) => update({ bind: event.target.value, ...(isLoopback(event.target.value) ? { firewall: null } : {}) })} required disabled={disabled} placeholder="127.0.0.1:18765" /></label>
+      <label className="wide-field">允许的 Host（每行一个，必须含端口）<textarea value={hosts} onChange={(event) => update({ allowed_hosts: event.target.value.split(/[,\n]/).map((host) => host.trim()).filter(Boolean) })} disabled={disabled} placeholder={lan ? '192.168.1.20:18765' : '留空表示本机 HTTP'} rows={2} /></label>
     </div>
     <label className="checkbox-label"><input type="checkbox" checked={value.tls !== null} onChange={(event) => updateTls(event.target.checked)} disabled={disabled} />启用 HTTPS（LAN 必须启用）</label>
     {value.tls && <p className={value.tls.material_configured ? 'status-pill' : 'notice'}>

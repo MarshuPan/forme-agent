@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn loopback_is_safe_by_default() {
-        let network = ProductNetworkConfig::loopback("127.0.0.1:8765".parse().unwrap());
+        let network = ProductNetworkConfig::loopback(DEFAULT_WEB_BIND.parse().unwrap());
         assert!(network.validate().is_ok());
         assert!(network.validation_digest().is_ok());
     }

@@ -12,7 +12,7 @@ function view(): ProductConfigView {
       model_routing: { schema_version: 1, foreground: null, cognition: null } },
     brain_source: 'managed_configuration', capabilities: { schema_version: 1, skills: [] },
     capabilities_source: 'installation_template', issue_refs: [],
-    network: { schema_version: 1, bind: '127.0.0.1:8765', allowed_hosts: [], tls: null, firewall: null },
+    network: { schema_version: 1, bind: '127.0.0.1:18765', allowed_hosts: [], tls: null, firewall: null },
     network_active: true, network_source: 'installation_template',
     proxy: { schema_version: 1, mode: 'direct', endpoint_configured: false }, proxy_source: 'installation_template',
     availability: { schema_version: 1, features: settingFeatures.map((feature) => {
@@ -94,8 +94,8 @@ test('v2 network writes send only the managed material reference', async () => {
   });
   await api.saveProductConfig(0, patchFromDraft([emptyModel()]), 'settings:network', undefined, undefined, {
     ...view().network,
-    bind: '192.168.1.20:8765',
-    allowed_hosts: ['192.168.1.20:8765'],
+    bind: '192.168.1.20:18765',
+    allowed_hosts: ['192.168.1.20:18765'],
     tls: { schema_version: 1, material_ref: 'managed:web', material_configured: true },
     firewall: { schema_version: 1, rule_ref: 'firewall:forme-web-lan' },
   });

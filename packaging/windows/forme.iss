@@ -55,7 +55,7 @@ Name: "{commonappdata}\ForMe\backups"
 Name: "{commonappdata}\ForMe\workspaces"
 
 [Run]
-Filename: "http://127.0.0.1:8765"; Description: "Open forme"; Flags: shellexec postinstall skipifsilent runasoriginaluser
+Filename: "http://127.0.0.1:18765"; Description: "Open forme"; Flags: shellexec postinstall skipifsilent runasoriginaluser
 
 [Code]
 var
