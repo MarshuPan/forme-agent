@@ -4,7 +4,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use forme_protocol as p;
 
-use super::{HostAuth, HostCredentialDomain, NativeServiceManager, ProductHostBroker};
+use super::{
+    HostAuth, HostCredentialDomain, NativeServiceManager, ProductHostBroker,
+    ISSUE_CORE_RECONCILIATION_UNAVAILABLE,
+};
 
 impl<M: NativeServiceManager> ProductHostBroker<M> {
     pub(super) fn verify_web_configuration_auth(&self, auth: &HostAuth) -> p::Result<()> {
@@ -80,16 +83,19 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             store.apply(patch)?
         };
         let mut response = response;
-        response.core_activation = self
-            .reconcile_core_after_configuration(
-                auth,
-                response.view.owner.as_ref(),
-                response.view.active_revision,
-                response.view.configured,
-                response.view.pending_restart,
-            )
-            .ok()
-            .flatten();
+        match self.reconcile_core_after_configuration(
+            auth,
+            response.view.owner.as_ref(),
+            response.view.active_revision,
+            response.view.configured,
+            response.view.pending_restart,
+        ) {
+            Ok(activation) => response.core_activation = activation,
+            Err(_) => response
+                .view
+                .issue_refs
+                .push(ISSUE_CORE_RECONCILIATION_UNAVAILABLE.into()),
+        }
         Ok(response)
     }
 
@@ -121,16 +127,19 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             store.apply_settings_v2(patch)?
         };
         let mut response = response;
-        response.core_activation = self
-            .reconcile_core_after_configuration_v2(
-                auth,
-                response.view.owner.as_ref(),
-                response.view.active_revision,
-                response.view.configured,
-                response.view.pending_restart,
-            )
-            .ok()
-            .flatten();
+        match self.reconcile_core_after_configuration_v2(
+            auth,
+            response.view.owner.as_ref(),
+            response.view.active_revision,
+            response.view.configured,
+            response.view.pending_restart,
+        ) {
+            Ok(activation) => response.core_activation = activation,
+            Err(_) => response
+                .view
+                .issue_refs
+                .push(ISSUE_CORE_RECONCILIATION_UNAVAILABLE.into()),
+        }
         Ok(response)
     }
 
@@ -424,7 +433,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
     ) -> p::Result<Option<p::ProductCoreActivationResponse>> {
         let status = match self.services.inspect(p::BuiltinServiceId::Brain) {
             Ok(status) => status,
-            Err(_) => return Ok(None),
+            Err(_) => {
+                return Err(p::Error("core service status is unavailable".into()));
+            }
         };
         let action = match status.state {
             p::NativeServiceState::Stopped => p::ProductCoreAction::Start,

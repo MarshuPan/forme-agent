@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "7b74552b7e493821e764f196d6d83f9648199ffce9ab2b50e5b5cf626def3329",
+  "source_digest": "fc1b5c6b4f43b8a149082ac6b6dace252fa5c402a3b1fad79cc2c7860d778c8d",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,7 +20,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "4e517beeb2e293e1f561cf8cfb82c61b907eb028127bf213fdfe0f21d8f4c010"
+      "sha256": "035bef37f4ac16f2c33fa1d0db183c700be90b471c3c61eef24cec269bb63a4a"
     },
     {
       "path": "frontend/src/api/client.ts",
@@ -108,7 +108,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "27c33be76dd0d6ec709d4828dd611426daa4b224b935ed6a868e99103dec9a8a"
+      "sha256": "d0843b6432bb656c2e779f0215aaa380a84a137245adb7fb093223c5f1be8055"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -133,6 +133,10 @@
     {
       "path": "frontend/src/conversation.ts",
       "sha256": "c6492572a2a406f2669aea8abd1704f3b3e1849942b90550e86a19399237863c"
+    },
+    {
+      "path": "frontend/src/core-readiness.ts",
+      "sha256": "ef02989d2001a742994ecd2062e1d7c47c986abffda2d96a1ffb0a40c82b0631"
     },
     {
       "path": "frontend/src/correction.ts",
@@ -219,6 +223,10 @@
       "sha256": "4cff7c406720b4af690e33989b61732d2b476203b819e1b547e53602ee7089bc"
     },
     {
+      "path": "frontend/src/tests/core-readiness.test.ts",
+      "sha256": "e5814ecb9a7517002f0c64c389a4504be997ba02fffe7eee1ba95a4896dde01b"
+    },
+    {
       "path": "frontend/src/tests/correction.test.ts",
       "sha256": "ba74676062a2b164d3d07def2c1063e4c867acca12d55606ffd255596013f672"
     },
@@ -294,9 +302,9 @@
       "bytes": 14769
     },
     {
-      "path": "assets/index-Df2Ec-F4.js",
-      "sha256": "381a16e743e53a256861d122868c2c7b77e01c53fe5aa6919ae3096b28395bb8",
-      "bytes": 372191
+      "path": "assets/index-Dtud4Ho2.js",
+      "sha256": "e44bbc86f4acaf84819aefc7930d98084fffe3057258edc52eb7bca78e456ea0",
+      "bytes": 373929
     },
     {
       "path": "dependencies.json",
@@ -310,7 +318,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "4b030be77f2df354ff91d0f0312907f7159610042d423a113a1a9caa9a86da63",
+      "sha256": "2cac13e9dc9bba8a5b99cbcf1301ab056de13f044ceaab63d5ae59cdc37f81c8",
       "bytes": 595
     },
     {

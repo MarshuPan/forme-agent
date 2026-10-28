@@ -62,7 +62,7 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
     <div className="settings-grid"><article className="surface"><h2>产品服务</h2>
       {productStatusLoading && <p className="loading" role="status">正在读取产品状态…</p>}
       {productStatusError && <p className="form-error" role="alert">{productStatusError}</p>}
-      {productStatus && <><p className="status-pill">{productStateLabel(productStatus.product_state)} · {coreHealthLabel(productStatus.core_health)}</p><dl><div><dt>当前版本</dt><dd>{productStatus.active_release}</dd></div><div><dt>配置版本</dt><dd>{productStatus.active_config_revision} · 主脑确认 {productStatus.acknowledged_config_revision ?? '无'}</dd></div><div><dt>可用维护操作</dt><dd>{productStatus.allowed_operations.length} 项</dd></div></dl>{productStatus.issue_refs.length > 0 && <p className="notice">存在待处理状态：{productStatus.issue_refs.join('、')}</p>}</>}
+      {productStatus && <><p className="status-pill">{productStateLabel(productStatus.product_state)} · {coreHealthLabel(productStatus.core_health)}</p><dl><div><dt>当前版本</dt><dd>{productStatus.active_release}</dd></div><div><dt>配置版本</dt><dd>{productStatus.active_config_revision} · 主脑确认 {productStatus.acknowledged_config_revision ?? '无'}</dd></div><div><dt>可用维护操作</dt><dd>{productStatus.allowed_operations.length} 项</dd></div></dl>{productStatus.issue_refs.length > 0 && <p className="notice">存在待处理状态：{productStatus.issue_refs.map(issueRefLabel).join('、')}</p>}</>}
       <h2>主脑服务</h2><p className="status-pill">{runtime ? '已连接正式运行时' : '主脑不可用'}</p><p className="muted">{issue || '页面与已授权后台任务分别运行。'}</p>
       {runtime && <><dl><div><dt>工作空间</dt><dd>{runtime.workspace}</dd></div><div><dt>可用模型配置</dt><dd>{runtime.model_profiles.join('、')}</dd></div></dl><ul className="service-list">{runtime.service_states.map((service) => <li key={service.name}><span>{service.name}</span><span>{service.status}</span></li>)}</ul></>}
       {!runtime && <p className="notice">账号服务仍可使用。请检查本机主脑服务和安装配置；这里不会另建一个空主脑。</p>}
@@ -86,6 +86,19 @@ function productStateLabel(state: HostStatus['product_state']) {
 
 function coreHealthLabel(state: CoreHealth) {
   return ({ unconfigured: '主脑未配置', stopped: '主脑已停止', starting: '主脑启动中', ready: '主脑就绪', degraded: '主脑受限', unreachable: '主脑不可达' } satisfies Record<CoreHealth, string>)[state];
+}
+
+const issueRefLabels: Record<string, string> = {
+  core_reconciliation_unavailable: '主脑自动协调暂不可用',
+  core_service_status_unavailable: '主脑服务状态暂不可判定',
+  core_service_state_unknown: '主脑服务状态未知',
+  core_configuration_pending: '主脑尚未确认最新配置',
+  product_service_status_unavailable: '产品服务状态暂不可判定',
+  product_lifecycle_recovery_required: '产品需要恢复处理',
+};
+
+function issueRefLabel(ref: string) {
+  return issueRefLabels[ref] ?? '存在待处理产品状态';
 }
 
 function ProductConfigEditor({ api, config, loading, error, busy, onReload, onBusy, onError, onSaved }: {

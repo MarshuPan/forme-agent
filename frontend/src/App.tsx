@@ -10,6 +10,7 @@ import { mergeObservedRun } from './conversation-view.ts';
 import type { MaterialLifecycleTarget } from './memory-material.ts';
 import { createAuthInvalidationSync } from './auth-sync.ts';
 import { createSessionVisibilityGuard } from './session-visibility.ts';
+import { CoreReadinessCancelled, waitForCoreReady } from './core-readiness.ts';
 
 const tabs = [ ['conversation', '对话'], ['workspace', '工作空间'], ['inbox', '收件箱'], ['cognition', '记忆与认知'], ['settings', '设置'] ] as const;
 type Tab = typeof tabs[number][0];
@@ -18,6 +19,7 @@ export function App() {
   const [entry, setEntry] = useState<'checking' | 'unclaimed' | 'login' | 'ready' | 'unavailable'>('checking');
   const [session, setSession] = useState<SessionView | null>(null);
   const [runtime, setRuntime] = useState<RuntimeView | null>(null);
+  const [coreConnecting, setCoreConnecting] = useState(false);
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [sessions, setSessions] = useState<WorkbenchSessionRecord[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -31,19 +33,36 @@ export function App() {
   const [issue, setIssue] = useState('');
   const [materialTarget, setMaterialTarget] = useState<MaterialLifecycleTarget | null>(null);
   const authSync = useRef<ReturnType<typeof createAuthInvalidationSync> | null>(null);
+  const coreProbe = useRef<AbortController | null>(null);
   const consumeMaterialTarget = useCallback(() => setMaterialTarget(null), []);
   const clear = useCallback((notifyPeers = true) => {
+    coreProbe.current?.abort();
+    coreProbe.current = null;
     if (notifyPeers) authSync.current?.notifyInvalidated();
-    setSession(null); setRuntime(null); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setMenu(false); setEntry('login');
+    setSession(null); setRuntime(null); setCoreConnecting(false); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setMenu(false); setEntry('login');
   }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns((current) => items.map((run) => current.find((item) => item.run === run.run && item.last_stream_seq > run.last_stream_seq) ?? run)); }, [api]);
   const observeRun = useCallback((run: RunSummary) => { setRuns((items) => mergeObservedRun(items, run)); }, []);
   const refreshSessions = useCallback(async () => { const view = await api.workbenchSessions(); setSessions(view.sessions); }, [api]);
   const refreshCore = useCallback(async () => {
-    try { const [next] = await Promise.all([api.runtime(), refreshSessions()]); setRuntime(next); setIssue(''); await refreshRuns(); }
-    catch (problem) { setRuntime(null); setTab('settings'); setIssue(problem instanceof Error ? problem.message : '主脑服务暂不可用。'); }
-  }, [api, refreshRuns]);
+    coreProbe.current?.abort();
+    const controller = new AbortController();
+    coreProbe.current = controller;
+    setCoreConnecting(true);
+    try {
+      const next = await waitForCoreReady(() => api.runtime(), { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setRuntime(next); setIssue('');
+      try { await Promise.all([refreshSessions(), refreshRuns()]); }
+      catch (problem) { if (!controller.signal.aborted) setIssue(problem instanceof Error ? problem.message : '工作台历史暂不可用。'); }
+    } catch (problem) {
+      if (controller.signal.aborted || problem instanceof CoreReadinessCancelled) return;
+      setRuntime(null); setIssue(problem instanceof Error ? problem.message : '主脑服务暂不可用。');
+    } finally {
+      if (coreProbe.current === controller) { coreProbe.current = null; setCoreConnecting(false); }
+    }
+  }, [api, refreshRuns, refreshSessions]);
   function authenticated(view: SessionResponse) { setSession(view.session); setEntry('ready'); }
 
   useEffect(() => {
@@ -94,7 +113,11 @@ export function App() {
     }
     void check(); return () => { closed = true; };
   }, [api]);
-  useEffect(() => { if (entry === 'ready') void refreshCore(); }, [entry, refreshCore]);
+  useEffect(() => {
+    if (entry !== 'ready') return;
+    void refreshCore();
+    return () => { coreProbe.current?.abort(); };
+  }, [entry, refreshCore]);
   useEffect(() => {
     if (entry !== 'ready') return;
     const guard = createSessionVisibilityGuard({
@@ -116,7 +139,7 @@ export function App() {
   function open(run: string) { if (!conversationPending) setSelected(run); setTab('conversation'); setMenu(false); }
 
   return <><a href="#main-content" className="skip-link">跳到主要内容</a><header className="topbar"><a className="brand" href="/" aria-label="forme 首页">forme<span className="brand-dot">.</span></a>
-    <span className="service-state"><i data-ready={Boolean(runtime)} />{entry === 'ready' ? runtime ? '主脑已连接' : '已登录 · 主脑离线' : entry === 'checking' ? '连接本机服务' : '个人 Agent 工作台'}</span>
+    <span className="service-state"><i data-ready={Boolean(runtime)} />{entry === 'ready' ? runtime ? '主脑已连接' : coreConnecting ? '主脑启动中' : '已登录 · 主脑离线' : entry === 'checking' ? '连接本机服务' : '个人 Agent 工作台'}</span>
     {entry === 'ready' && <><button ref={mobileMenuButton} className="mobile-menu secondary-button" aria-expanded={menu} aria-controls="main-navigation" onClick={() => setMenu((v) => !v)}>{menu ? '关闭导航' : '导航'}</button><button className="text-button" onClick={() => void logout()}>退出登录</button></>}
   </header>
     {['unclaimed', 'login'].includes(entry) && <Entry key={entry} api={api} unclaimed={entry === 'unclaimed'} authenticated={authenticated} />}

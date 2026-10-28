@@ -34,6 +34,15 @@ use super::{
     SystemServiceManager,
 };
 
+pub(crate) const ISSUE_CORE_RECONCILIATION_UNAVAILABLE: &str = "core_reconciliation_unavailable";
+pub(crate) const ISSUE_CORE_SERVICE_STATUS_UNAVAILABLE: &str = "core_service_status_unavailable";
+pub(crate) const ISSUE_CORE_SERVICE_STATE_UNKNOWN: &str = "core_service_state_unknown";
+pub(crate) const ISSUE_CORE_CONFIGURATION_PENDING: &str = "core_configuration_pending";
+pub(crate) const ISSUE_PRODUCT_SERVICE_STATUS_UNAVAILABLE: &str =
+    "product_service_status_unavailable";
+pub(crate) const ISSUE_PRODUCT_LIFECYCLE_RECOVERY_REQUIRED: &str =
+    "product_lifecycle_recovery_required";
+
 /// Credentials for the two product control planes. The maintenance and
 /// execution values are intentionally separate so one leaked domain cannot be
 /// upgraded into the other by changing a request body.
@@ -369,7 +378,18 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         let pending = operations.iter().any(|operation| {
             operation.stage != p::MaintenanceStage::Committed || operation.pending_stage.is_some()
         });
-        let native = self.services.inspect(p::BuiltinServiceId::Brain)?;
+        let (native, service_status_unavailable) =
+            match self.services.inspect(p::BuiltinServiceId::Brain) {
+                Ok(status) => (status, false),
+                Err(_) => (
+                    p::NativeServiceStatus {
+                        schema_version: p::SchemaVersion(1),
+                        service: p::BuiltinServiceId::Brain,
+                        state: p::NativeServiceState::Unknown,
+                    },
+                    true,
+                ),
+            };
         let configuration = self
             .product_config
             .as_ref()
@@ -411,7 +431,12 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             "plan".into(),
             "execute".into(),
         ];
-        if self.product_config.is_some() && self.network_change_available()? {
+        let (network_change_available, network_status_unavailable) =
+            match self.network_change_available() {
+                Ok(available) => (available, false),
+                Err(_) => (false, true),
+            };
+        if self.product_config.is_some() && network_change_available {
             allowed_operations.push("configure_lan".into());
         }
         if self.release_stager.is_some() {
@@ -430,6 +455,26 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         {
             allowed_operations.push("commit_restore".into());
         }
+        let mut issue_refs = Vec::new();
+        if service_status_unavailable {
+            issue_refs.push(ISSUE_CORE_SERVICE_STATUS_UNAVAILABLE.into());
+        } else if native.state == p::NativeServiceState::Unknown {
+            issue_refs.push(ISSUE_CORE_SERVICE_STATE_UNKNOWN.into());
+        }
+        if network_status_unavailable {
+            issue_refs.push(ISSUE_PRODUCT_SERVICE_STATUS_UNAVAILABLE.into());
+        }
+        if recovery {
+            issue_refs.push(ISSUE_PRODUCT_LIFECYCLE_RECOVERY_REQUIRED.into());
+        }
+        if configuration.as_ref().is_some_and(|view| {
+            view.configured
+                && view.active_revision > 0
+                && view.acknowledged_revision != Some(view.active_revision)
+        }) {
+            issue_refs.push(ISSUE_CORE_CONFIGURATION_PENDING.into());
+        }
+
         Ok(p::HostStatus {
             schema_version: p::SchemaVersion(1),
             install_id_safe_ref: self.install_id.clone(),
@@ -442,7 +487,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             acknowledged_config_revision: configuration
                 .as_ref()
                 .and_then(|view| view.acknowledged_revision),
-            issue_refs: Vec::new(),
+            issue_refs,
             allowed_operations,
         })
     }

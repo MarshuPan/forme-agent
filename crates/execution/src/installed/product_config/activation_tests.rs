@@ -16,10 +16,14 @@ struct Services {
     calls: Arc<Mutex<Vec<p::NativeServiceAction>>>,
     unknown: bool,
     failure: bool,
+    inspect_failure: bool,
     state: Arc<Mutex<Option<p::NativeServiceState>>>,
 }
 impl NativeServiceManager for Services {
     fn inspect(&self, service: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus> {
+        if self.inspect_failure {
+            return Err(p::Error("fixture service status unavailable".into()));
+        }
         Ok(p::NativeServiceStatus {
             schema_version: p::SchemaVersion(1),
             service,
@@ -87,6 +91,21 @@ fn activation() -> p::ProductCoreActivation {
         owner: p::OwnerPrincipalRef("owner:test".into()),
         action: p::ProductCoreAction::Start,
         requested_deadline: NOW + 60_000,
+    }
+}
+
+fn patch_v2(operation: &str, revision: u64) -> p::ProductConfigPatchV2 {
+    let base = patch(operation, revision);
+    p::ProductConfigPatchV2 {
+        schema_version: p::PRODUCT_SETTINGS_SCHEMA_VERSION,
+        operation_id: base.operation_id,
+        expected_revision: base.expected_revision,
+        owner: base.owner,
+        models: base.models,
+        brain: base.brain,
+        capabilities: base.capabilities,
+        network: None,
+        proxy: None,
     }
 }
 
@@ -298,4 +317,73 @@ fn automatic_reconciliation_does_not_touch_unknown_service_or_repeat_a_committed
         *services.calls.lock().unwrap(),
         vec![p::NativeServiceAction::Start]
     );
+}
+
+#[test]
+fn automatic_reconciliation_failure_is_visible_without_losing_saved_configuration() {
+    let (directory, _path, store) = fixture();
+    let services = Services {
+        inspect_failure: true,
+        ..Services::default()
+    };
+    let config = Arc::new(store);
+    let host = broker(directory.path(), config.clone(), services.clone());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+
+    let response = host
+        .apply_configuration(&auth, patch("save:status-unavailable", 0))
+        .unwrap();
+
+    assert!(response.applied);
+    assert!(response.core_activation.is_none());
+    assert_eq!(response.view.active_revision, 1);
+    assert!(response
+        .view
+        .issue_refs
+        .iter()
+        .any(|issue| issue == super::super::ISSUE_CORE_RECONCILIATION_UNAVAILABLE));
+    assert!(services.calls.lock().unwrap().is_empty());
+
+    let status_auth = host.authenticate(ADMIN).unwrap();
+    let status = host.status(&status_auth).unwrap();
+    assert_eq!(status.core_health, p::CoreHealth::Unreachable);
+    assert!(status
+        .issue_refs
+        .iter()
+        .any(|issue| issue == super::super::ISSUE_CORE_SERVICE_STATUS_UNAVAILABLE));
+    assert!(status
+        .issue_refs
+        .iter()
+        .any(|issue| issue == super::super::ISSUE_CORE_CONFIGURATION_PENDING));
+
+    // Startup recovery remains available to the Host; an unavailable service
+    // manager is observed and reported, never converted into a blind action.
+    host.reconcile_core_startup().unwrap();
+    assert!(services.calls.lock().unwrap().is_empty());
+}
+
+#[test]
+fn v2_configuration_reconciliation_failure_is_visible_without_losing_saved_configuration() {
+    let (directory, _path, store) = fixture();
+    let services = Services {
+        inspect_failure: true,
+        ..Services::default()
+    };
+    let config = Arc::new(store);
+    let host = broker(directory.path(), config.clone(), services.clone());
+    let auth = host.authenticate_web_configuration(WEB).unwrap();
+
+    let response = host
+        .apply_configuration_v2(&auth, patch_v2("save:v2-status-unavailable", 0))
+        .unwrap();
+
+    assert!(response.applied);
+    assert!(response.core_activation.is_none());
+    assert_eq!(response.view.active_revision, 1);
+    assert!(response
+        .view
+        .issue_refs
+        .iter()
+        .any(|issue| issue == super::super::ISSUE_CORE_RECONCILIATION_UNAVAILABLE));
+    assert!(services.calls.lock().unwrap().is_empty());
 }
