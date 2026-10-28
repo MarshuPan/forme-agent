@@ -143,7 +143,7 @@ assertion 至少绑定 InstallId、OwnerId、session 摘要、auth epoch、audie
 
 ## 6. 网络入口与公共 API 边界
 
-默认 Web 绑定 loopback，固定持久端口 **8765**；占用时返回可修复问题，由 owner 选择新端口并持久化，不静默漂移。LAN 是显式设置：选择网卡/监听地址、允许 Host/origin、HTTPS certificate 和 firewall 范围；不默认监听公网，不自动开路由映射。
+默认 Web 绑定 loopback，固定持久端口 **18765**；占用时返回可修复问题，由 owner 选择新端口并持久化，不静默漂移。LAN 是显式设置：选择网卡/监听地址、允许 Host/origin、HTTPS certificate 和 firewall 范围；不默认监听公网，不自动开路由映射。
 
 配置接缝按 `prd/25 §11.8–11.9`：Host 的 typed network 设置与已发布 overlay 分离；普通保存/core 启动/restore 不切换 Web 网络，`ConfigureLan` 绑定 revision 与材料校验摘要，经独立产品 journal。首次接纳先关闭 HTTP 回执流，再由同一受监督 Host worker 切换 Web，避免服务排空等待自身请求；原号查询/重启不重新派发。防火墙由管理员配置，ForMe 不自动创建、修改或删除规则；原生适配只读核实旧/新绑定，包含旧规则已撤销证据。`network_active` 只描述配置投影一致，不证明 listener、证书信任或 IP09。没有真实平台 adapter 或精确规则尚未满足时在 plan 前阻断 LAN 激活，不写假事务。
 
