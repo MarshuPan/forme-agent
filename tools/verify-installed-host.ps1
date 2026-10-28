@@ -347,6 +347,21 @@ try {
         "active_file_program_preserves_custom_profiles_and_rejects_replaced_reserved_arguments"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") "active_program_cases::$name" }
 
+    foreach ($name in @(
+        "new_host_generation_starts_a_stopped_brain_without_reexecuting_the_old_operation",
+        "host_reopen_waits_for_ack_without_restarting_an_already_activated_running_brain",
+        "host_reopen_preserves_unknown_start_and_never_creates_a_replacement_attempt",
+        "explicit_stop_survives_config_save_and_host_reopen_until_explicit_start",
+        "concurrent_startup_checks_admit_one_automatic_service_effect"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::product_config::activation_tests::startup_tests::$name" }
+
+    foreach ($name in @(
+        "readiness_precedes_startup_and_serving_can_answer_its_request",
+        "failed_readiness_starts_neither_coordination_nor_serving",
+        "serving_failure_still_joins_startup_before_returning",
+        "startup_panic_is_a_host_failure_and_is_joined"
+    )) { Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::lifecycle::tests::$name" }
+
     Write-Host "installed-host-foundation and core-shutdown-components: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }

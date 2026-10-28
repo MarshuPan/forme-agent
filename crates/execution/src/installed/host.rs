@@ -192,6 +192,8 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     install_id: String,
     initial_release: String,
     active_release: std::sync::Mutex<ActiveReleaseState>,
+    startup_revision: u64,
+    automatic_core_activation: bool,
     startup_reconciliation_failed: std::sync::Mutex<bool>,
     services: M,
 }
@@ -255,6 +257,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         p::validate_release_id(&active_release)?;
         let initial_release = active_release.clone();
         let journal = ProductJournal::open(journal_path, install_id)?;
+        let startup_revision = journal.revision()?;
         let active = journal
             .active_release()?
             .map(|(id, digest)| ActiveReleaseState {
@@ -291,9 +294,18 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             install_id: install_id.into(),
             initial_release,
             active_release: std::sync::Mutex::new(active),
+            startup_revision,
+            automatic_core_activation: true,
             startup_reconciliation_failed: std::sync::Mutex::new(false),
             services,
         })
+    }
+
+    /// Keep foreground development/configuration fixtures from controlling an
+    /// OS Brain service. Managed installs retain the default enabled behavior.
+    pub fn with_automatic_core_activation(mut self, enabled: bool) -> Self {
+        self.automatic_core_activation = enabled;
+        self
     }
 
     pub fn target(&self) -> p::ProductTarget {

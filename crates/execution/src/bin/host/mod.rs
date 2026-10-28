@@ -2,6 +2,7 @@
 mod bootstrap;
 pub(super) mod config;
 pub(super) mod http;
+mod lifecycle;
 #[cfg(windows)]
 mod service;
 mod startup;
@@ -190,6 +191,9 @@ fn run_host(
         product_config,
         forme_execution::installed::SystemServiceManager,
     )?;
+    if !runtime.managed {
+        broker = broker.with_automatic_core_activation(false);
+    }
     if let Some(stager) = runtime.release_stager {
         broker = broker.with_release_stager(stager)?;
     }
@@ -275,18 +279,6 @@ fn run_host(
             EndpointDomain::Configuration,
         )?);
     }
-    if has_configuration {
-        // Configuration and AgentExecution listeners are ready before the
-        // Host asks the native manager to restore the Brain service.
-        match broker.reconcile_core_startup() {
-            Ok(()) => {}
-            Err(_) => {
-                // Keep the Web maintenance surface available. The broker
-                // retains a fixed diagnostic reference and will not expose
-                // the core as Ready until the next successful reconciliation.
-            }
-        }
-    }
     if announce {
         for endpoint in &endpoints {
             let name = match endpoint.domain {
@@ -312,109 +304,126 @@ fn run_host(
         let _ = std::io::stdout().flush();
     }
     on_stage(startup::Stage::Readiness);
-    on_ready()?;
-    on_stage(startup::Stage::Serving);
-    let mut checked_release = std::time::Instant::now() - Duration::from_secs(1);
-    loop {
-        if let Some(receiver) = shutdown.as_ref() {
-            match receiver.try_recv() {
-                Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
-                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+    let startup_broker = broker.clone();
+    lifecycle::serve_after_ready(
+        on_ready,
+        move || {
+            if has_configuration && runtime.managed {
+                // One bounded coordination task. Its failure stays visible in
+                // product status while the same Web maintenance surface remains.
+                // Development-config processes do not own an OS Brain service;
+                // their tests start the disposable core explicitly.
+                let _ = startup_broker.reconcile_core_startup();
             }
-        }
-        if checked_release.elapsed() >= Duration::from_secs(1) {
-            broker.reconcile_release_checking()?;
-            checked_release = std::time::Instant::now();
-        }
-        let mut accepted = false;
-        for endpoint in &endpoints {
-            match endpoint.listener.accept() {
-                Ok((stream, _)) => {
-                    accepted = true;
-                    if endpoint.connections.fetch_add(1, Ordering::AcqRel) >= 16 {
-                        endpoint.connections.fetch_sub(1, Ordering::AcqRel);
-                        drop(stream);
-                        continue;
+        },
+        || {
+            on_stage(startup::Stage::Serving);
+            let mut checked_release = std::time::Instant::now() - Duration::from_secs(1);
+            loop {
+                if let Some(receiver) = shutdown.as_ref() {
+                    match receiver.try_recv() {
+                        Ok(()) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
+                        Err(std::sync::mpsc::TryRecvError::Empty) => {}
                     }
-                    let broker = broker.clone();
-                    let bootstrap = bootstrap.clone();
-                    let worker = worker.clone();
-                    let connections = endpoint.connections.clone();
-                    let domain = endpoint.domain;
-                    std::thread::spawn(move || {
-                        struct ConnectionGuard(Arc<AtomicUsize>);
-                        impl Drop for ConnectionGuard {
-                            fn drop(&mut self) {
-                                self.0.fetch_sub(1, Ordering::AcqRel);
+                }
+                if checked_release.elapsed() >= Duration::from_secs(1) {
+                    broker.reconcile_release_checking()?;
+                    checked_release = std::time::Instant::now();
+                }
+                let mut accepted = false;
+                for endpoint in &endpoints {
+                    match endpoint.listener.accept() {
+                        Ok((stream, _)) => {
+                            accepted = true;
+                            if endpoint.connections.fetch_add(1, Ordering::AcqRel) >= 16 {
+                                endpoint.connections.fetch_sub(1, Ordering::AcqRel);
+                                drop(stream);
+                                continue;
+                            }
+                            let broker = broker.clone();
+                            let bootstrap = bootstrap.clone();
+                            let worker = worker.clone();
+                            let connections = endpoint.connections.clone();
+                            let domain = endpoint.domain;
+                            std::thread::spawn(move || {
+                                struct ConnectionGuard(Arc<AtomicUsize>);
+                                impl Drop for ConnectionGuard {
+                                    fn drop(&mut self) {
+                                        self.0.fetch_sub(1, Ordering::AcqRel);
+                                    }
+                                }
+                                let _guard = ConnectionGuard(connections);
+                                let _ =
+                                    handle_connection(stream, broker, worker, bootstrap, domain);
+                            });
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                        Err(_) => return Err(p::Error("host broker accept failed".into())),
+                    }
+                }
+                #[cfg(windows)]
+                if let Some(pipe) = agent_pipe.as_mut() {
+                    match pipe.try_accept() {
+                        Ok(Some(stream)) => {
+                            accepted = true;
+                            if agent_pipe_connections.fetch_add(1, Ordering::AcqRel) >= 16 {
+                                agent_pipe_connections.fetch_sub(1, Ordering::AcqRel);
+                                drop(stream);
+                            } else {
+                                let broker = broker.clone();
+                                let bootstrap = bootstrap.clone();
+                                let worker = worker.clone();
+                                let connections = agent_pipe_connections.clone();
+                                std::thread::spawn(move || {
+                                    struct ConnectionGuard(Arc<AtomicUsize>);
+                                    impl Drop for ConnectionGuard {
+                                        fn drop(&mut self) {
+                                            self.0.fetch_sub(1, Ordering::AcqRel);
+                                        }
+                                    }
+                                    let _guard = ConnectionGuard(connections);
+                                    let _ = handle_connection(
+                                        stream,
+                                        broker,
+                                        worker,
+                                        bootstrap,
+                                        EndpointDomain::AgentExecution,
+                                    );
+                                });
                             }
                         }
-                        let _guard = ConnectionGuard(connections);
-                        let _ = handle_connection(stream, broker, worker, bootstrap, domain);
-                    });
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
-                Err(_) => return Err(p::Error("host broker accept failed".into())),
-            }
-        }
-        #[cfg(windows)]
-        if let Some(pipe) = agent_pipe.as_mut() {
-            match pipe.try_accept() {
-                Ok(Some(stream)) => {
-                    accepted = true;
-                    if agent_pipe_connections.fetch_add(1, Ordering::AcqRel) >= 16 {
-                        agent_pipe_connections.fetch_sub(1, Ordering::AcqRel);
-                        drop(stream);
-                    } else {
-                        let broker = broker.clone();
-                        let bootstrap = bootstrap.clone();
-                        let worker = worker.clone();
-                        let connections = agent_pipe_connections.clone();
-                        std::thread::spawn(move || {
-                            struct ConnectionGuard(Arc<AtomicUsize>);
-                            impl Drop for ConnectionGuard {
-                                fn drop(&mut self) {
-                                    self.0.fetch_sub(1, Ordering::AcqRel);
-                                }
-                            }
-                            let _guard = ConnectionGuard(connections);
-                            let _ = handle_connection(
-                                stream,
-                                broker,
-                                worker,
-                                bootstrap,
-                                EndpointDomain::AgentExecution,
-                            );
-                        });
+                        Ok(None) => {}
+                        Err(_) => {
+                            return Err(p::Error("AgentExecution named pipe accept failed".into()))
+                        }
                     }
                 }
-                Ok(None) => {}
-                Err(_) => return Err(p::Error("AgentExecution named pipe accept failed".into())),
+                if !accepted {
+                    // A single supervisor owns both listeners and shutdown. Domain
+                    // connection budgets remain independent.
+                    std::thread::sleep(Duration::from_millis(10));
+                }
             }
-        }
-        if !accepted {
-            // A single supervisor owns both listeners and shutdown. Domain
-            // connection budgets remain independent.
-            std::thread::sleep(Duration::from_millis(10));
-        }
-    }
-    // Stop admitting connections before draining operations that already own
-    // journal/worker locks. A callback returning is not proof they finished.
-    let mut connections: Vec<_> = endpoints.iter().map(|e| e.connections.clone()).collect();
-    #[cfg(windows)]
-    connections.push(agent_pipe_connections);
-    drop(endpoints);
-    on_stage(startup::Stage::Draining);
-    on_stopping()?;
-    let deadline = std::time::Instant::now() + Duration::from_secs(60);
-    while connections.iter().any(|n| n.load(Ordering::Acquire) != 0) {
-        if std::time::Instant::now() >= deadline {
-            return Err(p::Error(
-                "host shutdown could not verify all accepted operations".into(),
-            ));
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    Ok(())
+            // Stop admitting connections before draining operations that already own
+            // journal/worker locks. A callback returning is not proof they finished.
+            let mut connections: Vec<_> = endpoints.iter().map(|e| e.connections.clone()).collect();
+            #[cfg(windows)]
+            connections.push(agent_pipe_connections);
+            drop(endpoints);
+            on_stage(startup::Stage::Draining);
+            on_stopping()?;
+            let deadline = std::time::Instant::now() + Duration::from_secs(60);
+            while connections.iter().any(|n| n.load(Ordering::Acquire) != 0) {
+                if std::time::Instant::now() >= deadline {
+                    return Err(p::Error(
+                        "host shutdown could not verify all accepted operations".into(),
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Ok(())
+        },
+    )
 }
 
 #[derive(Clone, Copy)]

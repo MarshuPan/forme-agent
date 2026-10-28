@@ -190,17 +190,27 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         now: p::Timestamp,
     ) -> p::Result<p::ProductCoreActivationResponse> {
         self.verify_web_configuration_auth(auth)?;
-        request.validate()?;
-        let digest = request.digest()?;
-        let kind = p::MaintenanceKind::ApplyValidatedConfig {
-            config_revision: request.expected_revision,
-            validation_digest: digest,
-        };
         let store = self
             .product_config
             .as_ref()
             .ok_or_else(configuration_unavailable)?;
         let mut store = store.lock().map_err(|_| configuration_unavailable())?;
+        self.activate_configuration_locked(auth, request, now, &mut store)
+    }
+
+    pub(super) fn activate_configuration_locked(
+        &self,
+        auth: &HostAuth,
+        request: p::ProductCoreActivation,
+        now: p::Timestamp,
+        store: &mut super::ProductConfigStore,
+    ) -> p::Result<p::ProductCoreActivationResponse> {
+        self.verify_web_configuration_auth(auth)?;
+        request.validate()?;
+        let kind = p::MaintenanceKind::ApplyValidatedConfig {
+            config_revision: request.expected_revision,
+            validation_digest: request.digest()?,
+        };
         let current = store.snapshot()?;
         if current.owner.as_ref() != Some(&request.owner) {
             return Err(p::Error(
@@ -217,7 +227,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                     "configuration operation id was reused with different content".into(),
                 ));
             }
-            return self.activation_response(existing.clone(), &mut store);
+            return self.activation_response(existing.clone(), store);
         }
         if operations.iter().any(|operation| {
             operation.stage != p::MaintenanceStage::Committed || operation.pending_stage.is_some()
@@ -300,7 +310,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 self.journal.operation(&request.operation_id)?
             }
         };
-        self.activation_response(operation, &mut store)
+        self.activation_response(operation, store)
     }
 
     pub fn configuration_operation(
@@ -348,6 +358,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         configured: bool,
         pending_restart: bool,
     ) -> p::Result<Option<p::ProductCoreActivationResponse>> {
+        if !self.automatic_core_activation {
+            return Ok(None);
+        }
         let Some(owner) = owner else {
             return Ok(None);
         };
@@ -392,79 +405,6 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             configuration,
             service: activation.service,
         }))
-    }
-
-    pub(super) fn reconcile_core(
-        &self,
-        auth: &HostAuth,
-        owner: &p::OwnerPrincipalRef,
-        revision: u64,
-        pending_restart: bool,
-        now: p::Timestamp,
-    ) -> p::Result<Option<p::ProductCoreActivationResponse>> {
-        let status = match self.services.inspect(p::BuiltinServiceId::Brain) {
-            Ok(status) => status,
-            Err(_) => {
-                return Err(p::Error("core service status is unavailable".into()));
-            }
-        };
-        let action = match status.state {
-            p::NativeServiceState::Stopped => p::ProductCoreAction::Start,
-            p::NativeServiceState::Running if pending_restart => {
-                if self.has_automatic_operation(revision, p::ProductCoreAction::Start)? {
-                    p::ProductCoreAction::Start
-                } else {
-                    p::ProductCoreAction::Restart
-                }
-            }
-            _ => return Ok(None),
-        };
-        let operation_id = self.automatic_core_operation_id(revision, action)?;
-        if self.has_automatic_operation(revision, action)? {
-            // The original automatic operation owns the service effect and
-            // its receipt, including an unresolved outcome. Rebuilding the
-            // request with a new deadline would be a different command and
-            // could duplicate an external service transition.
-            return Ok(None);
-        }
-        let request = p::ProductCoreActivation {
-            schema_version: p::PRODUCT_CONFIG_SCHEMA_VERSION,
-            operation_id,
-            expected_revision: revision,
-            owner: owner.clone(),
-            action,
-            requested_deadline: now.saturating_add(120_000),
-        };
-        self.activate_configuration(auth, request, now).map(Some)
-    }
-
-    fn has_automatic_operation(
-        &self,
-        revision: u64,
-        action: p::ProductCoreAction,
-    ) -> p::Result<bool> {
-        let operation_id = self.automatic_core_operation_id(revision, action)?;
-        Ok(self
-            .journal
-            .operations(0)?
-            .iter()
-            .any(|operation| operation.operation_id == operation_id))
-    }
-
-    fn automatic_core_operation_id(
-        &self,
-        revision: u64,
-        action: p::ProductCoreAction,
-    ) -> p::Result<String> {
-        let digest = p::canonical_digest(&(
-            "forme-automatic-core-activation-v1",
-            &self.install_id,
-            revision,
-            action,
-        ))?;
-        let id = format!("core-auto-{}", digest.0.trim_start_matches("sha256:"));
-        p::validate_product_id(&id)?;
-        Ok(id)
     }
 
     fn configuration_stage(

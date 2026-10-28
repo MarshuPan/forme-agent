@@ -13,8 +13,8 @@ try {
         $code = $LASTEXITCODE
     } finally { $ErrorActionPreference = $previous }
     $output | ForEach-Object { Write-Host $_ }
-    if ($code -ne 0 -or @($output | Where-Object { $_ -match '^test result: ok\. 69 passed; 0 failed; 0 ignored;' }).Count -ne 1) {
-        throw 'Product configuration state/activation/maintenance/skills/network/settings/worker tests did not execute exactly 69 cases'
+    if ($code -ne 0 -or @($output | Where-Object { $_ -match '^test result: ok\. 80 passed; 0 failed; 0 ignored;' }).Count -ne 1) {
+        throw 'Product configuration state/activation/maintenance/skills/network/settings/worker/startup tests did not execute exactly 80 cases'
     }
     Assert-FormeBuildSpace $repoRoot
     & cargo test --locked -p forme-execution --test installed_network_fence

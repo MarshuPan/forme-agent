@@ -6,6 +6,9 @@ use super::{
 use crate::installed::{HostCredentials, HostManagement, NativeServiceManager, ProductHostBroker};
 use std::sync::Arc;
 
+#[path = "startup_tests.rs"]
+mod startup_tests;
+
 const WEB: &str = "web-configuration-fixture-abcdefghijklmnopqrstuvwxyz";
 const ADMIN: &str = "admin-fixture-abcdefghijklmnopqrstuvwxyz";
 const AGENT: &str = "agent-fixture-abcdefghijklmnopqrstuvwxyz";
