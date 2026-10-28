@@ -131,7 +131,7 @@ config 的 staged、validated、active revision 和 core 的 acknowledged revisi
 
 服务模式不继承交互 shell 环境。开发命令仍兼容 `FORME_*`；显式 environment override 模式必须在有效配置中显示每项来源，不能出现网页显示“已生效”而旧 env 实际生效。禁止运行时修改全局 process env 假装 typed config 热更新。
 
-启动/模型/工具集/网络等变更先 validate，生成影响报告，再以 expected_revision 提交；有效配置保存后由 Host 自动启动或受控重启 Brain，浏览器不再为正常路径再次输入密码或手动点击启动。需要重启则受控排空；Host/系统服务启动恢复会重复同一确定性协调检查，未知/未安装/恢复中的状态不盲重试，手动启动只保留为维护入口。进行中的 run 保持原快照，不热换 provider/toolset/policy。运行前实际绑定 provider 和 SessionBound/composition 的行为仍服从 canonical §28。
+启动/模型/工具集/网络等变更先 validate，生成影响报告，再以 expected_revision 提交；有效配置保存后由 Host 自动启动或受控重启 Brain，浏览器不再为正常路径再次输入密码或手动点击启动。需要重启则受控排空；Host/系统服务启动恢复先使 Host Running 且内部请求可服务，再执行一次同代次去重的协调检查。代次绑定 Host 独占打开 journal 时的 product_seq；上代已提交回执和本代实际服务状态分别核对，未知/未安装/恢复中的状态不换号重试。已提交的显式 StopCore 保留到 owner 明确 StartCore/RestartCore，Running 且同配置已有成功激活时仅等待 ack。具体约束见 prd/24 §5.1。进行中的 run 保持原快照，不热换 provider/toolset/policy。运行前实际绑定 provider 和 SessionBound/composition 的行为仍服从 canonical §28。
 
 ### 5.3 产品 Web 控制面与 Runtime Ingress
 

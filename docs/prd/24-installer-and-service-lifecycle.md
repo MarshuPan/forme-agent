@@ -446,7 +446,15 @@ helper 生命周期为 `Absent -> Starting -> Ready -> Revoked/Expired/Unavailab
 
 网页登录账户是安装产品唯一的 `SuperAdmin/Owner`，拥有产品控制面的完整权限；安装器、Host、Web、Brain 和 Agent worker 的 OS 身份仍按 §1 分域。该角色不授予模型任意 shell、SYSTEM/root 或绕过 Harness 的能力。
 
-安装完成后由 ForMe 产品栈先使 Host/Web 控制面可达，让 owner 完成认领和有效模型配置；用户看到的是同一个 ForMe 初始化页面，不需要理解底层服务拆分。配置事务提交成功后由 Host 自动生成与该配置 revision 绑定的确定性启动 operation，并启动或受控重启 Brain；正常路径不要求再次输入网页登录密码，也不要求手动点击启动。系统重启时由 OS 服务和 Host 启动恢复协调同一 operation，重用原回执，未知/未安装/恢复中的状态保持可诊断而不盲重试。手动 `StartCore` 仅保留为故障恢复和明确维护入口。
+安装完成后由 ForMe 产品栈先使 Host/Web 控制面可达，让 owner 完成认领和有效模型配置；用户看到的是同一个 ForMe 初始化页面，不需要理解底层服务拆分。配置事务提交成功后由 Host 自动生成与该配置 revision 及 Host 启动代次绑定的确定性启动 operation，并启动或受控重启 Brain；正常路径不要求再次输入网页登录密码，也不要求手动点击启动。系统重启后重新观察原 journal 与实际服务状态：原 operation 的查询始终返回原回执；上一代已成功启动不代表本代服务仍运行。未知/未安装/恢复中的状态保持可诊断而不盲重试。手动 `StartCore` 仅保留为故障恢复和明确维护入口。
+
+启动协调必须同时遵守以下约束，沿用现有 DTO 与 journal schema：
+
+- 先完成 Host 内部监听绑定并向 OS 报告 Host `Running`，再执行一次启动协调。服务控制可能等待依赖服务就绪，故此期间 Host 必须并行处理既有内部请求；协调任务受 Host 生命周期管理并在退出时收束，不运行周期重试或第二个 supervisor。
+- Host 启动代次取其独占打开并重放 product journal 后观察到的 `product_seq`，在该 Host 生命周期内固定。自动 operation 摘要绑定 install/config revision/action/该代次；重复检查和保存回执不创建新动作。
+- 当上一代动作已 `Committed`、没有任何未决生命周期操作、配置有效且实际 Brain 为 `Stopped` 时，新代次可接纳一次新的启动。原动作未知、只有 intent、`RecoveryRequired` 或存在 pending stage 时，继续核实原动作，不能借新代次换号重试。
+- Brain 为 `Running` 且同一配置 revision 已有成功激活动作时，等待 core acknowledgement；缺 ack 本身不触发又一次重启，也不构成 `Ready`。
+- journal 中最后一个显式 `StartCore/StopCore/RestartCore` 为已提交的 `StopCore` 时，保留 owner 的停止意图。保存配置、刷新、Host 重启均不能自动撤销它；只有新的明确 `StartCore/RestartCore` 才解除。判断、配置校验、journal 接纳与服务动作继续受同一配置/生命周期互斥约束。
 
 1. 校验 OS/CPU、包签名、磁盘、目标路径/ACL、端口；发现旧 installation/store 时进入接管路径，不覆盖。
 2. 创建 release staging，逐文件校验；建立服务账户与私有 IPC；设目录权限后原子提交安装 manifest。

@@ -680,7 +680,7 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - 已安装服务以版本化持久 typed config 为主要来源；开发环境兼容显式标注来源，不能静默覆盖网页保存值。保存/校验/应用/核心 ack 分开；进行中 run 保持固定快照。
 - 产品可达性分为两个独立观察面：`WebAvailable` 表示固定 Product URL 的认证/初始化/维护页面可用，`BrainReady` 表示唯一 ProductionRuntime 已通过 owner/store/config/doctor/composition 检查。WebAvailable 不得因模型慢启动而被阻塞，BrainReady 也不得因 Web 返回 HTTP 200 而伪造；验收分别记录服务启动到 WebAvailable、以及配置有效到 BrainReady 的证据。
 - 配置保存成功后，Host 作为唯一产品生命周期协调者，使用同一已认证的 Web 配置域自动为有效主脑配置启动 Brain；若已有 Brain 正在运行且尚未确认新 revision，则执行同一产品 journal 约束下的受控重启。浏览器不再为正常首次启动或配置变更再次提交密码，也不需要用户手动点击“启动主脑”。
-- Host/系统服务恢复时重复执行同一确定性协调检查：已认领、配置有效且无 RecoveryRequired 时恢复 Brain；没有有效配置、已有未决/未知生命周期事务、服务未安装或状态不可判定时保持可诊断状态，不盲目重试。手动 `StartCore`/`RestartCore` 只作为维护和故障恢复入口。
+- Host/系统服务恢复时执行一次确定性协调检查：先报告 Host Running 并保持内部请求可服务，再协调已认领且配置有效的 Brain。自动 operation 同时绑定配置 revision 与该 Host 独占重放 journal 后的启动代次；同代次复用原回执，上代已 Committed 且实际已停止时才可在新代次接纳一次启动。没有有效配置、已有未决/未知生命周期事务、服务未安装或状态不可判定时保持可诊断状态，不借新代次换号重试。Running 但同 revision 激活已提交时只等待 ack。最后已提交的显式 StopCore 保留 owner 停止意图，直到明确 StartCore/RestartCore；刷新、配置保存或 Host 重启不撤销该意图。手动启动/重启只作为维护和故障恢复入口；具体顺序与互斥见 prd/24 §5.1，不新增 DTO、脑事件或进程内 supervisor。
 - 服务能无交互解密原脑，登录口令不能是唯一数据 key。数据和备份沿用 §28.7；外部 key resolver 不入普通备份，恢复材料单独管理，缺 key 不得虚报恢复。
 - 旧脑接管、历史明文迁移和 restore 先只读校验/备份，在新目标验证后 owner 显式切换；错误 key/owner/占用库不能自动退为空脑。
 - 程序、数据、配置、key、日志/backup/workspace 路径独立且绝对化。卸载默认保留 owner 数据；额外删除必须另有明确范围。
