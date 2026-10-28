@@ -2,6 +2,10 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-10-28 当前 main 候选（fc4e23e）
+
+基于本地 `main@fc4e23e6d173be3893d7a4afe390ec84f96ef33c` 完成 release workspace 构建、18-file Windows bundle 和 Inno Setup 6.6.1 原生安装器编译。release 构建退出码为 `0`；bundle digest 为 `sha256:7dcc75c7dd8fef54cc0339da41fd0d25a6ed2ef092d671310a4a6e25dc5cecbd`，安装包 SHA-256 为 `258a6e04823bc9782a045ae465ac95e86ae248c1b4229e7110b08f8c71f4abf6`。候选仍未签名、未安装，`release_ready=false`；当前安装实例仍运行旧候选，服务和用户数据未改变。详细证据见 [Windows 当前 main 安装候选](installed-product-windows-candidate-20261028-fc4e23e.md) 和 [升级验收计划](installed-product-windows-upgrade-20261028-fc4e23e-plan.md)。
+
 ## 2026-10-28 当前 main 候选（0a3d1cb）
 
 基于本地 `main@0a3d1cb` 完成 release workspace 构建、完整源码质量门、18-file Windows bundle 和 Inno Setup 6.6.1 原生安装器编译。源码质量门退出码为 `0`；Rust workspace 回归、strict Clippy、前端 96/96、bundle 10/10、原生打包边界 18/18、Rust 签名验证 5/5、Windows NTFS 8/8、Inno 退出 2/2 与原创/许可证门均 PASS。bundle digest 为 `sha256:ca5c7f7e3264193c719f1c90cd540736055dd1013f4c2c1a0aa514b7f2b7f8af`，安装包 SHA-256 为 `4d82b33322ce8fad65c9c5d0a3badf9782701ac1f65f5944c949d8bfe0ba68bb`。候选仍未签名、未安装，`release_ready=false`；当前安装实例未被覆盖。详细证据见 [Windows 当前 main 安装候选](installed-product-windows-candidate-20261028-0a3d1cb.md) 和 [升级验收计划](installed-product-windows-upgrade-20261028-0a3d1cb-plan.md)。
