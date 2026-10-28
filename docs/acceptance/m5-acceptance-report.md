@@ -155,3 +155,9 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 本批统一质量门的唯一 workspace 总数为 176 targets、1088 passed / 0 failed / 15 默认 ignored，不能把后续重复运行相加。Host 命名门 211/211、配置临时真实进程 4/4，以及显式原生文件入口 7/7 的具体行为和证据限制见[文件 worker 与离线维护组件报告](installed-product-file-worker-and-offline-maintenance-20261027.md)。该报告 §4 中的当前源码 S/M5/适用 closure 重验义务由本节承接。唯一原生 symlink 用例仍未运行；桌面 helper、完整原生安装生命周期、正式签名、跨平台与 IP01–IP24 仍未闭合。
 
 空间报告为 `target/installed-file-worker-evidence/final-build-resources.json`：当前 checkout target 为 `148201553979` logical bytes / `145200444254` allocated bytes，超过 64 GiB 报告预算；未执行清理。此后另获批准的本机安装尝试与任何恢复操作须独立记录，不从本次源码回归推导安装成功。
+
+## 12. 当前主线 `1230900` 的 M5 回执重封（2026-10-28）
+
+当前主线工作树保持干净，独立执行 `py -3 tools/m5_release_audit.py --root C:\\code\\forme --output <ignored-output>`，9 项发布审计检查全部通过；生成回执与仓库回执的 `--verify`、`--compare` 均通过。当前唯一 tracked receipt 为 `sha256:3eebe149a2d3cc99df8c232a4a01eabed80d992d830e7c0536d57512795a529a`，绑定当前 release tree `sha256:50b7c80680f74dd4a74365b339bf44f9da68e0cf91b4aabaac49be1763bf73ce`。
+
+本次只修复当前树与旧 M5 receipt 的证据漂移，没有修改运行代码、模型配置、安装目录或用户数据。此前 Final 回归已完成核心测试和 M5 审计，但在最后的旧 receipt 比较处 fail-closed；因此本条只证明当前 M5 receipt 已闭合，不把此前整轮命令改写为新的 `M5 FINAL ACCEPTANCE: PASS`。核心 Final 仍需在该 receipt 收口后重新执行。
