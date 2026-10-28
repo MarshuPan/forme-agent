@@ -40,7 +40,7 @@ OS 服务管理器分别监管三个长期服务。broker 可以要求 OS 开始
 
 core 的前台信号与未来原生服务控制共用 Gateway 的可信停止接缝（prd/24 §4.2）：先线性化关闭 HTTP 工作与 scheduler 准入，再有界排空在途操作和运行队列。HTTP 请求已取消不代表其阻塞动作停止；Waiting/Unknown 不因停服被改写为终态。此接缝不新增管理 HTTP 路由，也不独自证明 SCM/launchd/systemd 已完成安装。
 
-Host 启动入口分为两个不可混淆的模式：正式受管服务使用 `forme-hostd --config <absolute-path>`，由固定 OS service identity/peer 约束并在绑定失败时退出；仓库自有测试和前台开发使用显式的 `forme-hostd --development-config <absolute-path>`，只复用 closed HostServiceConfig 校验并走 loopback 前台 transport。后者不声明 SCM、Service SID、AgentExecution peer、生产 worker 隔离或安装产品可用，任何组件/fixture 证据都不能提升为 IP01–IP24。
+Host 启动入口分为两个不可混淆的模式：正式受管服务使用 `forme-hostd --config <absolute-path>`，由固定 OS service identity/peer 约束并在绑定失败时退出；仓库自有测试和前台开发使用显式的 `forme-hostd --development-config <absolute-path>`，只复用 closed HostServiceConfig 校验并走 loopback 前台 transport。只有正式受管服务拥有 OS Brain 生命周期：它在 Host 已报告 Running 后执行一次有界的自动协调；开发配置不触碰系统 Brain 服务、不为配置保存生成服务生命周期 operation，由夹具或开发者显式启动临时 core。后者不声明 SCM、Service SID、AgentExecution peer、生产 worker 隔离或安装产品可用，任何组件/fixture 证据都不能提升为 IP01–IP24。
 
 ## 2. 安装、账户与路径
 
