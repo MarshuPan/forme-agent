@@ -1,6 +1,6 @@
 {
   "cognition_snapshot": "sha256:c6d43d6b0741197e871f45442f0948599ebf62eeaf76c43393a91b7849a7b2ee",
-  "composition_digest": "sha256:9e2a57e0e04ce1f1268a6ea2e014b6ae1e3bcef723703a8d1a33e32b4f4754c0",
+  "composition_digest": "sha256:05cfbb30875f5d804037434953f1b36c38e04afe5790e70465d6e481a9930212",
   "endpoint_calls_after": 1,
   "endpoint_calls_before": 1,
   "grade": "ControlledRuntime",
@@ -12,94 +12,94 @@
   ],
   "positions": [
     {
-      "digest": "sha256:8d956b30a804d349eea15bf03cf08096e7107584efa74c9aee2d297048264996",
+      "digest": "sha256:8464423a64181e05479c0cd383ada8bbfb32462614359ccff5a889b90986900f",
       "kind": "ObservationRecorded",
       "seq": 1
     },
     {
-      "digest": "sha256:0b73b2038ea26619c53bba17d66c51b2def1cd22750c6dc386623f2fa8ecf724",
+      "digest": "sha256:e51eddf445ab63bc4fbdf4dfae789a7e1740f2048c24f03517aac9bab4b7b1d3",
       "kind": "OpportunityDetected",
       "seq": 2
     },
     {
-      "digest": "sha256:2b09c8578dae2bc3fd44273dec109dd63e060dcefa1802f28f56ebd3164f1949",
+      "digest": "sha256:58df68a779282cf5ec1ef311dab2e380e96910b972021a185238a6d5fb3431c7",
       "kind": "ValueGateEvaluated",
       "seq": 3
     },
     {
-      "digest": "sha256:e530409f9dc019235531d85434c0d71b80312ed4b10c468043150930901631ab",
+      "digest": "sha256:1309e095d9282df4d1c415e7c00121c4cf802e635a269ae12a1ce40bc2f3fd2c",
       "kind": "ImpulseRaised",
       "seq": 4
     },
     {
-      "digest": "sha256:ad7feb7ab6668ea206ac5544532014cc53d94d3cffd037d3d3e5c191e9328602",
+      "digest": "sha256:c2b7e4834bbc9c433a8ca2fbdd08300c7b95ad66e7e9d84c236e13793a9d89d1",
       "kind": "CompetenceGateEvaluated",
       "seq": 5
     },
     {
-      "digest": "sha256:b7cef407d783cdaf312804a93e04d3bd2ac6253b60d24abfd9c0f9a459f23e86",
+      "digest": "sha256:9e7614ccfdd9c87e8aad79ba1d38e053628023d345e19ea3385b16885a59014f",
       "kind": "DecisionTraceRecorded",
       "seq": 6
     },
     {
-      "digest": "sha256:592db346c255271f6950c941b15a92a89366ba6208b006b211016d3994b19c15",
+      "digest": "sha256:9032cf61bd8304786da60a202f935ce397ad5ec0e728029125cdedb63a08bc84",
       "kind": "ProactiveProposalEmitted",
       "seq": 7
     },
     {
-      "digest": "sha256:9cb34e5bf07123406ebf5c2dda470899ac3afdec6e535c8fd203d8a1d0640093",
+      "digest": "sha256:3376d37f19a46ec974b4d9655421138870701a580dbe44d33876f0ca65910230",
       "kind": "ObservationRecorded",
       "seq": 8
     },
     {
-      "digest": "sha256:56c14d2eb4a7658e04609f0777e211c93e3387c0f974ec73324aab4001b398f4",
+      "digest": "sha256:88999ad745dc0f9aca8d02b189422f9902a7328511df01fd6537562aa08bf9ee",
       "kind": "OpportunityDetected",
       "seq": 9
     },
     {
-      "digest": "sha256:aff242b4a2fbeada1925e1b36ac5011c6bc0aba7f276e8aa88b85972dcac4fa2",
+      "digest": "sha256:0126d7975d0d41a8dae2783d4447fb62c5ff4ce06688eeef566c5f3bf3e98dc8",
       "kind": "ValueGateEvaluated",
       "seq": 10
     },
     {
-      "digest": "sha256:9a089f4b3c7b12cfff1bedcdd1714a34da9afefbbc682072b9565ccd3ce30354",
+      "digest": "sha256:4f0203caff858bd2510831b3b15016ef056e7c43047a3ca5657b3b5ca98929b3",
       "kind": "ImpulseRaised",
       "seq": 11
     },
     {
-      "digest": "sha256:ec5c410390987d613e79dace153af45c482d6c961bca22259fd67b32914e7631",
+      "digest": "sha256:6c8b5a7392271684fb111b31543aef3427b56a96c4d80cd77eda803cef4e1c0d",
       "kind": "CompetenceGateEvaluated",
       "seq": 12
     },
     {
-      "digest": "sha256:988fdeebed02020c702ab1d0f4407267c1c1e0f9977a6674fce0c2c575683e32",
+      "digest": "sha256:bafb314e2a2ab27207141695bf19cfb7b1a4ee403d3f2beb23e4a4de9b1d5edf",
       "kind": "DecisionTraceRecorded",
       "seq": 13
     },
     {
-      "digest": "sha256:42695d06d19d7e36b278620579bc96110c051a028e7335d2d96c8f45ead6859f",
+      "digest": "sha256:89a3035e945f6c98638cc7a36e2362f24d24e8044ba85af6796c57370e8b2441",
       "kind": "ProactiveProposalEmitted",
       "seq": 14
     },
     {
-      "digest": "sha256:ae29151a4f6f01fd747a6df88f1cb7a1806075183cdf5a7bca114ae9c156fc11",
+      "digest": "sha256:c694c3e6fc40bf12bb9f2ef3248a66184249206e8463072cad298e1cc5b41307",
       "kind": "ReflectionProduced",
       "seq": 15
     },
     {
-      "digest": "sha256:d889d8ca69dc6386d62167da1deceea7dcd08a0c742ac965503891acdb06e9da",
+      "digest": "sha256:1b2ddda54009a588ebf5540ecff55195deb0619072d4d1eab04455a20d7e3b33",
       "kind": "MemoryMaintenanceApplied",
       "seq": 16
     }
   ],
-  "report_digest": "sha256:3918642308dbb55de95c962a3828d57a87c771da1fa77e610f7d1f63e8bec385",
-  "run": "brain-tick:1793089685257",
+  "report_digest": "sha256:ba91f023e4bd58edb470a54f71412c52d1da266530a59e2ea385f76715a82f58",
+  "run": "brain-tick:1793223735442",
   "schema_version": 1,
-  "source_commit": "da0d686e3806e0452d6687dfb0f67fd2f591891e",
+  "source_commit": "ef5852acdaa233eacbfbcc57059a57661022d07c",
   "stream_heads": {
-    "brain-tick:1793089685257": 16,
-    "brain:memory_cognition:1525f746998baf3f8ab89ad7185412352bff4c96cb2985079c841eeab83b1933": 18,
-    "run:1793089684193099000:1": 19,
+    "brain-tick:1793223735442": 16,
+    "brain:memory_cognition:2cdeb16efa33de98845d915e00865a70c3c8e465dc7980829eaf1c23c9b766af": 18,
+    "run:1793223734977734000:1": 19,
     "run:b1-order-failed": 3
   },
   "tick_model_calls": 0

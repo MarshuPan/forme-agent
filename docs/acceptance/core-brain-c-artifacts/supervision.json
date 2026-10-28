@@ -3,10 +3,10 @@
   "kind": "forme-core-brain-c",
   "case": "Supervision",
   "evidence_grade": "controlled-http-real-runtime-sqlite-files",
-  "source_commit": "da0d686e3806e0452d6687dfb0f67fd2f591891e",
-  "composition_digest": "sha256:d1503e45e4f8bd35944d570202bb92305998bebb2b3096e72a827190dce9c439",
+  "source_commit": "ef5852acdaa233eacbfbcc57059a57661022d07c",
+  "composition_digest": "sha256:4d8938721db939fdc71b5ad6c8ca48d9c899c8f49343863d30b6810b942c29cd",
   "taxonomy_digest": "sha256:653675e926e44858cbe7a8ece29173a17a1ac1a7e2b0db961a3a2f0cd9249cbc",
-  "charter_stream": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+  "charter_stream": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
   "model_profiles": [
     "core-b-provider:core-b-model"
   ],
@@ -14,34 +14,34 @@
     "model:core-b": "core-b-provider:core-b-model"
   },
   "stream_heads": {
-    "brain-tick:1793090096438": 30,
-    "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d": 9,
-    "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e": 20,
-    "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968": 22,
-    "project-segment:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4": 3
+    "brain-tick:1793224030055": 30,
+    "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17": 9,
+    "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae": 20,
+    "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897": 22,
+    "project-segment:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f": 3
   },
   "witnesses": [
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 1,
-      "id": "relevance:sha256:4e3f8ea837ce22eb5398c7c3e972058fb1d4d158dc6f4562020f3f24dcb78670:1793089978379:0:ModelCallStarted",
+      "id": "relevance:sha256:a50fb765daed60b8b234360af5ac8a8ec62ad15cb04c3493d836f34c94630d8d:1793223911040:0:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:d8da9babe787229a552b1b35e3e5fc646c5716191c5990848ce93a35e950def4",
+      "digest": "sha256:0f79c5d25f6a4093006be79701ab3d65a8c914a75c83f007e95210c6b7802252",
       "event": {
-        "event_id": "relevance:sha256:4e3f8ea837ce22eb5398c7c3e972058fb1d4d158dc6f4562020f3f24dcb78670:1793089978379:0:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:a50fb765daed60b8b234360af5ac8a8ec62ad15cb04c3493d836f34c94630d8d:1793223911040:0:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 1,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:4e3f8ea837ce22eb5398c7c3e972058fb1d4d158dc6f4562020f3f24dcb78670:1793089978379:0",
+            "call_id": "relevance:sha256:a50fb765daed60b8b234360af5ac8a8ec62ad15cb04c3493d836f34c94630d8d:1793223911040:0",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978379,
+        "ts_unix_ms": 1793223911040,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -52,20 +52,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 2,
-      "id": "relevance:sha256:4e3f8ea837ce22eb5398c7c3e972058fb1d4d158dc6f4562020f3f24dcb78670:1793089978379:0:ModelCallFinished",
+      "id": "relevance:sha256:a50fb765daed60b8b234360af5ac8a8ec62ad15cb04c3493d836f34c94630d8d:1793223911040:0:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:c66b28c2e2e3eee297bd8f4e146b42bbf4fcb18ab9fbc8109152234907cb7892",
+      "digest": "sha256:60669782838ed25028e16519eca6c0af722913f2046dcd890565e747952847bb",
       "event": {
-        "event_id": "relevance:sha256:4e3f8ea837ce22eb5398c7c3e972058fb1d4d158dc6f4562020f3f24dcb78670:1793089978379:0:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:a50fb765daed60b8b234360af5ac8a8ec62ad15cb04c3493d836f34c94630d8d:1793223911040:0:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 2,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:4e3f8ea837ce22eb5398c7c3e972058fb1d4d158dc6f4562020f3f24dcb78670:1793089978379:0",
+            "call_id": "relevance:sha256:a50fb765daed60b8b234360af5ac8a8ec62ad15cb04c3493d836f34c94630d8d:1793223911040:0",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -75,7 +75,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978421,
+        "ts_unix_ms": 1793223911063,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -86,34 +86,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 3,
-      "id": "relevance:sha256:4e3f8ea837ce22eb5398c7c3e972058fb1d4d158dc6f4562020f3f24dcb78670:1793089978379:0:ModelCallDelta",
+      "id": "relevance:sha256:a50fb765daed60b8b234360af5ac8a8ec62ad15cb04c3493d836f34c94630d8d:1793223911040:0:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:554d5d3a753664f5fae8859e4a5b6fcc8175d25bee0aed590b6bed5aba9b5674",
+      "digest": "sha256:d9fa4c0983f952c2196ad258667e8bd7cb5b8b5769bc7ae149ccf97106064874",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 4,
-      "id": "relevance:sha256:311345411320c8c28d370953afa5803aa9c6f678e1ad8c05a048f73e8d67b5f1:1793089978482:1:ModelCallStarted",
+      "id": "relevance:sha256:31ec19c8854dc19419ffa966c48842fe5e5d9dc0966fc3fe5dab358d6ce44f9e:1793223911088:1:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:e6b0d773384e947512df0b67c135371b206061ac82d3570d6ed0207abf81264b",
+      "digest": "sha256:d29e3d09424886b734e1f10b8f91394338ad6c797d606bb063c01cac1c256500",
       "event": {
-        "event_id": "relevance:sha256:311345411320c8c28d370953afa5803aa9c6f678e1ad8c05a048f73e8d67b5f1:1793089978482:1:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:31ec19c8854dc19419ffa966c48842fe5e5d9dc0966fc3fe5dab358d6ce44f9e:1793223911088:1:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 4,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:311345411320c8c28d370953afa5803aa9c6f678e1ad8c05a048f73e8d67b5f1:1793089978482:1",
+            "call_id": "relevance:sha256:31ec19c8854dc19419ffa966c48842fe5e5d9dc0966fc3fe5dab358d6ce44f9e:1793223911088:1",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978482,
+        "ts_unix_ms": 1793223911088,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -124,20 +124,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 5,
-      "id": "relevance:sha256:311345411320c8c28d370953afa5803aa9c6f678e1ad8c05a048f73e8d67b5f1:1793089978482:1:ModelCallFinished",
+      "id": "relevance:sha256:31ec19c8854dc19419ffa966c48842fe5e5d9dc0966fc3fe5dab358d6ce44f9e:1793223911088:1:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:a0f8758236bf19ed0d9af855bcd45145a56f2edff7779eb3869565ce55041fa7",
+      "digest": "sha256:b24c16cf3653b4b5a033dec3e544d3c28dc86e366b8dbb1672581b3f52dd07db",
       "event": {
-        "event_id": "relevance:sha256:311345411320c8c28d370953afa5803aa9c6f678e1ad8c05a048f73e8d67b5f1:1793089978482:1:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:31ec19c8854dc19419ffa966c48842fe5e5d9dc0966fc3fe5dab358d6ce44f9e:1793223911088:1:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 5,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:311345411320c8c28d370953afa5803aa9c6f678e1ad8c05a048f73e8d67b5f1:1793089978482:1",
+            "call_id": "relevance:sha256:31ec19c8854dc19419ffa966c48842fe5e5d9dc0966fc3fe5dab358d6ce44f9e:1793223911088:1",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -147,7 +147,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978522,
+        "ts_unix_ms": 1793223911110,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -158,34 +158,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 6,
-      "id": "relevance:sha256:311345411320c8c28d370953afa5803aa9c6f678e1ad8c05a048f73e8d67b5f1:1793089978482:1:ModelCallDelta",
+      "id": "relevance:sha256:31ec19c8854dc19419ffa966c48842fe5e5d9dc0966fc3fe5dab358d6ce44f9e:1793223911088:1:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:041e80b4f8e654b7c66bdf66fce717d67343de0528e207c45602e8b4bba5f17e",
+      "digest": "sha256:b4a61dde0f0e402cddf944d11f5d89d28eb858e7dc3587af3a417f4dacfee8f2",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 7,
-      "id": "relevance:sha256:39df4b8ad84ebea854174a2430e8f1d7dbb89298f87db67f762cb791678edd29:1793089978591:2:ModelCallStarted",
+      "id": "relevance:sha256:29ebd38cf05ffc1153a3146b4584c523a2a061fb03779a163bc2bd7259c7c6ec:1793223911140:2:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:5c28c5f0c068c95ca0d2772a2c232d4cf8be5edcdd253a45750389aea7c6f637",
+      "digest": "sha256:18b3c9f6bde55659c88734b1d89d2b652c0a015467e85cf3ad21f40e63d9f3b6",
       "event": {
-        "event_id": "relevance:sha256:39df4b8ad84ebea854174a2430e8f1d7dbb89298f87db67f762cb791678edd29:1793089978591:2:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:29ebd38cf05ffc1153a3146b4584c523a2a061fb03779a163bc2bd7259c7c6ec:1793223911140:2:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 7,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:39df4b8ad84ebea854174a2430e8f1d7dbb89298f87db67f762cb791678edd29:1793089978591:2",
+            "call_id": "relevance:sha256:29ebd38cf05ffc1153a3146b4584c523a2a061fb03779a163bc2bd7259c7c6ec:1793223911140:2",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978591,
+        "ts_unix_ms": 1793223911140,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -196,20 +196,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 8,
-      "id": "relevance:sha256:39df4b8ad84ebea854174a2430e8f1d7dbb89298f87db67f762cb791678edd29:1793089978591:2:ModelCallFinished",
+      "id": "relevance:sha256:29ebd38cf05ffc1153a3146b4584c523a2a061fb03779a163bc2bd7259c7c6ec:1793223911140:2:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:bfac5ee5510a0e6374846168e172f2c901e6fbaa111ce721d33072c7dce0c9c2",
+      "digest": "sha256:b09229c4feb0e809147a98d2ba7f172622a311af5cd6c019a5cfc6addf52bde9",
       "event": {
-        "event_id": "relevance:sha256:39df4b8ad84ebea854174a2430e8f1d7dbb89298f87db67f762cb791678edd29:1793089978591:2:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:29ebd38cf05ffc1153a3146b4584c523a2a061fb03779a163bc2bd7259c7c6ec:1793223911140:2:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 8,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:39df4b8ad84ebea854174a2430e8f1d7dbb89298f87db67f762cb791678edd29:1793089978591:2",
+            "call_id": "relevance:sha256:29ebd38cf05ffc1153a3146b4584c523a2a061fb03779a163bc2bd7259c7c6ec:1793223911140:2",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -219,7 +219,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978633,
+        "ts_unix_ms": 1793223911160,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -230,34 +230,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 9,
-      "id": "relevance:sha256:39df4b8ad84ebea854174a2430e8f1d7dbb89298f87db67f762cb791678edd29:1793089978591:2:ModelCallDelta",
+      "id": "relevance:sha256:29ebd38cf05ffc1153a3146b4584c523a2a061fb03779a163bc2bd7259c7c6ec:1793223911140:2:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:0d6a17623410069b8a1e008497693bdbbde001a15fe8be633a7cb59641aa2ed5",
+      "digest": "sha256:721d516af7e325236d11ae7e2ca4e782d0beec026836a70755ed14e39e5120f1",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 10,
-      "id": "relevance:sha256:f18328789769e776f2fa68ce4c1d46e8dbbc9a9e6a154360a1fc8b9e37ffcca2:1793089978779:3:ModelCallStarted",
+      "id": "relevance:sha256:89517a9b89048371f3b8ba8d576c19dd921d264dc971cc14624a2fa72dea55a2:1793223911192:3:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:fc2522905d755a1f18075b2f8fcf7783b86f24268ad32bff1013890ae3647359",
+      "digest": "sha256:514a108aa5fa198f2c88022f9fb525334ee190cb006b91f29f56ab545a9c7917",
       "event": {
-        "event_id": "relevance:sha256:f18328789769e776f2fa68ce4c1d46e8dbbc9a9e6a154360a1fc8b9e37ffcca2:1793089978779:3:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:89517a9b89048371f3b8ba8d576c19dd921d264dc971cc14624a2fa72dea55a2:1793223911192:3:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 10,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:f18328789769e776f2fa68ce4c1d46e8dbbc9a9e6a154360a1fc8b9e37ffcca2:1793089978779:3",
+            "call_id": "relevance:sha256:89517a9b89048371f3b8ba8d576c19dd921d264dc971cc14624a2fa72dea55a2:1793223911192:3",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978779,
+        "ts_unix_ms": 1793223911192,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -268,20 +268,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 11,
-      "id": "relevance:sha256:f18328789769e776f2fa68ce4c1d46e8dbbc9a9e6a154360a1fc8b9e37ffcca2:1793089978779:3:ModelCallFinished",
+      "id": "relevance:sha256:89517a9b89048371f3b8ba8d576c19dd921d264dc971cc14624a2fa72dea55a2:1793223911192:3:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:f30e83f073640afd6834522628820b3bba2b238bd7f6da6d306728147b94544a",
+      "digest": "sha256:5ed0ff4aad60e38b6c7cfb35b8a34c0a7836f7ced895bb2f1097190bf8859ddb",
       "event": {
-        "event_id": "relevance:sha256:f18328789769e776f2fa68ce4c1d46e8dbbc9a9e6a154360a1fc8b9e37ffcca2:1793089978779:3:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:89517a9b89048371f3b8ba8d576c19dd921d264dc971cc14624a2fa72dea55a2:1793223911192:3:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 11,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:f18328789769e776f2fa68ce4c1d46e8dbbc9a9e6a154360a1fc8b9e37ffcca2:1793089978779:3",
+            "call_id": "relevance:sha256:89517a9b89048371f3b8ba8d576c19dd921d264dc971cc14624a2fa72dea55a2:1793223911192:3",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -291,7 +291,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978819,
+        "ts_unix_ms": 1793223911219,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -302,34 +302,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 12,
-      "id": "relevance:sha256:f18328789769e776f2fa68ce4c1d46e8dbbc9a9e6a154360a1fc8b9e37ffcca2:1793089978779:3:ModelCallDelta",
+      "id": "relevance:sha256:89517a9b89048371f3b8ba8d576c19dd921d264dc971cc14624a2fa72dea55a2:1793223911192:3:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:2d49cb0afb5358a92167dd9cf5afd1384e9673834bd035fbecce92e48b4589f1",
+      "digest": "sha256:f427f4bbc124cf8991172a0997062f9246e52a531ad76d81c65dd09b8cb8a573",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 13,
-      "id": "relevance:sha256:be3722c50b54a40c94d096798e08c92def5de3610e472f87c87c649cab3bf03b:1793089978890:4:ModelCallStarted",
+      "id": "relevance:sha256:b7331269653bf4ca48c9644d033c736e3bfc3722bacec7b4e180995df3a8ec35:1793223911254:4:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:8b102e46258e0cfe0b73d447fed7aa1ba1617d2603e065f3b826346506ae9b77",
+      "digest": "sha256:d2ea2d5add82592157c143420cce5ebace455cae43abc119e7e16d4c0e4b8f44",
       "event": {
-        "event_id": "relevance:sha256:be3722c50b54a40c94d096798e08c92def5de3610e472f87c87c649cab3bf03b:1793089978890:4:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:b7331269653bf4ca48c9644d033c736e3bfc3722bacec7b4e180995df3a8ec35:1793223911254:4:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 13,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:be3722c50b54a40c94d096798e08c92def5de3610e472f87c87c649cab3bf03b:1793089978890:4",
+            "call_id": "relevance:sha256:b7331269653bf4ca48c9644d033c736e3bfc3722bacec7b4e180995df3a8ec35:1793223911254:4",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978890,
+        "ts_unix_ms": 1793223911254,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -340,20 +340,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 14,
-      "id": "relevance:sha256:be3722c50b54a40c94d096798e08c92def5de3610e472f87c87c649cab3bf03b:1793089978890:4:ModelCallFinished",
+      "id": "relevance:sha256:b7331269653bf4ca48c9644d033c736e3bfc3722bacec7b4e180995df3a8ec35:1793223911254:4:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:5efc133b6ba804850621a6376e94b784d186bd76405c7fd63b641e02284bbe95",
+      "digest": "sha256:daca67543e9964236bf10345bc926ac317c96910ffbf5dba4481986836651b82",
       "event": {
-        "event_id": "relevance:sha256:be3722c50b54a40c94d096798e08c92def5de3610e472f87c87c649cab3bf03b:1793089978890:4:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:b7331269653bf4ca48c9644d033c736e3bfc3722bacec7b4e180995df3a8ec35:1793223911254:4:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 14,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:be3722c50b54a40c94d096798e08c92def5de3610e472f87c87c649cab3bf03b:1793089978890:4",
+            "call_id": "relevance:sha256:b7331269653bf4ca48c9644d033c736e3bfc3722bacec7b4e180995df3a8ec35:1793223911254:4",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -363,7 +363,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979022,
+        "ts_unix_ms": 1793223911277,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -374,34 +374,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 15,
-      "id": "relevance:sha256:be3722c50b54a40c94d096798e08c92def5de3610e472f87c87c649cab3bf03b:1793089978890:4:ModelCallDelta",
+      "id": "relevance:sha256:b7331269653bf4ca48c9644d033c736e3bfc3722bacec7b4e180995df3a8ec35:1793223911254:4:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:a7b4f47ac24ddfb0c836dee54e6701161f7301a71a4d88e65ff8bf0326e06c51",
+      "digest": "sha256:2ed3ae9862ce2f41c70a46a5d4501bd900073f9d67dddaeb79c51ca9b75677db",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 16,
-      "id": "relevance:sha256:5ccd1598f457d9df052dadb9f8f2589d2de4752ca81f15aa1e26c0d2c5e75b45:1793089979095:5:ModelCallStarted",
+      "id": "relevance:sha256:43f8863223e71ec07dea616f313b6e0d614ad665552ed7e188adef41d6922ccf:1793223911316:5:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:c0ab0dac9e64d96c6e741419a94b1f15fc0035a9b3810ef3f439c72741e7da56",
+      "digest": "sha256:03a788344c90a2c4bc9d235d2d78abe494d41dd941aea85f8707a2475f843ac0",
       "event": {
-        "event_id": "relevance:sha256:5ccd1598f457d9df052dadb9f8f2589d2de4752ca81f15aa1e26c0d2c5e75b45:1793089979095:5:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:43f8863223e71ec07dea616f313b6e0d614ad665552ed7e188adef41d6922ccf:1793223911316:5:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 16,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:5ccd1598f457d9df052dadb9f8f2589d2de4752ca81f15aa1e26c0d2c5e75b45:1793089979095:5",
+            "call_id": "relevance:sha256:43f8863223e71ec07dea616f313b6e0d614ad665552ed7e188adef41d6922ccf:1793223911316:5",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979095,
+        "ts_unix_ms": 1793223911316,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -412,20 +412,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 17,
-      "id": "relevance:sha256:5ccd1598f457d9df052dadb9f8f2589d2de4752ca81f15aa1e26c0d2c5e75b45:1793089979095:5:ModelCallFinished",
+      "id": "relevance:sha256:43f8863223e71ec07dea616f313b6e0d614ad665552ed7e188adef41d6922ccf:1793223911316:5:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:1a874966274f30c6a564b97bd57d373f990a9df5c2df86c637fc72044188b5cf",
+      "digest": "sha256:3fc1f800cc03464a90757384622cff0b161a0e9bc00586505bcce3caf8ceabcf",
       "event": {
-        "event_id": "relevance:sha256:5ccd1598f457d9df052dadb9f8f2589d2de4752ca81f15aa1e26c0d2c5e75b45:1793089979095:5:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:43f8863223e71ec07dea616f313b6e0d614ad665552ed7e188adef41d6922ccf:1793223911316:5:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 17,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:5ccd1598f457d9df052dadb9f8f2589d2de4752ca81f15aa1e26c0d2c5e75b45:1793089979095:5",
+            "call_id": "relevance:sha256:43f8863223e71ec07dea616f313b6e0d614ad665552ed7e188adef41d6922ccf:1793223911316:5",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -435,7 +435,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979135,
+        "ts_unix_ms": 1793223911339,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -446,34 +446,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 18,
-      "id": "relevance:sha256:5ccd1598f457d9df052dadb9f8f2589d2de4752ca81f15aa1e26c0d2c5e75b45:1793089979095:5:ModelCallDelta",
+      "id": "relevance:sha256:43f8863223e71ec07dea616f313b6e0d614ad665552ed7e188adef41d6922ccf:1793223911316:5:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:43b7ca633f229fcfb416794572109af35b0a6715c81b077692c79719ea19833d",
+      "digest": "sha256:1041e0e9ed7cb792a52f7c51932cf46eb4d5cab8ab660f6eef710beb783b5446",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 19,
-      "id": "relevance:sha256:6257b9dbe22daeba20eb8408a3a783d99ec909f4ce9a9442e472b353042172e4:1793089979288:6:ModelCallStarted",
+      "id": "relevance:sha256:16a421096872bac7209f5ad3182188330df42e725075d996bbe52a6fef9f128f:1793223911380:6:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:5be54335bffa0d677116bcd09994a7d66114a2dc2a10a4ef3e3083cd6a180331",
+      "digest": "sha256:9944d272fb6e4e134451ab78e30cddb912e97d174f4228320fe6c0802ff32f76",
       "event": {
-        "event_id": "relevance:sha256:6257b9dbe22daeba20eb8408a3a783d99ec909f4ce9a9442e472b353042172e4:1793089979288:6:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:16a421096872bac7209f5ad3182188330df42e725075d996bbe52a6fef9f128f:1793223911380:6:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 19,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:6257b9dbe22daeba20eb8408a3a783d99ec909f4ce9a9442e472b353042172e4:1793089979288:6",
+            "call_id": "relevance:sha256:16a421096872bac7209f5ad3182188330df42e725075d996bbe52a6fef9f128f:1793223911380:6",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979288,
+        "ts_unix_ms": 1793223911380,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -484,20 +484,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 20,
-      "id": "relevance:sha256:6257b9dbe22daeba20eb8408a3a783d99ec909f4ce9a9442e472b353042172e4:1793089979288:6:ModelCallFinished",
+      "id": "relevance:sha256:16a421096872bac7209f5ad3182188330df42e725075d996bbe52a6fef9f128f:1793223911380:6:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:da3aa3a9cd9acf00f2fb6c671ae43ac132f14f864dad08c4773d53a2bdbda19d",
+      "digest": "sha256:321f0f747a48a2f5020eb6c08f006294281aa74e05e1b13da067cb98f87d92d7",
       "event": {
-        "event_id": "relevance:sha256:6257b9dbe22daeba20eb8408a3a783d99ec909f4ce9a9442e472b353042172e4:1793089979288:6:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:16a421096872bac7209f5ad3182188330df42e725075d996bbe52a6fef9f128f:1793223911380:6:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 20,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:6257b9dbe22daeba20eb8408a3a783d99ec909f4ce9a9442e472b353042172e4:1793089979288:6",
+            "call_id": "relevance:sha256:16a421096872bac7209f5ad3182188330df42e725075d996bbe52a6fef9f128f:1793223911380:6",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -507,7 +507,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979414,
+        "ts_unix_ms": 1793223911401,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -518,34 +518,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 21,
-      "id": "relevance:sha256:6257b9dbe22daeba20eb8408a3a783d99ec909f4ce9a9442e472b353042172e4:1793089979288:6:ModelCallDelta",
+      "id": "relevance:sha256:16a421096872bac7209f5ad3182188330df42e725075d996bbe52a6fef9f128f:1793223911380:6:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:d8336b6a6ce61a6ddb57f5633fe5dcfa61076ad1eee42511b1aadab41e00718c",
+      "digest": "sha256:ce7219ad25af034058152e083d8afed7a3ea15581a1db65c74e18569e74ddbf2",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 22,
-      "id": "relevance:sha256:ce2eba9858926bcadadd80acfc5224b059d2d84d5fb27eea6c62fa7e8dd4258c:1793089979511:7:ModelCallStarted",
+      "id": "relevance:sha256:383f272ce4ae775dab83e0f31c41f5f75403bbbbb727e6828f823e7503d058f5:1793223911448:7:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:e48f7de4fd5350e417f92f755f67989c94278d2ac30601f225482bc824221b0d",
+      "digest": "sha256:bce76fb314c72c0a2a54af179470c95f49d8dbb8ab6772e98864fab8a24dc3ab",
       "event": {
-        "event_id": "relevance:sha256:ce2eba9858926bcadadd80acfc5224b059d2d84d5fb27eea6c62fa7e8dd4258c:1793089979511:7:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:383f272ce4ae775dab83e0f31c41f5f75403bbbbb727e6828f823e7503d058f5:1793223911448:7:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 22,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:ce2eba9858926bcadadd80acfc5224b059d2d84d5fb27eea6c62fa7e8dd4258c:1793089979511:7",
+            "call_id": "relevance:sha256:383f272ce4ae775dab83e0f31c41f5f75403bbbbb727e6828f823e7503d058f5:1793223911448:7",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979511,
+        "ts_unix_ms": 1793223911448,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -556,20 +556,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 23,
-      "id": "relevance:sha256:ce2eba9858926bcadadd80acfc5224b059d2d84d5fb27eea6c62fa7e8dd4258c:1793089979511:7:ModelCallFinished",
+      "id": "relevance:sha256:383f272ce4ae775dab83e0f31c41f5f75403bbbbb727e6828f823e7503d058f5:1793223911448:7:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:1cc3b62e95bfdec11796063f2babbcbf93a0fc44d6a3da005d4a9e90434563ca",
+      "digest": "sha256:0518688debf985d3979ed96ff101572bfea8c11ac264d2e4ef9dc679e8123d1b",
       "event": {
-        "event_id": "relevance:sha256:ce2eba9858926bcadadd80acfc5224b059d2d84d5fb27eea6c62fa7e8dd4258c:1793089979511:7:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:383f272ce4ae775dab83e0f31c41f5f75403bbbbb727e6828f823e7503d058f5:1793223911448:7:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 23,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:ce2eba9858926bcadadd80acfc5224b059d2d84d5fb27eea6c62fa7e8dd4258c:1793089979511:7",
+            "call_id": "relevance:sha256:383f272ce4ae775dab83e0f31c41f5f75403bbbbb727e6828f823e7503d058f5:1793223911448:7",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -579,7 +579,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979557,
+        "ts_unix_ms": 1793223911470,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -590,34 +590,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 24,
-      "id": "relevance:sha256:ce2eba9858926bcadadd80acfc5224b059d2d84d5fb27eea6c62fa7e8dd4258c:1793089979511:7:ModelCallDelta",
+      "id": "relevance:sha256:383f272ce4ae775dab83e0f31c41f5f75403bbbbb727e6828f823e7503d058f5:1793223911448:7:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:12721791d6f73bd1187231d5d0a231fb87efeb3a607a995492dbf014ff94ea2d",
+      "digest": "sha256:68bd1fb7c4611d2a8d1469467a62d4fd9ade8498372e6754dcfeb739cd2d9fcf",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 25,
-      "id": "relevance:sha256:cc4dbe14fd23dcaa5b7c1de695e05f36153ab9c617cfd4f93b8cd7bdd6d1ff51:1793089979747:8:ModelCallStarted",
+      "id": "relevance:sha256:bd57ce92d6a1d217877d2b74179744499871643ff4c3dea1cea8ae9605b98638:1793223911520:8:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:b716895013ab3d7d39088c795a6f65680aa070017e54973d92c70c641adc53e5",
+      "digest": "sha256:4266322cb80eda47906b0722299a97017d8ba793b9b272669cb5e7332a2a9038",
       "event": {
-        "event_id": "relevance:sha256:cc4dbe14fd23dcaa5b7c1de695e05f36153ab9c617cfd4f93b8cd7bdd6d1ff51:1793089979747:8:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:bd57ce92d6a1d217877d2b74179744499871643ff4c3dea1cea8ae9605b98638:1793223911520:8:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 25,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:cc4dbe14fd23dcaa5b7c1de695e05f36153ab9c617cfd4f93b8cd7bdd6d1ff51:1793089979747:8",
+            "call_id": "relevance:sha256:bd57ce92d6a1d217877d2b74179744499871643ff4c3dea1cea8ae9605b98638:1793223911520:8",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979747,
+        "ts_unix_ms": 1793223911520,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -628,20 +628,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 26,
-      "id": "relevance:sha256:cc4dbe14fd23dcaa5b7c1de695e05f36153ab9c617cfd4f93b8cd7bdd6d1ff51:1793089979747:8:ModelCallFinished",
+      "id": "relevance:sha256:bd57ce92d6a1d217877d2b74179744499871643ff4c3dea1cea8ae9605b98638:1793223911520:8:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:dc521e478e37b23db3e6da682870bbf661856b980b103f754c168f5ea727d6f8",
+      "digest": "sha256:c1859542f7180b1efcb9eb53cfaf66214af47ec7a5929f32b6c0c50c23b94a32",
       "event": {
-        "event_id": "relevance:sha256:cc4dbe14fd23dcaa5b7c1de695e05f36153ab9c617cfd4f93b8cd7bdd6d1ff51:1793089979747:8:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:bd57ce92d6a1d217877d2b74179744499871643ff4c3dea1cea8ae9605b98638:1793223911520:8:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 26,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:cc4dbe14fd23dcaa5b7c1de695e05f36153ab9c617cfd4f93b8cd7bdd6d1ff51:1793089979747:8",
+            "call_id": "relevance:sha256:bd57ce92d6a1d217877d2b74179744499871643ff4c3dea1cea8ae9605b98638:1793223911520:8",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -651,7 +651,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089979789,
+        "ts_unix_ms": 1793223911544,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -662,34 +662,34 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 27,
-      "id": "relevance:sha256:cc4dbe14fd23dcaa5b7c1de695e05f36153ab9c617cfd4f93b8cd7bdd6d1ff51:1793089979747:8:ModelCallDelta",
+      "id": "relevance:sha256:bd57ce92d6a1d217877d2b74179744499871643ff4c3dea1cea8ae9605b98638:1793223911520:8:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:fd103b8928b08906e6a1bc8440bd0092f061fb2a1b85bb5be0adec6449c31686",
+      "digest": "sha256:0798b84d3f9cc6d9f19880a2822e3e6a95e5608132f560ea599c5133720bf262",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 28,
-      "id": "relevance:sha256:a822c6ce1d47f3d924828fe019f9066dbe61100726b88296390866a71416d3ea:1793089980012:9:ModelCallStarted",
+      "id": "relevance:sha256:99c109bc0cc0d1102cb681d647fa38498fb855d6f4a159cb8346f7c4791c9343:1793223911595:9:ModelCallStarted",
       "kind": "ModelCallStarted",
-      "digest": "sha256:fba4add9953a40460d7ad5eb3bfd10a73b47a5ff70069c07030598c0f4e159dc",
+      "digest": "sha256:2907b0d9dd850a7f7d0c64b9c65453389cba5e8d8807f11bd938b342b3dee7b5",
       "event": {
-        "event_id": "relevance:sha256:a822c6ce1d47f3d924828fe019f9066dbe61100726b88296390866a71416d3ea:1793089980012:9:ModelCallStarted",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:99c109bc0cc0d1102cb681d647fa38498fb855d6f4a159cb8346f7c4791c9343:1793223911595:9:ModelCallStarted",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 28,
         "turn_id": null,
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "relevance:sha256:a822c6ce1d47f3d924828fe019f9066dbe61100726b88296390866a71416d3ea:1793089980012:9",
+            "call_id": "relevance:sha256:99c109bc0cc0d1102cb681d647fa38498fb855d6f4a159cb8346f7c4791c9343:1793223911595:9",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089980012,
+        "ts_unix_ms": 1793223911595,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -700,20 +700,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 29,
-      "id": "relevance:sha256:a822c6ce1d47f3d924828fe019f9066dbe61100726b88296390866a71416d3ea:1793089980012:9:ModelCallFinished",
+      "id": "relevance:sha256:99c109bc0cc0d1102cb681d647fa38498fb855d6f4a159cb8346f7c4791c9343:1793223911595:9:ModelCallFinished",
       "kind": "ModelCallFinished",
-      "digest": "sha256:6e88e9d9fb1316cb1d45f5023176262c12d9be626086a96bcea8068d9e269233",
+      "digest": "sha256:bb611eaec9eeb2daaac91c77587bdc192a8f38300793801ae058a722e3e278b9",
       "event": {
-        "event_id": "relevance:sha256:a822c6ce1d47f3d924828fe019f9066dbe61100726b88296390866a71416d3ea:1793089980012:9:ModelCallFinished",
-        "run_id": "brain-tick:1793090096438",
+        "event_id": "relevance:sha256:99c109bc0cc0d1102cb681d647fa38498fb855d6f4a159cb8346f7c4791c9343:1793223911595:9:ModelCallFinished",
+        "run_id": "brain-tick:1793224030055",
         "stream_seq": 29,
         "turn_id": null,
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "relevance:sha256:a822c6ce1d47f3d924828fe019f9066dbe61100726b88296390866a71416d3ea:1793089980012:9",
+            "call_id": "relevance:sha256:99c109bc0cc0d1102cb681d647fa38498fb855d6f4a159cb8346f7c4791c9343:1793223911595:9",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -723,7 +723,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089980061,
+        "ts_unix_ms": 1793223911620,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -734,23 +734,23 @@
     },
     {
       "schema_version": 1,
-      "run": "brain-tick:1793090096438",
+      "run": "brain-tick:1793224030055",
       "seq": 30,
-      "id": "relevance:sha256:a822c6ce1d47f3d924828fe019f9066dbe61100726b88296390866a71416d3ea:1793089980012:9:ModelCallDelta",
+      "id": "relevance:sha256:99c109bc0cc0d1102cb681d647fa38498fb855d6f4a159cb8346f7c4791c9343:1793223911595:9:ModelCallDelta",
       "kind": "ModelCallDelta",
-      "digest": "sha256:cb83dde423c079d1babcfc6db87ec1f442a005b8e3a082e8d45c4d98621dc7a7",
+      "digest": "sha256:9c80f8c0a4e0b776e47d3e69db14415831bd554c6310582e224d3b34865f1eae",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 1,
       "id": "charter-command:sha256:1ffe83b212eb0ec34d3da95fa4d5d6ec144d4ee706f52159230b43cf93d541b1",
       "kind": "WorkspaceCharterChanged",
-      "digest": "sha256:1cbc7228236bc5fa1e88186020b529acd3ac09ba1de499a5e16c69cc14375c34",
+      "digest": "sha256:19f3c106be7146a2e7123b43442a6ff15d16cc0334ff3ea02cebda93bd1d2404",
       "event": {
         "event_id": "charter-command:sha256:1ffe83b212eb0ec34d3da95fa4d5d6ec144d4ee706f52159230b43cf93d541b1",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 1,
         "turn_id": null,
         "kind": "WorkspaceCharterChanged",
@@ -775,7 +775,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976261,
+        "ts_unix_ms": 1793223909928,
         "provenance": {
           "source": "OwnerControl",
           "actor": "Owner",
@@ -786,14 +786,14 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 2,
-      "id": "orchestration-command:sha256:95a3c643c94dfe9a58501605dfff3da56677fd2654a3c984033f069ef8391dd3",
+      "id": "orchestration-command:sha256:fda4f9e5baa42dd29b1da2e7b01e8dc3d7410c9ef5178dfe83f78a51585aec79",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:a54eccecfba5d5f01df7a4f1a90e59b25ec069a011d69e0bcff11f9f28e5a1ff",
+      "digest": "sha256:92788ac93780c1c00389605fea7429ab04ff98ab78a931f5b7b06693ce65439b",
       "event": {
-        "event_id": "orchestration-command:sha256:95a3c643c94dfe9a58501605dfff3da56677fd2654a3c984033f069ef8391dd3",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:fda4f9e5baa42dd29b1da2e7b01e8dc3d7410c9ef5178dfe83f78a51585aec79",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 2,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
@@ -851,7 +851,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976299,
+        "ts_unix_ms": 1793223909939,
         "provenance": {
           "source": "OwnerControl",
           "actor": "Owner",
@@ -862,20 +862,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 3,
-      "id": "orchestration-command:sha256:db9d94eee8fadb8be7acd5463a3ce85b0aff211099847175f6fc512ce18c9af8",
+      "id": "orchestration-command:sha256:7ab98a006728086c42bc4a0bca362480447c3c428f60a029deea8c8ba20699a6",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:14919db53495d7fda5fc2e2af93070e415bd7cbbc4ace1682ad13dc6ed7ec523",
+      "digest": "sha256:c91542e5ad7e7d7abbc6e31001075a05dcb9549d0c61a7941a1c12ffed781f64",
       "event": {
-        "event_id": "orchestration-command:sha256:db9d94eee8fadb8be7acd5463a3ce85b0aff211099847175f6fc512ce18c9af8",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:7ab98a006728086c42bc4a0bca362480447c3c428f60a029deea8c8ba20699a6",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 3,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
         "payload": {
           "DecisionTraceRecorded": {
-            "trace_ref": "orchestration:sha256:eb4295e8abce7a124b93b4caa54f0df46fbd7f7be19cf06e0b444c330641c17d",
+            "trace_ref": "orchestration:sha256:04dc58ce1b6ca662ddcc4ef8bbac549000db8225256fad2c5af357251ae717f0",
             "refs": {
               "map": null,
               "user": null,
@@ -888,14 +888,14 @@
             "orchestration": {
               "schema_version": 1,
               "workspace": "workspace:core-b",
-              "command": "workspace-review:1793089976438:project:review:sha256:cf76fa4eb70bd8d76fdf692902f1321670fc0821eed68055a08a73d38eaf4309",
+              "command": "workspace-review:1793223910055:project:review:sha256:cf76fa4eb70bd8d76fdf692902f1321670fc0821eed68055a08a73d38eaf4309",
               "expected_revision": 1,
               "operation": {
                 "RouteDeclared": {
                   "schema_version": 1,
-                  "route": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+                  "route": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
                   "project": "project:review",
-                  "parent": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+                  "parent": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
                   "goal": "goal:project",
                   "done": "done:project",
                   "pattern": "pattern:single-run",
@@ -1049,7 +1049,7 @@
                     "id": "main",
                     "role": "owner-brain",
                     "instruction": "Return the independently specified fixture result",
-                    "intent": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:main:attempt:1",
+                    "intent": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:main:attempt:1",
                     "scope": "workspace:core-b",
                     "capabilities": [],
                     "model": "model:core-b",
@@ -1065,15 +1065,15 @@
                   "charter_digest": "sha256:3e610feecaa87a00e622aefa2b36ee7e7a817f0f7f8372d89e3b2214c09ff41e",
                   "input_digest": "sha256:cf76fa4eb70bd8d76fdf692902f1321670fc0821eed68055a08a73d38eaf4309",
                   "review_digest": "sha256:cf76fa4eb70bd8d76fdf692902f1321670fc0821eed68055a08a73d38eaf4309",
-                  "created_at": 1793089976438
+                  "created_at": 1793223910055
                 }
               },
-              "digest": "sha256:eb4295e8abce7a124b93b4caa54f0df46fbd7f7be19cf06e0b444c330641c17d"
+              "digest": "sha256:04dc58ce1b6ca662ddcc4ef8bbac549000db8225256fad2c5af357251ae717f0"
             }
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1084,14 +1084,14 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 4,
-      "id": "orchestration-command:sha256:20a88b7e85e5cd53d6c6406ce59d545d01c8c8983555c1d704d0aa1dfef358fd",
+      "id": "orchestration-command:sha256:f40561a15b22954e452c627ecfe3fad61d528b72a3f1527eb5530e60502e2ef9",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:c7eef26651ca156182a28c5801625dff3f9bcaac7acf9effec7ae619ded4f2fb",
+      "digest": "sha256:c21c52ddb457dd7875923a409c77d9ddd16a1f4157b43993d302243556ab783a",
       "event": {
-        "event_id": "orchestration-command:sha256:20a88b7e85e5cd53d6c6406ce59d545d01c8c8983555c1d704d0aa1dfef358fd",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:f40561a15b22954e452c627ecfe3fad61d528b72a3f1527eb5530e60502e2ef9",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 4,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
@@ -1152,7 +1152,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976506,
+        "ts_unix_ms": 1793223910042,
         "provenance": {
           "source": "OwnerControl",
           "actor": "Owner",
@@ -1163,20 +1163,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 5,
-      "id": "orchestration-command:sha256:efbd8e2bb7c32b70e12b315a19882a61e35289465048a0ada52a3193003057f1",
+      "id": "orchestration-command:sha256:721b6abfeba9382f5d58ff47d1ec602449a519699ab150513553ba3a5d65cfb6",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:091f7d68d64312e3fd483ccb757120bd9b7e60809b9946d2300224619626c0ca",
+      "digest": "sha256:6573209ed4b16b74ff1b4f8593a7580375323d41eccd12a17290f82b34d625f2",
       "event": {
-        "event_id": "orchestration-command:sha256:efbd8e2bb7c32b70e12b315a19882a61e35289465048a0ada52a3193003057f1",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:721b6abfeba9382f5d58ff47d1ec602449a519699ab150513553ba3a5d65cfb6",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 5,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
         "payload": {
           "DecisionTraceRecorded": {
-            "trace_ref": "orchestration:sha256:29e3868d746f92e10c5d21cbd34d4229314cf0343b782ac514e9ca98ee61d352",
+            "trace_ref": "orchestration:sha256:ce3ccb9e600fec0e40d87f14778614c42128f7ff931efc0bc03e81107900acd6",
             "refs": {
               "map": null,
               "user": null,
@@ -1189,21 +1189,21 @@
             "orchestration": {
               "schema_version": 1,
               "workspace": "workspace:core-b",
-              "command": "start:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:main:1",
+              "command": "start:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:main:1",
               "expected_revision": 3,
               "operation": {
                 "NodeStarted": {
-                  "route": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+                  "route": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
                   "node": "main",
-                  "intent": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:main:attempt:1"
+                  "intent": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:main:attempt:1"
                 }
               },
-              "digest": "sha256:29e3868d746f92e10c5d21cbd34d4229314cf0343b782ac514e9ca98ee61d352"
+              "digest": "sha256:ce3ccb9e600fec0e40d87f14778614c42128f7ff931efc0bc03e81107900acd6"
             }
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976639,
+        "ts_unix_ms": 1793223910127,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1214,20 +1214,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 6,
-      "id": "orchestration-command:sha256:3eca374502944a6518def9229af52ddabd548d168ca002fc231363549a8eb475",
+      "id": "orchestration-command:sha256:1ceb82d3428e468e5079a085d04005b46157232e03a5d5a188aee0075d6b790e",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:16081cc9356e079cf2f78ec037b040748a6008fd39690eb16b585df155ad1ca6",
+      "digest": "sha256:08f176e221e910439b410dd87933781394c969dbc47399b8b6c8eb1a723e99dc",
       "event": {
-        "event_id": "orchestration-command:sha256:3eca374502944a6518def9229af52ddabd548d168ca002fc231363549a8eb475",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:1ceb82d3428e468e5079a085d04005b46157232e03a5d5a188aee0075d6b790e",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 6,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
         "payload": {
           "DecisionTraceRecorded": {
-            "trace_ref": "orchestration:sha256:043e77ce32e3b320ac022eba484912024f0ed386e90504085aadc9462b14c291",
+            "trace_ref": "orchestration:sha256:f4a68896348e954f24a86f89defc2e997102138bf386e746a7495fac1cd8043f",
             "refs": {
               "map": null,
               "user": null,
@@ -1240,30 +1240,30 @@
             "orchestration": {
               "schema_version": 1,
               "workspace": "workspace:core-b",
-              "command": "finish:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:main:1:22",
+              "command": "finish:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:main:1:22",
               "expected_revision": 4,
               "operation": {
                 "NodeFinished": {
-                  "route": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+                  "route": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
                   "node": "main",
                   "status": "Done",
                   "consumed": 1,
-                  "result": "result:project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+                  "result": "result:project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
                   "summary": "ground-truth",
                   "verification": "Pass",
                   "evidence": [
-                    "harness:1793089977144793800:14",
-                    "harness:1793089977321035300:19"
+                    "harness:1793223910375539800:14",
+                    "harness:1793223910448755400:19"
                   ],
                   "effects_absent": true
                 }
               },
-              "digest": "sha256:043e77ce32e3b320ac022eba484912024f0ed386e90504085aadc9462b14c291"
+              "digest": "sha256:f4a68896348e954f24a86f89defc2e997102138bf386e746a7495fac1cd8043f"
             }
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089977392,
+        "ts_unix_ms": 1793223910499,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1274,20 +1274,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 7,
-      "id": "orchestration-command:sha256:7b88073d6c5e6d294119c2df12b5e0e6afb720353bec5934c0095f131125bac2",
+      "id": "orchestration-command:sha256:d00b2d087e5ec5972f9a555b353721ce07a8737f62935da79a467a6799bcefc9",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:47b49379db5c06caae8169914861d6ba1e4de72d1e14b9c321e05163e20c29de",
+      "digest": "sha256:7fec3867deaac9667db29423fb332d64e53aca09887312a2272cd086b66423e6",
       "event": {
-        "event_id": "orchestration-command:sha256:7b88073d6c5e6d294119c2df12b5e0e6afb720353bec5934c0095f131125bac2",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:d00b2d087e5ec5972f9a555b353721ce07a8737f62935da79a467a6799bcefc9",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 7,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
         "payload": {
           "DecisionTraceRecorded": {
-            "trace_ref": "orchestration:sha256:eccaff92a38a0f177c14e83c8129f99bad20544c63b194ad85ed79a69b3a18d8",
+            "trace_ref": "orchestration:sha256:27c24940688abe6ec6828a71cca9e9dd9b51c121ae699abf55f718f98ef5b8c4",
             "refs": {
               "map": null,
               "user": null,
@@ -1300,20 +1300,20 @@
             "orchestration": {
               "schema_version": 1,
               "workspace": "workspace:core-b",
-              "command": "close:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+              "command": "close:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
               "expected_revision": 5,
               "operation": {
                 "RouteClosed": {
-                  "route": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+                  "route": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
                   "status": "Completed"
                 }
               },
-              "digest": "sha256:eccaff92a38a0f177c14e83c8129f99bad20544c63b194ad85ed79a69b3a18d8"
+              "digest": "sha256:27c24940688abe6ec6828a71cca9e9dd9b51c121ae699abf55f718f98ef5b8c4"
             }
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089977448,
+        "ts_unix_ms": 1793223910532,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1324,20 +1324,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 8,
-      "id": "orchestration-command:sha256:0b769bb27e3710f0e9f96948d460838ead9080e04cc037c43b330725f1de0949",
+      "id": "orchestration-command:sha256:b7cfea7172cba961886c8c477549457d201d712c8a848cb7a2c26252a204e01a",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:66041acf0b869b41e591be48cce084cb401fbaa3af712f2ee900604ad63fff4b",
+      "digest": "sha256:8a9bfc97f3d39d0fcbf2f26675fb50f5209743722888c670273407e32b4065fe",
       "event": {
-        "event_id": "orchestration-command:sha256:0b769bb27e3710f0e9f96948d460838ead9080e04cc037c43b330725f1de0949",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:b7cfea7172cba961886c8c477549457d201d712c8a848cb7a2c26252a204e01a",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 8,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
         "payload": {
           "DecisionTraceRecorded": {
-            "trace_ref": "orchestration:sha256:27e4c5d819dae46a7f0fc761bf4bc374c1db133fc743f694d79651f2125b0cd7",
+            "trace_ref": "orchestration:sha256:3e841ccdcd128dfec091bef54425e3a4193f74fa64359999ec5966ff14d98471",
             "refs": {
               "map": null,
               "user": null,
@@ -1350,22 +1350,22 @@
             "orchestration": {
               "schema_version": 1,
               "workspace": "workspace:core-b",
-              "command": "checkpoint:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+              "command": "checkpoint:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
               "expected_revision": 6,
               "operation": {
                 "Checkpoint": {
                   "project": "project:review",
-                  "route": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+                  "route": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
                   "input_digest": "sha256:cf76fa4eb70bd8d76fdf692902f1321670fc0821eed68055a08a73d38eaf4309",
-                  "at": 1793089978105
+                  "at": 1793223910818
                 }
               },
-              "digest": "sha256:27e4c5d819dae46a7f0fc761bf4bc374c1db133fc743f694d79651f2125b0cd7"
+              "digest": "sha256:3e841ccdcd128dfec091bef54425e3a4193f74fa64359999ec5966ff14d98471"
             }
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089978105,
+        "ts_unix_ms": 1793223910818,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1376,20 +1376,20 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+      "run": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
       "seq": 9,
-      "id": "orchestration-command:sha256:e89a3e5c9181edfae1feb9c0ef55b49bcd2aaa2931879a7d9998b70347c37970",
+      "id": "orchestration-command:sha256:82363ef8f4ac646e69dda941ebe268af8a1c2ac82105d745bc9b093df6fc1b65",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:f6e1d7c58daa32bdd346b9ab736e66ec8391c2a91a7c1c30ecfdf9de0de4951b",
+      "digest": "sha256:b1f4d50b5e17efadef3915744ab58f7e2f9293e4e248bc071eea7b42fb3029fe",
       "event": {
-        "event_id": "orchestration-command:sha256:e89a3e5c9181edfae1feb9c0ef55b49bcd2aaa2931879a7d9998b70347c37970",
-        "run_id": "brain:charter:af30455fde6cfc2221da87da341ae04b6d5dc0a648f5834f957a3d441a1c744d",
+        "event_id": "orchestration-command:sha256:82363ef8f4ac646e69dda941ebe268af8a1c2ac82105d745bc9b093df6fc1b65",
+        "run_id": "brain:charter:2a55939245bf9a952401dcbf076c3e2fef33fa3d7e7b983a1bd8277e59cf1d17",
         "stream_seq": 9,
         "turn_id": null,
         "kind": "DecisionTraceRecorded",
         "payload": {
           "DecisionTraceRecorded": {
-            "trace_ref": "orchestration:sha256:cadd72a14c0988b650a61aecac5ec8a3ce8359deec0a11cf4efc3ef11cdf7957",
+            "trace_ref": "orchestration:sha256:02fed73f243434a25725911a1e0317bd1a8d09a70e58170edb0576ebb88a8d9a",
             "refs": {
               "map": null,
               "user": null,
@@ -1402,14 +1402,14 @@
             "orchestration": {
               "schema_version": 1,
               "workspace": "workspace:core-b",
-              "command": "workspace-review:1793090096438:project:review:sha256:3783568cf86c2a550bf94f457d5bc2125cb62d28263e6562b6321191ee29fc29",
+              "command": "workspace-review:1793224030055:project:review:sha256:3783568cf86c2a550bf94f457d5bc2125cb62d28263e6562b6321191ee29fc29",
               "expected_revision": 7,
               "operation": {
                 "RouteDeclared": {
                   "schema_version": 1,
-                  "route": "project-route:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4",
+                  "route": "project-route:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f",
                   "project": "project:review",
-                  "parent": "project-segment:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4",
+                  "parent": "project-segment:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f",
                   "goal": "goal:project",
                   "done": "done:project",
                   "pattern": "pattern:generator-evaluator",
@@ -1563,7 +1563,7 @@
                       "id": "node-0",
                       "role": "generator",
                       "instruction": "Role: generator. Address the owner goal within the supplied constraints. Report evidence and unresolved conflicts. Goal: Return the independently specified fixture result",
-                      "intent": "project-route:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4:node-0:attempt:1",
+                      "intent": "project-route:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f:node-0:attempt:1",
                       "scope": "workspace:core-b",
                       "capabilities": [],
                       "model": "model:core-b",
@@ -1580,7 +1580,7 @@
                       "id": "node-1",
                       "role": "evaluator",
                       "instruction": "Role: evaluator. Address the owner goal within the supplied constraints. Report evidence and unresolved conflicts. Goal: Return the independently specified fixture result",
-                      "intent": "project-route:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4:node-1:attempt:1",
+                      "intent": "project-route:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f:node-1:attempt:1",
                       "scope": "workspace:core-b",
                       "capabilities": [],
                       "model": "model:core-b",
@@ -1598,7 +1598,7 @@
                     "id": "main",
                     "role": "owner-brain",
                     "instruction": "Return the independently specified fixture result",
-                    "intent": "project-route:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4:main:attempt:1",
+                    "intent": "project-route:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f:main:attempt:1",
                     "scope": "workspace:core-b",
                     "capabilities": [],
                     "model": "model:core-b",
@@ -1621,15 +1621,15 @@
                   "charter_digest": "sha256:3e610feecaa87a00e622aefa2b36ee7e7a817f0f7f8372d89e3b2214c09ff41e",
                   "input_digest": "sha256:3783568cf86c2a550bf94f457d5bc2125cb62d28263e6562b6321191ee29fc29",
                   "review_digest": "sha256:3783568cf86c2a550bf94f457d5bc2125cb62d28263e6562b6321191ee29fc29",
-                  "created_at": 1793090096438
+                  "created_at": 1793224030055
                 }
               },
-              "digest": "sha256:cadd72a14c0988b650a61aecac5ec8a3ce8359deec0a11cf4efc3ef11cdf7957"
+              "digest": "sha256:02fed73f243434a25725911a1e0317bd1a8d09a70e58170edb0576ebb88a8d9a"
             }
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793090096438,
+        "ts_unix_ms": 1793224030055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1640,49 +1640,49 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 1,
       "id": "runtime-doctor:sha256:6e6575577e4b2769f4880edabfed79c7ab22717a36207bcd62895cbc3dec942a",
       "kind": "ConfigDoctorReport",
-      "digest": "sha256:2f58abb8ff489c8d26a7d25594bb1e1c0925f0be2f5e010e41f095da40c3265b",
+      "digest": "sha256:6027ba81a98dd76b08b3bf46baccbccdd867ad9f72fda81fcc2f0df783b4e834",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 2,
-      "id": "production-strategy:sha256:41c9c1d70109a1d91e477b5f64ec4119c59e5939c19accbc7959459274dd3c9f",
+      "id": "production-strategy:sha256:6a16545938b3ba0d4335c7e194fc782247bdaca95619f197df8ad9c86bf583f0",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:c3af73825979eae079f80d356380510c8f14fdff9ef90130515c50607736a584",
+      "digest": "sha256:7963c85597bff20e5eb29e8c8bb4378bd6709184f97d0982f54172184481e476",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 3,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:0",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:0",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:dca0478277afd6e35e2cfc23f32b94bfd4acb35b9ae32fe66f08545d5be42c36",
+      "digest": "sha256:258317eba169560477b4782387c9686dde6a77bd28eb09805d8794e6e6b6ee18",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:0",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:0",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 3,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+            "node_id": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
             "kind": "episodic",
             "content_ref": "route outcome Completed; input sha256:cf76fa4eb70bd8d76fdf692902f1321670fc0821eed68055a08a73d38eaf4309; spent 1; unresolved conflicts 0",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1693,31 +1693,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 4,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:1",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:1",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:771605f94f334a316fde56af2965881efe11b060e675a740bd60d0ad64f04e61",
+      "digest": "sha256:8ad9bf944e9ad95e8afe1a16891b12bdff7de90b53ebf66b40b9b4d88d45bc2f",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:1",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:1",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 4,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
             "kind": "event",
             "content_ref": "goal:project",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1728,28 +1728,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 5,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:2",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:2",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:8fece353ad5204c5a22851ba73991cb09ff385723484eae9cfa7636985d9f0ef",
+      "digest": "sha256:68054f10dee2a79a272c110ab7c6138695b8ba2d598423770ccb11a1723c4d7d",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:2",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:2",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 5,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:c4f3526a6542e610daae4bb16435f4b41203c29408a403cb6a01efe9fba0abb4",
             "kind": "part-of",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1760,31 +1760,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 6,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:3",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:3",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:11762faa9d9adc2ef5cfb235ecbc5f5f026f12c2b922d091ede38da2edeae17a",
+      "digest": "sha256:2ffbc706283bee27984f1b3df9b8c3d5ce2af71b5e9f69f6676e45fb9770fbb6",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:3",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:3",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 6,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
             "kind": "event",
             "content_ref": "pattern:single-run",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1795,28 +1795,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 7,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:4",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:4",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:de49dde7004636382f8b22a647c2bfb816fef4483732a3e2623bc86f048dab2b",
+      "digest": "sha256:ea826052a77047dcaec148ccda70673a0ad67a3f721c832c9ca7f74c4be1f882",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:4",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:4",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 7,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:432ced8bd4f7363e6ad2e7646783c593eb2bbc2e80c828685c4a923a46112999",
             "kind": "part-of",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1827,31 +1827,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 8,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:5",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:5",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:42d9f17cf27145ae9ef6f7e2fbcd2b0489f0cf5037f110a30c072808e5a47755",
+      "digest": "sha256:a66c8a6433710eeb9b7d0d39182a35532b671ad583e408fe47081333bc93b60c",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:5",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:5",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 8,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
             "kind": "event",
             "content_ref": "[Pass]",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1862,28 +1862,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 9,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:6",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:6",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:b1c68bde5f16381f22e26aa0b9e6cd9db2946b8ed0a8c6dbc1d8d7d222266fd9",
+      "digest": "sha256:dad2d85a469d5e0d2bba4c049e6665b957ac2c846de0fea4fea4349ed7042c24",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:6",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:6",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 9,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
             "kind": "part-of",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1894,31 +1894,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 10,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:7",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:7",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:c8ea81d657abfee764467c9b2a9ac020752a458bdf8d38040dbf637fb2c317d9",
+      "digest": "sha256:2149b1941a3a9e98eb0fefe77563330db900c1ec65f99d230618898080e11568",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:7",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:7",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 10,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
             "kind": "event",
             "content_ref": "Completed",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1929,28 +1929,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 11,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:8",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:8",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:30441b2b34e79200d4017c9db3635219d7b0c627e48addb889aec2c97de086a8",
+      "digest": "sha256:d82483129cee2697d854310100a4cf9ab7295bc8f085c7cceb1930fddd74f65e",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:8",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:8",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 11,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:3045b5c998d76c75f480b2e91388b6adef07205004129c0b8dffee745b4aa77e",
             "kind": "causal",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1961,31 +1961,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 12,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:9",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:9",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:3f631a97a07724207aae30226d5a3312e4b169d4ee531e7651d2c2d1bda49f8d",
+      "digest": "sha256:112cedf7181404d89d99ed7735d868287bed5708f0a2771bd861c95ba42a58f0",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:9",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:9",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 12,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:73be1125a7dcabae2c00be6cad8784bdb4822310a7ec01698ae5aae383666215",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:73be1125a7dcabae2c00be6cad8784bdb4822310a7ec01698ae5aae383666215",
             "kind": "event",
             "content_ref": "main:Done:1",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -1996,28 +1996,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 13,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:10",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:10",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:a38ec81cc5ac4b99d3b9eb6e80cebe6e3ef21215c10557fd2272b9f2274b2480",
+      "digest": "sha256:ea64badf37c931c01e18f7c83a5550f3950cd712fed278b952bb1deb3eefc13c",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:10",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:10",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 13,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:73be1125a7dcabae2c00be6cad8784bdb4822310a7ec01698ae5aae383666215",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:73be1125a7dcabae2c00be6cad8784bdb4822310a7ec01698ae5aae383666215",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:73be1125a7dcabae2c00be6cad8784bdb4822310a7ec01698ae5aae383666215",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:73be1125a7dcabae2c00be6cad8784bdb4822310a7ec01698ae5aae383666215",
             "kind": "part-of",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2028,31 +2028,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 14,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:11",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:11",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:7532826c41b0e446ecf0b1c0b01100edb51673f8a05ce18ccd3d1e783fd2dd25",
+      "digest": "sha256:d3eb7e1a1f94c57772c30a9d60ddc7cec2b402221264f83e62b0e2b8788165f7",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:11",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:11",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 14,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:5cdd82d704ea002cf9e3ff4307d71de71be6cfa26fa2e6024aa0dc1d4daa53bd",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:5cdd82d704ea002cf9e3ff4307d71de71be6cfa26fa2e6024aa0dc1d4daa53bd",
             "kind": "event",
-            "content_ref": "result:project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+            "content_ref": "result:project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2063,28 +2063,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 15,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:12",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:12",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:ecf3f212103a8fa54f801527bafc2c52733f66af1ee40740026fddc0c81226a6",
+      "digest": "sha256:7b238e40b34b9b18190c3fafa83336ce3516bca3b7f191153bb26591712a6066",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:12",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:12",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 15,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:5cdd82d704ea002cf9e3ff4307d71de71be6cfa26fa2e6024aa0dc1d4daa53bd",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:5cdd82d704ea002cf9e3ff4307d71de71be6cfa26fa2e6024aa0dc1d4daa53bd",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:5cdd82d704ea002cf9e3ff4307d71de71be6cfa26fa2e6024aa0dc1d4daa53bd",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:5cdd82d704ea002cf9e3ff4307d71de71be6cfa26fa2e6024aa0dc1d4daa53bd",
             "kind": "causal",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2095,31 +2095,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 16,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:13",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:13",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:06ef2ad30da508e31b7542ef07876e8cfbc3d9a3a910067750fb375e1156f5c4",
+      "digest": "sha256:1925935d4531c91c0ce3ecedcaa20cf293036a0930cbc1cbd7f13d07fb4cd3f9",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:13",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:13",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 16,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:6abef8b78db2e690d00d7e1a4a547d9ce527dd10f02c9c2a70ab349248522314",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:6abef8b78db2e690d00d7e1a4a547d9ce527dd10f02c9c2a70ab349248522314",
             "kind": "event",
-            "content_ref": "harness:1793089977144793800:14",
+            "content_ref": "harness:1793223910375539800:14",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2130,28 +2130,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 17,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:14",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:14",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:1cb2d20513b5551a6d41a0342a4b3b169a056de0db38c930aef1934be5be1870",
+      "digest": "sha256:a0380e819e4d99ad75c2e209ec26ae9e72285ae65e75bfbbca6c42d9426e230f",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:14",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:14",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 17,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:6abef8b78db2e690d00d7e1a4a547d9ce527dd10f02c9c2a70ab349248522314",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:6abef8b78db2e690d00d7e1a4a547d9ce527dd10f02c9c2a70ab349248522314",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:6abef8b78db2e690d00d7e1a4a547d9ce527dd10f02c9c2a70ab349248522314",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:6abef8b78db2e690d00d7e1a4a547d9ce527dd10f02c9c2a70ab349248522314",
             "kind": "part-of",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2162,31 +2162,31 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 18,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:15",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:15",
       "kind": "MemoryNodeAppended",
-      "digest": "sha256:40b288a3db0670c7ee36db570415abd7ff03287e8b9850353f88a4398238cba1",
+      "digest": "sha256:41f816872c7a9d520dd5cdf9c918999304cae953758891680011925ca8c2ba0b",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:15",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:15",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 18,
         "turn_id": null,
         "kind": "MemoryNodeAppended",
         "payload": {
           "MemoryNodeAppended": {
-            "node_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:67af58aee087e09b63a68f1311e5e868bf28c183c05f38fe724181d5d92341aa",
+            "node_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:67af58aee087e09b63a68f1311e5e868bf28c183c05f38fe724181d5d92341aa",
             "kind": "event",
-            "content_ref": "harness:1793089977321035300:19",
+            "content_ref": "harness:1793223910448755400:19",
             "tier": "Working",
             "confidence": 0.4,
             "scope": "workspace:core-b",
             "resting_activation": 0.1,
-            "recency": 1793089976438
+            "recency": 1793223910055
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2197,28 +2197,28 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 19,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:16",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:16",
       "kind": "MemoryEdgeAppended",
-      "digest": "sha256:8643cc425d2f322f55669aa376c20efcaca53100c7a6b83fcac7eff7fe7ae1b6",
+      "digest": "sha256:f93385660e569b26c5c8c3f4eb91150326f4cbc5c22a89e3032d622d6b4f13ff",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:16",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:16",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 19,
         "turn_id": null,
         "kind": "MemoryEdgeAppended",
         "payload": {
           "MemoryEdgeAppended": {
-            "edge_id": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:67af58aee087e09b63a68f1311e5e868bf28c183c05f38fe724181d5d92341aa",
-            "from": "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "to": "route-lineage:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:sha256:67af58aee087e09b63a68f1311e5e868bf28c183c05f38fe724181d5d92341aa",
+            "edge_id": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:67af58aee087e09b63a68f1311e5e868bf28c183c05f38fe724181d5d92341aa",
+            "from": "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "to": "route-lineage:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:sha256:67af58aee087e09b63a68f1311e5e868bf28c183c05f38fe724181d5d92341aa",
             "kind": "part-of",
             "weight": 0.7
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2229,24 +2229,24 @@
     },
     {
       "schema_version": 1,
-      "run": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+      "run": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
       "seq": 20,
-      "id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:17",
+      "id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:17",
       "kind": "CandidateCreated",
-      "digest": "sha256:868492292cd40b3b0122241077b8328b50bf73ed5060be6f67799c45641fe4a7",
+      "digest": "sha256:7a8638bb52ed6c40f95c5a22baa1507e05a047da5197b98496b3beaff035794b",
       "event": {
-        "event_id": "route-learning:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:17",
-        "run_id": "brain:memory_cognition:fa6b307ddaa6da491ad1acb212f15edd8108c950465e427413dadad7e27a542e",
+        "event_id": "route-learning:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:17",
+        "run_id": "brain:memory_cognition:7e1f9635ae86ef6d6cd7ce24b28ac5869681bc6ddd6b0fa49e0de9e0713c6dae",
         "stream_seq": 20,
         "turn_id": null,
         "kind": "CandidateCreated",
         "payload": {
           "CandidateCreated": {
-            "candidate_id": "route-strategy:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-            "target": "strategy:coordination:route-proposal:sha256:e6677de709adf5b42d5154b4a5a3278bdfa87dfbde291f7a3ec5cfa875362040",
+            "candidate_id": "route-strategy:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+            "target": "strategy:coordination:route-proposal:sha256:c966134c8f2413a11a85caa80b35598464b67f26e66f8f8ce70c2db15933a315",
             "evidence_refs": [
-              "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-              "route-outcome:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:Completed"
+              "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+              "route-outcome:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:Completed"
             ],
             "confidence": 0.4,
             "provenance": {
@@ -2258,17 +2258,17 @@
             "target_tier": "Stable",
             "strategy_candidate": {
               "schema_version": 1,
-              "candidate": "route-strategy:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+              "candidate": "route-strategy:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
               "domain": "Coordination",
               "scope": "workspace:core-b",
               "target_tier": "Stable",
-              "proposed_version": "route-proposal:sha256:e6677de709adf5b42d5154b4a5a3278bdfa87dfbde291f7a3ec5cfa875362040",
+              "proposed_version": "route-proposal:sha256:c966134c8f2413a11a85caa80b35598464b67f26e66f8f8ce70c2db15933a315",
               "baseline": "repository-seed:Coordination:sha256:4b0c2774cc9b93e4b4a4179cf3b4a44c903089975848a2aedf30b443ecc3cef7",
-              "spec_ref": "content:sha256:f406cdb800374a6890c33fcb7a4ed015e96ce948c4ba015f39ea211d8b2e4c25",
-              "spec_digest": "sha256:722bf25692369c36e9c6ed532edb51848f18fc6bb252a52d361ae3ee7ce289a7",
+              "spec_ref": "content:sha256:b050b7e7674d5b8327c0c4cfbfe47e493591779cb36ae282aa2d0f0798e6bc8a",
+              "spec_digest": "sha256:3416773b0e2f4cb329ed0796417f4bf313f182018c4ee3bf645837629980282b",
               "evidence": [
-                "route-episode:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
-                "route-outcome:project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:Completed"
+                "route-episode:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
+                "route-outcome:project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:Completed"
               ],
               "provenance": {
                 "source": "Internal",
@@ -2287,7 +2287,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089976438,
+        "ts_unix_ms": 1793223910055,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2298,151 +2298,151 @@
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 1,
-      "id": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:goal",
+      "id": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:goal",
       "kind": "GoalFramed",
-      "digest": "sha256:4a6f396967b9f87985c3bb8de4fc5bdd7186b1e6b0812e1807b6a725807bd403",
+      "digest": "sha256:8e00e68b94c2604ad3e6c3e249a464951ede5c861cf7cbcac921cce92a237cbc",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 2,
-      "id": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:done",
+      "id": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:done",
       "kind": "DoneContractSet",
-      "digest": "sha256:be4f2c078a26224412ed24869fddaa1c5fb6e871bbbc35759930800c8aa325af",
+      "digest": "sha256:fa72dd883af2c9fea5de9e67eb1e2da25d5d2eaf3f53d5546756d48228be7ffc",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 3,
-      "id": "project-route:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:route",
+      "id": "project-route:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:route",
       "kind": "OrchestrationRouteCreated",
-      "digest": "sha256:1045582e9130cc694332d0ec0552b6874e9aa5c4d10e22b8cb7424bbbc377dc4",
+      "digest": "sha256:d48620796e8db4816b0bab6f3e363eddd7245b0a403df688b1e1b2f86cfacdd4",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 4,
-      "id": "harness:1793089976751287500:1",
+      "id": "harness:1793223910197337600:1",
       "kind": "RunAccepted",
-      "digest": "sha256:87aa161a42ddb20f8308175c0ee3d8ffb4f8ebb63cde6edb07b00caeb0b1845e",
+      "digest": "sha256:6adc7d6dcf8259f92394081f570871ce8f7a768d621859985f2d6d907aeec368",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 5,
-      "id": "harness:1793089976781055700:2",
+      "id": "harness:1793223910208508600:2",
       "kind": "SessionBound",
-      "digest": "sha256:cae3efe20484010d1fd6a832c59cc9708290d1553b052487ed6c0d2aca0b72aa",
+      "digest": "sha256:ae00cd975aab38f03288b2d0a84ec41b47fdba9490bb04e9aac0cc169a6def72",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 6,
-      "id": "harness:1793089976814164300:3",
+      "id": "harness:1793223910224127800:3",
       "kind": "GoalFramed",
-      "digest": "sha256:726d444d16faabbf01411333c4b63bbd3b7a547cf1a096a311fae088c3bac4cf",
+      "digest": "sha256:0171eff087d03f50c14b2ea41f8d18a53cbd52923d3b7d442fff2174fe08d222",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 7,
-      "id": "harness:1793089976840994000:4",
+      "id": "harness:1793223910234838400:4",
       "kind": "ResourcePlanned",
-      "digest": "sha256:9563427e1d632e05086bf8727ce0ab97f3f554ba8fe1695ca9ad0d727780d05c",
+      "digest": "sha256:79f19025b28a084434a360284bac2ae3e88414e10fd77af1e0d34a1015ac965e",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 8,
-      "id": "harness:1793089976867795500:5",
+      "id": "harness:1793223910245839200:5",
       "kind": "DoneContractSet",
-      "digest": "sha256:1fa12c6219b3dbdfd73efc7997c921daef1cc3b72092147e57b3aa69472bf030",
+      "digest": "sha256:5fc16a480ca9ba988dca5874d5157861908e7ff51e1eebe10842ffac861a6f0e",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 9,
-      "id": "harness:1793089976895709500:6",
+      "id": "harness:1793223910256662800:6",
       "kind": "AutonomyEnvelopeSet",
-      "digest": "sha256:3c6e925f147305b89f9c232a74c1071722cbe989ab096e15314ba89df3614608",
+      "digest": "sha256:c8e32db8ad233a02cba0164782df847ba494b8f4d2a51daf0991fd1065110d35",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 10,
-      "id": "harness:1793089976924208000:7",
+      "id": "harness:1793223910267543200:7",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:fcfba8d7fd881a68bd3e05367ac87b5d08304a5b9a3b382fb1cea593b6664119",
+      "digest": "sha256:3a801652e7fc16fa71dcab2d6926c82b4e4eb304fe5be66ca67275570e3aaf4d",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 11,
-      "id": "harness:1793089976972429500:8",
+      "id": "harness:1793223910295164900:8",
       "kind": "DecisionTraceRecorded",
-      "digest": "sha256:162f9797f96dc5f4ca3fc111914071a185819878b148dafcf46fe97c7689ef72",
+      "digest": "sha256:eb0c2e379b0f42a4f6e282006254224f04fa29cde818696b7cafcdb755ee58d8",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 12,
-      "id": "harness:1793089977010007800:9",
+      "id": "harness:1793223910316740500:9",
       "kind": "TurnStarted",
-      "digest": "sha256:8aa873cd14a53b462a8f49d22dc840849ffd81dd7467a46760d476bf64c74430",
+      "digest": "sha256:c5452cd28fe33374dd12a8dab109fd3fcb0878f38ddbddb6057d9891a8c35b20",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 13,
-      "id": "harness:1793089977036509800:10",
+      "id": "harness:1793223910331456400:10",
       "kind": "ContextBuildStarted",
-      "digest": "sha256:f2881e179cd79c7420d9a6eeac04a2b0a9f1608f6c992c45134ef5a78a742f03",
+      "digest": "sha256:0ef9d2e5fcbf6aff04d1c12e0ac6307c1b9869c61d2f3035b1ad8cfee77aa8fc",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 14,
-      "id": "harness:1793089977063602400:11",
+      "id": "harness:1793223910342544000:11",
       "kind": "ContextBuildFinished",
-      "digest": "sha256:bf10169ba88305510d0c56e86dfba300e189aafa428b3ed0dae22c46e69c36bf",
+      "digest": "sha256:d53a4221638a0c11db16319fdc7dc2e525be4a150703072f102ecd87a18ba479",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 15,
-      "id": "harness:1793089977089693600:12",
+      "id": "harness:1793223910353857600:12",
       "kind": "ModelCallStarted",
-      "digest": "sha256:0e1abf3807f523d867020f6135be2746ad2e7e63bcfb592eb53f80e3ca75c95b",
+      "digest": "sha256:e5f0068e411432e6f7642173fd4d65fa31a127fc7bdb223be16269db96264f87",
       "event": {
-        "event_id": "harness:1793089977089693600:12",
-        "run_id": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+        "event_id": "harness:1793223910353857600:12",
+        "run_id": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
         "stream_seq": 15,
-        "turn_id": "turn:project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:0",
+        "turn_id": "turn:project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:0",
         "kind": "ModelCallStarted",
         "payload": {
           "ModelCallStarted": {
-            "call_id": "model:project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:0:0",
+            "call_id": "model:project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:0:0",
             "model_profile": "core-b-provider:core-b-model"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089977089,
+        "ts_unix_ms": 1793223910353,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2453,29 +2453,29 @@
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 16,
-      "id": "harness:1793089977117118500:13",
+      "id": "harness:1793223910364724800:13",
       "kind": "ModelCallDelta",
-      "digest": "sha256:3a9f2252b0b863b779b4972135ac145650c1ff49cb1342e7d188952c4da9e08c",
+      "digest": "sha256:c99d5ad5cdd6827c00ae18ab60ec665d3a04e283d4d8751d08d5469ffa8b077c",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 17,
-      "id": "harness:1793089977144793800:14",
+      "id": "harness:1793223910375539800:14",
       "kind": "ModelCallFinished",
-      "digest": "sha256:1269d8a824aafa27e636ddc2eff5613753e2b5235ed0061b9e3d54fe1b04ba10",
+      "digest": "sha256:71fc71db32244ae91cf86d46ade7d9955f3ee34db71ddcf445a13e93332be9bf",
       "event": {
-        "event_id": "harness:1793089977144793800:14",
-        "run_id": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+        "event_id": "harness:1793223910375539800:14",
+        "run_id": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
         "stream_seq": 17,
-        "turn_id": "turn:project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:0",
+        "turn_id": "turn:project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:0",
         "kind": "ModelCallFinished",
         "payload": {
           "ModelCallFinished": {
-            "call_id": "model:project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968:0:0",
+            "call_id": "model:project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897:0:0",
             "model_profile": "core-b-provider:core-b-model",
             "usage": {
               "input_tokens": 20,
@@ -2485,7 +2485,7 @@
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089977144,
+        "ts_unix_ms": 1793223910375,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2496,61 +2496,61 @@
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 18,
-      "id": "harness:1793089977175878400:15",
+      "id": "harness:1793223910386436500:15",
       "kind": "OutputClassified",
-      "digest": "sha256:02c557aad9392063e3d9634f17c505d7dcce9b228cf03bfdf2eaf884cd12f4a4",
+      "digest": "sha256:feb008587a9acf6979131b9ba66aefd3cc132d9017cebcda2b1ce7112e27a995",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 19,
-      "id": "harness:1793089977207941300:16",
+      "id": "harness:1793223910397261400:16",
       "kind": "VerificationStarted",
-      "digest": "sha256:6c27748f42e124b60144afc7d71bd4684b104787d9a6cd2273900ef0def4eb53",
+      "digest": "sha256:620ababf6a4abc39901a64e7af1aa545855fd348946be6af7281ddd65c254309",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 20,
-      "id": "harness:1793089977260856600:17",
+      "id": "harness:1793223910426515800:17",
       "kind": "VerificationFinished",
-      "digest": "sha256:0887906bca92623d94c42857b56c73043bb1beed861847ab6cc4e67853cd593a",
+      "digest": "sha256:c60e5c6537adc4915c22175254fdb175720cc6061e08957aaede1a336c2c925d",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 21,
-      "id": "harness:1793089977291805000:18",
+      "id": "harness:1793223910437871500:18",
       "kind": "TurnComplete",
-      "digest": "sha256:c505ea5c6161be6c06633fad07de0acc809f11d909bf5dcbae7ffc2b90073824",
+      "digest": "sha256:b059ecfe7f440bb3e184e05449d825dd759f7b37506630eeef9804a41b13e411",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+      "run": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
       "seq": 22,
-      "id": "harness:1793089977321035300:19",
+      "id": "harness:1793223910448755400:19",
       "kind": "RunComplete",
-      "digest": "sha256:4ba82669651c3484873a18544f37bf3186dcc03b6491c89400ecf3a265278e1e",
+      "digest": "sha256:73339f6f3f45b33e4cef1ccb5ccfbff321104044559c1d82368743b77dfe245a",
       "event": {
-        "event_id": "harness:1793089977321035300:19",
-        "run_id": "project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968",
+        "event_id": "harness:1793223910448755400:19",
+        "run_id": "project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897",
         "stream_seq": 22,
         "turn_id": null,
         "kind": "RunComplete",
         "payload": {
           "RunComplete": {
             "stop_reason": "final_output",
-            "result_ref": "result:project-segment:sha256:08032e7b5f1f12668bf917386d7b464744e065bffda8de1a781891b8c00b8968"
+            "result_ref": "result:project-segment:sha256:0973d614c75e55c6ec9e975feb502f525026249527d18e07d44097c2695d6897"
           }
         },
         "schema_version": 1,
-        "ts_unix_ms": 1793089977321,
+        "ts_unix_ms": 1793223910448,
         "provenance": {
           "source": "Internal",
           "actor": "System",
@@ -2561,33 +2561,33 @@
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4",
+      "run": "project-segment:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f",
       "seq": 1,
-      "id": "project-route:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4:goal",
+      "id": "project-route:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f:goal",
       "kind": "GoalFramed",
-      "digest": "sha256:7539e643e7c04e544c9147e8a138823a0ebf73b08d02bf0fdd3352d934a0aa27",
+      "digest": "sha256:78ee6d38ba93de8d889bf10bcb1e38c8cf982a68ec5ad9dddbd81ebb5e9ea865",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4",
+      "run": "project-segment:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f",
       "seq": 2,
-      "id": "project-route:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4:done",
+      "id": "project-route:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f:done",
       "kind": "DoneContractSet",
-      "digest": "sha256:97d3a465656fdee9b05bafdbdc8597e829143a9c338ff4cb43663950b8379878",
+      "digest": "sha256:0d0b5127e750ecdb6f42a0821c836f9957c76d07e56b31bce9fde934f8a58c87",
       "event": null
     },
     {
       "schema_version": 1,
-      "run": "project-segment:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4",
+      "run": "project-segment:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f",
       "seq": 3,
-      "id": "project-route:sha256:c74ac1a3fe5afa872f0d014b671ddf386ae40ba7ced67f953249e4b704b76ed4:route",
+      "id": "project-route:sha256:53d40dc8049f644dec6b271429658a644403740c6b688df58f59e0a2908ea87f:route",
       "kind": "OrchestrationRouteCreated",
-      "digest": "sha256:6f425cd4107421bf398469a9812a500149f86df4f18997a2c1894c42c2fc4fb8",
+      "digest": "sha256:936f6d02ac182b5c694ad080694448985ea153af835a895e2cdff676cd578cbc",
       "event": null
     }
   ],
-  "online_ledger_digest": "sha256:cfd9a1c88a6cbfdc97f2115a05831c92e61227339b246a0af9c838f1be57476f",
+  "online_ledger_digest": "sha256:5f686c24e6a60681c42793c8f0c60d6be14ac3677ee4f6de112a5eaeba30fed6",
   "files": [],
-  "digest": "sha256:14be78a0fa41d1e0b113ba719dbfaa63b451479d8e03d301b18ea4071aca9f03"
+  "digest": "sha256:f2709d96f9aa3145b43aca13b505c2dc443a4e2a25a5d5100f6fc8befc2afb2d"
 }
