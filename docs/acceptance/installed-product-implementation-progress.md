@@ -2,6 +2,10 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-10-28 当前 main 候选（9a0ab31）
+
+基于本地 `main@9a0ab31` 完成 release 构建、18-file Windows bundle、96 项前端验证和 Inno Setup 6.6.1 原生安装器编译。bundle digest 为 `sha256:ca5c7f7e3264193c719f1c90cd540736055dd1013f4c2c1a0aa514b7f2b7f8af`，安装包 SHA-256 为 `bbc15cc08f786c821471d60903675d8f1864e40d20f48efae2d9defc7131ef6a`。候选仍未签名、未安装，`release_ready=false`；当前安装实例仍运行旧候选，服务和用户数据未改变。默认 Product URL、Web 运行时、前端设置和 Windows 安装入口均统一为 `http://127.0.0.1:18765/`。详细证据见 [Windows 当前主线安装候选](installed-product-windows-candidate-20261028-9a0ab31.md) 和 [升级验收计划](installed-product-windows-upgrade-20261028-9a0ab31-plan.md)。
+
 ## 2026-10-28 当前 main 候选（d93d9ae）
 
 基于本地 `main@d93d9ae391e4588adc0898a3c2714224a06c259c` 重新完成 release 构建、18-file Windows bundle、前端验证和 Inno Setup 6.6.1 原生安装器编译。bundle digest 为 `sha256:242237050b4ebc17bdb06fb4f0c0a283bcbbe5493f3ababd7eff405d7e0ab11b`，安装包 SHA-256 为 `e66272014102bd248f76aa3994e5fab7bca8e79616c2961a02c192b1a49d74ff`。候选仍未签名、未安装，`release_ready=false`；当前安装实例仍运行旧候选，服务和用户数据未改变。详细证据见 [Windows 当前主线安装候选](installed-product-windows-candidate-20261028-d93d9ae.md) 和 [升级验收计划](installed-product-windows-upgrade-20261028-d93d9ae-plan.md)。
