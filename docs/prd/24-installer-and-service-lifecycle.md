@@ -36,7 +36,7 @@
 |---|---|
 | `InstallationManifest` | `install_id, target_os, target_arch, release_id, release_digest, install_root, config_root, data_root, service_ids, service_identity_refs, created_at`。受保护，路径不进公共 API。 |
 | `ReleaseManifest` | `release_id, target, binary_digests, ui_digest, managed_dependencies, config_read_range, schema_read_range, schema_write_range, minimum_upgrader, signature_ref`。签名覆盖完整规范化内容。 |
-| `HostStatus` | `install_id_safe_ref, product_state, core_health, active_release, active_config_revision, acknowledged_config_revision, issue_refs, allowed_operations`。ProductState 只用 architecture/10 §3。 |
+| `HostStatus` | `install_id_safe_ref, product_state, core_health, active_release, active_config_revision, acknowledged_config_revision, issue_refs, allowed_operations`。ProductState 只用 architecture/10 §3；`issue_refs` 仅允许固定脱敏引用，Web 必须映射为用户可理解状态，不得透传内部错误正文或 `*Bridge`/loopback 细节。 |
 | `ServiceRecoveryPolicy` | `schema_version, restart_delays, reset_after`。规范目标是 OS 服务管理器最多按 5s、30s、120s 三次退避自动重启，之后停止自动重启并进入诊断/恢复要求；forme 不在进程内另起重启监管 loop。Windows 已有直接 SCM 适配；POSIX 模板当前仅保留有限安全边界，未完成规范目标前不能发布。 |
 | `ServiceRecoveryDecision` | 由连续失败次数和 `ServiceRecoveryPolicy` 纯计算 `RestartAfter(delay)` 或 `RequireDiagnosis`；它是可审计的策略结果，不是对未知副作用的重试许可。 |
 | `MaintenanceCommand` | `operation_id, idempotency_key, expected_revision, actor_proof, kind, normalized_payload, requested_deadline`。digest 由服务端计算。 |

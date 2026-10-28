@@ -138,6 +138,10 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 首次认领或有效配置保存后，用户不需要再次输入密码来启动主脑。Host 会自动协调 Brain，页面只显示真实的 `starting/ready/degraded/recovery_required/stopped` 状态；手动启动按钮只出现在维护/故障恢复上下文，不是正常初始化步骤。
 
+登录后的首屏加载必须把 Web 可达与 BrainReady 分开处理：页面先呈现同一个 ForMe 产品的认证/工作台壳，再对正式 runtime manifest 做一次只读探测。若 Host 已经启动但主脑仍在装配，前端只按 `500ms -> 1s -> 2s -> 3s -> 5s` 的有限窗口重试该读取；成功后自动读取会话和运行投影并进入同一工作台。探测不得创建 run、触发 tick、调用模型、重启服务或写入任何状态；认证失效、429、schema/权限错误和超过窗口的未就绪必须停止重试并展示真实维护状态。登出、页面卸载或 session 变化必须取消等待，不得让旧响应重新填充新会话。
+
+产品状态中的 `issue_refs` 只承载固定脱敏引用。前端为已知引用提供用户语言映射，未知引用只显示通用的待处理状态；不得把内部错误正文、服务名、loopback 地址、credential 或 `*Bridge` 实现名展示给用户。
+
 采用左侧导航/会话/工作空间列表、中间工作区、右侧可折叠详情/产物。五个主入口只有一套 router、会话状态与命令 client。窄屏左/右栏抽屉化，主对话保持可用；无需模仿 NAS 桌面窗口系统。
 
 路由门先读 session/ProductState：Unclaimed 进认领；ConfigurationRequired 进配置；Starting 显示真实启动进度；Ready 正常进入；Degraded 明确受影响能力；Maintenance/RecoveryRequired/Stopped 进入相应维护视图。core 离线时 shell/设置/诊断可用，对话 mutation 显示不可用及原因，不能无限 spinner。

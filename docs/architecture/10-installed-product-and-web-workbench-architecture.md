@@ -77,6 +77,10 @@ broker 管理安装/config/lifecycle 的版本化事实；core health 从其就�
 
 外部产品可达性与主脑就绪分开：固定 Product URL 在 Web 服务进入 `Running` 后应在 5 秒预算内先进入认证、初始化、维护或启动页面，达到秒级可达目标；`Ready` 仍只表示唯一 ProductionRuntime 完成全部就绪检查。模型加载、配置校验或主脑恢复较慢时，页面显示真实状态并继续可用的控制面，不阻塞在空白页或无限 spinner，也不把 Web HTTP 成功伪装成 `Ready`。
 
+登录后的 Web shell 属于该 Product URL 的正式控制面，而不是外部桥接应用。它在同一认证会话内对正式 runtime manifest 做只读 readiness probe；主脑尚未 ready 时只允许有限的 `500ms -> 1s -> 2s -> 3s -> 5s` 退避读取，成功后再加载同一 ProductionRuntime 的会话/运行投影。该 probe 不产生脑事件、run、tick、模型调用、服务重启或配置写入；429、认证/协议错误与窗口耗尽直接进入真实的离线/维护状态。取消、登出和页面卸载必须阻断后续 probe 及过期响应，避免轮询风暴和跨会话污染。
+
+Host 返回的 `issue_refs` 是固定、脱敏、面向诊断的机器引用，不是内部错误正文；Web 只把已知引用映射为用户可理解的产品状态，未知引用统一显示为“存在待处理产品状态”。内部 `*Bridge` 类型名、loopback 地址和服务凭据不得进入页面、公开 API 文案或用户操作路径。
+
 ### 3.1 OS 服务监管契约
 
 长期服务只有一个 supervisor，并且它属于目标操作系统的服务管理器。forme 不在 Host、Web 或 Brain 进程内再创建崩溃重启 loop；Host 只验证、报告和消费 OS 已观察到的服务状态。规范目标是所有已支持平台都表达同一有限策略：失败后最多按 `5s -> 30s -> 120s` 执行三次自动重启，之后停止自动重启并进入 `Degraded`/`RecoveryRequired` 的可诊断状态；连续 24 小时无新失败时由 OS 重置失败计数。没有能力表达有限失败阈值的平台不能被标成已支持，不得用无限 `KeepAlive` 或无界重启替代。
