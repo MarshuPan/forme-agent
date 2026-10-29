@@ -2,7 +2,7 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-29，`main@6d2aef4`）
+## 当前产品化状态（2026-10-29，`main@c0c29b0`）
 
 - 源码质量门已通过；这证明当前源码、受控 fixture、bundle/打包输入和静态安全边界通过，不等于原生产品 IP 已全部通过。
 - 当前安装实例仍是旧候选：`forme-host` 与 `forme-web` Running，`forme-brain` 与 `forme-release-updater` Stopped；Product URL 可达，匿名安全边界只读观察通过。BrainReady、真实模型运行、认证后的完整工作台链路和 IP01–IP24 联合验收仍未闭合。
@@ -21,6 +21,12 @@
 - signing receipt 仍明确为 `native_package_signature=not_performed`、`native_installation=not_performed`。签名 envelope 尚未进入 `host-state/release-inbox`，没有发生服务、配置、数据或 active release 变更。
 
 因此本条只关闭“本地开发签名材料与离线验签准备”这一前置，不关闭 IP01、IP10、IP11、IP14 或 IP24。下一步必须由受控 Host 读取真实 installation ref、实际 schema 和当前 active release，随后 owner 对新的 exact operation 单独确认，才能继续安装侧变更。
+
+## 2026-10-29 Host 永久门复验
+
+在 `main@c0c29b0` 上完成 `tools/verify-installed-host.ps1` 的一次真实执行，退出码为 `0`。Host foundation、core shutdown、安装/恢复、worker admission/receipt、Windows AppContainer/overlay、服务注册边界和受控停服场景均通过；构建资源检查保持 `PASS`，本机可用空间约 `99.9 GiB`。
+
+该门末尾明确输出 `IP01-IP24: NOT_RUN`。它证明组件级 Host 合同当前可回归，不证明管理员安装、签名升级切换、BrainReady、真实 provider、桌面 helper 或完整 Web 产品链路。当前没有执行新的管理员写操作，安装实例、配置、密钥、服务状态和 active release 均未改变。
 
 ## 2026-10-29 当前 Windows 原生 worker 证据（`429801b`）
 
