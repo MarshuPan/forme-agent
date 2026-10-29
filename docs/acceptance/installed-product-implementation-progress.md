@@ -2,7 +2,16 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-30，`main@55b11e6`）
+## 当前产品化状态（2026-10-30，`main@b627a01`）
+
+### 2026-10-30 当前本地开发签名回执
+
+当前 `main` 的 Windows release bundle 已使用仓库外的本地开发 Ed25519 信任根完成签名，并由当前 release `forme-hostd` 离线验签通过。完整材料、摘要和敏感材料边界见[Windows 本地开发签名回执](installed-product-windows-local-dev-signing-20261030.md)。这只关闭本机受控验收所需的签名准备，不是 Authenticode/正式发布签名，也没有安装、升级、替换服务文件、修改现有配置或启动 Brain。
+
+- 源码构建输入：`566dfe7e9632a39af42a518a94ae8fe0d2912cb3`；记录提交：`b627a01`。
+- 离线 verifier：`signature_and_closed_content`，退出码 `0`；signed release digest：`sha256:b0948f15f1bc7341dd4f89141c046d5bc2e58ef15844bf07778c7524c9fe96ce`。
+- 私钥与本地信任配置均在仓库外，未进入 bundle、源码、日志或 Web；原生包签名与原生安装仍为 `not_performed`。
+- 后续升级仍须由受保护 Host 读取真实 installation binding、schema 和 active release，再对精确 operation 取得 owner 确认；当前不提升 IP01、IP10、IP11、IP14 或 IP24。
 
 ### 2026-10-30 当前只读预检
 
