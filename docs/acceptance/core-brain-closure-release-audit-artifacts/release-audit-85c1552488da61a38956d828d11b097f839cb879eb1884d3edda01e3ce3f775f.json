@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:a7d532560699fb4dc1985a8087fbeeb2963846c856cb558d9ee0ce563aa8bc04",
+        "input_digest": "sha256:b7e330c9821bf2fe744c9afc398351384084ecf5780d69d3f956e603cec09614",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:a5df38377deaaa7c8ee61869f23ce92847ad1a1d4dc90869769738532797398a",
+        "input_digest": "sha256:a3bb88cacd9dacc82a43139f2a96674d4d6ecc7a9766562d85f0249581ee241a",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -57,7 +57,7 @@
         "blocking": false,
         "check_id": "acceptance_artifacts",
         "findings": [],
-        "input_digest": "sha256:ce6f7ad38fa1e4b9ab5b4518ec08bc6d039af325344b358be21616cdf903b2b9",
+        "input_digest": "sha256:9c3e0ba606f199fe28905e052765152ff9ad505b988b11a5567bcf611bb6d04a",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-artifact-scan",
@@ -159,7 +159,7 @@
         "blocking": false,
         "check_id": "core_brain_closure",
         "findings": [],
-        "input_digest": "sha256:2f22dea5a2e8b61ec75caffd48c480052ce3bc79f93c963f83cf1fbbef6bb886",
+        "input_digest": "sha256:de6e8b56192eb88caf3423ac91cdc9d8ba746310a98e5721b7f08514cfe14fcf",
         "observations": [
           {
             "code": "CORE_BRAIN_CLOSURE_VERIFIED",
@@ -173,10 +173,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:7e7385bd96f0a3b060cb34685d83ed1984b67886d915791c2a63a4c7de1957f0",
+    "root_digest": "sha256:492fc5e790d7c82dde72363b68d2e6394742eabf3fbe9d22f6b8ae2178ab0918",
     "schema_version": 1,
     "tool_version": "forme-core-brain-release-audit/1"
   },
-  "digest": "sha256:89294813276b54e6b161f67e8535e6cee35f0e3d8654e1e12670644d55c6de99",
+  "digest": "sha256:85c1552488da61a38956d828d11b097f839cb879eb1884d3edda01e3ce3f775f",
   "schema_version": 1
 }
