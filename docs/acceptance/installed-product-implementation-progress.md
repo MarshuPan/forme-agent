@@ -2,9 +2,27 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-30，`main@b627a01`）
+## 当前产品化状态（2026-10-30，`main@e51293a`）
 
-### 2026-10-30 当前本地开发签名回执
+### 当前 Windows 本地开发签名与原生安装边界
+
+当前 `main` 的 Windows 安装器已生成独立的本地开发 Authenticode signed candidate。完整材料、证书边界和验证命令见[Windows 本机开发签名与原生安装器证据](installed-product-windows-native-package-signing-20261030.md)。这只证明签名工具和一次 signed candidate 生成，不是正式发布信任，也没有执行安装、升级、替换服务文件、修改配置或启动 Brain。
+
+- unsigned installer：`target/product-bundles/forme-windows-x86_64-20261030-d4be9ac-package/artifacts/forme-0.0.1-windows-x86_64.exe`，SHA-256 `82f525f510be89457a0aa539d02fee6f5b2e8d9024227f4d8a1d265c8119a19a`。
+- local signed installer：同目录的 `forme-0.0.1-windows-x86_64-local-dev-signed-v3.exe`，SHA-256 `ab533e2daf9be744e32546aa1c5c3603255d09551b20f48f50a5b0bc1593f9eb`。
+- Authenticode signer：`84F1194BDE2A64769B52D04E5E9A2B7149605D5E`，存储于当前用户 `CurrentUser\\My`；签名存在，但 `UnknownError` / `unverifiable`，因为本地根未加入 Windows 信任根。
+- 当前状态：`native_package_signature=authenticode_present_unverifiable`、`native_installation=not_performed`、`release_ready=false`。签名私钥和信任材料均在仓库外。
+
+现有安装实例仍是旧 release：`forme-host` 与 `forme-web` 为 Running，`forme-brain` 与 `forme-release-updater` 为 Stopped；Product URL 可达，但当前非管理员 shell 无法读取受保护的 SCM 安装绑定、active release、schema 和真实信任配置。因此不能把当前服务状态写成新候选已安装，也没有执行新的服务切换。
+
+- 源码、bundle、打包和签名组件质量门已通过；这不等于原生产品 IP 已全部通过。
+- BrainReady、真实 provider 运行、认证后的完整工作台链路、真实 LocalSystem/ACL/peer、桌面 helper 安装后会话证据和 IP01–IP24 联合验收仍未闭合。
+- 当前 Authenticode 的 `UnknownError` 不代表 unsigned rejection；在本地信任根被显式导入并完成独立验证前，不得进行升级准入或提升 IP01/IP14。
+- Windows 桌面 helper 的生产装配已合入，但仍缺当前 signed release 的真实登录会话/安装后运行证据，因此 IP11/IP24 不能关闭。源码层边界见[Windows 桌面 Helper 当前源码实现回执](installed-product-windows-desktop-helper-implementation-20261030.md)。
+
+后续任何安装或升级都必须由受保护 Host 读取真实 installation binding、实际 schema 和 active release，绑定精确候选摘要取得 owner 确认，再按升级事务执行；不得直接用 Inno 安装器覆盖现有安装，也不得把组件测试、旧回执或离线签名当作原生 IP 通过。
+
+### 历史：2026-10-30 Ed25519 本地开发签名回执（`b627a01`）
 
 当前 `main` 的 Windows release bundle 已使用仓库外的本地开发 Ed25519 信任根完成签名，并由当前 release `forme-hostd` 离线验签通过。完整材料、摘要和敏感材料边界见[Windows 本地开发签名回执](installed-product-windows-local-dev-signing-20261030.md)。这只关闭本机受控验收所需的签名准备，不是 Authenticode/正式发布签名，也没有安装、升级、替换服务文件、修改现有配置或启动 Brain。
 
@@ -13,7 +31,7 @@
 - 私钥与本地信任配置均在仓库外，未进入 bundle、源码、日志或 Web；原生包签名与原生安装仍为 `not_performed`。
 - 后续升级仍须由受保护 Host 读取真实 installation binding、schema 和 active release，再对精确 operation 取得 owner 确认；当前不提升 IP01、IP10、IP11、IP14 或 IP24。
 
-### 2026-10-30 当前只读预检
+### 历史：2026-10-30 旧候选只读预检
 
 当前源码重新构建的 `forme-hostd` 已接受本地开发签名 release，签名测试 `5/5` 通过；当前 Host/Web 仍 Running，Brain/updater 仍 Stopped。受保护的安装绑定、active release、schema 和真实 trust 配置未在非管理员会话中读取，因此没有执行安装切换或服务变更。完整边界见[本地开发签名与升级前只读预检回执](installed-product-windows-local-dev-signing-preflight-20261030.md)。
 
