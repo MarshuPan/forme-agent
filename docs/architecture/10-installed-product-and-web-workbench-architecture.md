@@ -249,7 +249,7 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 
 IP11 的正向证据必须同时证明真实 OS 用户/session、真实 peer、exact plan/permit、桌面动作和 receipt；反向证据必须覆盖注销、锁屏、会话切换、TCC/portal 拒绝、过期/重放 nonce、参数/digest 替换、helper 失联以及 `Started` 后无终态。受控 fixture 或服务运行截图不能单独关闭 IP11。
 
-Windows 原生实现只允许拆成两个独立的受审计边界：`windows_desktop_session_native.rs` 负责由 LocalSystem Host 查询 WTS session、用户 SID、AuthenticationId/logon generation、连接/锁屏状态，并以真实用户 token 启动固定活动发布的 helper；`windows_desktop_helper_peer_native.rs` 负责 helper 私有 named pipe 的受保护 peer 身份核验和有界 IPC。两文件都只能返回 safe Rust 的 typed session/observation/receipt，不向上层暴露裸句柄或任意路径、命令、环境。生产装配缺少固定 SCM/活动发布/真实用户会话/peer 证据时继续使用 `UnavailableDesktopHelper`，不能回退到 LocalSystem 直接操作桌面。
+Windows 原生实现只允许拆成两个独立的受审计边界：`windows_desktop_session_native.rs` 负责由 LocalSystem Host 查询 WTS session、用户 SID、AuthenticationId/logon generation、连接/锁屏状态，并以真实用户 token 启动固定活动发布的 helper；`windows_desktop_helper_peer_native.rs` 负责 helper 私有 named pipe 的受保护 peer 身份核验和有界 IPC。两文件都只能返回 safe Rust 的 typed session/observation/receipt，不向上层暴露裸句柄或任意路径、命令、环境。当前生产装配代码已接入该 adapter；缺少固定 SCM/活动发布/真实用户会话/peer 证据时，运行能力继续 blocked/Unavailable，不能回退到 LocalSystem 直接操作桌面。
 
 ## 8. 数据、密钥与已有数据接管
 
