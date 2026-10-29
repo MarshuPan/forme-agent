@@ -132,7 +132,8 @@ async function invokePowerShell({ packagePath, thumbprint, storeLocation }) {
   try { observation = JSON.parse(output); } catch { throw invalid('Windows Authenticode observation was not valid JSON'); }
   if (!observation || typeof observation !== 'object' || Array.isArray(observation)) throw invalid();
   if (!statusValues.has(observation.signature_status) || !statusValues.has(observation.signing_status) ||
-      observation.signing_status === 'NotSigned' || observation.signature_type !== 'Authenticode' ||
+      observation.signature_status === 'NotSigned' || observation.signing_status !== observation.signature_status ||
+      observation.signature_type !== 'Authenticode' ||
       normalizeThumbprint(observation.signer_thumbprint) !== thumbprint) throw invalid('Signer observation did not match the requested certificate');
   return observation;
 }
@@ -172,7 +173,7 @@ export async function signWindowsPackage(config) {
     native_installation: 'not_performed',
     release_ready: false,
   };
-  const receiptPath = join(dirname(output), 'native-signing-receipt.json');
+  const receiptPath = `${output}.signing-receipt.json`;
   await checked(receiptPath, true);
   try { await lstat(receiptPath); throw invalid('Refusing to replace an existing native signing receipt'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }

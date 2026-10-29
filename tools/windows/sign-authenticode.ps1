@@ -7,6 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
 if (-not [System.IO.Path]::IsPathRooted($PackagePath)) {
     throw 'Package path must be absolute'

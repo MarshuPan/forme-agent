@@ -53,5 +53,5 @@ test('real local certificate signing is opt-in and records the exact output evid
   assert.equal(receipt.native_installation, 'not_performed');
   assert.equal(receipt.release_ready, false);
   assert.equal(receipt.signed_package.sha256, `sha256:${createHash('sha256').update(await readFile(output)).digest('hex')}`);
-  assert.deepEqual(JSON.parse(await readFile(join(root, 'native-signing-receipt.json'), 'utf8')), receipt);
+  assert.deepEqual(JSON.parse(await readFile(`${output}.signing-receipt.json`, 'utf8')), receipt);
 });
