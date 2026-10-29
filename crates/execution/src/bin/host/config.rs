@@ -109,6 +109,13 @@ impl HostServiceConfig {
                 "managed host configuration has an invalid loopback binding".into(),
             ));
         }
+        if self.product_config_template_path.is_some()
+            != self.web_configuration_credential_path.is_some()
+        {
+            return Err(p::Error(
+                "managed host product configuration and Web configuration credential must be paired".into(),
+            ));
+        }
         p::validate_product_id(&self.install_ref)?;
         p::validate_release_id(&self.active_release)?;
         validate_native_target(self.product_target)?;

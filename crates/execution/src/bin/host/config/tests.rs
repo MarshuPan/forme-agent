@@ -245,6 +245,25 @@ fn managed_host_load_is_closed_bounded_and_side_effect_free() {
 }
 
 #[test]
+fn managed_host_rejects_product_configuration_without_web_credential_without_side_effects() {
+    let fixture = Fixture::new();
+    let mut doc = fixture.document();
+    doc["product_config_template_path"] =
+        serde_json::to_value(fixture.0.join("config/product-config.json")).unwrap();
+    let path = fixture.save(&doc);
+
+    let error = match HostServiceConfig::load(&path) {
+        Ok(_) => panic!("accepted an incomplete managed product configuration"),
+        Err(error) => error,
+    };
+    assert!(error
+        .to_string()
+        .contains("product configuration and Web configuration credential must be paired"));
+    assert!(!fixture.journal().exists());
+    assert!(!fixture.0.join("brain/forme.db").exists());
+}
+
+#[test]
 fn managed_host_needs_private_distinct_file_credentials_and_cannot_enable_process_workers() {
     let fixture = Fixture::new();
     let doc = fixture.document();
