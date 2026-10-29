@@ -1,6 +1,6 @@
 # Windows 产品候选升级与统一 Product URL 验收计划（fc4e23e）
 
-状态：已按 owner 批准执行一次；候选在受保护预检阶段被拒绝，未发生版本切换。本文记录把当前已安装的旧候选受控切换到 `main@fc4e23e` 候选的计划与实际结果；不把候选存在、安装器启动或源码门通过记作产品升级成功。
+状态：已按 owner 批准执行一次；候选在安装器的受保护安装根预检阶段被拒绝，未发生版本切换。本文记录把当前已安装的旧候选受控切换到 `main@fc4e23e` 候选的计划与实际结果；不把候选存在、安装器启动或源码门通过记作产品升级成功。
 
 ## 1. 产品边界
 
@@ -68,7 +68,7 @@ owner 已明确批准对本计划固定的 `fc4e23e` 候选执行一次本机受
 
 ### 7.2 实际执行与结果
 
-本机曾按固定候选启动 Inno Setup 受控安装器，回执保存在 `target/installed-product-upgrade-fc4e23e.log`。安装器在 `PrepareToInstall` 的受保护安装根预检阶段停止，并明确记录：`Existing files and services were retained`，随后 `Got EAbort exception`。没有进入文件替换、服务 image 切换、配置写入、Brain 启动或 updater 接管。
+本机曾按固定候选启动 Inno Setup 受控安装器，回执保存在 `target/installed-product-upgrade-fc4e23e.log`。安装器在 `PrepareToInstall` 的受保护安装根预检阶段停止，并明确记录：`Existing files and services were retained`，随后 `Got EAbort exception`。没有进入文件替换、服务 image 切换、配置写入、Brain 启动或 updater 接管。该入口是“新安装”安装器；它发现已有受保护目录和服务后拒绝覆盖，因此本次**没有到达 updater 的发布签名验证路径**。
 
 独立的后续只读核对显示：Host/Web 仍监听原 Product URL，Brain/updater 仍为停止状态，原四个 SCM 注册仍存在；没有证据表明本候选覆盖了既有程序、数据、密钥、配置或服务绑定。该次操作的结果是**受保护拒绝，原安装保留**，不是升级成功，也不是可回滚的中间态。
 
@@ -76,7 +76,19 @@ owner 已明确批准对本计划固定的 `fc4e23e` 候选执行一次本机受
 
 - IP01/IP02/IP03/IP04：本次未重新执行冷启动、注销、崩溃恢复或无配置安装正向链；现有 Host/Web 可达证据不能替代这些 IP 的完整证据。
 - IP05–IP13：本次没有执行认领、登录、配置、数据迁移、worker 或权限正向动作；保持既有状态，不因本次候选预检改变。
-- **IP14 升级事务：正向链 `签名→预检→排空→备份→切换→健康→恢复` 为 `NOT_RUN`。** 本次同时取得了一个有价值的反向证据：未签名且 `release_ready=false` 的候选在安装预检阶段被拒绝，并保留原安装；这不能抵扣 IP14 正向验收。
+- **IP14 升级事务：正向链 `签名→预检→排空→备份→切换→健康→恢复` 为 `NOT_RUN`。** 本次取得的反向证据仅证明：新安装入口拒绝在已有受保护安装根上运行，并保留原安装；它**不证明** updater 已执行未签名发布拒绝，也不能抵扣 IP14 正向验收。
 - IP15–IP24：本次没有执行回滚、卸载、完整 Web 工作台联合流程或完整产品回归，保持 `NOT_RUN/UNVERIFIABLE`，不得由本次安装器日志提升。
 
-本次失败现场、候选摘要和服务快照均保留。由于候选没有签名发布 envelope、未进入已安装 release inbox，不能继续重试同一候选或绕过 updater/owner 控制面；后续若要取得 IP14 正向证据，必须先生成并独立核验受信任的签名发布，再以新的明确 operation 进入 Host/updater 维护路径。
+本次失败现场、候选摘要和服务快照均保留。由于候选没有签名发布 envelope、未进入已安装 release inbox，不能继续重试同一新安装入口或绕过 updater/owner 控制面；后续若要取得 IP14 正向证据，必须先生成并独立核验受信任的签名发布，再以新的明确 operation 进入 Host/updater 维护路径。
+
+## 8. 正式升级前置条件（后续新 operation）
+
+下次升级不能再次运行本安装器覆盖现有根目录，必须使用已安装 `forme-hostd --release-updater` 所托管的发布生命周期。开始新的 operation 前必须同时具备：
+
+1. 与目标 bundle 一一对应的 `manifest.json`、原始 64 字节 `signature.ed25519`、`content/` 和兼容性字段；兼容范围不能由版本号猜测。
+2. 管理员独立预置的 `ReleaseStagingConfig` 信任根；签名回执中的公钥只能作为信息，不能自动成为信任根。
+3. 通过同一 Rust verifier 的离线核验：目标为 `windows_x86_64`，发布摘要、闭合文件集、UI、managed dependencies、config/data range 和 `minimum_upgrader` 全部匹配。
+4. 已安装 Host 的 `release_staging_config_path` 指向受保护配置，发布目录进入该 installation 的 `host-state/release-inbox/<release_id>/`；不能把安装器路径、任意 Web 路径或聊天内容作为发布源。
+5. Owner 在 Product URL 完成新的近期认证和 exact operation 绑定；预检、排空、备份、切换、健康和恢复每一步都写入同一 operation receipt。
+
+满足前置条件前，IP14 保持 `NOT_RUN`，不申请新的安装器重试授权。升级失败或副作用状态不明时，只查询原 operation 并保留 `Unknown/RecoveryRequired`，不换 operation 盲重放。

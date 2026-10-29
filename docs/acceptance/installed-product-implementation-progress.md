@@ -2,6 +2,26 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 当前产品化状态（2026-10-29，`main@6d2aef4`）
+
+- 源码质量门已通过；这证明当前源码、受控 fixture、bundle/打包输入和静态安全边界通过，不等于原生产品 IP 已全部通过。
+- 当前安装实例仍是旧候选：`forme-host` 与 `forme-web` Running，`forme-brain` 与 `forme-release-updater` Stopped；Product URL 可达，匿名安全边界只读观察通过。BrainReady、真实模型运行、认证后的完整工作台链路和 IP01–IP24 联合验收仍未闭合。
+- `fc4e23e` 的一次获批操作已执行，但新安装入口在已有受保护安装根的 `PrepareToInstall` 阶段拒绝，未进入 updater 签名验证、文件切换或服务重启。该事实不证明 unsigned release rejection；详见 [fc4e23e 升级计划](installed-product-windows-upgrade-20261028-fc4e23e-plan.md)。
+- 正式升级的下一前置是管理员独立配置的发布信任根、签名 release envelope、离线 verifier 证据和新的 owner operation；在此之前不重复运行安装器，不提升 IP14。
+- Windows 生产桌面 helper 仍是实现缺口：当前 dispatch/permit/Unknown 合同和负向测试存在，但生产 adapter 仍为 `UnavailableDesktopHelper`。因此 IP11/IP24 不能仅凭组件门关闭。
+
+## 2026-10-29 本地开发签名预备证据
+
+按 owner 选择的“本地开发签名，仅用于本机验收”准备了新的签名材料。签名私钥和开发信任配置均保存在仓库外的用户目录，不进入 Git、bundle、日志或产品 Web；信任配置当前使用独立的本地预检 installation ref，尚未写入已安装 Host 配置。
+
+- 固定输入仍是已批准的 `fc4e23e` bundle，没有重新构建或替换候选。
+- signed release digest：`sha256:0875ee90c2dfec04a4563a23290f5f8c1a3a81b7ae23187004567e1c9169d9ac`。
+- key id：`local-dev-20261029`；当前 verifier 输出 `signature_and_closed_content`，退出码 `0`。
+- 兼容性材料按当前源码的 config schema `1`、data schema `10` 和 updater `1` 生成；已安装实例的实际 config/data schema 尚未由受保护 Host 读取确认，不能据此宣布兼容。
+- signing receipt 仍明确为 `native_package_signature=not_performed`、`native_installation=not_performed`。签名 envelope 尚未进入 `host-state/release-inbox`，没有发生服务、配置、数据或 active release 变更。
+
+因此本条只关闭“本地开发签名材料与离线验签准备”这一前置，不关闭 IP01、IP10、IP11、IP14 或 IP24。下一步必须由受控 Host 读取真实 installation ref、实际 schema 和当前 active release，随后 owner 对新的 exact operation 单独确认，才能继续安装侧变更。
+
 ## 2026-10-29 当前 Windows 原生 worker 证据（`429801b`）
 
 在当前 `main@429801bc5218f2c6f2446ba4222f572c3d726a5a` 上，使用临时目录完成真实 Windows AppContainer 合同验收：4/4 场景通过，覆盖私有 workspace/Host 回写、失败/取消/owner 冲突无回写、Host 死亡后的 lease 恢复，以及结果先封存后清理。随后真实 `forme-executord --installed-file-worker` 文件入口的 2/2 场景通过，覆盖精确映射、读写删、Host-only writeback、失败/取消/执行后替换不回写和加密结果通道。完整命令与边界见[当前 Windows 原生 worker 验收记录](installed-product-native-worker-acceptance-20261029.md)。
