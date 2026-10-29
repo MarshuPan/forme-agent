@@ -2,12 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-29，`main@28c3a7a`）
+## 当前产品化状态（2026-10-29，`main@6a18196`）
 
 - 源码质量门已通过；这证明当前源码、受控 fixture、bundle/打包输入和静态安全边界通过，不等于原生产品 IP 已全部通过。
 - 当前安装实例仍是旧候选：`forme-host` 与 `forme-web` Running，`forme-brain` 与 `forme-release-updater` Stopped；Product URL 可达，匿名安全边界只读观察通过。BrainReady、真实模型运行、认证后的完整工作台链路和 IP01–IP24 联合验收仍未闭合。
 - `fc4e23e` 的一次获批操作已执行，但新安装入口在已有受保护安装根的 `PrepareToInstall` 阶段拒绝，未进入 updater 签名验证、文件切换或服务重启。该事实不证明 unsigned release rejection；详见 [fc4e23e 升级计划](installed-product-windows-upgrade-20261028-fc4e23e-plan.md)。
-- 正式升级的下一前置是管理员独立配置的发布信任根、签名 release envelope、离线 verifier 证据和新的 owner operation；在此之前不重复运行安装器，不提升 IP14。
+- 最新本地开发签名 release envelope 与 Rust 离线 verifier 证据已准备；正式升级仍需受管 Host 读取真实 installation ref、实际 schema/active release，并由 owner 对该精确 operation 单独确认。在此之前不重复运行安装器，不提升 IP14。
 - Windows 生产桌面 helper 仍是实现缺口：当前 dispatch/permit/Unknown 合同和负向测试存在，但生产 adapter 仍为 `UnavailableDesktopHelper`。因此 IP11/IP24 不能仅凭组件门关闭。
 
 ## 2026-10-29 本地开发签名预备证据
@@ -21,6 +21,19 @@
 - signing receipt 仍明确为 `native_package_signature=not_performed`、`native_installation=not_performed`。签名 envelope 尚未进入 `host-state/release-inbox`，没有发生服务、配置、数据或 active release 变更。
 
 因此本条只关闭“本地开发签名材料与离线验签准备”这一前置，不关闭 IP01、IP10、IP11、IP14 或 IP24。下一步必须由受控 Host 读取真实 installation ref、实际 schema 和当前 active release，随后 owner 对新的 exact operation 单独确认，才能继续安装侧变更。
+
+## 2026-10-29 当前 main 本地开发签名候选（`6a18196`）
+
+基于当前本地 `main@6a18196` 的 release 二进制重新生成 18-file Windows bundle，并使用仓库外的本地开发 Ed25519 私钥签名。该签名只用于本机受控验收，不是正式发布签名。
+
+- release id：`20261029-6a18196`；target：`windows_x86_64`。
+- bundle content digest：`sha256:06cc7df41fc0a90dfe45d38133000a7edd662ba64de752199303a9d65986ef3a`。
+- signed release digest：`sha256:987a758ec4abbe258eaf51dca5117d6de0244b94017678c94cdf5ccb6f123fed`。
+- key id：`local-dev-20261029`；config range `1..1`、data range `10..10`、minimum upgrader `1`。
+- `forme-hostd --verify-release ... --trust-config ... --target windows_x86_64` 返回 `signature_and_closed_content`，退出码 `0`；文件闭合集为 18 个 content 文件。
+- signing receipt 仍为 `native_package_signature=not_performed`、`native_installation=not_performed`；候选尚未进入 `host-state/release-inbox`，没有切换 active release、写入配置、停止/启动服务或改变用户数据。
+
+候选目录保存在本机 `target/product-bundles/forme-windows-x86_64-20261029-6a18196-signed-local-dev-20261029`，私钥和 trust config 均在仓库外。该条只关闭“当前 main 的本地开发签名与离线验签”前置，不关闭 IP01、IP10、IP11、IP14 或 IP24；实际升级必须先完成受管 Host 的只读预检，再取得新的 exact owner operation 确认。
 
 ## 2026-10-29 Host 永久门复验
 
