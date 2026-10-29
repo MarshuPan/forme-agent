@@ -1,6 +1,6 @@
 # Windows 产品候选升级与统一 Product URL 验收计划（fc4e23e）
 
-状态：执行计划，尚未授权执行。本文只定义把当前已安装的旧候选受控切换到当前 `main@fc4e23e` 候选；不授权 UAC、服务停止、程序替换、配置写入或重启。
+状态：已按 owner 批准执行一次；候选在受保护预检阶段被拒绝，未发生版本切换。本文记录把当前已安装的旧候选受控切换到 `main@fc4e23e` 候选的计划与实际结果；不把候选存在、安装器启动或源码门通过记作产品升级成功。
 
 ## 1. 产品边界
 
@@ -53,3 +53,30 @@
 程序替换、服务启动、健康检查、journal receipt 或副作用状态不明时，保留原 operation 为 `Unknown/RecoveryRequired`，停止后续动作，不自动重跑。新 release 未通过健康检查时，只能由 owner 依据原 operation 显式选择回退；回退代码不撤销已发生的外部动作。不得删除 `C:\ProgramData\ForMe`、brain、web-auth、keys、backups、workspaces 或旧 release。
 
 本计划只覆盖当前 Windows 本机候选切换。它不能替代签名发布、Linux/macOS 原生服务、LAN HTTPS 跨设备信任、桌面 helper、worker 原生隔离或 IP01–IP24 全部联合验收；只有真实平台证据才能提升对应 IP 状态。
+
+## 7. 本次已批准执行结果（2026-10-29）
+
+### 7.1 执行授权与候选预检
+
+owner 已明确批准对本计划固定的 `fc4e23e` 候选执行一次本机受控升级。执行前的只读核对结果如下：
+
+- 候选安装包 SHA-256 仍为 `258a6e04823bc9782a045ae465ac95e86ae248c1b4229e7110b08f8c71f4abf6`，与本计划一致。
+- `native-build-receipt.json` 明确记录 `native_package_signature: not_performed`、`native_installation: not_performed`、`release_ready: false`；候选是已编译的开发安装器，不是可供生产 updater 消费的已验证签名发布。
+- bundle 仍只有编译产物、静态资源和打包输入，没有可供已安装 updater 消费的签名 `manifest.json`/原始签名发布目录。
+- 已安装服务的只读快照为：`forme-host` Running/Automatic/LocalSystem，`forme-web` Running/Automatic/`NT SERVICE\\forme-web`，`forme-brain` Stopped/Manual/`NT SERVICE\\forme-brain`，`forme-release-updater` Stopped/Manual/LocalSystem。
+- Product URL `http://127.0.0.1:18765/` 仍可达并返回 HTML 200；未认证的产品状态接口返回 `401 Unauthenticated`。未取得认证控制面的 `allowed_operations` 回执，因此不把 UI 可见性或源码中的操作枚举当作本机升级授权证据。
+
+### 7.2 实际执行与结果
+
+本机曾按固定候选启动 Inno Setup 受控安装器，回执保存在 `target/installed-product-upgrade-fc4e23e.log`。安装器在 `PrepareToInstall` 的受保护安装根预检阶段停止，并明确记录：`Existing files and services were retained`，随后 `Got EAbort exception`。没有进入文件替换、服务 image 切换、配置写入、Brain 启动或 updater 接管。
+
+独立的后续只读核对显示：Host/Web 仍监听原 Product URL，Brain/updater 仍为停止状态，原四个 SCM 注册仍存在；没有证据表明本候选覆盖了既有程序、数据、密钥、配置或服务绑定。该次操作的结果是**受保护拒绝，原安装保留**，不是升级成功，也不是可回滚的中间态。
+
+### 7.3 IP 影响
+
+- IP01/IP02/IP03/IP04：本次未重新执行冷启动、注销、崩溃恢复或无配置安装正向链；现有 Host/Web 可达证据不能替代这些 IP 的完整证据。
+- IP05–IP13：本次没有执行认领、登录、配置、数据迁移、worker 或权限正向动作；保持既有状态，不因本次候选预检改变。
+- **IP14 升级事务：正向链 `签名→预检→排空→备份→切换→健康→恢复` 为 `NOT_RUN`。** 本次同时取得了一个有价值的反向证据：未签名且 `release_ready=false` 的候选在安装预检阶段被拒绝，并保留原安装；这不能抵扣 IP14 正向验收。
+- IP15–IP24：本次没有执行回滚、卸载、完整 Web 工作台联合流程或完整产品回归，保持 `NOT_RUN/UNVERIFIABLE`，不得由本次安装器日志提升。
+
+本次失败现场、候选摘要和服务快照均保留。由于候选没有签名发布 envelope、未进入已安装 release inbox，不能继续重试同一候选或绕过 updater/owner 控制面；后续若要取得 IP14 正向证据，必须先生成并独立核验受信任的签名发布，再以新的明确 operation 进入 Host/updater 维护路径。
