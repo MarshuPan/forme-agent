@@ -21,7 +21,7 @@
 - 当前安装实例仍是旧候选：`forme-host` 与 `forme-web` Running，`forme-brain` 与 `forme-release-updater` Stopped；Product URL 可达，匿名安全边界只读观察通过。BrainReady、真实模型运行、认证后的完整工作台链路和 IP01–IP24 联合验收仍未闭合。
 - `fc4e23e` 的一次获批操作已执行，但新安装入口在已有受保护安装根的 `PrepareToInstall` 阶段拒绝，未进入 updater 签名验证、文件切换或服务重启。该事实不证明 unsigned release rejection；详见 [fc4e23e 升级计划](installed-product-windows-upgrade-20261028-fc4e23e-plan.md)。
 - 最新本地开发签名 release envelope 与 Rust 离线 verifier 证据已准备；正式升级仍需受管 Host 读取真实 installation ref、实际 schema/active release，并由 owner 对该精确 operation 单独确认。在此之前不重复运行安装器，不提升 IP14。
-- Windows 生产桌面 helper 仍是实现缺口：当前 dispatch/permit/Unknown 合同和负向测试存在，但生产 adapter 仍为 `UnavailableDesktopHelper`。因此 IP11/IP24 不能仅凭组件门关闭。
+- Windows 桌面 helper 的生产代码已在 `566dfe7` 合入：受管 Host 会从当前活动 release 装配 `WindowsDesktopHelperAdapter`，并以固定 `forme-executord --desktop-session-helper`、登录用户 session generation、受保护 named pipe、Job Object 和 exact action binding 运行；非 Windows/未装配 helper 仍 fail closed。当前尚缺的是当前源码的真实登录会话/安装后运行证据，因此 IP11/IP24 仍不能关闭。当前源码层回归见[Windows 桌面 Helper 当前源码实现回执](installed-product-windows-desktop-helper-implementation-20261030.md)。
 
 ## 2026-10-29 本地开发签名预备证据
 
@@ -157,7 +157,7 @@
 
 2026-10-26 对当前源码 `5676dc1eeaea8874352c71d3b577d766f25b2350` 做只读复验：`npm --prefix frontend run verify` 的 TypeScript、81 项前端行为测试、生产构建及静态 bundle 检查通过；`verify-web-workbench.ps1` 8 项、`verify-web-identity.ps1` 25 项、`verify-web-ingress.ps1` 10 项通过；`verify-product-configuration.ps1` 的配置/激活 62 项、网络 fence 4 项、脑偏好 3 项、managed skills 2 项通过，产品二进制构建通过。受管 Host/Web/core 多进程桥因本机未注册 `NT SERVICE\forme-brain` 为 `NOT_RUN`；原生服务、安装包、真实 provider、浏览器完整 claim 后链路及 IP01–IP24 仍未通过。本轮静态对照另确认正式 worker driver 仍缺可取回的有界 ActionResult 工件契约：现行 transport 仅有 dispatch/probe/cancel，结果引用没有对应读取路径；需先按架构变更流程确认 PRD24/architecture/10 文档方案，再实现。该复验未修改代码，不提升任何产品 IP 状态。
 
-2026-10-26 `89bec64` 完成 Windows 桌面 helper dispatch 的受治理 Host 边界：桌面 grant/capability/plan digest 精确绑定，拒绝过期 grant 与能力不匹配，helper 在动作开始后失联则保留 Unknown 且不重试；`installed_worker_contract` 11/11 通过。`68cca5a` 将三个 desktop-helper 场景加入并通过宿主永久门。当前生产仍使用 `UnavailableDesktopHelper`，ProductionRuntime 尚未接入正式 worker driver，也没有真实登录会话 helper、SCM/LocalSystem 安装运行证据或 IP01–IP24 通过；详见[桌面 helper dispatch 组件验收](installed-product-desktop-helper-dispatch-acceptance-20261026.md)。本轮完整 M5 场景/质量门均通过；首次 `verify-m5.ps1` 仅因当时工作树未提交而在 S99 退出，随后提交后单独重验当前树 M5 release audit 通过，最终当前树回执比较见 M5 验收报告 §10。
+2026-10-30 `89bec64` 的 Windows 桌面 helper dispatch 受治理边界继续由 `566dfe7` 完成生产装配：桌面 grant/capability/plan digest 精确绑定，拒绝过期 grant 与能力不匹配，helper 在动作开始后失联则保留 Unknown 且不重试；`installed_worker_contract` 14/14 通过。Host 查询真实登录 session/token generation、以登录用户启动固定 release helper，并用受保护 named pipe 核验 PID/token/session/image；helper 只处理受绑定的 Computer action，不解析 brain、secret 或安装配置。当前仍缺当前源码的真实登录会话/安装后运行证据，不能将组件代码或负向测试折算为 IP11/IP24；详见[桌面 helper dispatch 组件验收](installed-product-desktop-helper-dispatch-acceptance-20261026.md)及[当前源码实现回执](installed-product-windows-desktop-helper-implementation-20261030.md)。完整 M5 场景/质量门均通过；首次 `verify-m5.ps1` 仅因当时工作树未提交而在 S99 退出，随后提交后单独重验当前树 M5 release audit 通过，最终当前树回执比较见 M5 验收报告 §10。
 
 2026-10-26 `ece53be` 完成 Harness gateway control 实现的职责拆分，见[可维护性实施记录](installed-product-maintainability-progress.md#9-gateway-控制实现拆分2026-10-26)。本次完整 `verify-m5.ps1` 在当前提交运行了全部 S1–S99、C1–C24、workspace、strict Clippy、89 项 Python 门和合规检查；临时 S99 审计及独立验证通过，最终只因仓库回执绑定旧源码而在回执比较退出。该次不记作完整 M5 PASS；刷新后的当前树回执及复跑结果在 [M5 报告 §10](m5-acceptance-report.md#10-产品化分支的永久回归重验)。该拆分不改变生产 worker 可用性、原生平台状态或 IP01–IP24。
 
