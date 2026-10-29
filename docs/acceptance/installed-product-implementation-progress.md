@@ -2,7 +2,7 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-29，`main@c0c29b0`）
+## 当前产品化状态（2026-10-29，`main@28c3a7a`）
 
 - 源码质量门已通过；这证明当前源码、受控 fixture、bundle/打包输入和静态安全边界通过，不等于原生产品 IP 已全部通过。
 - 当前安装实例仍是旧候选：`forme-host` 与 `forme-web` Running，`forme-brain` 与 `forme-release-updater` Stopped；Product URL 可达，匿名安全边界只读观察通过。BrainReady、真实模型运行、认证后的完整工作台链路和 IP01–IP24 联合验收仍未闭合。
