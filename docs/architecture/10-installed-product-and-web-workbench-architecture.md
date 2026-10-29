@@ -34,7 +34,7 @@ flowchart LR
 | 操作工具 `forme-hostctl` | 现有 `cli` crate 的子命令入口 | 本机 operator 身份，经 OS ACL/管理授权调用 broker。 | headless bootstrap、状态、离线修复和恢复；不另起大脑。 |
 | `forme-executord` / 会话 helper | 现有 `execution` crate 的 bin/模块 | 工具专用低权限账户或指定登录会话身份。 | 执行 exact plan/job、限时返回结果；无认知和 stable write。 |
 
-这些名称是同一产品实例的内部运行单元，不能据此形成第二套产品入口，也不能复制上游工程。共享 wire DTO 仅放现有 `protocol`；OS 适配与 worker 在 `execution`，不让 gateway 新增直依赖 execution/config/store 边。gateway 通过现有 Harness 外观与 protocol client 接口集成，cli 仍只依赖 gateway/protocol。平台 binding 采用可审计封装，项目默认保持 `forbid(unsafe_code)`；owner 已批准的 Windows AppContainer 两文件 FFI 例外严格按 canonical §29.9 和质量门约束，不能扩展到其他模块或增加内部依赖边。
+这些名称是同一产品实例的内部运行单元，不能据此形成第二套产品入口，也不能复制上游工程。共享 wire DTO 仅放现有 `protocol`；OS 适配与 worker 在 `execution`，不让 gateway 新增直依赖 execution/config/store 边。gateway 通过现有 Harness 外观与 protocol client 接口集成，cli 仍只依赖 gateway/protocol。平台 binding 采用可审计封装，项目默认保持 `forbid(unsafe_code)`；owner 已批准的 Windows 五文件 FFI 例外严格按 canonical §29.9 和质量门约束，不能扩展到其他模块或增加内部依赖边。
 
 OS 服务管理器分别监管三个长期服务。broker 可以要求 OS 开始/停止 core，但不另设抢跑的崩溃重启 loop；每个长期进程只有一个 supervisor。短期 worker 由 broker 管理截止、取消与清理，不做自动副作用重试。Web 崩溃不影响核心；核心崩溃不影响登录与诊断。
 
@@ -248,6 +248,8 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 平台实现边界：Windows 用真实登录用户的 session/token 与受保护 desktop peer；LocalSystem Host 不能直接输入用户桌面。macOS 由登录用户会话中的 helper 承担 GUI/TCC，LaunchDaemon 不越权操作 GUI。Linux 绑定用户 session，并明确 Wayland portal 或 X11 display/authority；无桌面、锁屏、注销、会话切换、TCC/portal 不满足时，交互能力是 `Unavailable`，非交互任务继续。helper 启动/注册、liveness、grant/revoke 和 receipt 记录在产品 journal，脑事件仍只由 core EventStore 写入。
 
 IP11 的正向证据必须同时证明真实 OS 用户/session、真实 peer、exact plan/permit、桌面动作和 receipt；反向证据必须覆盖注销、锁屏、会话切换、TCC/portal 拒绝、过期/重放 nonce、参数/digest 替换、helper 失联以及 `Started` 后无终态。受控 fixture 或服务运行截图不能单独关闭 IP11。
+
+Windows 原生实现只允许拆成两个独立的受审计边界：`windows_desktop_session_native.rs` 负责由 LocalSystem Host 查询 WTS session、用户 SID、AuthenticationId/logon generation、连接/锁屏状态，并以真实用户 token 启动固定活动发布的 helper；`windows_desktop_helper_peer_native.rs` 负责 helper 私有 named pipe 的受保护 peer 身份核验和有界 IPC。两文件都只能返回 safe Rust 的 typed session/observation/receipt，不向上层暴露裸句柄或任意路径、命令、环境。生产装配缺少固定 SCM/活动发布/真实用户会话/peer 证据时继续使用 `UnavailableDesktopHelper`，不能回退到 LocalSystem 直接操作桌面。
 
 ## 8. 数据、密钥与已有数据接管
 

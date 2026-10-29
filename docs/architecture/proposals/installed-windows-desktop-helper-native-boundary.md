@@ -1,6 +1,6 @@
 # Windows 登录会话 helper 的原生实现边界草案
 
-状态：待 owner 批准；本草案不激活 backend，不扩展当前 unsafe 白名单。它承接 PRD24 §4.11、architecture/10 §7.2、canonical §29.10 和 IP11，不增加功能内核、crate、依赖边或脑 EventKind。
+状态：已获 owner 批准，允许先完成权威文档闭合，再实现受审计边界；本回执不等于 backend 已激活或 IP11 已通过。它承接 PRD24 §4.11、architecture/10 §7.2、canonical §29.10 和 IP11，不增加功能内核、crate、依赖边或脑 EventKind。
 
 ## 1. 需要批准的具体变更
 

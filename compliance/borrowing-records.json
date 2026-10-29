@@ -146,6 +146,15 @@
       "allowed_sha256": []
     },
     {
+      "source": "windows-sys 0.61.2 public crate API",
+      "license": "MIT OR Apache-2.0",
+      "copy_risk": "low",
+      "implementation_rule": "Use only the public Win32 declarations behind the five project-owned Windows AppContainer, AgentExecution peer and desktop session/helper adapters; do not copy source, examples, fixtures, errors, or naming.",
+      "notice_action": "Review the exact locked windows-sys license and transitive notices before release; audit every unsafe boundary and native evidence separately.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
       "source": "ed25519-dalek 2.2.0 public crate API",
       "license": "BSD-3-Clause",
       "copy_risk": "low",

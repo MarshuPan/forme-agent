@@ -440,6 +440,12 @@ helper 生命周期为 `Absent -> Starting -> Ready -> Revoked/Expired/Unavailab
 
 撤销 grant、排空 helper、核对原 receipt 后才能升级/恢复/卸载。清理 helper 不删除 Unknown 的 job、副本、receipt 或 session journal；恢复不得复活旧 grant/session generation/nonce。helper 不可用只阻断交互动作，不阻断 Web 登录、脑运行或非交互任务。详细 IP11 证据要求见 requirements/18。
 
+#### 4.11.4 Windows 原生边界与装配状态
+
+Windows 交互 helper 的 Win32 代码只能存在于两个独立审计文件：`crates/execution/src/installed/windows_desktop_session_native.rs` 负责真实 WTS session、用户 token、AuthenticationId/logon generation、锁屏/连接状态和固定活动发布 helper 的用户身份启动；`crates/execution/src/installed/windows_desktop_helper_peer_native.rs` 负责私有 named pipe、双方 PID/token/session generation 核验和有界 IPC。两文件必须显式声明 `allow(unsafe_code)`，其余 Host/session/worker 编排使用 safe Rust；不得把 `unsafe` 扩展到 `desktop_helper.rs`、`worker_host.rs`、`forme-executord` 或整个 crate。
+
+该批准只解除实现白名单，不解除生产能力门。受管配置、SCM/LocalSystem、固定 active release、真实登录用户会话、helper peer、grant/permit/plan digest/nonce 和恢复证据任一缺失时，生产 backend 继续 blocked/Unavailable；原生组件测试不提升 IP11/IP24。Linux/macOS 仍按其现有有限发布边界处理。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 安装与启动
