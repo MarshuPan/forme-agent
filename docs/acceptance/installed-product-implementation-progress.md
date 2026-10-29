@@ -2,7 +2,15 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-30，`main@433039b`）
+## 当前产品化状态（2026-10-30，`main@463348a`）
+
+### 本轮 Windows 本地开发签名候选 v4（仅本机受控验收）
+
+基于产品代码不变的 `main@433039b` bundle 生成了 v4 Authenticode 候选；当前 `main@463348a` 与该输入之间只有验收文档变化。v4 使用独立 Root CA 和代码签名 Leaf，Leaf 与 Root 的自定义链验证为 `valid`，但 Windows 当前用户 Root 导入未完成，系统 `Get-AuthenticodeSignature` 仍为 `UnknownError` / `unverifiable`。因此它只用于本机签名证据，`release_ready=false`，不代表正式信任。
+
+- local signed installer：`target/product-bundles/forme-windows-x86_64-20261030-433039b-package/artifacts/forme-0.0.1-windows-x86_64-local-dev-v4.exe`，SHA-256 `9ee9ebf86fab1ea7f17ea91c46f57a6d3787b36984033df03cbeace3fb97c571`。
+- Root thumbprint：`84307392F23C57B4290179CA6546ECE73AD3E1D6`；Leaf thumbprint：`F70FE25CA2846493F7E236D41C8DD566CB71AB3C`。
+- 签名回执与失败边界见[Windows 本地开发签名与原生候选 v4](installed-product-windows-local-dev-signing-20261030-v4.md)。没有运行安装器、升级事务、服务切换或 Brain。
 
 ### 本轮 Windows 本地受控验收候选（`main@433039b`）
 
