@@ -2,7 +2,11 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-29，`main@6a18196`）
+## 当前产品化状态（2026-10-30，`main@55b11e6`）
+
+### 2026-10-30 当前只读预检
+
+当前源码重新构建的 `forme-hostd` 已接受本地开发签名 release，签名测试 `5/5` 通过；当前 Host/Web 仍 Running，Brain/updater 仍 Stopped。受保护的安装绑定、active release、schema 和真实 trust 配置未在非管理员会话中读取，因此没有执行安装切换或服务变更。完整边界见[本地开发签名与升级前只读预检回执](installed-product-windows-local-dev-signing-preflight-20261030.md)。
 
 - 源码质量门已通过；这证明当前源码、受控 fixture、bundle/打包输入和静态安全边界通过，不等于原生产品 IP 已全部通过。
 - 当前安装实例仍是旧候选：`forme-host` 与 `forme-web` Running，`forme-brain` 与 `forme-release-updater` Stopped；Product URL 可达，匿名安全边界只读观察通过。BrainReady、真实模型运行、认证后的完整工作台链路和 IP01–IP24 联合验收仍未闭合。
