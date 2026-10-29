@@ -2,6 +2,10 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-10-29 当前 main 候选（84aecb2）
+
+基于本地 `main@84aecb2` 完成 release workspace 构建、18-file Windows bundle 和 Inno Setup 6.6.1 原生安装器编译。该候选包含 managed Host 配置成对校验的 fail-closed 修复；bundle digest 为 `sha256:06cc7df41fc0a90dfe45d38133000a7edd662ba64de752199303a9d65986ef3a`，安装包 SHA-256 为 `74d3da70880b761722f2d7167f2252fdd5c725794750012bcfed6bb9f1955a7c`，安装包大小为 `73,633,710` bytes。候选仍未签名、未安装，`release_ready=false`；当前安装实例和用户数据未改变。详细证据见 [Windows 当前 main 安装候选](installed-product-windows-candidate-20261029-84aecb2.md) 和 [升级验收计划](installed-product-windows-upgrade-20261029-84aecb2-plan.md)。此前批准的 `fc4e23e` 不自动覆盖本候选。
+
 ## 2026-10-29 当前 main 候选（6d7eedb）
 
 基于本地 `main@6d7eedb` 完成 release workspace 构建、Web 资源核验、18-file Windows bundle、bundle 10/10 完整性回归和 Inno Setup 6.6.1 原生安装器编译。bundle content digest 为 `sha256:298de82ad6307bfe632bf432013df03f7e6d171dc31e4da327c05309e7f3531c`，安装包 SHA-256 为 `e7248fb674a2f9f3138291a9ad9ecd8063682916bc2c9f07d2be90cdd89c249b`，安装包大小为 `73,629,748` bytes。候选仍未签名、未安装，`release_ready=false`；当前安装实例和用户数据未改变。详细证据见 [Windows 当前 main 安装候选](installed-product-windows-candidate-20261029-6d7eedb.md)。
