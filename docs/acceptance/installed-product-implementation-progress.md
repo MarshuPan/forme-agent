@@ -2,7 +2,20 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
-## 当前产品化状态（2026-10-30，`main@e51293a`）
+## 当前产品化状态（2026-10-30，`main@433039b`）
+
+### 本轮 Windows 本地受控验收候选（`main@433039b`）
+
+基于当前 `main@433039b` 重新生成了 18-file Windows bundle、Ed25519 signed release 和 Inno Setup 原生安装候选。ForMe 自带 Rust verifier 对 signed release 返回 `signature_and_closed_content`，release digest 为 `sha256:dabaa6bd81e56b1bf69ef4bd836a320424827e96ad41471285f304414b557962`。本轮没有安装、升级、替换服务文件、修改产品配置或启动 Brain。
+
+- signed release：`target/product-bundles/forme-windows-x86_64-20261030-433039b-signed-local-dev-20261030`。
+- native installer：`target/product-bundles/forme-windows-x86_64-20261030-433039b-package/artifacts/forme-0.0.1-windows-x86_64.exe`，SHA-256 `dec05d1941366c65b2ba8b2257826877a7bea3c1fff6d34fa6b0252585a3ffcf`。
+- local signed installer：同目录的 `forme-0.0.1-windows-x86_64-local-dev-v2.exe`，SHA-256 `c77e4a1516bebb47208420bdfd52deede6949a3bf3b56c0d0ca275b59600fe1f`。
+- Authenticode leaf：`3A6241B8942F2CB07A342C76FB9A5D5CF68CB2B1`，链指向本地 v2 Root；Windows 当前仍返回 `UnknownError` / `unverifiable`，所以 `release_ready=false`。它不能被写成正式签名发布。
+- 当前已安装实例仍是旧 release：`forme-host`、`forme-web` Running，`forme-brain`、`forme-release-updater` Stopped；`/api/v1/bootstrap/status` 只读返回 `claimed=true`、`setup_needed=false`。
+- 本地网页登录当前需要 owner 登录；没有读取或代填密码。精确升级仍必须在登录态下绑定当前 installation、active release、schema 和该 digest，并由 owner 完成一次性重新认证。
+
+详细签名回执见[本轮 Windows 本地开发签名与原生候选](installed-product-windows-local-dev-signing-20261030-v2.md)。
 
 ### 当前 Windows 本地开发签名与原生安装边界
 
