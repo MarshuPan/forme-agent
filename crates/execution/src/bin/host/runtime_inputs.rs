@@ -36,6 +36,7 @@ pub(crate) struct WorkerHostContext<'a> {
     pub managed_service_bound: bool,
     pub protected_paths: &'a [PathBuf],
     pub active_release: Option<&'a forme_execution::installed::VerifiedStagedRelease>,
+    pub initial_release_root: Option<&'a Path>,
 }
 
 pub(crate) fn load_worker_host(
@@ -61,8 +62,20 @@ pub(crate) fn load_worker_host(
         )?;
         #[cfg(windows)]
         if context.managed_service_bound {
+            let helper_image = match context.active_release {
+                Some(release) => {
+                    release.recheck()?;
+                    Some(release.content_root().join("bin/forme-executord.exe"))
+                }
+                None => context
+                    .initial_release_root
+                    .map(|root| root.join("bin/forme-executord.exe")),
+            };
             return Ok(Arc::new(
-                config.open_managed_windows_appcontainer_host(digest)?,
+                config.open_managed_windows_host_with_desktop_helper(
+                    digest,
+                    helper_image.as_deref(),
+                )?,
             ));
         }
         #[cfg(target_os = "linux")]

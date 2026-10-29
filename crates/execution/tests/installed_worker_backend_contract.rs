@@ -285,6 +285,68 @@ fn plan(backend: &WorkerActionBackend, action: &str) -> forme_execution::Executi
         .unwrap()
 }
 
+fn computer_plan(backend: &WorkerActionBackend, action: &str) -> forme_execution::ExecutionPlan {
+    backend
+        .plan(&p::ActionIntent {
+            schema_version: p::SchemaVersion(1),
+            intent_id: p::ActionId(action.into()),
+            source: p::Source::Internal,
+            goal: p::GoalRef("verify desktop grant forwarding".into()),
+            backend_hint: BackendKind::Computer,
+            capability_ref: p::CapabilityRef("capability:desktop-forwarding".into()),
+            action_type: p::ActionType::Execute,
+            scope: p::Scope("workspace:worker-backend".into()),
+            risk_hint: p::Risk::Low,
+            expected_effect: p::ExpectedEffect::Internal,
+            rollback_expectation: p::RollbackBoundary("none".into()),
+            parameters: p::ActionParameters::Computer(p::ComputerActionSpec {
+                schema_version: p::SchemaVersion(1),
+                driver: p::ProviderId("driver:desktop-forwarding".into()),
+                surface: p::SurfaceRef("surface:desktop-forwarding".into()),
+                bounds: p::CoordinateBounds {
+                    schema_version: p::SchemaVersion(1),
+                    min_x: 0,
+                    min_y: 0,
+                    max_x_exclusive: 800,
+                    max_y_exclusive: 600,
+                },
+                operation: p::ComputerOperation::Click {
+                    x: 20,
+                    y: 30,
+                    button: p::PointerButton::Primary,
+                },
+                artifact_scope: p::Scope("workspace:worker-backend".into()),
+            }),
+            requested_permissions: Vec::new(),
+            requested_at: now(),
+            estimated_output_bytes: 128,
+            estimated_duration: p::DurationMs(100),
+        })
+        .unwrap()
+}
+
+fn desktop_binding(plan: &forme_execution::ExecutionPlan) -> p::DesktopSessionBinding {
+    let issued_at = now();
+    p::DesktopSessionBinding {
+        schema_version: p::DESKTOP_SESSION_SCHEMA_VERSION,
+        helper_ref: "helper:desktop-forwarding".into(),
+        grant_ref: "grant:desktop-forwarding".into(),
+        owner_ref: p::VerifiedPrincipal("owner:worker-backend".into()),
+        os_user_ref: "os-user:desktop-forwarding".into(),
+        os_session_ref: "os-session:desktop-forwarding".into(),
+        session_generation: 1,
+        platform: p::DesktopPlatform::Windows,
+        desktop_ref: "desktop:primary".into(),
+        action_ref: plan.intent.intent_id.clone(),
+        plan_digest: plan.digest.clone(),
+        authority_epoch: p::AuthorityEpoch(1),
+        nonce: p::Nonce(format!("worker-nonce:{}", plan.digest.0)),
+        capabilities: [p::DesktopCapability::PointerClick].into_iter().collect(),
+        issued_at,
+        expires_at: issued_at + 5_000,
+    }
+}
+
 fn terminal_observation(job: &p::WorkerJob) -> p::WorkerObservation {
     p::WorkerObservation {
         schema_version: p::SchemaVersion(1),
@@ -491,6 +553,53 @@ fn transport_delay_empty_results_and_split_utf8_preserve_the_plan() {
             assert!(state.reads > 1);
         }
     }
+}
+
+#[test]
+fn desktop_grant_is_forwarded_only_when_bound_to_the_exact_plan() {
+    let transport = Arc::new(FakeTransport::new(FailureMode::None));
+    let backend = WorkerActionBackend::new(
+        BackendKind::Computer,
+        transport.clone(),
+        p::VerifiedPrincipal("owner:worker-backend".into()),
+        p::AuthorityEpoch(1),
+        "sandbox:worker-backend",
+        OutputBudget::strict(8 * 1024),
+        p::DurationMs(10_000),
+    )
+    .unwrap();
+    let plan = computer_plan(&backend, "worker-backend-desktop-grant");
+    let binding = desktop_binding(&plan);
+    let mut bound = plan.clone().with_desktop_session(binding.clone()).unwrap();
+
+    let result = backend
+        .execute(bound.clone(), &EventSink::default(), CancelToken::default())
+        .unwrap();
+    assert_eq!(result.status, ActionStatus::Completed);
+    let state = transport.state.lock().unwrap();
+    assert_eq!(
+        state
+            .request
+            .as_ref()
+            .and_then(|request| request.execution.as_ref())
+            .and_then(|execution| execution.desktop_session.as_ref()),
+        Some(&binding)
+    );
+    drop(state);
+
+    let mut foreign = binding.clone();
+    foreign.plan_digest = p::PlanDigest(p::canonical_digest(&"foreign-plan").unwrap().0);
+    assert!(plan.clone().with_desktop_session(foreign).is_err());
+
+    bound
+        .desktop_session
+        .as_mut()
+        .expect("desktop grant is attached")
+        .plan_digest = p::PlanDigest(p::canonical_digest(&"tampered-plan").unwrap().0);
+    assert!(backend
+        .execute(bound, &EventSink::default(), CancelToken::default())
+        .is_err());
+    assert_eq!(transport.snapshot().0, 1);
 }
 
 #[test]

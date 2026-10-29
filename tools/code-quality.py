@@ -17,6 +17,8 @@ NATIVE_UNSAFE_BOUNDARIES = {
     "crates/execution/src/installed/windows_appcontainer_acl.rs",
     "crates/execution/src/installed/windows_appcontainer_native.rs",
     "crates/execution/src/installed/windows_agent_execution_native.rs",
+    "crates/execution/src/installed/windows_desktop_session_native.rs",
+    "crates/execution/src/installed/windows_desktop_helper_peer_native.rs",
 }
 NATIVE_UNSAFE_DENY_BOUNDARIES = {
     "crates/execution/src/lib.rs",

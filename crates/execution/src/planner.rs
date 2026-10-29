@@ -40,6 +40,11 @@ pub struct ExecutionPlan {
     pub rollback_boundary: p::RollbackBoundary,
     pub budget: OutputBudget,
     pub timeout: p::DurationMs,
+    /// A session grant is bound to this plan after planning. It is deliberately
+    /// outside `PlanDigest`: the grant carries the digest and is checked again
+    /// at WorkerJob admission, while the plan digest remains stable for
+    /// approval and replay.
+    pub desktop_session: Option<p::DesktopSessionBinding>,
 }
 
 impl ExecutionPlan {
@@ -62,6 +67,14 @@ impl ExecutionPlan {
                 "execution plan digest no longer matches its contents".into(),
             ));
         }
+        if let Some(binding) = &self.desktop_session {
+            binding.validate()?;
+            if binding.action_ref != self.intent.intent_id || binding.plan_digest != self.digest {
+                return Err(p::Error(
+                    "execution plan desktop session is not bound to the plan".into(),
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -78,6 +91,20 @@ impl ExecutionPlan {
     pub fn with_approval(mut self, approval: p::ApprovalId) -> Self {
         self.approval_ref = Some(approval);
         self
+    }
+
+    /// Attach a Host-issued session grant after the base plan digest exists.
+    /// The grant is not permission by itself; the final worker admission
+    /// revalidates its owner, action, plan, epoch, nonce and deadline.
+    pub fn with_desktop_session(mut self, binding: p::DesktopSessionBinding) -> p::Result<Self> {
+        binding.validate()?;
+        if binding.action_ref != self.intent.intent_id || binding.plan_digest != self.digest {
+            return Err(p::Error(
+                "desktop session grant does not match the execution plan".into(),
+            ));
+        }
+        self.desktop_session = Some(binding);
+        Ok(self)
     }
 }
 
@@ -272,6 +299,7 @@ pub(crate) fn plan_with(
         rollback_boundary,
         budget,
         timeout,
+        desktop_session: None,
     };
     plan.refresh_digest()?;
     Ok(plan)

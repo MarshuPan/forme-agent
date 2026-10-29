@@ -207,6 +207,7 @@ pub(crate) struct HostRuntimeConfig {
     pub credentials: HostCredentials,
     pub target: p::ProductTarget,
     pub active_release: String,
+    pub initial_release_root: Option<PathBuf>,
     pub installation_manifest_digest: Option<p::SchemaDigest>,
     pub release_digest: Option<p::SchemaDigest>,
     pub bootstrap_config_path: Option<PathBuf>,
@@ -356,6 +357,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         target: target_from_environment()?,
         active_release: std::env::var("FORME_ACTIVE_RELEASE")
             .unwrap_or_else(|_| "unconfigured".into()),
+        initial_release_root: None,
         installation_manifest_digest: None,
         release_digest: None,
         bootstrap_config_path: std::env::var_os("FORME_BOOTSTRAP_CONFIG_PATH").map(PathBuf::from),
@@ -469,6 +471,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         credentials,
         target: config.product_target,
         active_release: config.active_release,
+        initial_release_root: Some(manifest.paths.releases.clone()),
         installation_manifest_digest: Some(manifest_digest),
         release_digest: Some(manifest.release_digest),
         bootstrap_config_path: config.bootstrap_config_path,

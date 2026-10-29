@@ -22,6 +22,24 @@ fn run() -> p::Result<()> {
         [mode] if mode == "--installed-file-worker" => {
             return forme_execution::installed::run_installed_file_worker();
         }
+        [mode, pipe_flag, pipe] if mode == "--desktop-session-helper" && pipe_flag == "--pipe" => {
+            #[cfg(windows)]
+            {
+                if std::env::args().nth(3).as_deref() != Some(pipe.as_str()) {
+                    return Err(p::Error(
+                        "desktop helper pipe arguments are inconsistent".into(),
+                    ));
+                }
+                return forme_execution::installed::run_desktop_session_helper();
+            }
+            #[cfg(not(windows))]
+            {
+                let _ = pipe;
+                return Err(p::Error(
+                    "desktop session helper is unsupported on this platform".into(),
+                ));
+            }
+        }
         _ => return Err(p::Error("unsupported executor entry arguments".into())),
     }
     let grant_path = required_path("FORME_EXECUTOR_GRANT_PATH")?;

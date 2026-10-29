@@ -82,7 +82,7 @@ impl ActionBackend for ComputerBackend {
             return Err(p::Error("computer plan has incompatible parameters".into()));
         };
         spec.bounds.validate()?;
-        if spec.driver != self.driver_id || !operation_within_bounds(spec) {
+        if spec.driver != self.driver_id || !computer_operation_within_bounds(spec) {
             return Err(p::Error(
                 "computer plan exceeds its configured driver or bounds".into(),
             ));
@@ -132,7 +132,7 @@ impl ActionBackend for ComputerBackend {
     }
 }
 
-fn operation_within_bounds(spec: &p::ComputerActionSpec) -> bool {
+pub(crate) fn computer_operation_within_bounds(spec: &p::ComputerActionSpec) -> bool {
     match spec.operation {
         p::ComputerOperation::Move { x, y } | p::ComputerOperation::Click { x, y, .. } => {
             spec.bounds.contains(x, y)

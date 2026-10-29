@@ -233,6 +233,7 @@ fn run_host(
             managed_service_bound,
             protected_paths: &runtime.worker_protected_paths,
             active_release: active_release.as_ref(),
+            initial_release_root: runtime.initial_release_root.as_deref(),
         },
     )?;
     on_stage(startup::Stage::AgentEndpoint);

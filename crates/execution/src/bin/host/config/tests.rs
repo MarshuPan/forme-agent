@@ -278,6 +278,10 @@ fn managed_host_needs_private_distinct_file_credentials_and_cannot_enable_proces
     assert!(runtime.managed && runtime.has_agent_endpoint);
     assert!(!runtime.development_workers);
     assert_eq!(
+        runtime.initial_release_root,
+        Some(fixture.0.join("releases"))
+    );
+    assert_eq!(
         runtime.credentials.maintenance(),
         "test-maintenance-only-token-0000000001"
     );

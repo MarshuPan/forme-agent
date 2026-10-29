@@ -48,6 +48,12 @@ mod windows_appcontainer_native;
 #[cfg(windows)]
 mod windows_appcontainer_support;
 #[cfg(windows)]
+mod windows_desktop_helper_peer_native;
+#[cfg(windows)]
+mod windows_desktop_helper_runtime;
+#[cfg(windows)]
+mod windows_desktop_session_native;
+#[cfg(windows)]
 mod windows_worker;
 #[cfg(windows)]
 mod windows_workspace_overlay;
@@ -64,6 +70,8 @@ mod worker_result_crypto;
 mod worker_results;
 mod worker_socket;
 
+#[cfg(windows)]
+pub use desktop_helper::WindowsDesktopHelperAdapter;
 pub use desktop_helper::{DesktopHelperAdapter, UnavailableDesktopHelper};
 pub use file_provisioning::{InstalledFileProvisioning, INSTALLED_FILE_PROFILE};
 pub use file_worker::run_installed_file_worker;
@@ -100,6 +108,8 @@ pub use windows_agent_execution_native::{
 };
 #[cfg(windows)]
 pub use windows_appcontainer::*;
+#[cfg(windows)]
+pub use windows_desktop_helper_runtime::run_desktop_session_helper;
 #[cfg(windows)]
 pub use windows_worker::*;
 pub use worker::*;

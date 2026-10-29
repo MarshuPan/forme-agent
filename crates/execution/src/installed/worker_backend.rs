@@ -460,7 +460,7 @@ fn execution_spec(plan: &ExecutionPlan) -> p::WorkerExecutionSpec {
         normalized_action_digest: plan.normalized_action_digest.clone(),
         timeout: plan.timeout,
         output_budget_bytes: plan.budget.max_bytes,
-        desktop_session: None,
+        desktop_session: plan.desktop_session.clone(),
     }
 }
 

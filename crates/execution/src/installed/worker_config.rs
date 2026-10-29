@@ -15,7 +15,9 @@ use super::{
     WorkerLaunchSpec,
 };
 #[cfg(windows)]
-use super::{WindowsAppContainerWorkerIsolation, WindowsJobWorkerIsolation};
+use super::{
+    WindowsAppContainerWorkerIsolation, WindowsDesktopHelperAdapter, WindowsJobWorkerIsolation,
+};
 
 const MAX_WORKER_CONFIG_BYTES: u64 = 4 * 1024 * 1024;
 
@@ -390,6 +392,48 @@ impl WorkerRuntimeConfig {
             self.authority_epoch,
             self.allowed_scopes.iter().cloned().collect(),
             isolation,
+        )
+    }
+
+    /// Managed Windows composition with an optional active-release desktop
+    /// helper. `None` is reserved for an installation that has no helper
+    /// image yet; once a release image is supplied, failure to validate it
+    /// aborts composition instead of silently weakening the managed host.
+    #[cfg(windows)]
+    pub fn open_managed_windows_host_with_desktop_helper(
+        &self,
+        agent_credential_digest: p::SchemaDigest,
+        helper_image: Option<&Path>,
+    ) -> p::Result<
+        WorkerExecutorHost<WindowsAppContainerWorkerIsolation, Option<WindowsDesktopHelperAdapter>>,
+    > {
+        self.validate()?;
+        let launches = self
+            .launch_profiles
+            .iter()
+            .map(|profile| {
+                WorkerLaunchSpec::new(
+                    profile.sandbox_profile_ref.clone(),
+                    profile.program.clone(),
+                    profile.args.clone(),
+                )
+            })
+            .collect::<p::Result<Vec<_>>>()?;
+        let isolation = WindowsAppContainerWorkerIsolation::open_managed(
+            self.runtime_root.clone(),
+            WorkerLaunchRegistry::from_specs(launches)?,
+            self.workspace_roots.clone(),
+        )?;
+        let desktop_helper = helper_image
+            .map(WindowsDesktopHelperAdapter::new)
+            .transpose()?;
+        WorkerExecutorHost::open_with_adapters(
+            &self.journal_path,
+            agent_credential_digest,
+            self.authority_epoch,
+            self.allowed_scopes.iter().cloned().collect(),
+            isolation,
+            desktop_helper,
         )
     }
 }
