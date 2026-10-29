@@ -29,3 +29,15 @@ The offline `node tools/sign-product-release.mjs --bundle <absolute-bundle> --ou
 The resulting directory has manifest.json, raw signature.ed25519, content/ and a safe signing receipt. Web files are mapped from share/forme/web to content/web to match the kernel's closed-set verifier. Verify with the built forme-hostd `--verify-release <directory> --trust-config <administrator-trust-json> --target <wire-target>`. The trust JSON uses ReleaseStagingConfig; it must come from an independently pinned administrator/distribution root. The receipt's public key is informational and is never automatically trusted. This signs release contents; it does not Authenticode-sign an installer, notarize macOS packages, or certify native installation/CPU behavior.
 
 The signer accepts the builder's single derived `SHA256SUMS` only when it exactly matches the declared inventory order and digests. It is not an exception allowing arbitrary extra files.
+
+## Windows Authenticode signing
+
+The Windows installer has a separate native-signing step after `build-native-package.mjs`. It copies the unsigned installer to a new output path and refuses to replace either the source or an existing output:
+
+```text
+node tools/sign-windows-package.mjs --input <absolute-unsigned-exe> --output <absolute-new-signed-exe> --certificate-thumbprint <40-hex-sha1> [--store-location CurrentUser|LocalMachine]
+```
+
+The certificate is selected by its explicit thumbprint from the Windows certificate store. Its private key is never exported, copied into the bundle, or written to a receipt. The tool invokes the repository-owned `tools/windows/sign-authenticode.ps1` through a fixed Windows PowerShell 5.1 module path, signs with SHA-256, then independently reads `Get-AuthenticodeSignature` and requires the observed signer thumbprint and `Authenticode` type to match the requested certificate. The output directory receives `native-signing-receipt.json` with source/output SHA-256 values, signer identity, raw signature status and a normalized `trust_status`.
+
+`Valid` is the only `trusted` state. `NotTrusted` remains `untrusted`; `UnknownError` and other unresolved states remain `unverifiable`. They are never reported as a valid release. `--allow-untrusted` is an explicit local-development escape that permits evidence generation while retaining `release_ready: false`; it is not appropriate for a published package. Native signing does not install the package, update the Host trust root, or close any IP01-IP24 acceptance item.
