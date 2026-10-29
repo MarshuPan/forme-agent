@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-10-29 当前 Windows 原生 worker 证据（`429801b`）
+
+在当前 `main@429801bc5218f2c6f2446ba4222f572c3d726a5a` 上，使用临时目录完成真实 Windows AppContainer 合同验收：4/4 场景通过，覆盖私有 workspace/Host 回写、失败/取消/owner 冲突无回写、Host 死亡后的 lease 恢复，以及结果先封存后清理。随后真实 `forme-executord --installed-file-worker` 文件入口的 2/2 场景通过，覆盖精确映射、读写删、Host-only writeback、失败/取消/执行后替换不回写和加密结果通道。完整命令与边界见[当前 Windows 原生 worker 验收记录](installed-product-native-worker-acceptance-20261029.md)。
+
+唯一未取得的本机正向证据是 Windows symbolic-link 目标拒绝场景；非提权测试进程创建链接返回 Win32 `1314`，该项保持 `NOT_RUN/ENVIRONMENT_BLOCKED`，没有被折算为通过。以上只更新当前源码的 worker 证据，不提升 SCM/LocalSystem 安装、真实 provider、升级/回滚、桌面 helper、Linux/macOS 原生服务或 IP01–IP24 联合验收。
+
 ## 2026-10-29 当前 main 候选（84aecb2）
 
 基于本地 `main@84aecb2` 完成 release workspace 构建、18-file Windows bundle 和 Inno Setup 6.6.1 原生安装器编译。该候选包含 managed Host 配置成对校验的 fail-closed 修复；bundle digest 为 `sha256:06cc7df41fc0a90dfe45d38133000a7edd662ba64de752199303a9d65986ef3a`，安装包 SHA-256 为 `74d3da70880b761722f2d7167f2252fdd5c725794750012bcfed6bb9f1955a7c`，安装包大小为 `73,633,710` bytes。候选仍未签名、未安装，`release_ready=false`；当前安装实例和用户数据未改变。详细证据见 [Windows 当前 main 安装候选](installed-product-windows-candidate-20261029-84aecb2.md) 和 [升级验收计划](installed-product-windows-upgrade-20261029-84aecb2-plan.md)。此前批准的 `fc4e23e` 不自动覆盖本候选。
