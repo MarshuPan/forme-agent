@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:929b2257588541448758eb9cad4f0a0812cc0c737ab4db1035ffe7da9a14c568",
+        "input_digest": "sha256:c2b6aa4ea14a56274f2c017ecc637e15f9e67f3ad9727ab48ddb0e1671259521",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -27,7 +27,7 @@
         "blocking": false,
         "check_id": "direct_dependencies",
         "findings": [],
-        "input_digest": "sha256:cc9d4717f49d6e9f3c45e3a697093c69b7664584a0f2f426e111c1cee7b31201",
+        "input_digest": "sha256:4d31ce114966d3ece6f93cc26f70ca16fcf4cc41be45221cfa17ac97e165a9a6",
         "observations": [],
         "outcome": "pass",
         "tool": "cargo-metadata",
@@ -37,7 +37,7 @@
         "blocking": false,
         "check_id": "borrowing_records",
         "findings": [],
-        "input_digest": "sha256:ad1efe1f6603b82675302c8590cb73f1f4981d4a3f1d1945c7ba5a3714c3a710",
+        "input_digest": "sha256:8c5e4d2787629263d83b9bebfd17ec307059520a21d6953df4cc66910970eff3",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-borrowing-review",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:8d1d92db9410ac61f266abfb647a9687a277568583fe9d0bc5b2cd2fed0e40b0",
+        "input_digest": "sha256:12e946f27fd13031a255b36819c0fe21155a49facf98f795f7a3b379509af2ac",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -157,10 +157,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:66d4d26abe0306b562200e50afc16f2c05f98d707206083ed4515c2a3aa84c4f",
+    "root_digest": "sha256:b0d3cfc11b3e014cfd72c41de89f999fe7f542737f76f7fc794dfd37b96d28d3",
     "schema_version": 1,
     "tool_version": "forme-release-audit/5"
   },
-  "digest": "sha256:3ed95d36413b6446910dd66cb527ada14b7d8d48732973523f2eb451c705c03f",
+  "digest": "sha256:bbb99fdc82615c24ac696bd93e2bfb52aabb7f58896b4cdc4a479c6c006bd8dc",
   "schema_version": 1
 }
