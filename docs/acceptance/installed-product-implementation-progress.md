@@ -4,7 +4,7 @@
 
 ## 当前目标闭合审计（2026-10-30）
 
-本次审计针对 Codex 的整体目标，不把“核心代码已实现”扩大解释为“产品已验收完成”。审计现场基线为本地 `main@169b06c` 且工作树干净；源码在 `main@433039b` 之后没有变化，后续仅更新本验收记录。
+本次审计针对 Codex 的整体目标，不把“核心代码已实现”扩大解释为“产品已验收完成”。审计现场基线为本地 `main@b277e4e` 且工作树干净；产品源码相对 `main@433039b` 没有变化，后续仅更新验收记录。
 
 - 真实 Product URL `http://127.0.0.1:18765/` 仍可达，但当前浏览器停在 owner 登录页，未取得本轮认证后的工作台证据。
 - Windows SCM 当前为 `forme-host=Running/Automatic`、`forme-web=Running/Automatic`、`forme-brain=Stopped/Manual`、`forme-release-updater=Stopped/Manual`；当前安装实例仍不是本轮最新签名候选。
@@ -17,7 +17,7 @@
 
 这次复验仍由脚本明确输出 `IP01-IP24: NOT_RUN`，因为该专项门不安装服务、不认证浏览器、不调用真实 Provider，也不认证原生包；因此它只刷新当前源码/组件层证据，不能提升整体产品状态。实时 Windows 服务仍为 `forme-host=Running/Automatic`、`forme-web=Running/Automatic`、`forme-brain=Stopped/Manual`、`forme-release-updater=Stopped/Manual`，浏览器仍待 owner 手动登录后继续联合验收。
 
-## 当前产品化状态（2026-10-30，`main@ef8e9ef`）
+## 产品化状态快照（产品源码基线 `main@433039b`；验收记录当前为 `main@b277e4e`）
 
 ### 本轮 Windows 本地开发签名候选 v4（仅本机受控验收）
 
