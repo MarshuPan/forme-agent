@@ -11,7 +11,7 @@
 - 当前源码的自动主脑启动专项 `cargo test -p forme-execution automatically_starts_a_stopped_brain` 实际为 `1 passed / 0 failed`。这证明源码契约和测试夹具，不证明已安装旧版本已经执行该路径。
 - 因此本目标仍未闭合：真实 owner 登录/配置与 provider、BrainReady、安装后真实 worker/helper、重启/备份恢复/升级回滚、完整浏览器工作台和 IP01–IP24 联合证据仍保持原状态，不能写成 PASS。
 
-## 当前产品化状态（2026-10-30，`main@463348a`）
+## 当前产品化状态（2026-10-30，`main@a7a5658`）
 
 ### 本轮 Windows 本地开发签名候选 v4（仅本机受控验收）
 
