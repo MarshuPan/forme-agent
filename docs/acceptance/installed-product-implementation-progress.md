@@ -11,6 +11,12 @@
 - 当前源码的自动主脑启动专项 `cargo test -p forme-execution automatically_starts_a_stopped_brain` 实际为 `1 passed / 0 failed`。这证明源码契约和测试夹具，不证明已安装旧版本已经执行该路径。
 - 因此本目标仍未闭合：真实 owner 登录/配置与 provider、BrainReady、安装后真实 worker/helper、重启/备份恢复/升级回滚、完整浏览器工作台和 IP01–IP24 联合证据仍保持原状态，不能写成 PASS。
 
+### 2026-10-30 当前源码宿主专项复验补充（`main@b277e4e`）
+
+本轮在当前干净 `main@b277e4e` 上重新运行 `powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-installed-host.ps1`，进程退出码为 `0`；产品命令闭合、安装 journal/CAS、发布切换、恢复、worker/Windows 隔离、ProductionRuntime worker composition、服务生命周期、备份验证和主脑自动激活等命名场景均逐项输出 `[PASS]`。`py -3 tools/build_resources.py report` 也已执行并保存当前构建资源状态。该提交相对产品源码基线 `433039b` 只有验收记录变化，没有产品源码变化。
+
+这次复验仍由脚本明确输出 `IP01-IP24: NOT_RUN`，因为该专项门不安装服务、不认证浏览器、不调用真实 Provider，也不认证原生包；因此它只刷新当前源码/组件层证据，不能提升整体产品状态。实时 Windows 服务仍为 `forme-host=Running/Automatic`、`forme-web=Running/Automatic`、`forme-brain=Stopped/Manual`、`forme-release-updater=Stopped/Manual`，浏览器仍待 owner 手动登录后继续联合验收。
+
 ## 当前产品化状态（2026-10-30，`main@ef8e9ef`）
 
 ### 本轮 Windows 本地开发签名候选 v4（仅本机受控验收）
