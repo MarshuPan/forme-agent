@@ -2,6 +2,15 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 当前目标闭合审计（2026-10-30）
+
+本次审计针对 Codex 的整体目标，不把“核心代码已实现”扩大解释为“产品已验收完成”。当前本地 `main@169b06c` 工作树干净；源码在 `main@433039b` 之后没有变化，本次只更新验收记录。
+
+- 真实 Product URL `http://127.0.0.1:18765/` 仍可达，但当前浏览器停在 owner 登录页，未取得本轮认证后的工作台证据。
+- Windows SCM 当前为 `forme-host=Running/Automatic`、`forme-web=Running/Automatic`、`forme-brain=Stopped/Manual`、`forme-release-updater=Stopped/Manual`；当前安装实例仍不是本轮最新签名候选。
+- 当前源码的自动主脑启动专项 `cargo test -p forme-execution automatically_starts_a_stopped_brain` 实际为 `1 passed / 0 failed`。这证明源码契约和测试夹具，不证明已安装旧版本已经执行该路径。
+- 因此本目标仍未闭合：真实 owner 登录/配置与 provider、BrainReady、安装后真实 worker/helper、重启/备份恢复/升级回滚、完整浏览器工作台和 IP01–IP24 联合证据仍保持原状态，不能写成 PASS。
+
 ## 当前产品化状态（2026-10-30，`main@463348a`）
 
 ### 本轮 Windows 本地开发签名候选 v4（仅本机受控验收）
