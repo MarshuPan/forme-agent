@@ -2,6 +2,17 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-01 已安装实例只读复核
+
+owner 已告知登录并配置。本次从干净 `main@d00b232` 继续检查，未运行安装、升级、配置写入或服务启停，也未读取密码、cookie 或模型密钥。公开 `/api/v1/bootstrap/status` 实测 `claimed=true, setup_needed=false`，确认安装已认领；这不单独证明当前浏览器已认证、模型设置已生效或 BrainReady。
+
+- SCM：Host/Web 为 Running/Automatic，Brain/updater 为 Stopped/Manual；Brain 的 Win32 ExitCode 为 `1077`，表示本次开机后尚未运行，不能解释为模型调用失败。Manual 是按需注册方式，本身不是缺陷结论。
+- 当前页面公开脚本 `/assets/index-B8O_GEKB.js` 的 SHA-256 为 `f1914eddfd1effc3e6b54bc90b55a1b844c9ce72b82ec1ac7d5bcacb440f7ce3`，匹配 2026-10-27 的 `694b6bb`、`7cb5b8b` 和 `9dd5dff` bundle 清单。待升级的 `433039b` 候选脚本为 `index-BarTIDls.js`，摘要为 `b84134cc23c52b153bada81a1d4a4a62d6befd66834bbf1c414ba8b34cc3d044`。这只确认实际交付的前端资源仍不同于新候选，不能据此前端摘要猜测各个后端二进制版本。
+- 当前工具可操作的独立 Chrome 窗口仍显示登录页；内置浏览器的登录态不能当作这个窗口的认证证据。已交由 owner 在该 Chrome 完成登录，之后再读取正式配置 revision、acknowledgement、维护原操作与安装版本，定位 Brain 未启动的原因。
+- 非管理员读取受保护程序文件返回 `UnauthorizedAccessException`，未降低 ACL、绕过身份或将拒绝访问记成文件缺失。未取得认证状态前，不推断用户没有保存配置，不手动绕过 Host 启动 Brain，不重新运行首装安装器。
+
+本轮没有新的真实 provider/run/worker/helper 或完整 IP PASS。后续继续已批准的整体目标；旧源码测试和签名候选准备不替代本次安装实例的联合验收。
+
 ## 当前目标闭合审计（2026-10-30）
 
 本次审计针对 Codex 的整体目标，不把“核心代码已实现”扩大解释为“产品已验收完成”。审计现场基线为本地 `main@b277e4e` 且工作树干净；产品源码相对 `main@433039b` 没有变化，后续仅更新验收记录。
