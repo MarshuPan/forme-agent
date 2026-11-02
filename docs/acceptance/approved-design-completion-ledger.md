@@ -14,6 +14,8 @@
 
 ## 2. 核心与跨切面覆盖
 
+2026-11-02 后续状态：owner 已授权使用其本地测试凭据经公开正式认证/维护界面直接操作。首次 StartCore 与升级前 StopCore 各一次并 Committed，配置 ack=1，Brain 运行时正式 manifest/doctor 可读；通知后端阻断、旧 Host 状态缺陷和真实 provider 仍待闭合。当前停脑状态是明确的升级前维护，不再是“等待 owner 输入密码”。原报告不可覆盖，详见[升级计划 §8–9](installed-product-windows-upgrade-20261102-db96ec2-plan.md#8-owner-测试凭据与正式-http-操作授权)；目标保持 active，完整 IP 状态不变。
+
 | 已确认设计 | 代码/既有证据入口 | 本里程碑还须核实的内容 |
 |---|---|---|
 | prd/01–04：协议、事件单写者、运行/恢复、权限/审批 | protocol/store/harness/loop/policy/approval；S1–S22、M5 与 closure 门 | 产品入口保留当前绑定、持久幂等、Unknown 无盲重试；最终源码完整回归。 |

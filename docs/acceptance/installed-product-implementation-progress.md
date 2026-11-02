@@ -4,6 +4,10 @@
 
 ## 2026-11-02 已登录实例与状态查询修复
 
+本轮后续已使用 owner 明确授权的本地测试凭据走正式 challenge/login/重认证，StartCore 与为离线升级检查准备的 StopCore 各提交一次且都 Committed，product revision 依次为 `2 -> 9 -> 16`。Brain 实际运行期间配置 revision 1 ack 已到达，Web→core manifest/doctor/runs 可读，原 Host/Web 持续运行。doctor 同时观察到通知后端阻断，旧 Host 状态查询缺陷仍在，因此尚不宣称 BrainReady、真实 provider 或完整 IP PASS。当前 Brain 已正式停止供离线核验，候选仍未切换；初始化后的新入库脚本和原报告摘要见[升级计划 §9](installed-product-windows-upgrade-20261102-db96ec2-plan.md#9-首次主脑运行与升级前正式停脑)。下列段落保留此前各时点状态。
+
+随后离线 owner/store/加密内容核验与 20 文件签名候选入库成功；正式 `StageSignedRelease` 一次提交并 Committed，product revision `16 -> 23`。运行版本仍是原版；下一步为已准备的固定 Upgrade 原事务，不能把暂存当作切换完成。[升级计划 §10](installed-product-windows-upgrade-20261102-db96ec2-plan.md#10-新入库与正式签名暂存已完成)记录回执与继续边界。
+
 owner 已在独立 Chrome 登录；正式只读 API 确认模型配置已保存为 revision 1、ack 尚空，维护快照为 product revision 2、无历史 operation、旧 release `forme-windows-x86_64-20261027-7cb5b8b`，Host/Web Running、Brain/updater Stopped。`/product/status` 的 `ConfigurationRejected` 已定位为 Host 在合法 Web 配置身份之后错误重查本机管理员身份，不能据此断言 API key 无效。
 
 修复提交 `db96ec2` 保持原协议与权限边界；全量质量门（1112 Rust passed / 15 ignored、strict Clippy、前端 96 项、完整合规）、真实 Web/Host/Core 配置门和 222 项宿主命名场景通过。18 文件修正版 signed release 及 Rust 验签通过，尚未升级。[本机开发发布信任接入计划](installed-product-windows-trust-bootstrap-20261102-plan.md)的真实只读预检通过后，owner 要求继续并亲自确认本次 UAC；一次 Apply 于 14:34:47（Asia/Shanghai）成功完成，进程退出码 `0`、回执为 `trust_prepared_only`，摘要 `d84906ce45c666c237f6ff3dea16d78173fcf1ce8842fd256ff2145795d3017e`。已保护备份并仅给 Host 配置增加公钥路径，Host/Web 各停启一次后恢复（PID `37740`/`21024`），发布暂存能力出现；原程序、其他四配置和服务绑定保持，Brain/updater 仍停止。候选未进入 inbox、active release 未变、未调用 provider、未新增完整 IP PASS。详见[状态查询修复验收](installed-product-status-authorization-20261102.md)；整体目标继续开放。

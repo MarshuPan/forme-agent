@@ -86,3 +86,37 @@ owner 授权直接操作后，实际切到唯一的“forme · 个人工作台�
 第一份观察脚本误将公开字段集合限制为三个，漏掉所有 DTO 必需的 `schema_version`，因此原 `installed-web-boundaries-20261102.json` 为 `review_required`。原件保留，SHA-256 为 `eb80712e4b79b0c0f4a5c63e8183b27f11789d1a8a5becc2ea69e726b202ca3f`。对照正式 bootstrap DTO 后，独立补充脚本先核对原报告摘要、复核八项 HTTP 状态及八组安全头，再只读重新取得公开 bootstrap 四字段；`installed-web-boundaries-review-20261102.json` 为 `observed_boundary_checks_passed`，SHA-256 为 `009be06416abc16da5261cb7d40583aebb1ce5ea6ffc52b3cd881939e7ebc5cb`。
 
 这些是当前安装 Web 的局部真实观察，不证明 BrainReady、完整 IP07/IP22、外部 provider、发布切换或完整 IP24；旧程序仍在运行。脚本及两份不可覆盖报告均保存在本机 ignored `target/installed-status-authorization-evidence/`。
+
+## 8. Owner 测试凭据与正式 HTTP 操作授权
+
+owner 随后完成登录、恢复原目标，并明确授权代理直接使用其提供的本地测试凭据执行正式认证与维护。凭据仅置于 Git 忽略的 `.forme/acceptance-test-login.json`，不进入源码、报告、命令参数或 Git。本文 §3/§6 中要求 owner 亲自输入产品口令的操作约束由本次明确授权替代；正式 challenge、登录、CSRF、operation 绑定的密码重认证、CAS 和 Host 权限检查全部保留，不读取浏览器已有 cookie，不使用内部服务凭据冒充 owner。
+
+先由固定脚本 `target/installed-status-authorization-evidence/start-core-owner-http-20261102.ps1` 只读预检，核对原安装、owner、release、配置和未决操作；`-Submit` 才创建不可覆盖的无秘密 intent，并以固定 `maintenance:acceptance-start-20261102` 提交一次 StartCore。已有 intent 只能 `-Observe` 查询原操作，POST 超时不换号或重发。回执、SCM、配置 acknowledgement、readiness 与真实 provider 分开验证。此授权不改变 Windows UAC 或系统认证交互，也不授权任意 shell、脑数据写入或未知操作重试。
+
+## 9. 首次主脑运行与升级前正式停脑
+
+2026-11-02 使用 owner 授权的测试凭据，通过公开 challenge/login 建立独立内存 session，正式维护 StartCore 只 POST 一次。原 `maintenance:acceptance-start-20261102` 已 Committed，product revision `2 -> 9`；SCM 观察 Brain Running、PID `43784`，原 Host/Web PID 不变。配置 revision 1 的 acknowledgement 已到达，正确 `/api/v1/product/config?schema_version=2` 读取为 `configured=true`、`active_revision=1`、`acknowledged_revision=1`、`pending_restart=false`。初次脚本误查 `/product/configuration` 得到的 404 不是产品接口故障；原报告保留，正确路由的后续只读复核另存。
+
+真实 Web→core 的 runtime manifest、doctor 和 runs 均返回 200；doctor 的 owner/store、事件记忆、认知、协调/编排、context、scheduler 等为 ready，run 数为 0。doctor 同时明确 `notification-backend=blocking`（managed worker binding unavailable），因此本轮不能声明 BrainReady 或真实 provider 已通过；旧 Host 维护健康仍报 starting，`/product/status` 的已知 ConfigurationRejected 仍在。这个阻断与首次启动成功分开记录，升级后须重新核验。
+
+随后通过同一正式认证/重认证边界提交一次独立 `maintenance:acceptance-stop-20261102`，为升级前离线数据核验释放 writer。StopCore 已 Committed、product revision `9 -> 16`，SCM Brain Stopped、Host/Web 继续运行、配置 ack 保持 1。两次操作都是已知终态，不是未知操作重试；没有模型调用、手工创建脑或程序切换。Stop 报告沿用了早期脚本的 outcome 文案 `original_start_committed_readiness_separate`，其实际 action、operation id、原回执与 stopped 独立观察均为 StopCore；该标签瑕疵不改写原件。
+
+| 本机 ignored 证据 | SHA-256 |
+|---|---|
+| `start-core-owner-result-20261102.json` | `e9066d260f8cfeaf94de9d40e6f6d8208e7f2b1a025191a8802be85bfa84d454` |
+| `start-core-owner-observation-20261102T083330117Z-20261102.json` | `6f9a4a804f5fff81d80764979f052d69eb334ba2be543e6b896fe3370ab3a310` |
+| `stop-core-owner-result-20261102.json` | `7ed2d415d576a4acf61711a382bd309aa2edd130712b5ebde358b49c79d47afa` |
+
+### 9.1 初始化之后的新候选入库准备
+
+新的固定脚本 `target/installed-status-authorization-evidence/prepare-signed-inbox-after-start-20261102.ps1` 绑定上述两次已提交操作和 product revision 16 的 stopped 状态，保留原失败入库脚本/报告。它再次核对五配置/六程序、独立信任根、实际离线 owner/store 身份和签名闭合文件集；`-PrepareInbox` 只 create-new 复制/flush/验签该候选，再同父目录发布到原目标 inbox。脚本不提交维护、不改变服务、程序、配置、ACL 基线或脑数据；只为新 staging 设置原已批准的私有 ACL。已有目标/marker、不明身份或并发状态变化均停止留存，不覆盖或删除。实际 schema/升级兼容性仍待正式 updater 持锁检查。
+
+固定主脚本 SHA-256 为 `e57b1ce26a640988a05b64b63c19f8657986cb719cf587ab137ed08214adcd55`；共用文件复制/不可覆盖证据 helper 在 Windows PowerShell 5.1 和 PowerShell 7 各 12 项通过。该准备属于原已授权的本机签名升级范围；需要管理员令牌时由 Windows UAC 交付，不能用测试口令代替系统确认。后续仍严格按 §3 执行正式 StageSignedRelease/Upgrade，不直接替换运行版本。
+
+## 10. 新入库与正式签名暂存已完成
+
+新准备进程 PID `65996` 已结束，`signed-inbox-after-start-20261102.json` 为 `inbox_prepared_only`、SHA-256 `4da0f673ff9fb9c31410fa6b6d2651c62bdd54253a702059a9a55fc471156707`。准确候选的 manifest/signature 与 18 个 content 文件共 20 项完成 create-new、flush、摘要与独立验签后发布；服务动作/维护命令/程序切换均为零。离线 inspector 验证 1 个事件、水位 1、3 个 authenticated content rows，owner/store 身份完整。该回执仍不包含实际 SQLite schema，不据候选兼容声明推断 schema 已验证。
+
+公开正式维护随后仅提交一次 `maintenance:acceptance-stage-20261102-db96ec2`，结果 Committed、product revision `16 -> 23`，无 pending/failure；target 为固定 `20261102-db96ec2`，active release 仍为原版。Host/Web PID 保持、Brain/updater Stopped。这只是签名暂存，不是 Upgrade/IP14 PASS。
+
+下一事务由 `release-owner-http-20261102.ps1 -Action upgrade -Submit` 提交一次固定 `maintenance:acceptance-upgrade-20261102-db96ec2`，绑定新读 product revision、同一 release/digest、`backup:upgrade-20261102-db96ec2` 和最长五分钟 deadline。先 create-new 保存无秘密 intent；已有 intent 拒绝再次 Submit，仅 Observe 原操作。Host/updater 自行排空、持锁核验实际 schema/身份、一致性备份和切换；客户端遇断线只查询原 operation，不能重发。运行清单、config ack、SCM image、状态缺陷修复、通知 backend 和真实 provider 仍须各自验证。
