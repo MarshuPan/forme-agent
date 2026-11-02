@@ -320,7 +320,15 @@ fn matches_config(actual: &ServiceConfig, expected: &ServiceInfo) -> bool {
         && account.eq_ignore_ascii_case(expected_account)
         && command_variants(executable, config)
             .iter()
-            .any(|s| s.eq_ignore_ascii_case(command))
+            .any(|s| service_commands_match(s, command))
+}
+
+fn service_commands_match(expected: &str, actual: &str) -> bool {
+    // Windows accepts both separators in the fixed executable/config paths.
+    // Quoting, flags and argument boundaries must still match exactly.
+    expected
+        .replace('/', "\\")
+        .eq_ignore_ascii_case(&actual.replace('/', "\\"))
 }
 
 fn command_variants(executable: &str, config: &str) -> Vec<String> {

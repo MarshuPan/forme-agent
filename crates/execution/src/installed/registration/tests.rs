@@ -22,7 +22,10 @@ fn existing(info: &ServiceInfo) -> ServiceConfig {
         load_order_group: None,
         tag_id: 0,
         dependencies: info.dependencies.clone(),
-        account_name: info.account_name.clone(),
+        account_name: info
+            .account_name
+            .clone()
+            .or_else(|| Some("LocalSystem".into())),
         display_name: info.display_name.clone(),
     }
 }
@@ -58,6 +61,68 @@ fn native_registration_rejects_foreign_command_account_or_startup() {
     changed = original;
     changed.start_type = ServiceStartType::Disabled;
     assert!(!matches_config(&changed, &wanted));
+}
+
+#[test]
+fn native_registration_accepts_path_separators_but_rejects_changed_arguments() {
+    let root = tempfile::tempdir().unwrap();
+    for id in [
+        p::BuiltinServiceId::Host,
+        p::BuiltinServiceId::Web,
+        p::BuiltinServiceId::Brain,
+    ] {
+        let wanted = desired(
+            id,
+            &root.path().join("config/core/core.json"),
+            root.path()
+                .join(format!("program files/bin/{}.exe", id.binary_name())),
+        )
+        .unwrap();
+        let baseline = existing(&wanted);
+        assert!(matches_config(&baseline, &wanted));
+        for separator in ["/", "\\"] {
+            let mut actual = baseline.clone();
+            let command = baseline.executable_path.to_str().unwrap();
+            actual.executable_path = command.replace(['/', '\\'], separator).into();
+            assert!(matches_config(&actual, &wanted));
+            for changed in [
+                format!("{} --development-config", actual.executable_path.display()),
+                actual
+                    .executable_path
+                    .to_str()
+                    .unwrap()
+                    .replace("--config", "--release-updater --config"),
+                actual
+                    .executable_path
+                    .to_str()
+                    .unwrap()
+                    .replace("core.json", "other.json"),
+            ] {
+                let mut foreign = actual.clone();
+                foreign.executable_path = changed.into();
+                assert!(!matches_config(&foreign, &wanted));
+            }
+        }
+    }
+}
+
+#[test]
+fn native_registration_command_matching_preserves_updater_mode_and_paths() {
+    let expected =
+        r#""C:\ForMe\bin/forme-hostd.exe" --release-updater --config "C:\ForMe\config/host.json""#;
+    let canonical = expected.replace('/', "\\");
+    assert!(service_commands_match(expected, &canonical));
+    assert!(service_commands_match(&canonical, expected));
+    for changed in [
+        canonical.replace("--release-updater ", ""),
+        canonical.replace(" --config ", " --config= "),
+        canonical.replace("host.json", "other.json"),
+        canonical.replace("forme-hostd.exe", "foreign.exe"),
+        canonical.replace("ForMe\\bin", "ForMe\\other\\..\\bin"),
+        format!("{canonical} --development-config"),
+    ] {
+        assert!(!service_commands_match(expected, &changed));
+    }
 }
 
 #[test]

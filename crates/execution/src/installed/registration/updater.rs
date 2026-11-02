@@ -83,7 +83,7 @@ fn matches(actual: &ServiceConfig, info: &ServiceInfo) -> bool {
             .eq_ignore_ascii_case("LocalSystem")
         && wanted
             .into_iter()
-            .any(|s| s.eq_ignore_ascii_case(actual_command))
+            .any(|s| service_commands_match(&s, actual_command))
 }
 pub fn register(installation: &p::InstallationManifest, config: &Path) -> p::Result<()> {
     let info = wanted(installation, config)?;
