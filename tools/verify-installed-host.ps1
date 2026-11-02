@@ -61,6 +61,11 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_host_contract") $name }
 
     foreach ($name in @(
+        "configuration_identity_reads_status_without_gaining_privileged_operations",
+        "status_rejects_agent_and_foreign_configuration_proofs_before_observation"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_status_authorization") $name }
+
+    foreach ($name in @(
         "stage_publishes_exact_files_once_and_replays_without_the_source",
         "tampered_inbox_at_plan_has_no_fact_and_after_plan_keeps_unknown_intent",
         "existing_destination_extra_files_and_wrong_digest_are_rejected_without_publication",

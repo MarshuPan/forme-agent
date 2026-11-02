@@ -411,7 +411,11 @@ impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
     }
 
     fn status(&self, auth: &HostAuth) -> p::Result<p::HostStatus> {
-        self.verify_maintenance_auth(auth)?;
+        if auth.actor == p::MaintenanceActorClass::OwnerReauthenticated {
+            self.verify_web_configuration_auth(auth)?;
+        } else {
+            self.verify_maintenance_auth(auth)?;
+        }
         self.status_for()
     }
 

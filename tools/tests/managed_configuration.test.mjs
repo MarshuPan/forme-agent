@@ -50,6 +50,7 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   const status = await product.request('/api/v1/bootstrap/status');
   assert.equal(status.claimed, false);
   await product.request('/api/v1/product/config', { expected: 401 });
+  await product.request('/api/v1/product/status', { expected: 401 });
   await product.request('/api/v1/bootstrap/prove', { method: 'POST', key: setup,
     body: { schema_version: 1, proof: product.proof(setup) } });
   const candidate = await product.request('/api/v1/bootstrap/data');
@@ -63,6 +64,12 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal(empty.configured, false);
   assert.equal(empty.brain_source, 'installation_template');
   assert.equal(empty.brain.default_workspace, product.template.workspace);
+  const journalBeforeStatus = (await fs.stat(product.host.journal_path)).size;
+  const unconfiguredStatus = await product.request('/api/v1/product/status');
+  assert.equal(unconfiguredStatus.active_config_revision, 0);
+  assert.equal(unconfiguredStatus.acknowledged_config_revision, null);
+  assert.equal((await fs.stat(product.host.journal_path)).size, journalBeforeStatus);
+  assert.equal(modelRequests.length, 0, 'reading status must not invoke the provider');
   const initial = save(baseUrl);
   initial.capabilities = { schema_version: 1, skills: [{ schema_version: 1, id: 'skill:process-fixture',
     summary: 'quantumorbit process fixture', scope: product.template.workspace, version: 1, body: skillBody,
@@ -81,6 +88,12 @@ test('claim, Web config, restart recovery and real ProductionRuntime acknowledge
   assert.equal(JSON.stringify(saved).includes(credential), false);
   assert.equal(Object.hasOwn(saved.view.models[0], 'credential_path'), false);
   assert.equal(modelRequests.length, 0, 'configuration service must not call the provider');
+  const journalAfterSave = (await fs.stat(product.host.journal_path)).size;
+  const savedStatus = await product.request('/api/v1/product/status');
+  assert.equal(savedStatus.active_config_revision, 1);
+  assert.equal(savedStatus.acknowledged_config_revision, null);
+  assert.equal((await fs.stat(product.host.journal_path)).size, journalAfterSave);
+  assert.equal(modelRequests.length, 0, 'reading saved status must not invoke the provider');
   const validation = await product.request('/api/v1/product/config/validate', { method: 'POST',
     body: { schema_version: 1, revision: 1 } });
   assert.equal(validation.model_test_status, 'NotRun');
