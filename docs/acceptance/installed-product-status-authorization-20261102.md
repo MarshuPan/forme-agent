@@ -19,6 +19,8 @@ owner 已在独立 Google Chrome 完成登录。本轮使用该窗口现有会�
 
 第一次只读检查脚本未兼容旧配置省略可选字段，停止于属性读取；修正后的 v2 记录为 `outcome=inspected, product_writes=0`。原失败回执保留，不记为产品修改。
 
+owner 随后确认管理员只读预检 UAC，默认不带 `-Apply` 的发布信任准备脚本实际生成完整回执；启动观察器未单独保存管理员进程退出码。`trust-preflight.json` 为 `outcome=prepared`、`read_only=true`、`product_writes=0`，SHA-256 为 `d10e5a71990cf5fb64d1f15de92efaad4078938669289a07eed9c3971b39029d`；五份配置、六程序及四服务绑定核对通过，未读取 provider key 或修改证书信任。Host/Web PID 和运行状态保持，Brain/updater 仍停止，Apply marker/回执均不存在。详细绑定见[接入计划 §2.1](installed-product-windows-trust-bootstrap-20261102-plan.md#21-已完成的真实只读预检)。
+
 ## 2. 根因与修复范围
 
 `LocalConfigurationClient::status()` 用 Web 专用配置凭据访问 Host 的 `/v1/host/status`。HTTP 层已正确认证该身份，但 `HostManagement::status()` 又只验证 LocalAdministrator 维护凭据，合法 Web 查询因此被拒绝。维护快照使用同一个安全状态投影的内部路径，所以它仍能返回上述配置版本和 stopped 状态。
@@ -52,4 +54,4 @@ owner 已在独立 Google Chrome 完成登录。本轮使用该窗口现有会�
 
 当前 Rust verifier 使用实际安装绑定对应的独立公钥配置返回 `signature_and_closed_content`，release digest 为 `sha256:1acb2f0a400dbb78a51b4d5f84023d5239155ece704e9dcf504a47266454dbbf`。兼容范围明确为 config 1、data 10、minimum upgrader 1；实际安装数据状态仍须由后续受保护生命周期预检核对，不能用声明替代观测。
 
-候选尚未写入安装目录或 release inbox，active release 未切换，没有启停服务或调用真实 provider。后续先按[本机开发发布信任接入计划](installed-product-windows-trust-bootstrap-20261102-plan.md)完成具体预检与独立批准；接入信任只准备升级入口，不是升级完成。正式升级、Brain 自动启动、配置 ack、真实对话/worker/helper 及其他 IP 仍开放。
+候选尚未写入安装目录或 release inbox，active release 未切换，没有启停服务或调用真实 provider。[本机开发发布信任接入计划](installed-product-windows-trust-bootstrap-20261102-plan.md)的真实只读预检已通过，一次性 Apply 待独立批准；接入信任只准备升级入口，不是升级完成。正式升级、Brain 自动启动、配置 ack、真实对话/worker/helper 及其他 IP 仍开放。

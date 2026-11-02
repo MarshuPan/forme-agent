@@ -6,7 +6,7 @@
 
 owner 已在独立 Chrome 登录；正式只读 API 确认模型配置已保存为 revision 1、ack 尚空，维护快照为 product revision 2、无历史 operation、旧 release `forme-windows-x86_64-20261027-7cb5b8b`，Host/Web Running、Brain/updater Stopped。`/product/status` 的 `ConfigurationRejected` 已定位为 Host 在合法 Web 配置身份之后错误重查本机管理员身份，不能据此断言 API key 无效。
 
-修复提交 `db96ec2` 保持原协议与权限边界；全量质量门（1112 Rust passed / 15 ignored、strict Clippy、前端 96 项、完整合规）、真实 Web/Host/Core 配置门和 222 项宿主命名场景通过。18 文件修正版 signed release 及 Rust 验签通过，尚未安装。管理员只读核对确认旧安装缺少发布信任配置；已准备[本机开发发布信任接入计划](installed-product-windows-trust-bootstrap-20261102-plan.md)，真实只读预检待完成、Apply 未执行。完整证据与分层边界见[状态查询修复验收](installed-product-status-authorization-20261102.md)。没有服务启停、程序/配置写入、真实 provider 或新增完整 IP PASS；整体目标继续开放。
+修复提交 `db96ec2` 保持原协议与权限边界；全量质量门（1112 Rust passed / 15 ignored、strict Clippy、前端 96 项、完整合规）、真实 Web/Host/Core 配置门和 222 项宿主命名场景通过。18 文件修正版 signed release 及 Rust 验签通过，尚未安装。管理员只读核对确认旧安装缺少发布信任配置；[本机开发发布信任接入计划](installed-product-windows-trust-bootstrap-20261102-plan.md)的真实管理员只读预检已于 13:47:44（Asia/Shanghai）通过：`outcome=prepared`、`product_writes=0`，配置/程序/服务绑定核对通过，预检 SHA-256 为 `d10e5a71990cf5fb64d1f15de92efaad4078938669289a07eed9c3971b39029d`。Apply 未执行、marker/回执不存在，待独立批准。完整证据与分层边界见[状态查询修复验收](installed-product-status-authorization-20261102.md)。没有服务启停、程序/配置写入、真实 provider 或新增完整 IP PASS；整体目标继续开放。
 
 ## 2026-11-01 已安装实例只读复核
 

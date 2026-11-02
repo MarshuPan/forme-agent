@@ -1,6 +1,6 @@
 # Windows 本机开发发布信任接入计划（2026-11-02）
 
-状态：已准备具体脚本与候选；真实管理员只读预检待完成，`-Apply` 未执行。本文不授权服务启停、配置写入、安装或升级。
+状态：真实管理员只读预检已于 2026-11-02 13:47:44（Asia/Shanghai）通过，`product_writes=0`；`-Apply` 未执行。本文不授权服务启停、配置写入、安装或升级。
 
 ## 1. 必要性与固定输入
 
@@ -32,9 +32,24 @@
 
 配套 `trust-bootstrap-functions.ps1` SHA-256 为 `30ba352c350fd5ba0bea9acc69f62b5c17e02a0b0faf32a0ae1ef4436fc1c9bf`；实际 NTFS 临时夹具在 Windows PowerShell 5.1 和 PowerShell 7 各通过 12 项，覆盖旧字段保持、null/array、重复接入拒绝、旧摘要拒绝、保护 ACL 的新文件与原子替换、重复替换拒绝。夹具不接触已安装产品。脚本在两种 PowerShell 中语法解析通过；这些不代替真实管理员预检与 Apply 结果。
 
+### 2.1 已完成的真实只读预检
+
+owner 确认本次只读 UAC 后，管理员进程实际执行了不带 `-Apply` 的脚本，并生成完整的 `prepared` 回执。本机证据为 `target/installed-status-authorization-evidence/trust-preflight.json`，SHA-256 为 `d10e5a71990cf5fb64d1f15de92efaad4078938669289a07eed9c3971b39029d`；启动观察器仅保存进程 ID，未单独保存管理员进程退出码。
+
+- 回执为 `read_only=true`、`outcome=prepared`、`product_revision=2`、`product_writes=0`，候选摘要与 §1 完全一致；实际 Rust verifier 通过签名与封闭文件集核验。
+- 五份原配置、六程序摘要及四服务原绑定均已记录。Host/Web 仍 Running，Brain/updater 仍 Stopped；后续非管理员 SCM 复核观察到相同 PID 与服务状态。
+- 预期 Host 补丁 SHA-256 为 `db78b6c4998955346a0c0db138a538d2b94ff2b6a9e31eaf076ba49f5bca0458`，公钥文件摘要与 §1 一致。脚本与配套函数摘要复核未变。
+- `provider_keys_read=false`、`native_certificate_trust_changed=false`；未产生 `trust-apply.started` 或 `trust-apply.json`。只读 UAC 的确认不视为 §3 的写入/服务生命周期批准。
+
 ## 3. 需要独立批准的一次 Apply
 
 只有在前述预检成功并由 owner 批准后执行一次：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\code\forme\target\installed-status-authorization-evidence\enable-local-release-trust.ps1 -Apply -PreflightSha256 d10e5a71990cf5fb64d1f15de92efaad4078938669289a07eed9c3971b39029d
+```
+
+命令必须以管理员运行，UAC 由 owner 确认；实际执行前仍核对 §2 主脚本摘要，不更换脚本、预检文件或候选。
 
 1. 全部前置状态重查，并落本机一次性 attempt marker；原回执/marker 已存在则停止。
 2. 仅停止 Web 一次；重新读取 Host 维护快照，确认无新增命令/待决；随后仅停止 Host 一次。Brain/updater 必须保持停止。
