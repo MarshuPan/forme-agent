@@ -10,6 +10,8 @@
 
 产品增量最初在 `shu/installed-product` 施工，现已合入本地 `main`；本地 `main` 尚未推送远端或发布，提交与工作树状态以当前 Git 状态为准。核心验收与历史回执见 `core-brain-closure-acceptance-report.md`，产品状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
 
+2026-11-02 当前安装补充：owner 认领和模型配置 revision 1 已持久化；本机开发发布信任接入已真实完成，Host/Web Running，Brain/updater 仍 Stopped，active release 仍为 `forme-windows-x86_64-20261027-7cb5b8b`。修正版签名候选 `20261102-db96ec2` 已准备但尚未暂存/升级；入库预检在复制前停止，管理员只读诊断证实当前配置所指 store/key 目录尚未生成。独立 Chrome 当前回到登录页，下一项为 owner 完成认证后经正式维护首次启动原 Brain。安装 Web 的匿名身份、Host/Origin 拒绝和响应头已取得局部真实观察，不提升完整 IP。准确报告摘要、原失败记录及继续顺序见[本轮升级计划](installed-product-windows-upgrade-20261102-db96ec2-plan.md)。以下历史安装记录保留原时间范围，不代表本次认证或主脑已运行。
+
 ## 2. 核心与跨切面覆盖
 
 | 已确认设计 | 代码/既有证据入口 | 本里程碑还须核实的内容 |

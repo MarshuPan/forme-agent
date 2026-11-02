@@ -68,3 +68,21 @@ Codex 工具自动批准与 Windows UAC 分属两层。本轮核对命令执行�
 当前实例尚在缺少自动主脑激活的旧版本。下一项为 owner 经现有 Product URL 的“设置 → 设备维护 → 启动主脑”提交一次正式 `StartCore`，由 Host 校验现有 revision 与 owner 认证后启动原 Brain；不直接使用 SCM 绕过产品维护，不由验收脚本初始化空 store、分配 keys 或替换配置。这次产品认证需要 owner 自行输入口令，Host 服务动作本身不需要新的 Windows UAC。
 
 提交后只查询原 operation、SCM、实际配置 acknowledgement 和 readiness；发生 Unknown 或失败时保留原号及现场。成功启动不直接证明真实 provider 或升级通过。后续为离线身份检查而停脑，仍须通过明确的产品维护事务完成；取得独占可验证数据后才另行准备新的入库尝试，原失败脚本/报告不覆盖、不重放，实际 schema 仍由正式 updater 持锁核验。
+
+## 7. 网页认证状态与已安装匿名边界观察
+
+owner 授权直接操作后，实际切到唯一的“forme · 个人工作台”独立 Chrome 窗口重新观察。页面当前显示账号/密码及登录按钮，尚无可使用的已认证维护界面。这里只证明该窗口的当前状态，不能用先前登录记录替代；未操作密码管理器、填口令或提交认证。已将该窗口交由 owner 登录，登录后继续正式维护，不使用服务凭据冒充 owner 的重新认证。
+
+等待认证期间，用无 cookie、无重定向、无代理的固定 GET 观察脚本检查实际已安装的 `http://127.0.0.1:18765/`，未提交登录、配置、维护或脑命令。实测结果如下：
+
+| 观察 | 实际结果 |
+|---|---|
+| HTML 与公开 bootstrap | 均为 200；HTML 存在，bootstrap 仅有 `schema_version/claimed/setup_needed/protocol_version`，`claimed=true`、`setup_needed=false`。 |
+| 匿名维护、配置、产品状态 | 三个正式接口均为 401。 |
+| 错误 Host、错误 Origin、伪造 X-Forwarded-Host | 三种请求均为 403。 |
+| 安全响应头 | 八个响应均核对 CSP、nosniff、no-referrer、no-store、COOP same-origin 与 CORP same-origin。 |
+| 服务观察 | 前后四服务状态与 PID 一致；Host/Web Running，Brain/updater Stopped。 |
+
+第一份观察脚本误将公开字段集合限制为三个，漏掉所有 DTO 必需的 `schema_version`，因此原 `installed-web-boundaries-20261102.json` 为 `review_required`。原件保留，SHA-256 为 `eb80712e4b79b0c0f4a5c63e8183b27f11789d1a8a5becc2ea69e726b202ca3f`。对照正式 bootstrap DTO 后，独立补充脚本先核对原报告摘要、复核八项 HTTP 状态及八组安全头，再只读重新取得公开 bootstrap 四字段；`installed-web-boundaries-review-20261102.json` 为 `observed_boundary_checks_passed`，SHA-256 为 `009be06416abc16da5261cb7d40583aebb1ce5ea6ffc52b3cd881939e7ebc5cb`。
+
+这些是当前安装 Web 的局部真实观察，不证明 BrainReady、完整 IP07/IP22、外部 provider、发布切换或完整 IP24；旧程序仍在运行。脚本及两份不可覆盖报告均保存在本机 ignored `target/installed-status-authorization-evidence/`。

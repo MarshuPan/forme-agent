@@ -10,6 +10,8 @@ owner 已在独立 Chrome 登录；正式只读 API 确认模型配置已保存�
 
 签名候选入库预检随后在 `offline-data-identity` 停止，发生于任何复制之前；原回执保留。独立管理员只读定位已完成：当前配置所指的 `brain/forme.db` 及对应内容密钥目录尚不存在，Brain/updater 仍停止；product revision 2、config revision 1、operations 空，Host/Web PID 保持。该结果尚不能形成 existing-data 身份或实际 schema 证据。下一项为经正式产品维护首次启动原 Brain，核实原 operation/ack/readiness，再按明确维护事务取得离线身份；不由脚本创建空脑，也不重放失败入库。[升级计划 §5–6](installed-product-windows-upgrade-20261102-db96ec2-plan.md#51-已完成的只读定位)记录固定报告摘要和顺序。完整目标/IP 状态不变。
 
+owner 授权直接操作后，重新观察独立 Chrome 已回到登录页，当前认证需由 owner 完成。等待期间，真实安装 Web 的八项无 cookie GET 检查已核对：公开 HTML/bootstrap 可达，三个匿名管理接口 401，错误 Host/Origin/forwarded host 均 403，八响应的六项安全头符合预期；前后 SCM 状态/PID 不变。原观察脚本漏算公开 DTO 的 `schema_version` 所致误报与补充复核均保留，详见[升级计划 §7](installed-product-windows-upgrade-20261102-db96ec2-plan.md#7-网页认证状态与已安装匿名边界观察)。这些局部观察不提升完整 IP 状态，也未启动 Brain 或调用 provider。
+
 ## 2026-11-01 已安装实例只读复核
 
 owner 已告知登录并配置。本次从干净 `main@d00b232` 继续检查，未运行安装、升级、配置写入或服务启停，也未读取密码、cookie 或模型密钥。公开 `/api/v1/bootstrap/status` 实测 `claimed=true, setup_needed=false`，确认安装已认领；这不单独证明当前浏览器已认证、模型设置已生效或 BrainReady。
