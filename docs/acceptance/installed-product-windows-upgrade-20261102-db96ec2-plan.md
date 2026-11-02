@@ -120,3 +120,11 @@ owner 随后完成登录、恢复原目标，并明确授权代理直接使用�
 公开正式维护随后仅提交一次 `maintenance:acceptance-stage-20261102-db96ec2`，结果 Committed、product revision `16 -> 23`，无 pending/failure；target 为固定 `20261102-db96ec2`，active release 仍为原版。Host/Web PID 保持、Brain/updater Stopped。这只是签名暂存，不是 Upgrade/IP14 PASS。
 
 下一事务由 `release-owner-http-20261102.ps1 -Action upgrade -Submit` 提交一次固定 `maintenance:acceptance-upgrade-20261102-db96ec2`，绑定新读 product revision、同一 release/digest、`backup:upgrade-20261102-db96ec2` 和最长五分钟 deadline。先 create-new 保存无秘密 intent；已有 intent 拒绝再次 Submit，仅 Observe 原操作。Host/updater 自行排空、持锁核验实际 schema/身份、一致性备份和切换；客户端遇断线只查询原 operation，不能重发。运行清单、config ack、SCM image、状态缺陷修复、通知 backend 和真实 provider 仍须各自验证。
+
+## 11. Upgrade 实际预检拒绝与路径表示缺陷
+
+固定 Upgrade 已正式 POST 一次，收到确定的 HTTP 409 `ConfigurationRejected`。后续只查询原操作，未重发；产品 revision 保持 23，operation 列表仍只有此前三个 Committed、没有该 Upgrade，updater 仍 Stopped/ExitCode 1077，Host/Web 原 PID 保持，active release 未变。`upgrade-release-owner-result-20261102.json` SHA-256 为 `86038998947c35464bb0b26da00db8bf7db7162ad2a795f10854a62bbf73181c`。这是未接纳的预检拒绝，不能写成升级已开始/已完成，也不能用通用错误归咎于 provider key。
+
+源码审查定位到一个确定的预检阻断：`registration/release_lifecycle` 使用 `bin/...` 和 `core/core.json` 生成预期路径，而初始 SCM 为同一文件的反斜杠表示；`matches_config` 先前按原始命令串逐字比较，因而拒绝等价路径。`694b6bb` 与 `db96ec2` 的这些实现相同。独立 SCM 只读补充报告 `release-command-path-observation-v2-20261102.json` 确认三个服务均原字符串不匹配、仅归一分隔符后完整字符串匹配；无服务/产品变更。首份诊断的 PowerShell 数组拼接误差另有原报告保留，不作为根因证据。
+
+修复遵守 prd/24 §4.10.2 的同一固定参数/身份边界，只接受 Windows 等价路径分隔符；新增完整服务配置正反回归及 updater mode/目标路径/参数否定断言。尚未把修复安装到本机，不能宣称正式升级已畅通。当前 Brain 是已知 StopCore 停止，Host/Web 仍可认证维护；原候选、暂存、数据、keys、配置、失败请求和所有回执继续保留。
