@@ -1,6 +1,6 @@
 # Windows 本机开发发布信任接入计划（2026-11-02）
 
-状态：真实管理员只读预检已于 2026-11-02 13:47:44（Asia/Shanghai）通过，`product_writes=0`；`-Apply` 未执行。本文不授权服务启停、配置写入、安装或升级。
+状态：只读预检已通过；owner 要求继续并亲自确认本次 UAC 后，§3 的一次 `-Apply` 已于 2026-11-02 14:34:47（Asia/Shanghai）成功完成。它只接入发布信任，程序升级尚未执行。本文不额外授权安装、重试或升级。
 
 ## 1. 必要性与固定输入
 
@@ -65,3 +65,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\code\forme\target\ins
 任一步失败保存 `trust-apply.json`、已完成动作、原保护备份和未决 staging；不自动回滚、不循环重启、不删除现场、不换 operation 重做。已消费的 Apply 需要按原生验收计划 §3 单独审查具体恢复。
 
 完成只表示：本机开发发布公钥已绑定、旧 Host/Web 恢复、原安装/账号/模型配置与程序保持、Brain/updater 仍停止。状态查询源码缺陷仍要等后续具体 signed release 升级后才能在安装实例验证。整体目标、正式签名发布、IP01–IP24 继续未闭合。
+
+## 5. 已执行的一次 Apply
+
+本次执行使用 §2 的原脚本及 §2.1 的精确预检摘要。owner 要求继续既有任务后，已说明本次执行范围并发起管理员进程；owner 随后亲自确认 UAC。启动观察器保留 PID `11328`，实际观察到进程退出码 `0`；没有重试该脚本。
+
+本机 `target/installed-status-authorization-evidence/trust-apply.json` 为 `outcome=trust_prepared_only`、`failure_stage=null`，SHA-256 为 `d84906ce45c666c237f6ff3dea16d78173fcf1ce8842fd256ff2145795d3017e`。回执逐项记录 Web/Host 各停止一次、保护备份、公钥落盘、Host 配置路径绑定及 Host/Web 各启动一次；脚本在恢复 Host 后核对 product revision 2、config revision 1、无待决 operation，且实际维护投影已出现 `stage_signed_release`。
+
+独立 SCM 复核：Host 为 Running/LocalSystem、PID `37740`；Web 为 Running/原虚拟服务账户、PID `21024`；Brain/updater 仍 Stopped/Manual。原程序摘要、其他四份配置及四个服务绑定保持，原 Host 备份已保留；没有改 Windows 证书信任、复制私钥或调用 provider。
+
+此结果关闭本次信任接入步骤；不能重复执行 §3 或覆盖 attempt/report。候选尚未进入 release inbox，未提交 StageSignedRelease/Upgrade，active release 仍是旧版本，完整 IP 继续开放。

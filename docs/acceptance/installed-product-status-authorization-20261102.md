@@ -54,4 +54,6 @@ owner 随后确认管理员只读预检 UAC，默认不带 `-Apply` 的发布信
 
 当前 Rust verifier 使用实际安装绑定对应的独立公钥配置返回 `signature_and_closed_content`，release digest 为 `sha256:1acb2f0a400dbb78a51b4d5f84023d5239155ece704e9dcf504a47266454dbbf`。兼容范围明确为 config 1、data 10、minimum upgrader 1；实际安装数据状态仍须由后续受保护生命周期预检核对，不能用声明替代观测。
 
-候选尚未写入安装目录或 release inbox，active release 未切换，没有启停服务或调用真实 provider。[本机开发发布信任接入计划](installed-product-windows-trust-bootstrap-20261102-plan.md)的真实只读预检已通过，一次性 Apply 待独立批准；接入信任只准备升级入口，不是升级完成。正式升级、Brain 自动启动、配置 ack、真实对话/worker/helper 及其他 IP 仍开放。
+owner 要求继续并确认本次管理员 UAC 后，[信任接入计划 §5](installed-product-windows-trust-bootstrap-20261102-plan.md#5-已执行的一次-apply)的一次 Apply 已成功执行，实际进程退出码 `0`，回执为 `trust_prepared_only`。原 Host 配置已保护备份，公钥路径已绑定，Host/Web 各停启一次后恢复，原程序和其他四配置保持；Brain/updater 仍停止，未调用真实 provider。候选尚未进入 release inbox，active release 未切换；状态查询修复仍待具体程序升级。正式升级、Brain 自动启动、配置 ack、真实对话/worker/helper 及其他 IP 仍开放。
+
+后续入库预检在复制前停止。独立管理员只读诊断已核对：当前 core 配置指向的 store 文件和内容 key 目录尚未生成，owner/installation 绑定有效，服务状态与维护 revision 保持；未发生产品写入、维护命令或 provider 调用。不能把现有数据身份检查失败解释成 API key 无效；当前下一项为正式维护入口的首次 Brain 启动与原 operation/readiness 核实。固定诊断回执及后续顺序见[升级计划 §5–6](installed-product-windows-upgrade-20261102-db96ec2-plan.md#51-已完成的只读定位)。
