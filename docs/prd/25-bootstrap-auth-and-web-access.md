@@ -127,6 +127,8 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 
 独立新增 `GET /api/v1/product/release-recovery/candidates/{original_id}`、`POST /api/v1/product/release-recovery`、`GET /api/v1/product/release-recovery/operations/{recovery_id}`、`POST /api/v1/product/release-recovery/verify`。对应内部 Configuration 域将 `/api/v1/product` 替换为 `/v1/host/configuration`，不加入 OwnerMaintenance/AgentExecution 域。DTO 使用 PRD24 §4.10.5；写 body 为相应 request 的无 owner 字段外形加 `password`，owner 由服务器认证会话重建。写请求须 Origin/CSRF/idempotency-key=operation_id、操作摘要绑定的单次密码重认证，再由 Host 验证实际 owner；verify 具有独立 domain digest，不能复用初始恢复授权。
 
+另提供认证只读 `GET /api/v1/product/release-recovery/operations`（内部 Configuration 域同前），返回 `ProductReleaseRecoveryList`，从同一 journal 快照取得当前 revision 和最近 25 项原恢复记录。它不读取数据文件、启动 worker 或执行恢复；用于页面刷新/重新登录后找回原 intent，不能因为页面内存消失生成新恢复号。
+
 首次恢复已落 intent 后断线/重启，重复原 POST 只查；查询不提交或结束恢复。仅用户显式 verify 原号/原 request_digest/当前 revision 才能继续只读核实并记 receipt，失败保留 intent。不存在/错 owner/未知 schema/不同 digest/CAS 均拒绝；配置 token 不得接触通用管理/worker 路由。普通维护 body 仍不接受恢复参数，UI 不用新增入口执行任意 stage/retry/shell。
 
 ## 5. 行为、状态与并发
