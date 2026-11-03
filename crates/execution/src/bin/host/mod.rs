@@ -3,6 +3,8 @@ mod bootstrap;
 pub(super) mod config;
 pub(super) mod http;
 mod lifecycle;
+mod recovery_capabilities;
+mod recovery_routes;
 #[cfg(windows)]
 mod service;
 mod startup;
@@ -27,6 +29,7 @@ use http::handle_connection;
 pub(super) fn run() -> p::Result<()> {
     let launch = launch_from_args(std::env::args_os().skip(1))?;
     let launch = match launch {
+        Launch::RecoveryCapabilities => return recovery_capabilities::run(),
         Launch::VerifyRelease {
             root,
             trust,
@@ -65,7 +68,7 @@ pub(super) fn run() -> p::Result<()> {
                     "Windows service dispatcher failed: {error}"
                 ))),
             },
-            Launch::VerifyRelease { .. } => Err(p::Error(
+            Launch::VerifyRelease { .. } | Launch::RecoveryCapabilities => Err(p::Error(
                 "offline verification cannot start a service".into(),
             )),
         }
@@ -81,7 +84,7 @@ pub(super) fn run() -> p::Result<()> {
         Launch::ReleaseUpdater(_) => Err(p::Error(
             "native independent release updater is unavailable on this platform".into(),
         )),
-        Launch::VerifyRelease { .. } => Err(p::Error(
+        Launch::VerifyRelease { .. } | Launch::RecoveryCapabilities => Err(p::Error(
             "offline verification cannot start a service".into(),
         )),
     }

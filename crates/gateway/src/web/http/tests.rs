@@ -12,6 +12,7 @@ use crate::web::identity::{SensitivePassword, WebIdentityStore};
 
 mod backup_verification;
 mod proposals;
+mod release_recovery;
 
 const PASSWORD: &str = "web HTTP fixture password 15";
 
@@ -35,6 +36,14 @@ impl Fixture {
     }
 
     fn with_core(claimed: bool, core: Option<Arc<crate::web::core::CoreBridgeClient>>) -> Self {
+        Self::with_bridges(claimed, core, None)
+    }
+
+    fn with_bridges(
+        claimed: bool,
+        core: Option<Arc<crate::web::core::CoreBridgeClient>>,
+        configuration: Option<Arc<crate::web::configuration::LocalConfigurationClient>>,
+    ) -> Self {
         let mut bytes = [0; 16];
         getrandom::fill(&mut bytes).unwrap();
         let root = std::env::temp_dir()
@@ -86,7 +95,7 @@ impl Fixture {
                     connections::BoundedListener::new(listener),
                     Arc::new(identity),
                     None,
-                    None,
+                    configuration,
                     core,
                     |address| {
                         send.send(address).unwrap();

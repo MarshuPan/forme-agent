@@ -54,6 +54,30 @@ pub(in crate::installed) fn observe(
         format!("{:?}", service.query_config().map_err(|_| invalid())?),
     ))
 }
+pub(in crate::installed) fn recovery_configuration(
+    installation: &p::InstallationManifest,
+    root: &Path,
+    id: p::BuiltinServiceId,
+) -> p::Result<p::SchemaDigest> {
+    let (service, info) = service(installation, root, id, false)?;
+    let status = service.query_status().map_err(|_| invalid())?;
+    match (id, status.current_state) {
+        (p::BuiltinServiceId::Brain, ServiceState::Stopped) if status.process_id.is_none() => {}
+        (p::BuiltinServiceId::Host, ServiceState::Running) if status.process_id.is_some() => {}
+        (p::BuiltinServiceId::Web, ServiceState::Running | ServiceState::Stopped) => {}
+        _ => return Err(invalid()),
+    }
+    verify(&service, &info)?;
+    p::canonical_digest(&(
+        "forme-release-recovery-service-config-v1",
+        id,
+        format!("{:?}", service.query_config().map_err(|_| invalid())?),
+        format!(
+            "{:?}",
+            service.get_failure_actions().map_err(|_| invalid())?
+        ),
+    ))
+}
 pub(in crate::installed) fn change(
     installation: &p::InstallationManifest,
     root: &Path,

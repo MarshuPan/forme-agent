@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "d7cc6711c19cdde49e7e71bfbc1ba7071560e85c94f6e3af82717eae26d28a31",
+  "source_digest": "284a979dca1b97d90a506ffa7294e28d0966eb8ac6c2e34086b201935ca013f0",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "f6a0e2d52cd267efa3d21d529da2132a40a6621ea750a017560f0a99e4c753a1"
+      "sha256": "33e1d203a1be2bc855f0ed74ddb165bbf3958b7edb632c182a4e3f94d6cae90f"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -72,7 +72,7 @@
     },
     {
       "path": "frontend/src/components/Maintenance.tsx",
-      "sha256": "00e0bccbe3d240b2f112c2367d709c49c1e47cb25ebc189278220ac2a998d8ee"
+      "sha256": "ff7429ed7b9bef0703de24e7dc51142facf839b90bafffe95638cdf9fc9b5cc4"
     },
     {
       "path": "frontend/src/components/MemoryMaterial.tsx",
@@ -85,6 +85,10 @@
     {
       "path": "frontend/src/components/ProjectControls.tsx",
       "sha256": "886112b06a405f83088e0539d39e7b226bd2f0684564432b0a326f5069b28f90"
+    },
+    {
+      "path": "frontend/src/components/ReleaseRecovery.tsx",
+      "sha256": "057e7d1ff6479cb55c1d0a8e9c87f87515359c000f95c11a01e1b8d96c5051fa"
     },
     {
       "path": "frontend/src/components/RestoreActivation.tsx",
@@ -160,7 +164,7 @@
     },
     {
       "path": "frontend/src/maintenance.ts",
-      "sha256": "528e7d0530a03d2cd976a040963cac3aa3e585810fcfcc4f33a61f347216c5f1"
+      "sha256": "23253a01a2c46a4d14325219c48f0153b44eb0d489c08cc9fd86848ff8e4569d"
     },
     {
       "path": "frontend/src/memory-material.ts",
@@ -173,6 +177,10 @@
     {
       "path": "frontend/src/project-routes.ts",
       "sha256": "106056a9e2530b3a729610663187dd49def875b92e5a506a82c93cb0406ab41d"
+    },
+    {
+      "path": "frontend/src/release-recovery.ts",
+      "sha256": "dfcad093bb8b8014999ca04833641a1344670442156d1799b25d190bbd0d1e03"
     },
     {
       "path": "frontend/src/run-status.ts",
@@ -259,6 +267,10 @@
       "sha256": "5e3f87f4734047cf316d137b1b7fad4be44a40928d182eddf89803e3c69a6d28"
     },
     {
+      "path": "frontend/src/tests/release-recovery.test.ts",
+      "sha256": "a843ac6705d6d06c404f939eb0c2c597876939ed836e01c682f3a2e6ea7612c1"
+    },
+    {
       "path": "frontend/src/tests/run-status.test.ts",
       "sha256": "9fca02f06efec52e85410ba77500d579fca5abb867ee226195a08fa9ab06e48c"
     },
@@ -297,14 +309,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-BarTIDls.js",
-      "sha256": "b84134cc23c52b153bada81a1d4a4a62d6befd66834bbf1c414ba8b34cc3d044",
-      "bytes": 374642
-    },
-    {
       "path": "assets/index-BbhQ1fO8.css",
       "sha256": "4375a8d4833de33a7f9616a54330385a391954c6c0b0366de498b8f47a313aa7",
       "bytes": 14769
+    },
+    {
+      "path": "assets/index-fTIydv6n.js",
+      "sha256": "efa4598a85b65ca1eb826a39689ec101dffa91da8423dd86287e16425af5fe7e",
+      "bytes": 382732
     },
     {
       "path": "dependencies.json",
@@ -318,7 +330,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "fa4fe6d36aa5ec35479fd9e71d3a0ab36d4d89f58e57cec7f2e201b20bcb1f7c",
+      "sha256": "5d28e3acdf6f08880c8baf49c7b1767ac630c9eb53b9b1bd790e8c12cf4c7373",
       "bytes": 595
     },
     {

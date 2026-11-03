@@ -8,6 +8,8 @@ use forme_execution::installed::{
     NativeServiceManager, ProductHostBroker, WorkerExecutorHost, WorkerIsolation,
 };
 use forme_protocol as p;
+#[path = "installed_worker_contract/recovery_cases.rs"]
+mod recovery_cases;
 
 const HOST_TOKEN: &str = "worker-contract-host-token-abcdefghijklmnopqrstuvwxyz";
 const AGENT_TOKEN: &str = "worker-contract-agent-token-abcdefghijklmnopqrstuvwxyz";

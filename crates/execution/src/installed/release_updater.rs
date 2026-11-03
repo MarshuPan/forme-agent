@@ -7,18 +7,41 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod capabilities;
 mod checking;
 mod diagnostics;
 mod platform;
+mod recovery;
 mod storage;
 mod transaction;
 pub use platform::SystemReleaseUpdaterPlatform;
+pub(crate) use recovery::RecoveryObservation;
+pub use recovery::ReleaseRecoveryDataInspection;
 
 pub const RELEASE_UPDATER_SERVICE: &str = "forme-release-updater";
-pub const RELEASE_UPDATER_VERSION: u32 = 1;
+pub const RELEASE_UPDATER_VERSION: u32 = 2;
 
 /// Trusted injection for component testing; no request can select a platform.
 pub trait ReleaseUpdaterPlatform: Send + Sync {
+    /// Trusted component injection; the wire cannot choose this inspector.
+    /// Production uses the fixed installed child and holds its exclusive lock.
+    fn inspect_recovery_data(
+        &self,
+        worker: super::InstalledReleaseDataWorker,
+        request: p::ProductReleaseDataRequest,
+        deadline: Instant,
+    ) -> p::Result<Box<dyn ReleaseRecoveryDataInspection>> {
+        Ok(Box::new(worker.start(request, deadline)?))
+    }
+    /// Read-only configuration fingerprint; verifies stopped updater/Brain and
+    /// exact service identities. Never launches, stops or changes an image.
+    fn observe_recovery_boundary(
+        &self,
+        _installation: &p::InstallationManifest,
+        _root: &Path,
+    ) -> p::Result<p::SchemaDigest> {
+        Err(invalid())
+    }
     fn verify_host_image(&self, image: &Path, digest: &p::SchemaDigest) -> p::Result<()> {
         if std::env::current_exe().map_err(|_| invalid())? != image
             || super::file_digest(image)? != *digest

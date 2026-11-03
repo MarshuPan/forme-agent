@@ -14,6 +14,8 @@ import { parseCorrectionReceipt, parseCorrectionsView } from '../correction.ts';
 import type { CognitionCorrection } from '../correction.ts';
 import { parseProductSettings } from '../settings-schema.ts';
 import { parseOfflineBackupVerification } from '../offline-backup.ts';
+import { parseReleaseRecoveryCandidate, parseReleaseRecoveries, parseReleaseRecovery } from '../release-recovery.ts';
+import type { ReleaseRecoveryCommand, ReleaseRecoveryVerification } from '../release-recovery.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -157,6 +159,28 @@ export class WorkbenchClient {
     return this.json<ProductOperation>('product/maintenance', 'POST', { ...command, password }, command.operation_id);
   }
   maintenanceOperation(operation: string) { return this.json<ProductOperation>(`product/maintenance/operations/${id(operation)}`); }
+  async releaseRecoveryCandidate(original: string) {
+    return parseReleaseRecoveryCandidate(await this.json<unknown>(`product/release-recovery/candidates/${id(original)}`), original);
+  }
+  async releaseRecoveries() { return parseReleaseRecoveries(await this.json<unknown>('product/release-recovery/operations')); }
+  async releaseRecoveryOperation(operation: string) {
+    return parseReleaseRecovery(await this.json<unknown>(`product/release-recovery/operations/${id(operation)}`), operation);
+  }
+  async recoverRelease(command: ReleaseRecoveryCommand, password: string) {
+    const view = parseReleaseRecovery(await this.json<unknown>('product/release-recovery', 'POST', { ...command, password }, command.operation_id), command.operation_id);
+    const { owner, ...bound } = view.request;
+    if (owner !== command.candidate.owner || JSON.stringify(bound) !== JSON.stringify(command)) {
+      // Field order is not authority; compare the exact typed fields below.
+      const fields = Object.keys(command) as (keyof ReleaseRecoveryCommand)[];
+      if (owner !== command.candidate.owner || fields.some((field) => JSON.stringify(bound[field]) !== JSON.stringify(command[field]))) throw new Error('恢复回执与原请求不符。');
+    }
+    return view;
+  }
+  async verifyReleaseRecovery(command: ReleaseRecoveryVerification, password: string) {
+    const view = parseReleaseRecovery(await this.json<unknown>('product/release-recovery/verify', 'POST', { ...command, password }, command.operation_id), command.operation_id);
+    if (view.request_digest !== command.request_digest) throw new Error('恢复回执与原裁决不符。');
+    return view;
+  }
   profile() { return this.json<ControlProfile>('brain/profile'); }
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }
   async runtimeDoctor() { return parseRuntimeDoctor(await this.json<unknown>('brain/runtime/doctor')); }

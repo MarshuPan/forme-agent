@@ -4,6 +4,8 @@ use forme_execution::installed::{
     InstalledReleaseUpdater, ProductConfigStore, ReleaseUpdaterPlatform,
 };
 use std::time::Instant;
+#[path = "updater_cases/recovery_cases.rs"]
+mod recovery_cases;
 
 const WEB_TOKEN: &str = "updater-fixture-web-configuration-0000000000000001";
 

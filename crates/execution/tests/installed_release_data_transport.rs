@@ -1,5 +1,7 @@
 //! Real child transport tests with a repository-owned fault fixture, not SCM/IP.
-use forme_execution::installed::InstalledReleaseDataWorker;
+use forme_execution::installed::{
+    InstalledReleaseDataWorker, ReleaseUpdaterPlatform, SystemReleaseUpdaterPlatform,
+};
 use forme_protocol as p;
 use std::{
     fs,
@@ -112,6 +114,24 @@ impl Fixture {
             },
         }
     }
+}
+
+#[test]
+fn release_recovery_inspection_uses_fixed_child_and_releases_without_backup() {
+    let f = Fixture::new();
+    let mut inspection = SystemReleaseUpdaterPlatform
+        .inspect_recovery_data(
+            f.worker(),
+            f.request("0.2.0"),
+            Instant::now() + Duration::from_secs(10),
+        )
+        .unwrap();
+    assert_eq!(inspection.identity().database_schema_version, 13);
+    assert!(f.marker("data-worker-started").exists());
+    assert!(!f.marker("data-worker-backup").exists());
+    inspection.release().unwrap();
+    assert!(inspection.release().is_err());
+    assert!(!f.marker("data-worker-backup").exists());
 }
 
 #[test]

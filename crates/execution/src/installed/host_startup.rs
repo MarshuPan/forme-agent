@@ -67,7 +67,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         let operations = self.journal.operations(0)?;
         if operations
             .iter()
-            .any(|op| op.stage != p::MaintenanceStage::Committed || op.pending_stage.is_some())
+            .any(|op| !op.stage.is_terminal() || op.pending_stage.is_some())
         {
             return Err(p::Error(
                 "core reconciliation requires original operation review".into(),

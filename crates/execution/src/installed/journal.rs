@@ -12,6 +12,7 @@ use super::reject_linked_ancestors;
 mod network_journal;
 mod projection;
 mod release_images;
+mod release_recovery;
 mod release_takeover;
 #[cfg(test)]
 mod tests;
@@ -51,6 +52,22 @@ enum JournalFact {
     },
     ReleaseCheckingPrepared {
         checking: Box<p::ProductReleaseChecking>,
+        at: p::Timestamp,
+    },
+    ReleaseRecoveryBaselinePrepared {
+        baseline: Box<p::ProductReleaseRecoveryBaseline>,
+    },
+    ReleaseRecoveryIntent {
+        request: Box<p::ProductReleaseRecoveryRequest>,
+        actor: p::MaintenanceActorClass,
+        at: p::Timestamp,
+    },
+    ReleaseRecoveryCommitted {
+        operation_id: String,
+        request_digest: p::SchemaDigest,
+        expected_evidence: p::SchemaDigest,
+        authorization_deadline: p::Timestamp,
+        actor: p::MaintenanceActorClass,
         at: p::Timestamp,
     },
     Planned {
@@ -112,11 +129,12 @@ struct PersistedFact<'a> {
 
 impl JournalEnvelope {
     fn calculate(
+        version: p::SchemaVersion,
         seq: u64,
         previous: &p::SchemaDigest,
         fact: &JournalFact,
     ) -> p::Result<p::SchemaDigest> {
-        p::canonical_digest(&(p::SchemaVersion(1), seq, previous, fact))
+        p::canonical_digest(&(version, seq, previous, fact))
     }
 }
 
@@ -129,6 +147,7 @@ struct OperationState {
     release_images_claimed: bool,
     release_takeover: Option<p::ProductReleaseTakeover>,
     release_checking: Option<p::ProductReleaseChecking>,
+    release_recovery_baseline: Option<p::ProductReleaseRecoveryBaseline>,
 }
 
 #[derive(Clone, Default)]
@@ -140,6 +159,9 @@ struct Projection {
     head: Option<p::SchemaDigest>,
     operations: BTreeMap<String, OperationState>,
     commands: BTreeMap<String, (p::SchemaDigest, String)>,
+    recoveries: BTreeMap<String, p::ProductReleaseRecoveryView>,
+    recovery_keys: BTreeMap<String, String>,
+    schema_floor: u32,
 }
 
 struct Writer {
@@ -338,6 +360,17 @@ impl ProductJournal {
             }
             return Ok(existing.view.clone());
         }
+        if writer
+            .projection
+            .recoveries
+            .contains_key(&command.operation_id)
+            || writer
+                .projection
+                .recovery_keys
+                .contains_key(&command.idempotency_key)
+        {
+            return Err(invalid_journal());
+        }
         let expected = command.expected_revision;
         let id = command.operation_id.clone();
         let network_contract = matches!(command.kind, p::MaintenanceKind::ConfigureLan { .. });
@@ -439,10 +472,21 @@ fn write_fact(writer: &mut Writer, expected: u64, fact: JournalFact) -> p::Resul
     }
     let product_seq = expected.checked_add(1).ok_or_else(invalid_journal)?;
     let previous = writer.projection.head()?;
+    let minimum = if matches!(
+        fact,
+        JournalFact::ReleaseRecoveryBaselinePrepared { .. }
+            | JournalFact::ReleaseRecoveryIntent { .. }
+            | JournalFact::ReleaseRecoveryCommitted { .. }
+    ) {
+        2
+    } else {
+        1
+    };
+    let version = p::SchemaVersion(writer.projection.schema_floor.max(minimum));
     let envelope = JournalEnvelope {
-        schema_version: p::SchemaVersion(1),
+        schema_version: version,
         product_seq,
-        digest: JournalEnvelope::calculate(product_seq, &previous, &fact)?,
+        digest: JournalEnvelope::calculate(version, product_seq, &previous, &fact)?,
         previous,
         fact,
     };

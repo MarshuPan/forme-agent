@@ -29,6 +29,26 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         request: p::ProductMaintenanceRequest,
         now: p::Timestamp,
     ) -> p::Result<(p::MaintenanceOperation, Option<PreparedOwnerRelease>)> {
+        self.prepare_owner_release_inner(auth, request, None, now)
+    }
+
+    pub fn prepare_owner_release_with_workers(
+        &self,
+        auth: &HostAuth,
+        request: p::ProductMaintenanceRequest,
+        workers: &dyn super::super::IsolatedExecutorHost,
+        now: p::Timestamp,
+    ) -> p::Result<(p::MaintenanceOperation, Option<PreparedOwnerRelease>)> {
+        self.prepare_owner_release_inner(auth, request, Some(workers), now)
+    }
+
+    fn prepare_owner_release_inner(
+        &self,
+        auth: &HostAuth,
+        request: p::ProductMaintenanceRequest,
+        workers: Option<&dyn super::super::IsolatedExecutorHost>,
+        now: p::Timestamp,
+    ) -> p::Result<(p::MaintenanceOperation, Option<PreparedOwnerRelease>)> {
         self.verify_web_configuration_auth(auth)?;
         request.validate()?;
         if !matches!(
@@ -45,6 +65,52 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .ok_or_else(invalid)?
             .lock()
             .map_err(|_| invalid())?;
+        // The lock order matches dispatch: configuration, worker operations,
+        // product journal. A running Brain is drained by the normal updater;
+        // it cannot supply an offline pre-dispatch recovery baseline.
+        let existing = self
+            .journal
+            .operations(0)?
+            .iter()
+            .any(|op| op.operation_id == request.operation_id);
+        if let Some(workers) = workers.filter(|_| {
+            !existing
+                && self
+                    .services
+                    .inspect(p::BuiltinServiceId::Brain)
+                    .is_ok_and(|s| {
+                        s.schema_version == p::SchemaVersion(1)
+                            && s.service == p::BuiltinServiceId::Brain
+                            && s.state == p::NativeServiceState::Stopped
+                    })
+        }) {
+            let mut request = Some(request);
+            let mut result = None;
+            workers.with_quiescent_workers(&mut |digest| {
+                result = Some(self.prepare_release_locked(
+                    auth,
+                    request.take().ok_or_else(invalid)?,
+                    &mut config,
+                    updater,
+                    Some(digest),
+                    now,
+                )?);
+                Ok(())
+            })?;
+            return result.ok_or_else(invalid);
+        }
+        self.prepare_release_locked(auth, request, &mut config, updater, None, now)
+    }
+
+    fn prepare_release_locked(
+        &self,
+        auth: &HostAuth,
+        request: p::ProductMaintenanceRequest,
+        config: &mut super::super::ProductConfigStore,
+        updater: &super::super::InstalledReleaseUpdater,
+        worker_digest: Option<p::SchemaDigest>,
+        now: p::Timestamp,
+    ) -> p::Result<(p::MaintenanceOperation, Option<PreparedOwnerRelease>)> {
         if config.maintenance_owner()?.as_ref() != Some(&request.owner) {
             return Err(invalid());
         }
@@ -107,14 +173,13 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         if owner != request.owner {
             return Err(invalid());
         }
-        let planned = self.plan_authorized(auth, command.clone(), now)?;
         let release = self.release_request(
             &command.command,
             original,
             active.digest.as_ref().ok_or_else(invalid)?,
             target,
             backup_ref,
-            planned.command_digest.clone(),
+            command.command.bound_digest(&command.references)?,
         )?;
         let mut random = [0_u8; 32];
         getrandom::fill(&mut random).map_err(|_| invalid())?;
@@ -129,6 +194,30 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             readiness_nonce: random.iter().map(|b| format!("{b:02x}")).collect(),
         };
         takeover.validate()?;
+        let observation = worker_digest
+            .map(|digest| {
+                updater.observe_release_recovery(
+                    &self.journal,
+                    &takeover,
+                    digest,
+                    now,
+                    std::time::Instant::now()
+                        + std::time::Duration::from_millis(
+                            (request.requested_deadline - now) as u64,
+                        ),
+                )
+            })
+            .transpose()?;
+        // Finish read-only baseline inspection before accepting any lifecycle
+        // intent. Failure leaves no new maintenance operation or side effect.
+        let baseline = if let Some(observation) = observation {
+            let baseline = observation.baseline.clone();
+            observation.release()?;
+            Some(baseline)
+        } else {
+            None
+        };
+        self.plan_authorized(auth, command.clone(), now)?;
         self.record_stage(
             &request.operation_id,
             p::MaintenanceStage::Validated,
@@ -138,6 +227,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         )?;
         self.journal
             .prepare_release_takeover(self.journal.revision()?, takeover.clone(), now)?;
+        if let Some(baseline) = baseline {
+            self.journal
+                .prepare_release_recovery_baseline(self.journal.revision()?, baseline)?;
+        }
         self.journal.begin_stage(
             &request.operation_id,
             self.journal.revision()?,

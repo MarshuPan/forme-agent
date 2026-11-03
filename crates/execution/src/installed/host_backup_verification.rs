@@ -23,7 +23,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             || current.owner.as_ref() != Some(&request.owner)
             || current.active_revision != request.expected_config_revision
             || self.journal.operations(0)?.iter().any(|operation| {
-                operation.stage != p::MaintenanceStage::Committed
+                !operation.stage.is_terminal()
                     && self
                         .journal
                         .command_kind(&operation.operation_id)

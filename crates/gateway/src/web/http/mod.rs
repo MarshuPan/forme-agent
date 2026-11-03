@@ -12,6 +12,7 @@ mod error;
 mod maintenance;
 mod network;
 mod proposal_controls;
+mod release_recovery;
 mod security;
 mod sessions;
 
@@ -252,6 +253,26 @@ fn router(state: Arc<WebState>) -> Router {
         .route(
             "/api/v1/product/maintenance/operations/{id}",
             get(maintenance::operation),
+        )
+        .route(
+            "/api/v1/product/release-recovery/candidates/{id}",
+            get(release_recovery::candidate),
+        )
+        .route(
+            "/api/v1/product/release-recovery",
+            post(release_recovery::apply),
+        )
+        .route(
+            "/api/v1/product/release-recovery/operations/{id}",
+            get(release_recovery::operation),
+        )
+        .route(
+            "/api/v1/product/release-recovery/operations",
+            get(release_recovery::operations),
+        )
+        .route(
+            "/api/v1/product/release-recovery/verify",
+            post(release_recovery::verify),
         )
         .route(
             "/api/v1/brain/artifacts/upload",

@@ -116,6 +116,56 @@ impl LocalConfigurationClient {
         self.request("GET", "/v1/host/configuration/maintenance", None::<&()>)
     }
 
+    pub(super) fn release_recovery_candidate(
+        &self,
+        id: &str,
+    ) -> p::Result<p::ProductReleaseRecoveryCandidate> {
+        p::validate_product_id(id)?;
+        self.request(
+            "GET",
+            &format!("/v1/host/configuration/release-recovery/candidates/{id}"),
+            None::<&()>,
+        )
+    }
+    pub(super) fn release_recoveries(&self) -> p::Result<p::ProductReleaseRecoveryList> {
+        self.request(
+            "GET",
+            "/v1/host/configuration/release-recovery/operations",
+            None::<&()>,
+        )
+    }
+    pub(super) fn recover_release(
+        &self,
+        request: p::ProductReleaseRecoveryRequest,
+    ) -> p::Result<p::ProductReleaseRecoveryView> {
+        self.request(
+            "POST",
+            "/v1/host/configuration/release-recovery",
+            Some(&request),
+        )
+    }
+    pub(super) fn verify_release_recovery(
+        &self,
+        request: p::ProductReleaseRecoveryVerification,
+    ) -> p::Result<p::ProductReleaseRecoveryView> {
+        self.request(
+            "POST",
+            "/v1/host/configuration/release-recovery/verify",
+            Some(&request),
+        )
+    }
+    pub(super) fn release_recovery_operation(
+        &self,
+        id: &str,
+    ) -> p::Result<p::ProductReleaseRecoveryView> {
+        p::validate_product_id(id)?;
+        self.request(
+            "GET",
+            &format!("/v1/host/configuration/release-recovery/operations/{id}"),
+            None::<&()>,
+        )
+    }
+
     pub(super) fn verify_backup(
         &self,
         request: p::ProductBackupVerificationRequest,
@@ -161,10 +211,19 @@ impl LocalConfigurationClient {
                 | ("POST", "/v1/host/configuration/data/verify")
                 | ("GET", "/v1/host/configuration/maintenance")
                 | ("POST", "/v1/host/configuration/maintenance")
+                | ("POST", "/v1/host/configuration/release-recovery")
+                | ("POST", "/v1/host/configuration/release-recovery/verify")
+                | ("GET", "/v1/host/configuration/release-recovery/operations")
         ) && !(method == "GET"
             && path
                 .strip_prefix("/v1/host/configuration/operations/")
                 .or_else(|| path.strip_prefix("/v1/host/configuration/maintenance/operations/"))
+                .or_else(|| {
+                    path.strip_prefix("/v1/host/configuration/release-recovery/operations/")
+                })
+                .or_else(|| {
+                    path.strip_prefix("/v1/host/configuration/release-recovery/candidates/")
+                })
                 .is_some_and(|id| p::validate_product_id(id).is_ok()))
         {
             return Err(invalid());

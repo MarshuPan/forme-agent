@@ -16,9 +16,9 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             operation.stage == p::MaintenanceStage::RecoveryRequired
                 || operation.pending_stage.is_some()
         });
-        let pending = operations.iter().any(|operation| {
-            operation.stage != p::MaintenanceStage::Committed || operation.pending_stage.is_some()
-        });
+        let pending = operations
+            .iter()
+            .any(|operation| !operation.stage.is_terminal() || operation.pending_stage.is_some());
         let (native, service_status_unavailable) =
             match self.services.inspect(p::BuiltinServiceId::Brain) {
                 Ok(status) => (status, false),

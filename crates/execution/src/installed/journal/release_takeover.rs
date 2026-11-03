@@ -9,9 +9,11 @@ impl ProductJournal {
         if writer.poisoned {
             return Err(storage_error());
         }
-        Ok(writer.projection.operations.values().any(|state| {
-            state.release_takeover.is_some() && state.view.stage != p::MaintenanceStage::Committed
-        }))
+        Ok(writer
+            .projection
+            .operations
+            .values()
+            .any(|state| state.release_takeover.is_some() && !state.view.stage.is_terminal()))
     }
     pub fn release_takeover(&self, id: &str) -> p::Result<Option<p::ProductReleaseTakeover>> {
         let writer = self.writer.lock().map_err(|_| storage_error())?;

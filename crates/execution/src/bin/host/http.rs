@@ -108,7 +108,13 @@ pub(super) fn handle_connection<S: HostConnection>(
                 p::ProductMaintenanceAction::Upgrade { .. }
                     | p::ProductMaintenanceAction::RollbackCompatibleRelease { .. }
             ) {
-                return release_response(&mut stream, broker.as_ref(), &auth, command);
+                return release_response(
+                    &mut stream,
+                    broker.as_ref(),
+                    worker.as_ref(),
+                    &auth,
+                    command,
+                );
             }
         }
     }
@@ -134,13 +140,15 @@ pub(super) fn handle_connection<S: HostConnection>(
 fn release_response<S: HostConnection>(
     stream: &mut S,
     broker: &ProductHostBroker,
+    worker: &dyn IsolatedExecutorHost,
     auth: &forme_execution::installed::HostAuth,
     request: p::ProductMaintenanceRequest,
 ) -> p::Result<()> {
-    let (operation, ticket) = match broker.prepare_owner_release(auth, request, now_ms()) {
-        Ok(value) => value,
-        Err(error) => return write_error(stream, 409, error),
-    };
+    let (operation, ticket) =
+        match broker.prepare_owner_release_with_workers(auth, request, worker, now_ms()) {
+            Ok(value) => value,
+            Err(error) => return write_error(stream, 409, error),
+        };
     let body =
         serde_json::to_vec(&operation).map_err(|_| p::Error("release response failed".into()))?;
     respond_before_dispatch(stream, &body, || {
@@ -191,6 +199,12 @@ fn route(
     auth: &forme_execution::installed::HostAuth,
     domain: EndpointDomain,
 ) -> p::Result<(u16, Vec<u8>)> {
+    if matches!(domain, EndpointDomain::Configuration) {
+        if let Some(result) = super::recovery_routes::route(request, broker, worker, auth, now_ms())
+        {
+            return result.map(|body| (200, body));
+        }
+    }
     if let Some(result) = worker_routes::route(request, worker, auth, now_ms()) {
         return result.map(|body| (200, body));
     }
@@ -549,50 +563,5 @@ fn write_error(stream: &mut impl Write, status: u16, error: p::Error) -> p::Resu
 }
 
 #[cfg(test)]
-mod network_response_tests {
-    use super::*;
-    use std::net::{Shutdown, TcpListener};
-    use std::sync::mpsc;
-
-    #[test]
-    fn response_eof_releases_the_web_client_before_service_dispatch_finishes() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let (released, receiver) = mpsc::channel();
-        let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            respond_before_dispatch(&mut stream, b"{\"stage\":\"planned\"}", || {
-                // This models a Web stop draining its current configuration call.
-                // The client cannot release that call until it receives EOF.
-                receiver.recv_timeout(Duration::from_secs(3)).unwrap();
-                Ok(())
-            })
-            .unwrap();
-        });
-        let mut client = TcpStream::connect(address).unwrap();
-        client
-            .set_read_timeout(Some(Duration::from_secs(3)))
-            .unwrap();
-        let mut response = String::new();
-        client.read_to_string(&mut response).unwrap();
-        assert!(response.starts_with("HTTP/1.1 200 OK"));
-        assert!(response.ends_with("{\"stage\":\"planned\"}"));
-        released.send(()).unwrap();
-        server.join().unwrap();
-    }
-
-    #[test]
-    fn failed_response_never_dispatches_the_side_effect() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let _client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        let (mut stream, _) = listener.accept().unwrap();
-        stream.shutdown(Shutdown::Both).unwrap();
-        let mut dispatched = false;
-        assert!(respond_before_dispatch(&mut stream, b"{}", || {
-            dispatched = true;
-            Ok(())
-        })
-        .is_err());
-        assert!(!dispatched);
-    }
-}
+#[path = "http_response_tests.rs"]
+mod network_response_tests;

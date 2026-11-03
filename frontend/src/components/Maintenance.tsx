@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { WorkbenchClient, newKey } from '../api/client.ts';
 import { activationRejectedBeforeDispatch } from '../configuration.ts';
-import { maintenanceComplete, releaseMaintenanceCommand } from '../maintenance.ts';
+import { maintenanceTerminal, releaseMaintenanceCommand } from '../maintenance.ts';
+import { ReleaseRecovery } from './ReleaseRecovery.tsx';
 import type { MaintenanceAction, MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 import type { ProductOperation } from '../types.ts';
 
@@ -19,7 +20,7 @@ export function Maintenance({ api, refresh }: { api: WorkbenchClient; refresh: (
     try {
       const next = await api.maintenance(); setView(next);
       if (!pending.current) {
-        const unfinished = next.operations.find((item) => !maintenanceComplete(item));
+        const unfinished = next.operations.find((item) => !maintenanceTerminal(item));
         setRecovered(unfinished?.operation_id ?? null); setUncertain(Boolean(unfinished));
       }
     }
@@ -28,7 +29,7 @@ export function Maintenance({ api, refresh }: { api: WorkbenchClient; refresh: (
   useEffect(() => { void load(); }, [api]);
   function observed(result: ProductOperation) {
     setOperation(result);
-    if (maintenanceComplete(result)) { pending.current = null; setRecovered(null); setUncertain(false); }
+    if (maintenanceTerminal(result)) { pending.current = null; setRecovered(null); setUncertain(false); }
     else setUncertain(true);
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -94,6 +95,8 @@ export function Maintenance({ api, refresh }: { api: WorkbenchClient; refresh: (
       </fieldset></form></>}
     <button className="secondary-button" disabled={busy} onClick={() => { setError(''); void load(); }}>刷新维护状态</button>
     {uncertain && <div className="notice"><p>保留原操作以核实结果，不会自动再次执行。</p><code>{pending.current?.operation_id ?? recovered}</code><button className="secondary-button" disabled={busy} onClick={() => void probe()}>核实原操作</button></div>}
+    {view && <ReleaseRecovery api={api} snapshot={view} original={pending.current?.operation_id ?? recovered}
+      changed={() => { pending.current = null; void load(); refresh(); }} />}
     {operation && <p role="status">操作 {operation.operation_id}：{operation.stage}{operation.pending_stage ? ' · 待核实' : ''}</p>}
     {view && <details><summary>近期维护记录</summary><ul className="service-list">{view.operations.map((item) => <li key={item.operation_id}><span>{item.operation_id}</span><span>{item.stage}</span><button type="button" className="text-button" disabled={busy} onClick={() => void inspectHistory(item.operation_id)}>核实此记录</button></li>)}</ul></details>}
     {history && <p role="status">历史操作 {history.operation_id}：{history.stage}{history.pending_stage ? ` · 待核实 ${history.pending_stage}` : ''}。此查询不会执行操作或解除其他待核实命令。</p>}

@@ -70,7 +70,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 .lock()
                 .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
             if self.journal.operations(0)?.iter().any(|operation| {
-                operation.stage != p::MaintenanceStage::Committed
+                !operation.stage.is_terminal()
                     && self
                         .journal
                         .command_kind(&operation.operation_id)
@@ -114,7 +114,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 .lock()
                 .map_err(|_| p::Error("managed product configuration is unavailable".into()))?;
             if self.journal.operations(0)?.iter().any(|operation| {
-                operation.stage != p::MaintenanceStage::Committed
+                !operation.stage.is_terminal()
                     && self
                         .journal
                         .command_kind(&operation.operation_id)
@@ -229,9 +229,10 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             }
             return self.activation_response(existing.clone(), store);
         }
-        if operations.iter().any(|operation| {
-            operation.stage != p::MaintenanceStage::Committed || operation.pending_stage.is_some()
-        }) {
+        if operations
+            .iter()
+            .any(|operation| !operation.stage.is_terminal() || operation.pending_stage.is_some())
+        {
             return Err(p::Error(
                 "maintenance recovery is required before another activation".into(),
             ));

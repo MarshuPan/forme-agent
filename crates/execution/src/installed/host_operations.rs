@@ -95,11 +95,12 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
     ) -> p::Result<p::MaintenanceOperation> {
         p::validate_product_id(operation_id)?;
         let operation = self.operation_state(operation_id)?;
-        if operation.stage == p::MaintenanceStage::Committed
-            && !matches!(
-                self.journal.command_kind(operation_id)?,
-                p::MaintenanceKind::CommitRestore { .. }
-            )
+        if operation.stage == p::MaintenanceStage::Aborted
+            || operation.stage == p::MaintenanceStage::Committed
+                && !matches!(
+                    self.journal.command_kind(operation_id)?,
+                    p::MaintenanceKind::CommitRestore { .. }
+                )
         {
             return Ok(operation);
         }

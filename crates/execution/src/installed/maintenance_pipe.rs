@@ -162,7 +162,7 @@ pub(super) struct MaintenancePipe<T> {
 }
 
 impl<T: DeserializeOwned + Send + 'static> MaintenancePipe<T> {
-    fn spawn(mut command: Command, deadline: Instant) -> p::Result<Self> {
+    pub(super) fn spawn(mut command: Command, deadline: Instant) -> p::Result<Self> {
         let mut child = command.spawn().map_err(|_| unavailable())?;
         let Some(mut input) = child.stdin.take() else {
             let _ = child.kill();

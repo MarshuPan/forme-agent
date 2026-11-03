@@ -230,6 +230,7 @@ pub(crate) struct HostRuntimeConfig {
 }
 
 pub(crate) enum Launch {
+    RecoveryCapabilities,
     Development {
         process_workers: bool,
     },
@@ -250,6 +251,7 @@ pub(crate) fn launch_from_args(
 ) -> p::Result<Launch> {
     let args: Vec<_> = args.into_iter().collect();
     match args.as_slice() {
+        [flag] if flag == "--release-recovery-capabilities" => Ok(Launch::RecoveryCapabilities),
         [] => Ok(Launch::Development {
             process_workers: false,
         }),

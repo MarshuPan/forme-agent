@@ -2,6 +2,40 @@ use super::*;
 
 pub struct SystemReleaseUpdaterPlatform;
 impl ReleaseUpdaterPlatform for SystemReleaseUpdaterPlatform {
+    fn observe_recovery_boundary(
+        &self,
+        installation: &p::InstallationManifest,
+        root: &Path,
+    ) -> p::Result<p::SchemaDigest> {
+        #[cfg(windows)]
+        {
+            let updater = super::super::registration::updater::observe_stopped(
+                installation,
+                &installation.paths.config.join("host.json"),
+            )?;
+            super::capabilities::verify(installation)?;
+            let mut configurations = Vec::new();
+            for id in services() {
+                configurations.push(
+                    super::super::registration::release_lifecycle::recovery_configuration(
+                        installation,
+                        root,
+                        id,
+                    )?,
+                );
+            }
+            p::canonical_digest(&(
+                "forme-release-recovery-services-v1",
+                updater,
+                configurations,
+            ))
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (installation, root);
+            Err(invalid())
+        }
+    }
     fn verify_updater(
         &self,
         installation: &p::InstallationManifest,
@@ -9,7 +43,10 @@ impl ReleaseUpdaterPlatform for SystemReleaseUpdaterPlatform {
     ) -> p::Result<()> {
         #[cfg(windows)]
         {
-            super::super::registration::updater::verify_installed(installation, config)
+            super::super::registration::updater::verify_installed(installation, config)?;
+            // Preflight must bind the fixed updater's actual version even when
+            // the Brain is running and no offline recovery baseline is taken.
+            super::capabilities::verify(installation)
         }
         #[cfg(not(windows))]
         {

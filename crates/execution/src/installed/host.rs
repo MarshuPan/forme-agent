@@ -18,6 +18,8 @@ mod host_native;
 mod host_operations;
 #[path = "host_release.rs"]
 mod host_release;
+#[path = "host_release_recovery.rs"]
+mod host_release_recovery;
 #[path = "host_release_takeover.rs"]
 mod host_release_takeover;
 pub use host_release_takeover::PreparedOwnerRelease;

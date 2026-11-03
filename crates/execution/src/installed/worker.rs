@@ -11,6 +11,8 @@ use super::{reject_linked_ancestors, worker_binding::WorkerExecutionBinding};
 
 #[path = "worker_admission.rs"]
 mod admission;
+#[path = "worker_recovery.rs"]
+mod recovery;
 
 const MAX_JOURNAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = 128 * 1024;

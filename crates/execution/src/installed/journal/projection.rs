@@ -10,7 +10,12 @@ impl Projection {
     pub(super) fn fold(&mut self, envelope: &JournalEnvelope) -> p::Result<()> {
         self.fold_with_digest(
             envelope,
-            JournalEnvelope::calculate(envelope.product_seq, &envelope.previous, &envelope.fact)?,
+            JournalEnvelope::calculate(
+                envelope.schema_version,
+                envelope.product_seq,
+                &envelope.previous,
+                &envelope.fact,
+            )?,
         )
     }
 
@@ -19,7 +24,8 @@ impl Projection {
         envelope: &JournalEnvelope,
         calculated: p::SchemaDigest,
     ) -> p::Result<()> {
-        if envelope.schema_version != p::SchemaVersion(1)
+        if !matches!(envelope.schema_version.0, 1 | 2)
+            || envelope.schema_version.0 < self.schema_floor
             || envelope.product_seq != self.sequence.checked_add(1).ok_or_else(invalid_journal)?
             || envelope.previous != self.head()?
             || envelope.digest != calculated
@@ -112,6 +118,8 @@ impl Projection {
                     || command.expected_revision != self.sequence
                     || *at >= command.requested_deadline
                     || self.operations.contains_key(&command.operation_id)
+                    || self.recoveries.contains_key(&command.operation_id)
+                    || self.recovery_keys.contains_key(&command.idempotency_key)
                     || self.commands.contains_key(&command.idempotency_key)
                     || self.has_unfinished_operation()
                     || *actor == p::MaintenanceActorClass::Setup && !command.kind.setup_allowed()
@@ -147,6 +155,7 @@ impl Projection {
                         release_images_claimed: false,
                         release_takeover: None,
                         release_checking: None,
+                        release_recovery_baseline: None,
                     },
                 );
             }
@@ -183,6 +192,14 @@ impl Projection {
             }
             JournalFact::ReleaseCheckingPrepared { checking, at } => {
                 release_takeover::fold_checking(self, checking, *at, envelope.product_seq)?;
+            }
+            JournalFact::ReleaseRecoveryBaselinePrepared { .. }
+            | JournalFact::ReleaseRecoveryIntent { .. }
+            | JournalFact::ReleaseRecoveryCommitted { .. } => {
+                if envelope.schema_version.0 != 2 {
+                    return Err(invalid_journal());
+                }
+                release_recovery::fold(self, &envelope.fact, envelope.product_seq)?;
             }
             JournalFact::StageIntent {
                 operation_id,
@@ -222,7 +239,9 @@ impl Projection {
                     .ok_or_else(invalid_journal)?;
                 if matches!(
                     state.view.stage,
-                    p::MaintenanceStage::RecoveryRequired | p::MaintenanceStage::Committed
+                    p::MaintenanceStage::RecoveryRequired
+                        | p::MaintenanceStage::Committed
+                        | p::MaintenanceStage::Aborted
                 ) || state.view.pending_stage != Some(*stage)
                     || receipts.is_empty()
                     || receipts.len() > 32
@@ -267,7 +286,9 @@ impl Projection {
                     .ok_or_else(invalid_journal)?;
                 if matches!(
                     state.view.stage,
-                    p::MaintenanceStage::Committed | p::MaintenanceStage::RecoveryRequired
+                    p::MaintenanceStage::Committed
+                        | p::MaintenanceStage::RecoveryRequired
+                        | p::MaintenanceStage::Aborted
                 ) {
                     return Err(invalid_journal());
                 }
@@ -278,12 +299,17 @@ impl Projection {
             }
         }
         self.sequence = envelope.product_seq;
+        self.schema_floor = envelope.schema_version.0;
         self.head = Some(envelope.digest.clone());
         Ok(())
     }
     pub(super) fn has_unfinished_operation(&self) -> bool {
         self.operations
             .values()
-            .any(|op| op.view.stage != p::MaintenanceStage::Committed)
+            .any(|op| !op.view.stage.is_terminal())
+            || self
+                .recoveries
+                .values()
+                .any(|r| r.stage == p::ProductReleaseRecoveryStage::Intent)
     }
 }

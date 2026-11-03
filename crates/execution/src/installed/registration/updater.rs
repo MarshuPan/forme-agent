@@ -145,6 +145,32 @@ pub(in crate::installed) fn verify_installed(
         .map_err(|_| invalid())?;
     verify(&service, &info)
 }
+pub(in crate::installed) fn observe_stopped(
+    installation: &p::InstallationManifest,
+    config: &Path,
+) -> p::Result<p::SchemaDigest> {
+    let info = wanted(installation, config)?;
+    let manager = manager(ServiceManagerAccess::CONNECT)?;
+    let service = manager
+        .open_service(
+            RELEASE_UPDATER_SERVICE,
+            ServiceAccess::QUERY_CONFIG | ServiceAccess::QUERY_STATUS,
+        )
+        .map_err(|_| invalid())?;
+    verify(&service, &info)?;
+    let status = service.query_status().map_err(|_| invalid())?;
+    if status.current_state != ServiceState::Stopped || status.process_id.is_some() {
+        return Err(invalid());
+    }
+    p::canonical_digest(&(
+        "forme-release-recovery-updater-v1",
+        format!("{:?}", service.query_config().map_err(|_| invalid())?),
+        format!(
+            "{:?}",
+            service.get_failure_actions().map_err(|_| invalid())?
+        ),
+    ))
+}
 pub(in crate::installed) fn launch(
     installation: &p::InstallationManifest,
     config: &Path,

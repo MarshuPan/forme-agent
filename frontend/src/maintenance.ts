@@ -17,6 +17,7 @@ export interface MaintenanceSnapshot {
   operations: ProductOperation[];
 }
 export const maintenanceComplete = (operation: ProductOperation) => operation.stage === 'committed' && operation.pending_stage === null;
+export const maintenanceTerminal = (operation: ProductOperation) => ['committed', 'aborted'].includes(operation.stage) && operation.pending_stage === null;
 
 /** Only advertised, signed-release transactions use this path. Host rechecks
  * release compatibility, backup custody, reauthentication and CAS before IO. */

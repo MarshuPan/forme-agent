@@ -35,6 +35,16 @@ impl WorkerIsolation for UnavailableWorkerIsolation {
 }
 
 pub trait IsolatedExecutorHost: Send + Sync {
+    /// Internal Host-only check. Hold worker admission/observation exclusion
+    /// through the callback; external implementations fail closed by default.
+    fn with_quiescent_workers(
+        &self,
+        _action: &mut dyn FnMut(p::SchemaDigest) -> p::Result<()>,
+    ) -> p::Result<()> {
+        Err(p::Error(
+            "worker recovery observation is unavailable".into(),
+        ))
+    }
     fn dispatch(
         &self,
         auth: &HostAuth,
@@ -281,6 +291,13 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
 impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
     for WorkerExecutorHost<I, D>
 {
+    fn with_quiescent_workers(
+        &self,
+        action: &mut dyn FnMut(p::SchemaDigest) -> p::Result<()>,
+    ) -> p::Result<()> {
+        let _operation = self.operations.lock().map_err(|_| storage_error())?;
+        action(self.journal.quiescent_digest()?)
+    }
     fn dispatch(
         &self,
         auth: &HostAuth,

@@ -28,9 +28,11 @@ pub use release::*;
 mod release_data;
 pub use release_data::*;
 mod release_probe;
+mod release_recovery;
 mod release_services;
 mod release_takeover;
 pub use release_probe::*;
+pub use release_recovery::*;
 pub use release_services::*;
 pub use release_takeover::*;
 
@@ -630,6 +632,7 @@ pub enum MaintenanceStage {
     Checking,
     Committed,
     RecoveryRequired,
+    Aborted,
 }
 
 impl MaintenanceStage {
@@ -644,7 +647,11 @@ impl MaintenanceStage {
                 | (Switching, Checking)
                 | (Checking, Committed)
         ) || !lifecycle && matches!((self, next), (Validated, Checking))
-            || !matches!(self, Committed | RecoveryRequired) && next == RecoveryRequired
+            || !matches!(self, Committed | RecoveryRequired | Aborted) && next == RecoveryRequired
+    }
+
+    pub fn is_terminal(self) -> bool {
+        matches!(self, Self::Committed | Self::Aborted)
     }
 }
 

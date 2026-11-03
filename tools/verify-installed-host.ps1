@@ -119,6 +119,7 @@ try {
 
     foreach ($name in @(
         "release_data_child_preserves_binding_and_consumes_backup_once",
+        "release_recovery_inspection_uses_fixed_child_and_releases_without_backup",
         "release_data_child_deadline_kills_waiting_process_and_does_not_retry_unknown_backup",
         "release_data_child_rejects_bad_owner_oversize_nonzero_exit_and_replaced_installation"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_data_transport") $name }
@@ -129,6 +130,33 @@ try {
         "updater_cases::altered_handoff_or_tampered_target_produces_zero_native_stops",
         "updater_cases::updater_transfers_real_writers_and_child_pipe_then_leaves_target_checking_closed"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") $name }
+
+    foreach ($name in @(
+        "release_recovery_preserves_failure_history_and_atomically_aborts_without_changing_active_release",
+        "release_recovery_intent_survives_restart_queries_are_pure_and_only_explicit_verification_commits",
+        "release_recovery_cas_race_and_cross_domain_keys_allow_exactly_one_decision",
+        "release_recovery_rejects_missing_baseline_early_late_and_mismatched_evidence_without_appending",
+        "release_recovery_schema_floor_preserves_v1_hashes_and_rejects_a_validly_rehashed_downgrade",
+        "release_recovery_protocol_is_closed_and_binds_owner_revision_and_receipt"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::release_recovery::tests::$name" }
+
+    foreach ($name in @(
+        "release_recovery_host_commits_once_then_old_release_replay_and_queries_are_effect_free",
+        "release_recovery_host_intent_fault_requires_explicit_verification_and_never_retries_on_replay",
+        "release_recovery_host_rejects_missing_baseline_and_service_data_file_worker_drift"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") "updater_cases::recovery_cases::$name" }
+
+    foreach ($name in @(
+        "release_recovery_worker_running_and_restart_unknown_never_prove_quiescence",
+        "release_recovery_worker_observation_holds_admission_exclusion_through_its_callback"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "recovery_cases::$name" }
+
+    Invoke-NamedTest "forme-execution" @("--test", "installed_release_recovery_capabilities") "release_recovery_capability_mode_is_closed_and_never_loads_host_configuration"
+    foreach ($name in @(
+        "release_recovery_http_owner_csrf_reauthentication_and_closed_input_precede_host_io",
+        "release_recovery_verification_is_separate_closed_owner_action_and_plain_maintenance_cannot_adjudicate"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::release_recovery::$name" }
+    Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::release_recovery::transport::release_recovery_http_forwards_only_session_owner_and_bound_request_after_password_then_reads_original"
 
     foreach ($name in @(
         "release_data_observes_real_schema_holds_store_and_creates_verified_backup_once",
