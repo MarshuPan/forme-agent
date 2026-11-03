@@ -273,6 +273,14 @@ Binary rollback 只在 schema/config 兼容时允许；不兼容进入新路径�
 
 卸载默认移除产品 binaries/services/session helpers/firewall 与注册项，保留 owner brain/备份/workspaces/恢复说明。主动删除数据是另一项显式确认、范围预览和可验证生命周期操作；不递归删除 owner 自选的项目根或其他程序目录。
 
+### 9.1 备份/切换前的独立恢复裁决
+
+`AbortBeforeSwitch` 不属于普通 MaintenanceKind，也不能经通用 stage transition 把升级改成成功。版本化的 `ProductReleaseRecoveryRequest/View/Verification` 使用独立配置域路由和 owner 密码重认证；Host 在配置→worker→产品 journal 的一致互斥顺序下核实原操作、过期接管、源基线、SCM/updater、完整固定程序和配置摘要、原数据独占检查。原数据 worker 在 receipt 落盘前保持原库锁，恢复通道只 Inspect/Release，绝不 Backup。
+
+在原接管进入 Quiescing 前，只有 Brain 已停止且 worker 已静止时，才可保存 `ProductReleaseRecoveryBaseline`：原 takeover/command、六个固定程序、固定配置、三个服务登记与 updater、worker journal 水位、实际 owner/store/schema/数据库摘要/事件水位。Brain 仍运行的正常升级不伪造可离线基线；没有基线的历史/该类中断不在自动裁决范围。当前观察必须逐项等于原基线，不能把状态为 Stopped 本身当零副作用。
+
+产品 journal 的 schema 2 新事实为 `ReleaseRecoveryBaselinePrepared`、`ReleaseRecoveryIntent`、`ReleaseRecoveryCommitted`；新 reader 逐行验证历史原 hash，首次 v2 后不得降回 v1。一次 committed fact 原子使原升级 Aborted、新恢复决定 Committed，历史原记录不改；原操作不再占管理互斥，工作准入仍需正式启动和 readiness。恢复 intent 自身占互斥；同义重发只查，专用 verify 才能重核原决定，任何核实失败保留未决。旧 reader/updater 不支持新事实；实际安装程序迁移、旧操作缺基线的处理需另备精确管理员计划，不现场补造历史。
+
 ## 10. Web 状态与交互架构
 
 前端采用 React + TypeScript + Vite，构建静态资源，版本绑定整个产品 release。布局借鉴 DeepSeek，复用须符合 [frontend-reuse-policy](../compliance/frontend-reuse-policy.md)；不带 Cordis/上游 RPC、内核、插件架构或服务端。

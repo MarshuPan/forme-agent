@@ -413,6 +413,34 @@ Windows AgentExecution 的 core image 身份、保留 profile 的 `forme-executo
 
 Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed、健康或工作准入证明。原生服务、core peer 和 worker 仍须分别核实；程序定位失败不能启动普通进程或旧 image 作为 fallback。测试需覆盖仅 staging 不选用、升级后重启沿用原 active、被替换文件拒绝、未签名/未提交发布不能取得路径，以及自定义 profile 保留。
 
+#### 4.10.5 显式终止未进入备份/切换的升级（owner 已批准）
+
+以下均为 closed DTO，schema 1，不接受程序、路径、任意阶段或客户端成功断言：
+
+| 对象 | 精确字段/语义 |
+|---|---|
+| `ProductReleaseRecoveryBaseline` | `schema_version, operation_id, command_digest, takeover_digest, source_images_digest, service_configuration_digest, config_files_digest, worker_state_digest, data_identity: ProductReleaseDataIdentity, captured_at`。Host 内部构造；在原 Validated/无 pending、takeover 已记录且未进 Quiescing 时落盘。 |
+| `ProductReleaseRecoveryCandidate` | `schema_version, product_revision, owner, original_operation_id, original_command_digest, original_release_ref, original_release_digest, config_revision, config_digest, evidence_digest`。认证只读检查的有界投影，字段全部从原 journal/配置和实际检查生成，无凭据/路径。 |
+| `ProductReleaseRecoveryRequest` | `schema_version, operation_id, idempotency_key, expected_revision, owner, decision: AbortBeforeSwitch, candidate: ProductReleaseRecoveryCandidate, requested_deadline`。candidate.product_revision 必须等于 expected_revision，owner 必须相同。digest 对全请求和固定 recovery domain 计算。 |
+| `ProductReleaseRecoveryView` | `schema_version, request, request_digest, revision, stage: Intent/Committed, receipt_digest?`。新恢复操作独立于原 MaintenanceOperation。Intent 无回执，Committed 必须有回执；不包含 password/proof。 |
+| `ProductReleaseRecoveryVerification` | `schema_version, operation_id, request_digest, expected_revision, owner, requested_deadline`。只重新核实已落盘原 intent；独立 digest/单次重新认证，允许新的 ≤120s 核实窗口，不延长旧升级授权。 |
+
+服务内部新增 `ProductHostBroker::{release_recovery_candidate, owner_release_recovery, verify_owner_release_recovery, owner_release_recovery_operation}`。原 HostManagement/脑 trait 不变。读取只核实，不启动服务；新写请求时间窗 ≤120s。同 key 同 request 只查原 view（即使截止已过），不同语义冲突；新恢复 key/op 与一般维护和既有恢复操作交叉去重。未完成 intent 禁止替代 key。CAS、actor、owner、原 operation/command/release、config、evidence 的任一不一致均零裁决。
+
+真实检查在配置锁及 worker 静止临界区中完成：原接管授权已过期、pending 仅 Quiescing（Validated 或保留该 pending 的 RecoveryRequired）、从未 BackedUp/Switching/claim/checking、active 仍原 release、无本次 release binding；原 updater 确实 Stopped（身份/账户/登记/有限恢复策略匹配），Brain Stopped，Host Running、Web 为 Running/Stopped。固定源六程序及 host/web/worker/product-template/core/installation 配置摘要必须与原基线一致。原 worker journal 只能有完整终态，无 Unknown 或在途工作，且水位与原基线一致；默认/外来 worker adapter 不提供“静止”假证明。
+
+源数据只读 worker 使用原已绑定 request 检查原库，绑定新裁决/核实窗口而不执行旧授权；只 Inspect/Release，不 Backup。实际 owner/store/schema/数据库摘要/事件水位须与升级前基线逐项相同，保持独占锁至裁决落盘；释放/进程回收失败返回不明，仍可查询已落盘回执，不重做裁决。未拥有升级前源基线的操作（包括旧安装现场）明确拒绝，另按有界签名迁移方案处理，不能事后造基线。
+
+通过检查后先追加独立恢复 intent，重新核对当前文件/服务/worker/配置和 CAS，再以单个 `ReleaseRecoveryCommitted` fact 同时将原操作置 Aborted、pending 清空、新恢复 view 置 Committed。原失败引用、旧记录与 dispatch marker/handoff 保留；旧 target 不成为 active。普通 begin/finish/recovery-required 不得修改 Aborted。intent 后中断不自动完成；只接受 owner 明确的原号 verification，重新核实全部条件，失败不改投影。裁决不启动服务、不开放准入；原 Upgrade 重放永远只返回 Aborted，不给 dispatch ticket。
+
+#### 4.10.6 源基线、journal 与 updater 兼容
+
+原生产 dispatch 在 Quiescing 前增加可选可信源基线。仅在实际 Brain 已停止且原 worker 全部终态时读取原源文件/固定服务登记及独占数据身份，落盘后才发布 handoff；Brain 运行的升级照常由原 updater 排空，不虚构离线数据连续性，也不承诺本次有限恢复。摘要读取拒绝链接、缺文件、未知注册、检查超时或状态漂移；固定文件集合由安装清单派生而非浏览器指定。
+
+新产品事实 envelope 使用 schema 2，原有事实保留 schema 1 编码；一旦追加 schema 2，其后所有 envelope 至少为 2。新 reader 校验 1/2 原字节 hash 和完整因果语义，拒绝版本回退；旧 reader 对 schema 2/未知事实整体拒绝，不跳过。`RELEASE_UPDATER_VERSION=2`，新恢复 UI/Host 只对匹配 reader/updater 生效；旧 immutable updater 必须在另行批准的本机签名修复中处理，不通过普通 business release 偷换。
+
+隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v2 拒旧读者、无源基线/owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
+
 ### 4.11 交互桌面会话 helper
 
 交互 helper 是 Host 管理的低权限执行单元，不是服务、Agent、策略引擎或第二个大脑。它只接受由 Core/Harness 经过最终 recheck 后、绑定现有 `WorkerJob`/`WorkerPermit` 的 exact desktop action；Web、模型和浏览器不能直接访问 helper。

@@ -262,6 +262,8 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 首笔受管能力编辑按 prd/25 §11.7 接入 skills：与模型/工作空间/角色共用一个保存表单、配置版本和原操作号；启用和 owner 明确信任分别选择，默认不可信/禁用。列表正文只存在受认证页面内存，不进入 localStorage、URL、console 或浏览器恢复队列。编辑与移除只改变待保存草稿；保存结果不明时锁定整份原 body，显式核实同一操作，不能只重发技能子集。刷新以 Host 当前 revision 为准，已保存/待重启/核心已确认分开；原 scope 与版本可见。未接入的 MCP/plugin/package、消息渠道或隔离 backend 不提供假启用开关，本笔不关闭这些剩余设计。
 
+系统维护仅为已获得 PRD25 §4.4.1 真实 candidate 的原中断操作提供“终止本次升级，保留原版本”。确认明确区分原升级 Aborted 与独立恢复 Committed；不称“升级完成”。提交包含原 candidate/CAS 和新恢复号，结果不明保留原 body/key，只查询原恢复操作；Intent 提供显式“核实原裁决”，重新认证并使用当前 revision，页面加载不自动提交。缺基线、晚阶段或实际状态不符时显示不能裁决，不提供强制成功按钮。恢复成功后也不自动启动脑或重试升级，按真实产品状态呈现。
+
 ### 5.8 断线、长任务与错误
 
 连接丢失显示时间和最后 watermark，指数退避+抖动；401 重新登录、429 尊重 Retry-After、409 更新 snapshot/提示冲突、503 显示 core/维护状态。不要所有错误都自动重发 mutation。

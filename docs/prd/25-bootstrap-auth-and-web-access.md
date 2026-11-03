@@ -123,6 +123,12 @@ trait CoreWebBridge {
 
 Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 release worker 已配置且预检通过才可执行；Upgrade/RollbackCompatibleRelease 另要求对应 updater/data worker 就绪，并绑定原 release id/digest 和 opaque backup ref，按 PRD24 §4.10 的排空、备份、切换、健康核验及兼容边界执行；CommitRestore 沿已核验候选和原配置 revision。卸载按钮只生成范围计划，不删除数据。丢响应时页面保留原 operation id，只查询该操作，不能自动再次派发；pending/RecoveryRequired 继续显示原阶段。主脑离线时认证和这些受限维护仍可用。缺少完整 worker 时不显示可执行入口，不在此借通用代理放开。
 
+### 4.4.1 升级中断的有限恢复入口（owner 已批准）
+
+独立新增 `GET /api/v1/product/release-recovery/candidates/{original_id}`、`POST /api/v1/product/release-recovery`、`GET /api/v1/product/release-recovery/operations/{recovery_id}`、`POST /api/v1/product/release-recovery/verify`。对应内部 Configuration 域将 `/api/v1/product` 替换为 `/v1/host/configuration`，不加入 OwnerMaintenance/AgentExecution 域。DTO 使用 PRD24 §4.10.5；写 body 为相应 request 的无 owner 字段外形加 `password`，owner 由服务器认证会话重建。写请求须 Origin/CSRF/idempotency-key=operation_id、操作摘要绑定的单次密码重认证，再由 Host 验证实际 owner；verify 具有独立 domain digest，不能复用初始恢复授权。
+
+首次恢复已落 intent 后断线/重启，重复原 POST 只查；查询不提交或结束恢复。仅用户显式 verify 原号/原 request_digest/当前 revision 才能继续只读核实并记 receipt，失败保留 intent。不存在/错 owner/未知 schema/不同 digest/CAS 均拒绝；配置 token 不得接触通用管理/worker 路由。普通维护 body 仍不接受恢复参数，UI 不用新增入口执行任意 stage/retry/shell。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 认领与口令恢复

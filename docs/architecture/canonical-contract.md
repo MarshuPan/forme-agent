@@ -732,3 +732,9 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 
 这一契约只定义跨平台边界和数据绑定，不宣称任何平台已经完成原生安装或 IP11。完整 DTO/状态机/测试与平台取证要求见 `architecture/10` §7.2、`prd/24` §4.11 和 `requirements/18` IP11。
 
+### 29.11 安装升级中断的显式裁决
+
+owner 已批准有限的 `AbortBeforeSwitch` 恢复协议：只有存在原升级前的可信源基线、原操作仍为备份/切换前的 `pending Quiescing`、原授权已过期、固定 updater 与 Brain 实际停止、托管 worker 无 Pending/Running/CancelRequested/Unknown、程序/服务/配置与原 owner/store 连续性全部核实后，才能追加独立恢复 intent 与裁决 receipt。原升级显示 `Aborted`，其原 intent/receipt/failure/claim 保留；恢复决定有自己的 `Committed` 回执，不表示升级成功，不启动主脑、不开放工作准入、不修改 active release。
+
+重放不执行 IO；同 key 异义拒绝、同义只查询。intent 后中断只能由 owner 对原决定再次明确认证核实，不能换 key 或自动完成。没有源基线的历史操作继续拒绝；不能用故障后采集的摘要自证未变化。产品 journal 新事实采用 schema 2，reader/updater 最低版本 2；历史 schema 1 字节及 hash 不改，旧 reader 拒绝新版本。实际本机 reader/updater 替换与 journal 迁移仍须精确签名修复方案，不能由本次实现/隔离测试授权推出。详见 prd/24 §4.10.5–6。
+
