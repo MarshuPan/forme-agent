@@ -97,7 +97,7 @@ setup session 只允许检查本机已识别的安装数据、准备受限备份
 
 证明不进 URL/query/日志/页面 HTML/剪贴板自动同步。匿名页面不能获取它。所有认领 CAS 到同一 InstallId，事务中断可按 claim operation 恢复，不能出现两个 owner 或“已认领却永远无法登录”。无桌面主机使用 `hostctl` 从本地/SSH 管理终端取证明，并通过 SSH tunnel 访问 loopback 初始化；未认领前不默认开启 LAN。
 
-发现历史数据时先只读检查 owner/store/schema/key resolver/明文保护状态与独占锁；可验证备份后才显式选择接管/迁移。不匹配、无法解密、明文未迁移或库正被使用时停在可修复状态。不能为绕过错误新建另一个空 store 并宣称迁移成功。
+发现历史数据时先只读检查 owner/store/schema/key resolver/明文保护状态与独占锁；可验证备份后才显式选择接管/迁移。不匹配、无法解密、明文未迁移或库正被使用时停在可修复状态。不能为绕过错误新建另一个空 store 并宣称迁移成功。首次认领的三类候选、candidate digest/verification epoch、setup 绑定、claim journal v2 和 `Committed`/`Activated` 分界以 [首次认领旧脑与备份候选协议](proposals/installed-bootstrap-legacy-brain-claim.md) 为准；浏览器不能提交路径或 owner，历史候选失败不得降级为空新脑。
 
 ## 4. 三种持久状态的界限
 

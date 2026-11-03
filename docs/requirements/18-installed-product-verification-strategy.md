@@ -24,7 +24,7 @@
 | IP10 权限分离 | P09 / 24 | 检查服务账户/ACL；经审批 typed system action 可执行且有完整事件/permit/receipt。 | 模型、Web、shell worker 无权改服务二进制/配置/brain DB/keys；缺权限、陈旧审批、重放许可 driver=0。 |
 | IP11 交互会话桥 | P09 / 24 | 真实登录会话 helper 绑定 OS 用户、session generation、desktop grant、exact plan/permit 与受保护 peer；许可有效时完成一次桌面动作并返回原 job receipt。 | 注销、锁屏、TCC/portal 拒绝、会话切换、过期/重放 nonce、参数或 plan digest 替换、helper 失联均阻断；`Started` 无终态进入 Unknown；不退回高权限服务直接点桌面。 |
 | IP12 数据与密钥 | P10 / 24/25 | 绝对路径、服务 ACL、应用层加密、无交互重启读写、备份与恢复演练一致。 | 普通执行账户不能读原文/keys；改密码或注销不丢密钥；敏感数据不进静态资源/缓存。 |
-| IP13 旧脑接管 | P04/P10 / 24/25 | 检测历史配置/owner/store；首次认领前绑定已验证原脑/恢复候选，备份、显式迁移、保留原件与切换证据。 | 错误 key、历史明文、owner 不匹配、占用库均不能新建空脑替代；不能先造 owner 再暗换身份，不能修饰历史保护状态。 |
+| IP13 旧脑接管 | P04/P10 / 24/25 | 未认领安装从固定布局发现 `NewBrainTarget`、`ExistingBrain`、`VerifiedBackup`；Host 以只读/独占/完整性验证生成 schema 2 candidate catalog，setup 绑定 candidate digest/verification epoch/已验证 owner source，数据恢复到新目标后以 `ClaimCommittedV2 -> ClaimActivatedV2` 证明显式切换，原件保留。 | 错误 key、历史明文、owner 不匹配、未知 schema、损坏 manifest、链接/别名、占用库或 digest TOCTOU 均不能新建空脑替代；浏览器不能提交路径/owner/验证结果；数据准备后的未知结果不重派、不删除、不启动 Brain；已认领安装不能经 bootstrap 换 owner。 |
 | IP14 升级事务 | P11 / 24 | 签名→预检→排空→一致性备份→切换→健康探测→恢复任务；升级中 Web 显示维护进度。 | 断电/磁盘满/迁移失败可定位阶段；不覆盖旧好版本，不丢事件、不重复外部动作。 |
 | IP15 回滚与恢复 | P10/P11 / 24 | 兼容 binary rollback；备份恢复新路径校验后 owner 切换，旧路径可追溯。 | 不兼容 schema 禁止二进制盲回滚；备份无 key 时明确不可恢复；恢复不自动重发历史请求。 |
 | IP16 卸载 | P11 / 24 | 停止任务接入、移除服务/程序/firewall 和会话桥，默认保留脑/备份与可读恢复说明。 | 不误删 owner workspace/原始资料；“删除数据”须另有明确范围，不随默认卸载发生。 |
@@ -49,6 +49,8 @@
 | Rocky Linux 9 x86_64 | `.rpm`、systemd、SELinux 与 firewall 规则、升级卸载。 | `.deb` 通过不证明 RPM/SELinux 路径。 |
 
 未能取得的平台记录 NOT_RUN/UNVERIFIABLE，不扩大支持声明。平台能力可明确降级，例如 headless host 没有交互桌面；基础安装、认证、对话和维护不能因此被标成不适用。
+
+IP13 的协议专项必须另存候选 catalog、verification evidence、claim journal 摘要和 active binding 对账；这些工件不得包含密码、cookie、key、绝对路径、用户正文或可利用的 SecretRef。协议/隔离测试通过不等于本机旧脑接管完成，真实 IP13 仍需正式安装包、真实 OS 权限、真实 key resolver、真实独占锁和浏览器联合证据。
 
 ### IP11 交互会话桥的证据细则
 

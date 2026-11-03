@@ -4,7 +4,7 @@
 
 实现 [requirements/17](../requirements/17-installed-product-scope-decisions.md) P03–P08、P10、P15，主验 IP04–IP09、IP13、IP21–IP22，参与 IP12/IP18/IP24。架构以 [architecture/10](../architecture/10-installed-product-and-web-workbench-architecture.md) §3–6、§8 为准，canonical §10/15/24/28/29 不可回退。
 
-**状态：正在实施；独立账号/session、loopback Web、本机证明/有限新脑 claim、产品内部认证 Runtime Ingress、模型/brain/skills 设置与 managed Web 网络事务已有组件实现。** 当前页面可在自建临时安装中完成认领、登录、设置和正式 Run，但尚未取得 IP 整体验收。旧脑/备份接管、OS 口令恢复、其他能力消费者、真实外部 provider、原生安装和完整工作台仍待实施或验收。具体分支及证据以 `../acceptance/installed-product-implementation-progress.md` 为准，不能由固定 bearer 或组件通过推导完整产品就绪。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
+**状态：正在实施；独立账号/session、loopback Web、本机证明/有限新脑 claim、产品内部认证 Runtime Ingress、模型/brain/skills 设置与 managed Web 网络事务已有组件实现。** 当前页面可在自建临时安装中完成认领、登录、设置和正式 Run，但尚未取得 IP 整体验收。旧脑/备份候选接管协议已冻结，代码与真实 IP13 仍待实施/验收；OS 口令恢复、其他能力消费者、真实外部 provider、原生安装和完整工作台仍待实施或验收。具体分支及证据以 `../acceptance/installed-product-implementation-progress.md` 为准，不能由固定 bearer 或组件通过推导完整产品就绪。本模块保持现有 Run/Control/Approval、Harness/Store trait 和 99 EventKinds。
 
 ## 1. 职责与边界
 
@@ -31,6 +31,10 @@
 | `SetupSession` | `setup_digest, install_ref, claim_operation, expires_at, csrf_digest, verified_data_candidate_ref?`。15 分钟，仅初始化范围，完成认领后消耗。 |
 | `ClaimRequest` | `install_id_safe_ref, verified_data_candidate_ref?, login_name, password, operation_id, idempotency_key`，由 setup session 认证。不允许调用者任意指定 OwnerId；已有脑按验证结果绑定。 |
 | `ClaimTransaction` | `operation_id, install_ref, claim_digest, stage, reserved_owner_ref, account_ref, expected_revision`。跨 broker/Web 认领事务可恢复，原证明只用其摘要。 |
+| `BootstrapCandidateCatalogV2` | `schema_version:2, verification_epoch, candidates[]`；候选仅含 opaque ref/kind/status/digest/owner source/binding digest/issue ref，不含路径、原文、key 或凭据。 |
+| `BootstrapCandidateSelectionV2` | `session, candidate_ref, expected_candidate_digest`；Host 重新读取固定候选并核对 digest/epoch/owner/store/schema/锁，不能由浏览器提交路径或 owner。 |
+| `BootstrapClaimRequestV2` | `session, candidate_ref, expected_candidate_digest, account_commitment`；candidate kind、OwnerId 和数据 binding 来自 Host 已验证选择，不接受调用者自报。 |
+| `BootstrapClaimCommitV2` | `claim receipt, owner binding, active data binding, candidate digest, migration outcome`；`Committed` 与 `Activated` 分开，前者不能表示数据已切换。 |
 | `CoreSessionAssertion` | `install_ref, owner_id, session_digest, auth_epoch, audience, request_digest, expires_at, nonce, signature`。服务端签发/验证，不暴露浏览器。 |
 | `ProductConfigSnapshot` | `revision, owner_binding_ref, model_profiles, channel_configs, workspace_refs, capability_options, proxy_config, network_config, effective_sources, active_ack`。读取不含密钥原文。 |
 | `ConfigPatch` | `operation_id, idempotency_key, expected_revision, typed_changes, secret_mutations`。未声明字段和不允许 hot change 的字段拒绝或要求 restart。 |
@@ -53,7 +57,7 @@
 |---|---|---|
 | `GET /bootstrap/status` | 仅 claimed/setup_needed/protocol_version。 | 公开最小信息；不返回 owner/path/model。 |
 | `POST /bootstrap/prove` | 本机一次性证明 → 有限 setup cookie。 | 原子预留 claim；并发/重放不能创建第二个初始化者。 |
-| `GET/POST /bootstrap/data` | 已识别数据候选 / 准备指定备份并验证。 | 只接受有效 setup cookie + CSRF；离线管理路径验证 owner/key/完整性，不允许匿名读取/任意文件路径。 |
+| `GET/POST /bootstrap/data` | schema 1 新脑视图；schema 2 返回固定路径发现的三类候选并准备指定候选。 | 只接受有效 setup cookie + CSRF；Host 验证 owner/key/完整性/锁/保护状态，不允许匿名读取、任意文件路径或调用者自报验证结果。 |
 | `POST /bootstrap/claim` | ClaimRequest → claim receipt/owner session。 | 有限 setup session + 已验证数据 ref + CAS；消耗证明/初始化会话。 |
 | `POST /auth/login` | login/password → cookie + safe session view。 | 验证密码；登录也校验 Host/Origin 和 login CSRF。 |
 | `GET /auth/login-challenge` | 有效 5 分钟的 HttpOnly login cookie、login CSRF 和 attempt ref。 | 只为同 origin 的登录表单建立有限挑战；不授予 owner/setup 权限。 |
@@ -141,6 +145,10 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 
 已有脑/备份的 owner 来自解密与完整性验证，不能先随机创建 owner 再修改它适配旧数据。认领完成或本机撤销/轮换证明使 setup session 无效。已认领账号恢复不能导入另一个 owner 的脑；owner 不匹配应拒绝，而不是改写账户/数据身份。
 
+首次认领候选固定沿 [首次认领旧脑与备份候选协议](../architecture/proposals/installed-bootstrap-legacy-brain-claim.md)：`NewBrainTarget` 继续使用 schema 1 兼容路径；`ExistingBrain` 与 `VerifiedBackup` 必须使用 schema 2 catalog/selection/claim。候选发现只能来自安装器 manifest、Host 配置和固定受保护布局，浏览器不能提交路径、URL、owner、key 或“已验证”布尔值。历史明文、错误 key/owner、未知 schema、损坏、链接/别名或独占锁不明的候选只能显示为 rejected/unverifiable，不能为了完成初始化而回退为空新脑。
+
+候选选择先记录 candidate ref/kind/digest、verification epoch 和 owner source；数据接管再在新的空目标上执行有界复制/恢复，保留原件。产品 claim journal v2 依次区分 `CandidateInventoryObserved`、`CandidateSelectedV2`、`ClaimDataPrepared`、`ClaimCommittedV2`、`ClaimActivatedV2` 和 `ClaimAbortedV2`；旧 v1 journal 字节/hash 保留，旧 reader/writer 在首个 v2 fact 后必须拒绝。`ClaimCommittedV2` 不等于 active data 已切换，只有 Host 完成 active data/config CAS、旧 authority fence 和 ack 核对后才可 `Activated`。准备阶段之后的未知副作用、进程重启和响应丢失只允许核实原 operation/receipt，不能换候选、换 owner、重派或启动 Brain。
+
 密码规则、Argon2id 和 TTL 统一引用 architecture/10 §5.1。改密码/本地恢复先写新 credential revision 与 revoke epoch，再提交最终状态；崩溃后不得重新激活旧口令。忘记口令通过本机管理员 `hostctl` 发起有限 reset 操作，记录事实、撤销会话，不建立匿名远程找回或重置 OwnerId。
 
 本机恢复在读取配置、stdin 口令或认证库前核验当前进程的操作系统权限：Windows 读取真实进程提升 token，Unix 读取 effective UID。不得运行 PATH 中的 whoami/id、解析本地化组文案，或因 deny-only 管理组 SID 而认定已提权。检查失败即拒绝；此权限只允许有限恢复，不提升 Agent 的行动授权。
@@ -202,7 +210,7 @@ API 错误包括 `Unauthenticated / Forbidden / CsrfRejected / ClaimUnavailable 
 
 1. 固定 DTO/route allowlist/错误码；与 prd/24 对齐 claim/config/operation 事务。
 2. Web 独立启动与安全静态资源；无模型配置也能看到 bootstrap，公开面最小化。
-3. 认领、Argon2id/session/CSRF/epoch/本机恢复；先做抢占、伪造与并发否定测试。
+3. 认领、Argon2id/session/CSRF/epoch/本机恢复；先做抢占、伪造与并发否定测试。先实现 schema 2 候选 catalog/selection、固定路径只读验证、claim journal v2 与旧 v1 兼容，再接入数据准备/active binding；不复用普通 `CommitRestore` 冒充首次接管。
 4. 持久 typed config + secret resolver + effective source + doctor/start/ack，不依赖用户手工 env。
 5. 内部认证 Runtime Ingress 与正式 Gateway 协议；验证 owner/approver 不可被 payload 替换。
 6. LAN HTTPS/firewall/Host/证书信任；SSE/backpressure/idempotency 和附件授权。
@@ -212,13 +220,13 @@ API 错误包括 `Unauthenticated / Forbidden / CsrfRejected / ClaimUnavailable 
 
 单元：密码参数/上限、session expiry/epoch、CSRF/Host、claim CAS、config transaction/recovery、assertion audience/digest/nonce、异义 idempotency、stream watermark。fixture 自建，不引用真实账号/key。
 
-集成：两浏览器并发 claim、断电阶段恢复、logout 后 mutation、伪造 owner/审批、core 停止/错误配置/key、环境覆盖、LAN 未信任证书、错 Host、重复提交、SSE gap、读流限流与命令不互相饿死。批准反向场景验证 driver=0，而不只看 HTTP 拒绝。
+集成：两浏览器并发 claim、断电阶段恢复、logout 后 mutation、伪造 owner/审批、core 停止/错误配置/key、环境覆盖、LAN 未信任证书、错 Host、重复提交、SSE gap、读流限流与命令不互相饿死。候选专项还必须覆盖三类候选、错误 owner/key、历史明文、损坏/未知 schema、数据库占用、candidate digest TOCTOU、旧 reader 对 v2 拒绝、数据准备各阶段中断、响应丢失原号恢复、已认领拒绝以及“零空脑替代”。批准反向场景验证 driver=0，而不只看 HTTP 拒绝。
 
 真实浏览器验证 cookie/CSRF/续接；原生平台验证账户/key 权限和网络规则；至少一次真实 model profile/工具调用通过既有 core 全链路。使用 IP04–09/IP13/IP21–22 的完整正反断言；跨平台未跑不标 PASS。
 
 ## 10. 验收
 
-清洁安装无 env 即可认领、设账号和模型并启动原有大脑；重启/改密码保留脑/OwnerId，core 离线仍可受认证修复。LAN 无匿名/裸密钥，内部 Gateway 不被公网化，所有 control 绑定最终 plan 且幂等。
+清洁安装无 env 即可认领、设账号和模型并启动原有大脑；重启/改密码保留脑/OwnerId，core 离线仍可受认证修复。首次认领能够在不接收浏览器路径/owner 的前提下发现、验证并显式选择新脑、已有脑或备份候选；错误/明文/占用/损坏候选不创建替代空脑，数据接管只有在 `Activated` 事实后才显示完成。LAN 无匿名/裸密钥，内部 Gateway 不被公网化，所有 control 绑定最终 plan 且幂等。
 
 网页保存配置后能证明 actual active revision/provider；读流不会压垮命令配额。主验 IP 有真实证据，历史 governance/regression 不退化；本模块没有独立 model/backend/memory writer。
 

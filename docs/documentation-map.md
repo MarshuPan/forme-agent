@@ -130,6 +130,7 @@
 | [requirements/18](requirements/18-installed-product-verification-strategy.md) | IP01–IP24 原生验收。 | requirements/17、永久 S/C 门。 | 已有组件门和实施记录；完整原生 IP01–IP24 仍未执行。 |
 | [architecture/10](architecture/10-installed-product-and-web-workbench-architecture.md) | 系统服务、认领/身份/网络、分权、数据、升级、Web。 | requirements/17–18、canonical §29、architecture/03/09。 | 宿主、worker、认证和工作台已分阶段落地；原生服务/强隔离/完整产品仍开放，18-crate/99-kind 不变。 |
 | [architecture/proposals/installed-release-interruption-adjudication.md](architecture/proposals/installed-release-interruption-adjudication.md) | `AbortBeforeSwitch` 升级中断裁决补充协议。 | canonical §29、architecture/10、prd/24–26。 | owner 已批准并实现隔离闭环；不授权本机旧升级迁移或程序替换。 |
+| [architecture/proposals/installed-bootstrap-legacy-brain-claim.md](architecture/proposals/installed-bootstrap-legacy-brain-claim.md) | 首次认领旧脑与备份候选协议。 | canonical §29.12、architecture/10、prd/25、IP13。 | owner 已批准文档冻结；实现/隔离测试与真实 IP13 仍待完成，不授权本机数据接管。 |
 | [architecture/proposals/installed-legacy-release-recovery-review.md](architecture/proposals/installed-legacy-release-recovery-review.md) | 缺少升级前恢复基线的旧安装审查方案。 | 已批准协议的适用边界与本机只读证据。 | 待 owner 审查；不等于 Apply 方案。 |
 | [acceptance/installed-release-recovery-20261103.md](acceptance/installed-release-recovery-20261103.md) | 升级中断裁决的实现与隔离验收。 | 实现提交、源码门、宿主/配置日志。 | 协议实现闭合；真实安装恢复与 IP01–IP24 仍未运行。 |
 | [prd/24](prd/24-installer-and-service-lifecycle.md) | 安装与系统服务生命周期。 | architecture/10、requirements/17–18。 | 宿主协议、worker admission/控制面和打包基础已有组件实现；原生账户/逐 job 强隔离、安装事务、升级回滚与 IP 仍待完成。 |

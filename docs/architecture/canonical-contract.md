@@ -738,3 +738,14 @@ owner 已批准有限的 `AbortBeforeSwitch` 恢复协议：只有存在原升�
 
 重放不执行 IO；同 key 异义拒绝、同义只查询。intent 后中断只能由 owner 对原决定再次明确认证核实，不能换 key 或自动完成。没有源基线的历史操作继续拒绝；不能用故障后采集的摘要自证未变化。产品 journal 新事实采用 schema 2，reader/updater 最低版本 2；历史 schema 1 字节及 hash 不改，旧 reader 拒绝新版本。实际本机 reader/updater 替换与 journal 迁移仍须精确签名修复方案，不能由本次实现/隔离测试授权推出。详见 prd/24 §4.10.5–6。
 
+### 29.12 首次认领旧脑与备份候选
+
+- 未认领 installation 的 bootstrap 只允许三类候选：`NewBrainTarget`、`ExistingBrain`、`VerifiedBackup`。候选发现由安装器 manifest、Host 配置和固定受保护布局派生；浏览器、模型或 Web setup session 不能提交路径、URL、owner、key、SQL 或“已验证”布尔值。
+- Host 先对历史脑/备份做只读、独占和完整性核验：安装身份、store/owner/schema、key resolver、保护状态、SQLite/worker 占用、manifest/checksum、event continuity 与 projection replay 必须一致。错误 key/owner、历史明文、损坏、未知 schema、链接/别名或占用不明只能返回 `Rejected`/`Unverifiable`，不得回退为新脑。
+- `BootstrapCandidateCatalogV2` 只返回 opaque candidate ref、候选类型、状态、verification epoch、candidate digest、owner source/binding digest 和安全 issue ref；不返回绝对路径、原文、密钥、私钥或可利用的文件名。candidate digest 由 Host 对当前源观察重新计算，浏览器提交的 digest 仅是 expected value。
+- setup session 必须持久化候选 ref/kind/digest、verification epoch、owner source 与 owner binding digest。选择和 claim 都要重新核对同一观察；任何 digest、schema、owner/store、安装身份或独占锁漂移都必须 conflict/recovery required，零账号、数据或 active binding 写入。
+- 候选接管使用 additive schema 2 DTO 和产品 claim journal v2；v1 DTO/reader 继续支持新脑旧路径，但不能选择历史候选。v2 reader 保留 v1 journal 字节/hash 作为前缀；首个 v2 fact 后旧 reader/writer 必须 fail closed。
+- 产品事实至少区分 `CandidateInventoryObserved`、`CandidateSelectedV2`、`ClaimDataPrepared`、`ClaimCommittedV2`、`ClaimActivatedV2` 与 `ClaimAbortedV2`。`Committed` 不等于数据已切换；只有同一 Host product transaction 完成新目标校验、active data/config CAS、旧 authority fence 和 ack 核对后才是 `Activated`。这些事实不属于脑 EventKind。
+- `ExistingBrain`/`VerifiedBackup` 必须恢复到新的空目标并保留原件；数据准备后副作用不明、响应丢失或进程重启只能核实原 operation/receipt，不能换候选、换 OwnerId、重派 worker、删除目标或启动 Brain。已认领 installation 不得由 bootstrap 暗换 owner，后续接管必须走独立恢复流程。
+- 首次认领完成只表示协议事实和 active data binding 均可验证；真实 IP13/IP24 仍需正式安装包、原生权限、真实 key resolver、锁和浏览器联合证据。该协议不授权本机旧脑/备份迁移、服务启停、程序替换或旧 journal 修复。
+
