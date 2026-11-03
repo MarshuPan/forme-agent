@@ -128,3 +128,23 @@ owner 随后完成登录、恢复原目标，并明确授权代理直接使用�
 源码审查定位到一个确定的预检阻断：`registration/release_lifecycle` 使用 `bin/...` 和 `core/core.json` 生成预期路径，而初始 SCM 为同一文件的反斜杠表示；`matches_config` 先前按原始命令串逐字比较，因而拒绝等价路径。`694b6bb` 与 `db96ec2` 的这些实现相同。独立 SCM 只读补充报告 `release-command-path-observation-v2-20261102.json` 确认三个服务均原字符串不匹配、仅归一分隔符后完整字符串匹配；无服务/产品变更。首份诊断的 PowerShell 数组拼接误差另有原报告保留，不作为根因证据。
 
 修复遵守 prd/24 §4.10.2 的同一固定参数/身份边界，只接受 Windows 等价路径分隔符；新增完整服务配置正反回归及 updater mode/目标路径/参数否定断言。尚未把修复安装到本机，不能宣称正式升级已畅通。当前 Brain 是已知 StopCore 停止，Host/Web 仍可认证维护；原候选、暂存、数据、keys、配置、失败请求和所有回执继续保留。
+
+## 12. 同目标服务路径表示修复
+
+本项承接 owner 对本机隔离验收和直接操作正式维护的授权，用于修正 §11 已证明的同文件路径表示不一致；不重跑原 Upgrade 或安装器。固定脚本 `target/installed-status-authorization-evidence/repair-service-path-spelling-20261102.ps1` 的 SHA-256 为 `20b38cc2ae1547428d354b9051efe2ddb14c8fbc6ce685d1da180250fe8a18fd`，Windows PowerShell 5.1 / PowerShell 7 各 12 项纯数据夹具通过。管理员默认只读预检实际通过，报告 `service-path-repair-preflight-20261102.json` 的 SHA-256 为 `1258ae1d0eb635e20f382b6f54514627411996919082f5e17d2bcc5a1821a320`；product revision 23，三个历史 operation 均 Committed，无未决事务，未修改任何安装内容。
+
+`-Apply` 仅逐一调用 SCM 的 `Change(PathName)`，将 Host/Web 的 `bin\\forme-*.exe` 改成同一文件的 `bin/forme-*.exe`，Brain 同样修改可执行路径并把配置尾段 `core\\core.json` 改成 `core/core.json`；原 updater 的登记已经采用目标写法，完全保留。程序、参数、配置和目标文件的身份不变，服务账户/启动方式/依赖/SID/SDDL/恢复策略及 PID/运行状态必须逐步回读保持。既有六程序/五配置摘要、installation、owner、原 release、配置与 ack revision 1 也在前后核对。
+
+所有前置通过后，先 create-new 保存 attempt marker，并在 `C:\ProgramData\ForMe\host-state\service-path-repair-20261102\original-services.json` 留存受保护原登记；最后 create-new 保存本机报告。脚本不启停服务、不替换程序、不改变配置或 ACL 基线、不操作脑数据/keys；已有 marker/报告/备份、非等价命令或任一步无法回读时停止留存，不自动恢复或重试。此项只使旧预检接受原本等价的目标，不证明升级、schema 兼容或 IP14 已通过。
+
+仅当该修复完整通过，且正式维护再次确认 §11 的原 409 请求未接纳、revision 23、原 release 和已提交暂存仍一致，才准备独立的 `maintenance:acceptance-upgrade-after-path-20261102-db96ec2`。新事务绑定同一已签名候选/digest、`backup:upgrade-after-path-20261102-db96ec2`、新读 CAS 与最长五分钟 deadline，通过正式 owner 重认证提交一次；原失败请求和 intent 不覆盖。新事务一经提交只查原号，Unknown、RecoveryRequired 或新预检失败均保留现场，不换号重放。
+
+## 13. 路径修复回执与独立升级的实际中断
+
+三服务路径表示修复真实完成，前后 product revision 均为 23、服务 PID/状态保持，程序/配置/数据/keys 未改变，服务启停次数为零。`service-path-repair-20261102.json` SHA-256 为 `8800fcae667836696808ac8e9fbceac90fd41515a9834db5ad098292705f2aba`。源码修复 `11dffc1` 通过完整质量门：1114 Rust passed / 15 ignored、strict Clippy、前端、原生权限/只读防火墙夹具和完整合规；质量日志摘要 `c8566b33762050a6ef1063882c3e7715de9f7afbb17b62c8dc47f4314c277708`。该修复未安装，源码门不提升 IP。
+
+独立升级事务经正式 owner 重认证只 POST 一次，HTTP 200 接纳，product revision `23 -> 28`，原 operation 保持 `Validated / pending Quiescing`。SCM updater 随后停止、ExitCode 1，Web 已停止，Host 原 PID 37740 仍 Running，Brain 仍 Stopped；三个业务 image 仍指向原版，没有进入 BackedUp/Switching，也未变更 active release、config/ack revision 1。原 `release-handoff.json` 和已消耗 dispatch claim 均绑定同一 command；不删除 marker、不重新启动 updater、不延长期限或重发请求。旧 updater 未记录失败阶段，当前只能定位到排空期间，不能把通用 Win32 退出码 1 当作底层根因。
+
+管理员只读 Host 维护投影确认上述原 operation 与 revision 28，报告保存于 `upgrade-after-path-native-observation-*.json`。第一次诊断尝试直接读取仍由 Host 持锁的 journal 被拒，原报告保留；后续只使用正式维护投影，并明确跳过活跃 writer 文件，未绕过锁。历史 `startup-failure.json` 是旧 Host 的 management_endpoints 失败记录，不作为本次 updater 根因。
+
+在继续原升级的任何副作用前，先恢复认证维护可达性：固定 `restore-web-maintenance-after-upgrade-20261102.ps1 -Apply` 仅接受 revision 28、原 release/配置、原未决 operation、Host Running、Brain/updater Stopped、Web Stopped 及原程序摘要/精确登记，保存不可覆盖 attempt 后只请求启动 Web 一次。前后必须核对 Host PID、Brain/updater 停止、原 operation/active release/config 和程序摘要保持。它不重做升级、不启动脑、不开放 Agent 工作准入、不切换程序或改写 journal；任何状态不明即停止留存，不自动重试。后续须补齐 updater 的安全阶段诊断，再准备原操作的显式恢复/裁决方案，不能以新 operation 绕过未决升级。
