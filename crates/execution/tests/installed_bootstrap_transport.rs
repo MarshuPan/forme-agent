@@ -80,6 +80,8 @@ fn prepare(directory: &Directory) {
         web_credential_path: root.join("web.credential"),
         new_brain_directory: root.join("new-brain"),
         candidate_ref: "data:new-http".into(),
+        historical_brain_directory: None,
+        verified_backup_directory: None,
     };
     private_write(
         &root.join("setup.json"),

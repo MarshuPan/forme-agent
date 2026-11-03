@@ -326,6 +326,8 @@ fn managed_bootstrap_reference_is_preflighted_without_opening_its_authority() {
         "web_credential_path": fixture.0.join("web.key"),
         "new_brain_directory": fixture.0.join("brain"),
         "candidate_ref": "new-managed-brain",
+        "historical_brain_directory": null,
+        "verified_backup_directory": null,
     });
     fixture.key("bootstrap.json", &serde_json::to_vec(&setup).unwrap());
     let runtime = from_managed_config(&path).unwrap();

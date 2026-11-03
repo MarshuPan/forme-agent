@@ -18,6 +18,14 @@ pub struct BootstrapAuthorityConfig {
     pub web_credential_path: PathBuf,
     pub new_brain_directory: PathBuf,
     pub candidate_ref: String,
+    /// Installer-derived root for a historical forme brain. This is optional
+    /// for schema-1 installations created before legacy bootstrap support.
+    #[serde(default)]
+    pub historical_brain_directory: Option<PathBuf>,
+    /// Installer-derived root containing verified backup candidates. This is
+    /// optional for schema-1 installations created before legacy bootstrap.
+    #[serde(default)]
+    pub verified_backup_directory: Option<PathBuf>,
 }
 
 impl BootstrapAuthorityConfig {
@@ -26,12 +34,7 @@ impl BootstrapAuthorityConfig {
         let value: Self =
             serde_json::from_slice(&bytes).map_err(|_| BootstrapError(Code::InvalidInput))?;
         value.validate()?;
-        for target in [
-            &value.journal_path,
-            &value.signing_key_path,
-            &value.web_credential_path,
-            &value.new_brain_directory,
-        ] {
+        for target in value.managed_paths() {
             if overlaps(path, target) {
                 return Err(BootstrapError(Code::InvalidInput));
             }
@@ -45,12 +48,7 @@ impl BootstrapAuthorityConfig {
             .map_err(|_| BootstrapError(Code::InvalidInput))?;
         p::validate_product_id(&self.candidate_ref)
             .map_err(|_| BootstrapError(Code::InvalidInput))?;
-        let paths = [
-            &self.journal_path,
-            &self.signing_key_path,
-            &self.web_credential_path,
-            &self.new_brain_directory,
-        ];
+        let paths = self.managed_paths();
         for (index, path) in paths.iter().enumerate() {
             super::super::reject_linked_ancestors(path)
                 .map_err(|_| BootstrapError(Code::InvalidInput))?;
@@ -70,12 +68,7 @@ impl BootstrapAuthorityConfig {
         for protected in paths {
             super::super::reject_linked_ancestors(protected)
                 .map_err(|_| BootstrapError(Code::InvalidInput))?;
-            for target in [
-                &self.journal_path,
-                &self.signing_key_path,
-                &self.web_credential_path,
-                &self.new_brain_directory,
-            ] {
+            for target in self.managed_paths() {
                 if overlaps(protected, target) {
                     return Err(BootstrapError(Code::InvalidInput));
                 }
@@ -100,6 +93,31 @@ impl BootstrapAuthorityConfig {
             return Err(BootstrapError(Code::DataUnavailable));
         }
         Ok(())
+    }
+
+    /// Paths are configuration facts, never request-supplied paths. Missing
+    /// optional roots are treated as an unavailable candidate by discovery.
+    pub(super) fn candidate_roots(&self) -> impl Iterator<Item = (&'static str, &Path)> {
+        self.historical_brain_directory
+            .as_deref()
+            .map(|path| ("historical-brain", path))
+            .into_iter()
+            .chain(
+                self.verified_backup_directory
+                    .as_deref()
+                    .map(|path| ("verified-backups", path)),
+            )
+    }
+
+    fn managed_paths(&self) -> Vec<&Path> {
+        let mut paths = vec![
+            self.journal_path.as_path(),
+            self.signing_key_path.as_path(),
+            self.web_credential_path.as_path(),
+            self.new_brain_directory.as_path(),
+        ];
+        paths.extend(self.candidate_roots().map(|(_, path)| path));
+        paths
     }
 }
 

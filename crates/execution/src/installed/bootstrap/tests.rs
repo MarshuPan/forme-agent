@@ -61,6 +61,8 @@ fn fixture() -> (Directory, BootstrapAuthorityConfig) {
         web_credential_path: directory.0.join("web.credential"),
         new_brain_directory: directory.0.join("new-brain"),
         candidate_ref: "data:new-fixture".into(),
+        historical_brain_directory: None,
+        verified_backup_directory: None,
     };
     write_private(&config.signing_key_path, &[117; 32]);
     write_private(&config.web_credential_path, WEB.as_bytes());
@@ -555,4 +557,42 @@ fn config_and_setup_inputs_are_closed_bounded_and_paths_cannot_overlap() {
     let request = serde_json::json!({ "schema_version":1, "operation_id":"claim:fixture",
         "proof":"0".repeat(64), "setup_digest":p::canonical_digest(&"fixture").unwrap(), "owner":"owner:injected" });
     assert!(serde_json::from_value::<p::BootstrapReserveRequest>(request).is_err());
+}
+
+#[test]
+fn legacy_config_without_candidate_roots_remains_new_brain_only() {
+    let (directory, config) = fixture();
+    let mut value = serde_json::to_value(&config).unwrap();
+    value
+        .as_object_mut()
+        .unwrap()
+        .remove("historical_brain_directory");
+    value
+        .as_object_mut()
+        .unwrap()
+        .remove("verified_backup_directory");
+    let path = directory.0.join("config.json");
+    write_private(&path, &serde_json::to_vec(&value).unwrap());
+    let loaded = BootstrapAuthorityConfig::load(&path).unwrap();
+    assert_eq!(loaded.candidate_roots().count(), 0);
+    loaded.check_empty_target().unwrap();
+}
+
+#[test]
+fn candidate_roots_are_fixed_and_cannot_overlap_managed_state() {
+    let (directory, mut config) = fixture();
+    config.historical_brain_directory = Some(directory.0.join("historical"));
+    config.verified_backup_directory = Some(directory.0.join("backups"));
+    assert!(config.validate().is_ok());
+
+    config.verified_backup_directory = Some(config.new_brain_directory.clone());
+    assert!(config.validate().is_err());
+
+    config.verified_backup_directory = Some(directory.0.join("backups"));
+    config.historical_brain_directory = Some(directory.0.join("alias"));
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&directory.0, &directory.0.join("alias")).unwrap();
+        assert!(config.validate().is_err());
+    }
 }

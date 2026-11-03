@@ -120,7 +120,6 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
     let core_owner_credential_path = paths.keys.join("core-owner.token");
     let core_web_credential_path = paths.keys.join("core-web.token");
     let core_session_fence_path = paths.brain.join("runtime").join("core-auth.sqlite");
-
     let manifest = installation_manifest(&request, &paths, &install_ref)?;
     let worker = hostctl_install_worker::configuration(&manifest);
     if worker.is_some() {
@@ -133,7 +132,8 @@ pub fn prepare(request: PrepareRequest) -> Result<PreparationReport, String> {
         "signing_key_path": paths.keys.join("bootstrap.key"),
         "web_credential_path": paths.web_auth.join("bootstrap-web.token"),
         "new_brain_directory": paths.brain,
-        "candidate_ref": "candidate:new-brain"
+        "candidate_ref": "candidate:new-brain", "historical_brain_directory": paths.backups.join("historical-brains"),
+        "verified_backup_directory": paths.backups.join("candidates")
     });
     let host = serde_json::json!({
         "schema_version": 1,

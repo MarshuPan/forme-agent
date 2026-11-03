@@ -187,6 +187,13 @@ impl HostServiceConfig {
                 setup.web_credential_path,
                 setup.new_brain_directory,
             ]);
+            protected.extend(
+                setup
+                    .historical_brain_directory
+                    .into_iter()
+                    .chain(setup.verified_backup_directory)
+                    .collect::<Vec<_>>(),
+            );
         }
         if let Some(path) = &self.worker_config_path {
             let worker = WorkerRuntimeConfig::load(path)?;
