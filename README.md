@@ -1,239 +1,218 @@
 # forme
 
-forme is an open-source proactive personal-agent kernel written in Rust. The
-authoritative product and architecture documents live under `docs/`.
+A persistent, governed personal agent written in Rust.
 
-## Project status
+forme brings memory, cognition, coordination, and proactive work into one
+owner's persistent runtime. It learns from task results and feedback, keeps
+project context across sessions, and makes actions subject to explicit scope,
+permissions, approval, and verification.
 
-Milestones M0-M5 and the V1 core-brain runtime closure are implemented and
-merged into local `main`. The bounded technical Final acceptance covers
-S1-S99, C1-C24, real model workflows, and release auditing. Current tested
-commits, receipts, and integration status are recorded in the
-[closure acceptance report](docs/acceptance/core-brain-closure-acceptance-report.md).
-forme remains under active development; these results do not establish
-months-long cognitive benefit, general task quality, or owner daily-use
-acceptance. No release package or remote publication is implied by a local
-merge.
+The product and architecture contracts live under [docs/](docs/README.md).
 
-The installed-product and browser-workbench design is now documented in
-[the product scope](docs/requirements/17-installed-product-scope-decisions.md)
-and [architecture](docs/architecture/10-installed-product-and-web-workbench-architecture.md),
-with implementation PRDs 24-26 and separate IP01-IP24 acceptance criteria.
-Native installers, system services, account setup, and the new Web UI are
-planned; this documentation update does not implement or release them.
+## Capabilities
 
-### Milestone history
+- **Persistent memory and cognition:** event-backed memory, UserModel,
+  AgentSelfModel, PartnershipModel, and scoped cognitive maps. New understanding
+  passes through candidates, evidence review, promotion, and retraction.
+- **Long-running projects:** workspaces, project charters, goals, intentions,
+  restart recovery, and coordinated child runs share the same authoritative brain.
+- **Governed proactivity:** background observation, reflection, and consolidation
+  can produce suggestions and follow-up work. Value, competence, and permission
+  checks govern when they become actions.
+- **Tools and extensions:** file, shell, browser, computer, MCP, skills, plugins,
+  and App API adapters use the common execution and audit path. Availability
+  depends on configured providers, grants, and platform support.
+- **Owner control:** trace inspection, approvals, cancellation, candidate review,
+  data lifecycle controls, and a browser workbench expose the runtime's state
+  through authenticated interfaces.
 
-M0 is complete. The first governed core loop is
-running across 18 workspace crates with event sourcing, policy and approval
-enforcement, memory and cognition, coordination, proactivity, communication,
-verification, and originality controls on the same harness-first path.
+## Current status
 
-The M0 completion gate covered:
+Status as of **2026-11-03**:
 
-- 164 Rust tests plus 8 compliance-doctor fixtures;
-- scenario acceptance S1-S22 with event-order and negative assertions;
-- a real configured-model run persisted as a 13-event audited trace; and
-- blocking upstream-isolation, license, and copy-detection checks.
+| Area | State and evidence |
+|---|---|
+| Core runtime | M0-M5 and V1 core-brain closure are implemented and merged into `main`. Recorded technical Final runs cover S1-S99, C1-C24, configured-model workflows, and release audits. Exact inputs and limits are in the [closure report](docs/acceptance/core-brain-closure-acceptance-report.md). |
+| Installed product | Service hosting, authenticated setup and configuration, managed workers, release maintenance, packaging, and the React workbench have component implementations. Windows also has local installation and service observations. Joint product acceptance remains in progress; see the [implementation record](docs/acceptance/installed-product-implementation-progress.md). |
+| Distribution | Windows development bundles, native installer candidates, and local signing evidence exist. Candidates remain `release_ready=false`; native release acceptance for Linux/macOS remains open. See the [platform acceptance strategy](docs/requirements/18-installed-product-verification-strategy.md). |
 
-See the [M0 acceptance report](docs/acceptance/m0-acceptance-report.md) for the
-scenario evidence. Re-run the complete gate from PowerShell:
+The installed Windows workflow has recorded owner login, configuration
+acknowledgement, and signed-release staging. An upgrade interrupted before
+backup or switching remains under explicit recovery work; see the
+[upgrade and recovery record](docs/acceptance/installed-product-windows-upgrade-20261102-db96ec2-plan.md).
+BrainReady, real provider execution through the installed product, installed
+worker/helper behavior, upgrade/rollback, and complete IP01-IP24 acceptance still
+need joint evidence. A successful source check or an available Web page does not
+close those items.
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m0.ps1
-```
+Core technical acceptance is also distinct from owner daily-use acceptance and
+months-long cognitive benefit. Reports retain their tested commit and evidence
+scope rather than asserting that every later revision has passed every gate.
 
-M1-A is complete: the same Harness runtime now has
-a loopback Gateway daemon, authenticated local Web console, async run control,
-SSE cursor pages, trace/candidate review, and manual eval.
+## Architecture
 
-M1-B is complete: event-backed intentions now
-drive a leased scheduler, restart recovery, foreground priority, governed
-proactive follow-up, and plan-bound local notifications through the same
-Harness path.
+forme keeps **one owner, one authoritative brain, and one event store** across
+CLI, Gateway, scheduler, and workspace activity. Child agents are execution
+units; they do not own independent cognitive state.
 
-M1-C is complete: threshold compaction, scoped
-memory review, skill 按需加载, deferred MCP schemas with
-execution-time rechecks, and isolated plugin reloads now run on the same
-governed path. The current gate has 203 Rust tests plus 9 compliance fixtures
-and keeps S1-S37 green. See the [M1-A acceptance report](docs/acceptance/m1-a-acceptance-report.md),
-[M1-B acceptance report](docs/acceptance/m1-b-acceptance-report.md),
-[M1-C acceptance report](docs/acceptance/m1-c-acceptance-report.md), and
-[M1 final acceptance report](docs/acceptance/m1-acceptance-report.md). Re-run the
-complete current gate with:
+The existing 18-crate workspace contains three cooperating kernels:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m1.ps1
-```
+| Kernel | Responsibility |
+|---|---|
+| Cognitive evolution | Turn observations, verified results, and feedback into reviewed memory and cognition. |
+| Coordination | Select resources and execution routes against goals, context, capabilities, and completion criteria. |
+| Proactivity | Notice relevant changes, manage intentions, and propose useful work within the owner's authority. |
 
-M1 final passed on 2026-07-15. A real configured model completed the
-repository-owned `case:m1-final-only` through Gateway, Harness, verification,
-and an 18-event authoritative trace. The exported typed report and portable
-trace manifest are retained under `docs/acceptance/`; no credential or endpoint
-is stored in either artifact.
+All formal runtime entry points compose the same `ProductionRuntime` and enforce
+governance through the Harness. Permissions are rechecked before execution;
+trust does not grant permission, and an unknown side effect is never blindly
+retried. The browser uses authenticated APIs rather than calling models, tools,
+or the brain database directly. Installation and service management have their
+own journal and authorization domain.
 
-M2 final passed on 2026-07-17 after three owner-reviewed delivery waves. Governed
-Browser/Computer/PTY, AppApi and real communication adapters, ResourceGraph,
-long-term goals, evidence-led capability growth, managed plugins, hot/cold
-memory, and one-peer CAS sync all remain on the existing Harness/event-store
-path. The gate keeps 18 crates and 86 EventKinds, runs 252 non-ignored Rust tests
-plus one real Chrome/Edge golden, and keeps S1-S52 and all originality checks
-green. See the [M2-A report](docs/acceptance/m2-a-acceptance-report.md),
-[M2-B report](docs/acceptance/m2-b-acceptance-report.md),
-[M2-C report](docs/acceptance/m2-c-acceptance-report.md), and
-[M2 final report](docs/acceptance/m2-acceptance-report.md).
+Start with the [canonical contract](docs/architecture/canonical-contract.md),
+[core runtime architecture](docs/architecture/09-v1-core-brain-runtime-closure-architecture.md),
+and [installed-product architecture](docs/architecture/10-installed-product-and-web-workbench-architecture.md).
 
-Re-run the complete M2 gate with:
+## Build from source
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m2.ps1
-```
+The current local development workflow uses Windows PowerShell and the GNU
+Windows Rust toolchain. Platform release targets are tracked separately in the
+[product scope](docs/requirements/17-installed-product-scope-decisions.md).
 
-M3 final passed and was sealed after three owner-reviewed waves. Portable replay,
-effect-deny simulation, evidence-led evaluation, separate promotion and
-activation, run-pinned domain strategies, StrategyMemory, AgentSelf and
-Partnership evolution, asymmetric trust/delegation, governed proactivity and
-append-only rollback now form one controlled-evolution loop. The frozen graph
-remains 18 crates and 89 EventKinds. The gate runs 309 non-ignored Rust tests,
-two real Chrome/Edge goldens, S1-S69, 19 Python compliance/release gate tests, strict Clippy,
-content-addressed artifacts, and a clean-tree license/dependency/RustSec audit.
-See the [M3-C acceptance report](docs/acceptance/m3-c-acceptance-report.md),
-[M3 final acceptance report](docs/acceptance/m3-acceptance-report.md), and
-`docs/requirements/09-m3-scope-decisions.md`,
-`docs/requirements/10-m3-verification-strategy.md`,
-`docs/architecture/06-m3-controlled-evolution-architecture.md`, and
-`docs/prd/20-m3-program-prd.md`.
+Requirements:
 
-Re-run the complete M3 gate with:
+- Rust stable with `rustfmt` and Clippy. `rust-toolchain.toml` selects
+  `stable-x86_64-pc-windows-gnu` for this checkout.
+- MinGW-w64: `gcc` and `ar` on `PATH` for bundled SQLite.
+- Python 3 (`py -3` on Windows), PowerShell, and Bash for repository checks.
+- Node.js **22.12 or newer** and npm for frontend development and verification.
+  Installed products serve embedded static assets and do not require Node.js.
+- `cargo-audit 0.22.2` for the milestone release audits.
+
+From the repository root:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m3.ps1
+py -3 tools/build_resources.py check
+cargo check --locked --workspace --all-targets
 ```
 
-M4 passed owner acceptance and was sealed after repairing the
-Browser completion race exposed by the first unified owner gate. The
-single-owner federated runtime keeps one authoritative Harness and EventStore
-while adding mutually authenticated remote execution, finite read-only
-replicas, independently authenticated cross-device owner control, and verified
-checkpoint handoff. The frozen graph remains 18 crates and the first 89
-EventKinds remain an exact prefix of the additive 93-kind taxonomy. The gate
-runs 350 non-ignored Rust tests plus three explicit real-process goldens,
-S1-S84, 21 Python compliance/release tests, strict Clippy, a three-process
-mutual-TLS golden, five content-addressed federation artifacts, and a clean-tree
-license/dependency/RustSec/federation threat audit. See the
-[M4 final acceptance report](docs/acceptance/m4-acceptance-report.md) and
-the frozen requirements, architecture, and PRD in
-`docs/requirements/11-m4-scope-decisions.md`,
-`docs/requirements/12-m4-verification-strategy.md`, canonical section 26,
-`docs/architecture/07-m4-federated-runtime-architecture.md`, and
-`docs/prd/21-m4-program-prd.md`.
-
-Re-run the complete M4 gate with:
+Run the unified source-quality gate:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m4.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-code-quality.ps1
 ```
 
-M5 passed its engineering final gate and is merged. The
-governed capability ecosystem adds signed content-addressed declarative
-packages, fail-closed admission, owner/plan/CAS-bound lifecycle changes,
-existing-registry integration, and M4-bound distribution without adding a
-second authority. The frozen graph remains 18 crates and the exact 93-kind M4
-prefix is followed by four additive events, for 97 total. The gate covers
-S1-S99, 379 non-ignored Rust tests plus four explicit real goldens, 29 Python
-gates, deterministic five-file ecosystem artifacts, strict Clippy, and a
-clean-tree release audit. See the
-[M5 final acceptance report](docs/acceptance/m5-acceptance-report.md),
-`docs/requirements/13-14`, canonical section 27,
-`docs/architecture/08-m5-governed-capability-ecosystem-architecture.md`, and
-`docs/prd/22-m5-program-prd.md`.
+It checks crate boundaries and file-size rules, Rust formatting, all workspace
+targets and tests, strict Clippy, frontend dependencies/types/tests, embedded
+assets, packaging boundaries, release verification, and originality/license
+compliance. Native installation and IP acceptance are separate gates.
+Contribution rules and required implementation checks are in [AGENTS.md](AGENTS.md)
+and the [code-quality guide](docs/engineering/code-quality.md).
 
-Re-run the complete M5 gate with:
+### Build space
+
+Development and test builds use `debug = "line-tables-only"` and
+`incremental = false`. Reuse the fixed `target` directory for each worktree;
+avoid creating a new timestamped cache for each check.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1
+py -3 tools/build_resources.py check
+py -3 tools/build_resources.py report --all-worktrees --json
 ```
 
-**V1 core-brain runtime closure** is implemented and merged, not an M6. Its frozen
-document chain is `docs/requirements/15-16`, canonical section 28,
-`docs/architecture/09-v1-core-brain-runtime-closure-architecture.md`, and
-`docs/prd/23-v1-core-brain-closure-program-prd.md`. It composes the existing
-M0-M5 modules into one persistent default brain in four waves: production
-composition, continuous cognition, long-running workspace/orchestration, and
-model/data/value closure. The graph remains 18 crates with the existing 97
-EventKinds as an exact prefix followed only by two closure events, for 99
-total. S1-S99, C1-C24, the real golden workflows, and the closure release gate
-remain permanent regression requirements. See the closure report for current
-release inputs and the limits of the evidence.
+The default pre-build free-space requirement is 20 GiB, and the per-worktree
+cache reporting budget is 64 GiB. Reporting does not delete artifacts. Cache
+maintenance uses an explicit target preview and an idle maintenance window;
+preserve runtime data, release packages, and acceptance evidence. See the
+[build-resource guide](docs/engineering/build-resources.md).
 
-## Build requirements
+### Frontend development
 
-- Rust stable with the GNU Windows host, selected automatically by
-  `rust-toolchain.toml`.
-- Install MinGW-w64. Both `gcc` and `ar` must be available on `PATH` for bundled
-  SQLite.
-- Bash is required for the compliance gate.
-- `cargo-audit 0.22.2` is required for the M3-M5 release audits.
+The workbench uses React, TypeScript, and Vite. Build it into the exact embedded
+asset set with the repository tool:
 
-Verify the environment and repository from the workspace root:
-
-```text
-rustup show active-toolchain
-gcc --version
-ar --version
-cargo check
-cargo test
-bash tools/compliance-doctor.sh
-cargo audit --version
+```powershell
+npm ci --prefix frontend --ignore-scripts
+node tools/build-web.mjs
+npm --prefix frontend run verify
 ```
 
-## CLI model configuration
+Frontend changes must include the generated asset inventory, manifest, and
+license metadata. Reuse is limited to the reviewed files and terms in the
+[frontend reuse policy](docs/compliance/frontend-reuse-policy.md).
 
-The reactive CLI uses a Chat Completions-compatible HTTPS endpoint. Configure
-the runtime without putting credentials in repository files. A configured
-owner identity is required for the persistent brain:
+## Development CLI and Gateway
+
+The source-development CLI uses a Chat Completions-compatible HTTPS endpoint.
+Supply credentials through the local environment or a secret manager rather
+than committing them to repository files. Required settings are:
 
 ```text
 FORME_MODEL_BASE_URL=https://provider.example/v1
 FORME_MODEL_NAME=model-id
-FORME_MODEL_API_KEY=secret-value
+FORME_MODEL_API_KEY=your-local-secret
 FORME_OWNER_ID=owner-id
 ```
 
-Optional settings are `FORME_MODEL_PROVIDER`, `FORME_MODEL_CONTEXT_WINDOW`,
-`FORME_MODEL_TIMEOUT_MS`, and `FORME_STORE_PATH`. Owner-configured MCP servers,
-skills, plugins, and App API connectors are declared in a JSON document named by
-`FORME_CAPABILITY_CONFIG` (`schema_version` 1 with `skills`, `mcp`, `plugins`,
-and `app_api` lists). The document names the environment variables that hold
-credentials and never the credential values; every provider stays invisible
-until it carries an explicit owner trust and grant binding.
+Optional settings include `FORME_MODEL_PROVIDER`, `FORME_MODEL_CONTEXT_WINDOW`,
+`FORME_MODEL_TIMEOUT_MS`, and `FORME_STORE_PATH`. `FORME_CAPABILITY_CONFIG` names
+a schema-versioned JSON document with `skills`, `mcp`, `plugins`, and `app_api`
+lists; it references credential environment-variable names, not secret values.
+Capabilities require explicit owner trust and grant bindings.
 
-One store is served by exactly one runtime. Start the local gateway daemon, which
-owns that runtime and its scheduler:
+One runtime owns a store at a time. Start the development Gateway, which owns
+that runtime and its scheduler:
 
-```text
+```powershell
 cargo run -p forme-gateway --bin forme-gatewayd
 ```
 
 It prints `FORME_GATEWAY_URL` and the bearer-token file path. With
-`FORME_GATEWAY_URL` set (and `FORME_GATEWAY_TOKEN` or the printed token file),
-the CLI talks to that daemon by default:
+`FORME_GATEWAY_URL` set, and either `FORME_GATEWAY_TOKEN` or the printed token
+file available, the CLI sends work to that daemon:
 
-```text
+```powershell
 cargo run -p forme-cli -- "your question"
 ```
 
-When no daemon is running, `--embedded` composes the same runtime in-process
-through the same builder. `--manifest` prints the composition manifest digest,
-which is identical for the daemon and an embedded run over the same
-configuration:
+When the daemon is stopped, `--embedded` composes the same runtime in-process.
+`--manifest` prints its composition manifest digest:
 
-```text
+```powershell
 cargo run -p forme-cli -- --embedded "your question"
 cargo run -p forme-cli -- --manifest
 ```
 
+These are source-development entry points. Installed services use protected,
+versioned configuration and the authenticated product UI. Model configuration,
+backup/restore, deletion, and evidence operations are described in the
+[core data and evidence runbook](docs/runbooks/v1-core-brain-data-and-evidence.md).
+
+## Milestones and evidence
+
+| Stage | Delivered scope | Acceptance record |
+|---|---|---|
+| M0 | Governed core loop, event sourcing, policy, memory, and execution. | [M0](docs/acceptance/m0-acceptance-report.md) |
+| M1 | Gateway, scheduler, proactive follow-up, compaction, and capability lifecycle. | [M1](docs/acceptance/m1-acceptance-report.md) |
+| M2 | Browser/computer/PTY, connectors, resource graph, long-term goals, and hot/cold memory. | [M2](docs/acceptance/m2-acceptance-report.md) |
+| M3 | Controlled evolution, replay/evaluation, trust, promotion, activation, and rollback. | [M3](docs/acceptance/m3-acceptance-report.md) |
+| M4 | Single-authority federation, remote execution, read-only replicas, and checkpoint handoff. | [M4](docs/acceptance/m4-acceptance-report.md) |
+| M5 | Signed declarative packages, governed lifecycle, and authority-bound distribution. | [M5](docs/acceptance/m5-acceptance-report.md) |
+| V1 core closure | Default persistent composition, continuous cognition, workspace orchestration, and model/data closure. | [V1 closure](docs/acceptance/core-brain-closure-acceptance-report.md) |
+| Installed product | Native services, setup/authentication, browser workbench, workers, and release maintenance; in progress. | [Product progress](docs/acceptance/installed-product-implementation-progress.md) |
+
+V1 closure and installed-product work do not introduce an M6. The frozen graph
+remains 18 crates and 99 brain EventKinds; installation, authentication, and
+service facts remain separate from brain events.
+
+Milestone and closure gates are maintained in `tools/verify-m0.ps1` through
+`tools/verify-m5.ps1` and `tools/verify-core-brain-closure.ps1`. Some gates require
+configured models, browsers, and clean-tree release evidence; follow their
+reports and runbook rather than treating them as ordinary offline tests.
+
 ## License
 
-forme is licensed under the [MIT License](LICENSE). Required project and
-third-party attributions are retained in [NOTICE](NOTICE).
+forme is licensed under the [MIT License](LICENSE). Project and third-party
+attributions are retained in [NOTICE](NOTICE); dependencies retain their own
+license terms.
