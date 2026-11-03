@@ -441,7 +441,7 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 
 新产品事实 envelope 使用 schema 2，原有事实保留 schema 1 编码；一旦追加 schema 2，其后所有 envelope 至少为 2。新 reader 校验 1/2 原字节 hash 和完整因果语义，拒绝版本回退；旧 reader 对 schema 2/未知事实整体拒绝，不跳过。`RELEASE_UPDATER_VERSION=2`，新恢复 UI/Host 只对匹配 reader/updater 生效；旧 immutable updater 必须在另行批准的本机签名修复中处理，不通过普通 business release 偷换。
 
-在产生 v2 基线前及裁决前，System adapter 用固定初始 `forme-hostd --release-recovery-capabilities` 的离线模式核实上述能力。该模式仅接受 stdin 的单个 closed `{schema_version:1}` 行并返回 capabilities；不读取配置/凭据、不打开 journal、不接入 SCM/模型。沿用有界 maintenance pipe、最小环境和期限，失败不落基线。旧 binary 不识别参数或旧 reader/updater 返回不兼容则拒绝，不以新 Host 自报版本代替固定 updater。包含 v2 writer 的签名业务发布须声明 minimum_upgrader 至少 2；实际不可变 updater 迁移继续独立审查。
+在普通升级预检、产生 v2 基线前及裁决前，System adapter 用固定初始 `forme-hostd --release-recovery-capabilities` 的离线模式核实上述能力。该模式仅接受 stdin 的单个 closed `{schema_version:1}` 行并返回 capabilities；不读取配置/凭据、不打开 journal、不接入 SCM/模型。沿用有界 maintenance pipe、最小环境和期限，失败不落基线。旧 binary 不识别参数或旧 reader/updater 返回不兼容则拒绝，不以新 Host 自报版本代替固定 updater。包含 v2 writer 的签名业务发布须声明 minimum_upgrader 至少 2；实际不可变 updater 迁移继续独立审查。
 
 隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v2 拒旧读者、无源基线/owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
 
