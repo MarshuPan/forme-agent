@@ -8,6 +8,7 @@ use std::{
 };
 
 mod checking;
+mod diagnostics;
 mod platform;
 mod storage;
 mod transaction;
