@@ -11,7 +11,7 @@
 - 全局入口是 `docs/README.md`，本文档是跨目录关系矩阵，各子目录 `README.md` 只解释本目录内部文档。
 - 早期规划 `planning/01-14` 与早期架构基线 `architecture/00-01` 已归档到 `archive/`，不再更新，不作为现行口径。
 - M0-M5 的 requirements、architecture、PRD 与 acceptance 是冻结的回归基线；V1 核心大脑闭合按 `prd/23` A/B/C/D 实施，不新增里程碑编号。
-- 常驻服务/Web 产品化另沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`；宿主/worker 与 25 的独立认证基础已分阶段实施，仍待原生隔离、24.3、25 余项、26 与 IP01–IP24 原生验收；分支状态见 `acceptance/installed-product-implementation-progress.md`，不命名 M6。
+- 常驻服务/Web 产品化另沿 `requirements/17–18 -> canonical §29 -> architecture/10 -> prd/24–26`；宿主/worker、25 的独立认证基础和升级中断裁决协议已分阶段实施，仍待原生隔离、24.3、25 余项、26 与 IP01–IP24 原生验收；分支状态见 `acceptance/installed-product-implementation-progress.md`，不命名 M6。
 
 ## 目录级关系
 
@@ -129,6 +129,9 @@
 | [requirements/17](requirements/17-installed-product-scope-decisions.md) | 产品范围 P01–P16。 | 已实现单脑基线、owner 安装/UI 决策。 | requirements/18、canonical §29、architecture/10；设计已确认。 |
 | [requirements/18](requirements/18-installed-product-verification-strategy.md) | IP01–IP24 原生验收。 | requirements/17、永久 S/C 门。 | 已有组件门和实施记录；完整原生 IP01–IP24 仍未执行。 |
 | [architecture/10](architecture/10-installed-product-and-web-workbench-architecture.md) | 系统服务、认领/身份/网络、分权、数据、升级、Web。 | requirements/17–18、canonical §29、architecture/03/09。 | 宿主、worker、认证和工作台已分阶段落地；原生服务/强隔离/完整产品仍开放，18-crate/99-kind 不变。 |
+| [architecture/proposals/installed-release-interruption-adjudication.md](architecture/proposals/installed-release-interruption-adjudication.md) | `AbortBeforeSwitch` 升级中断裁决补充协议。 | canonical §29、architecture/10、prd/24–26。 | owner 已批准并实现隔离闭环；不授权本机旧升级迁移或程序替换。 |
+| [architecture/proposals/installed-legacy-release-recovery-review.md](architecture/proposals/installed-legacy-release-recovery-review.md) | 缺少升级前恢复基线的旧安装审查方案。 | 已批准协议的适用边界与本机只读证据。 | 待 owner 审查；不等于 Apply 方案。 |
+| [acceptance/installed-release-recovery-20261103.md](acceptance/installed-release-recovery-20261103.md) | 升级中断裁决的实现与隔离验收。 | 实现提交、源码门、宿主/配置日志。 | 协议实现闭合；真实安装恢复与 IP01–IP24 仍未运行。 |
 | [prd/24](prd/24-installer-and-service-lifecycle.md) | 安装与系统服务生命周期。 | architecture/10、requirements/17–18。 | 宿主协议、worker admission/控制面和打包基础已有组件实现；原生账户/逐 job 强隔离、安装事务、升级回滚与 IP 仍待完成。 |
 | [prd/25](prd/25-bootstrap-auth-and-web-access.md) | 初始化、账号、配置与 Web 接入。 | architecture/10、prd/24 host 契约。 | 独立账号/session、配置事务、loopback API 和内部 Runtime Ingress 已有组件实现；旧脑接管、恢复材料、LAN/完整渠道能力与 IP 仍待完成。 |
 | [prd/26](prd/26-web-workbench.md) | 五面 Web 工作台。 | architecture/10、prd/25 API。 | 静态 UI、会话/项目/认知/收件箱和来源材料组件已分阶段实现；真实浏览器完整流程、剩余设置和 IP17–24 仍待完成。 |

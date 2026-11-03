@@ -25,7 +25,7 @@ M5 由 `requirements/13-14` 定义为“受治理能力生态”。`08-m5-govern
 
 V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-core-brain-runtime-closure-architecture.md` 激活 canonical §28，把默认 composition、持续认知、项目/编排闭环和数据/价值闭合分为 A/B/C/D 四波；只允许在 M5 97-kind 后追加两个 R 组事件，不新增 crate、依赖边或内核。
 
-常驻服务与 Web 产品化由 `requirements/17–18`、canonical §29 与 `10` 定义，实施承接 `prd/24–26`，独立使用 IP01–IP24 验收。宿主/worker 与独立认证基础已分阶段实施；原生安装包、完整账号接入和新 UI 未完成，分支与证据见 `../acceptance/installed-product-implementation-progress.md`；不另建大脑或改变冻结 crate 图。
+常驻服务与 Web 产品化由 `requirements/17–18`、canonical §29 与 `10` 定义，实施承接 `prd/24–26`，独立使用 IP01–IP24 验收。宿主/worker、独立认证基础和升级中断裁决协议已分阶段实施；原生安装包、真实安装恢复、完整账号接入和新 UI 仍未完成，分支与证据见 `../acceptance/installed-product-implementation-progress.md`；不另建大脑或改变冻结 crate 图。
 
 ## 当前文档
 
@@ -47,6 +47,8 @@ V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-
 | `08-m5-governed-capability-ecosystem-architecture.md` | M5 增量架构，定义 publisher grant、signed package admission、plan-bound lifecycle、registry 接入和 federated distribution。 | M5-A/B/C 已实现并验收；18-crate 图不变，EventKind 从 93 末尾 additive 到 97。 |
 | `09-v1-core-brain-runtime-closure-architecture.md` | V1 核心大脑运行闭合架构，定义唯一 production composition、持久 owner 大脑、默认 context、三相 tick、八套编排、多模型真实性、dashboard、备份/加密/删除。 | 文档已冻结；当前 A–D/C24/Final 与 main 状态见 `../acceptance/core-brain-closure-acceptance-report.md`。不是 M6，99 EventKinds 与 18-crate 图不变。 |
 | [10-installed-product-and-web-workbench-architecture.md](10-installed-product-and-web-workbench-architecture.md) | 整体安装、系统服务、Web/core/维护/worker 边界、bootstrap/身份/配置、网络、升级恢复及五个工作面。 | 宿主/认证基础与 Web 基础工作台已实施；安装事务、原生平台验收和完整五面仍待完成；18-crate 图与 99 EventKinds 不变。 |
+| [proposals/installed-release-interruption-adjudication.md](proposals/installed-release-interruption-adjudication.md) | `AbortBeforeSwitch` 升级中断裁决的冻结补充与范围边界。 | 已批准并实现隔离协议；不授权本机程序替换、旧 journal 迁移或旧升级重跑。 |
+| [proposals/installed-legacy-release-recovery-review.md](proposals/installed-legacy-release-recovery-review.md) | 缺少升级前恢复基线的历史安装审查方案。 | 待 owner 审查；不是 Apply 授权，不能被本轮协议替代。 |
 | `m5-a-protocol-compatibility.md` | M5-A publisher/package/admission 与四个 Q 组事件的兼容边界。 | 已随 M5-A 激活；93-kind exact prefix、legacy/fail-closed contracts PASS。 |
 | `m5-b-protocol-compatibility.md` | M5-B install plan/lifecycle/approval 与 registry projection 的兼容边界。 | 已随 M5-B 激活；legacy admission 不产生 Installed/Enabled。 |
 | `m5-c-protocol-compatibility.md` | M5-C distribution receipt、M4 binding 与 portable evidence 的兼容边界。 | 已随 M5-C 激活；self-report/legacy receipt 不产生 verified distribution。 |
@@ -57,6 +59,8 @@ V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-
 ## 待确认的兼容设计
 
 [安装运行时结果与 POSIX 恢复草案](proposals/installed-worker-result-and-posix-recovery.md) 记录已发现的结果读取缺口与两项待确认决策。它尚未激活，不覆盖 canonical/PRD24 的冻结契约，不代表 ProductionRuntime 已接入隔离 worker，也不改变平台或 IP 验收状态。
+
+[升级中断裁决验收报告](../acceptance/installed-release-recovery-20261103.md)记录本轮 `AbortBeforeSwitch` 的源码、隔离、宿主和配置门结果。它证明协议实现闭合，不证明真实安装恢复或 IP01–IP24 已完成。
 
 ## 写作边界
 

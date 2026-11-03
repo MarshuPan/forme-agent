@@ -10,7 +10,9 @@
 
 产品增量最初在 `shu/installed-product` 施工，现已合入本地 `main`；本地 `main` 尚未推送远端或发布，提交与工作树状态以当前 Git 状态为准。核心验收与历史回执见 `core-brain-closure-acceptance-report.md`，产品状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
 
-2026-11-02 当前安装补充：owner 认领和模型配置 revision 1 已持久化；本机开发发布信任接入已真实完成，Host/Web Running，Brain/updater 仍 Stopped，active release 仍为 `forme-windows-x86_64-20261027-7cb5b8b`。修正版签名候选 `20261102-db96ec2` 已准备但尚未暂存/升级；入库预检在复制前停止，管理员只读诊断证实当前配置所指 store/key 目录尚未生成。独立 Chrome 当前回到登录页，下一项为 owner 完成认证后经正式维护首次启动原 Brain。安装 Web 的匿名身份、Host/Origin 拒绝和响应头已取得局部真实观察，不提升完整 IP。准确报告摘要、原失败记录及继续顺序见[本轮升级计划](installed-product-windows-upgrade-20261102-db96ec2-plan.md)。以下历史安装记录保留原时间范围，不代表本次认证或主脑已运行。
+2026-11-03 最新安装状态：owner 认领、模型配置 revision 1、首次正式 StartCore/StopCore 与原脑创建均已完成；配置 ack=1，签名候选 `20261102-db96ec2` 的 StageSignedRelease 已 Committed。随后独立 Upgrade 中断，原 operation 保留为 `Validated / pending Quiescing`，product revision 28；认证维护 Web 已恢复可达，Host/Web Running，Brain/updater Stopped，active release 仍为 `forme-windows-x86_64-20261027-7cb5b8b`。不是“尚未登录/未生成 store/未暂存”的早期状态，也不能把 Upgrade 接纳写成完成。
+
+owner 已批准 `AbortBeforeSwitch` 契约及隔离实现：独立裁决、幂等/中断、v2 reader/updater 能力、正式认证 HTTP 和 Web 恢复控件已有实现/定向证据，完整门在[本轮报告](installed-release-recovery-20261103.md)登记。该旧 operation 缺升级前 journal 基线，因此正常恢复入口仍拒绝它；原生程序接入、历史状态裁决与后续新升级尚未执行或验收。真实 provider、完整 IP 与发布仍开放。以下段落保留历史时点，不覆盖本段最新边界。
 
 ## 2. 核心与跨切面覆盖
 

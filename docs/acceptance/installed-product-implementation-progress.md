@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-03 升级中断裁决：实现与隔离验证
+
+owner 已批准并回填 `AbortBeforeSwitch` 契约（`f3f2e74`、`af0a73e`）。实现包括升级前源基线、独立恢复 intent/commit、原升级 Aborted、v1 原 hash 保留/v2 版本下限、固定 updater 真实能力探测，以及正式认证 Web 的裁决/原号核实/刷新找回。实现提交为 `fbca8ab`；源码质量门、238 项永久宿主门、配置/多进程组件门和前端门均已通过，详见[本轮验收](installed-release-recovery-20261103.md)。这些实现没有修改本机安装或关闭 IP14–15/IP24。
+
+最新本机只读 SCM 为 Host/Web Running、Brain/updater Stopped（Host/Web PID `37740`/`75344`）。最近正式维护回执仍为 product revision 28，原升级 `maintenance:acceptance-upgrade-after-path-20261102-db96ec2` 处于 `Validated / pending Quiescing`，原 active release 和配置/ack revision 1 未切换。旧升级没有本协议要求的源基线，正常新入口会拒绝；不能故障后补造。实际 reader/updater 接入及缺基线历史操作的处理仍须另行审查，不重放原升级、不删除 journal/claim/handoff。
+
+下列 2026-11-02 及更早段落为对应时点的历史观察；“尚未暂存”“store 未生成”“待登录”等不能用作当前状态。
+
 ## 2026-11-02 已登录实例与状态查询修复
 
 本轮后续已使用 owner 明确授权的本地测试凭据走正式 challenge/login/重认证，StartCore 与为离线升级检查准备的 StopCore 各提交一次且都 Committed，product revision 依次为 `2 -> 9 -> 16`。Brain 实际运行期间配置 revision 1 ack 已到达，Web→core manifest/doctor/runs 可读，原 Host/Web 持续运行。doctor 同时观察到通知后端阻断，旧 Host 状态查询缺陷仍在，因此尚不宣称 BrainReady、真实 provider 或完整 IP PASS。当前 Brain 已正式停止供离线核验，候选仍未切换；初始化后的新入库脚本和原报告摘要见[升级计划 §9](installed-product-windows-upgrade-20261102-db96ec2-plan.md#9-首次主脑运行与升级前正式停脑)。下列段落保留此前各时点状态。
