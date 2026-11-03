@@ -38,7 +38,7 @@
 | `release-recovery-config-20261103.log` | `20becccdf294b16ac6dad95e1f41a999bcaf0c2f0cf4a6e109460300840d1644` |
 | `build-resources-20261103.json` | `352ea32ccca58d8464becef0eade5e313d2854b20f4eb3f6d0b070f6e2de3a1a` |
 
-本轮源码/测试提交为 `fbca8ab`。构建资源检查通过；报告记录时 `target` 仍有约 58 GiB 可用空间。证据文件留在 ignored 目录，不进入 Git。
+本轮源码/测试提交为 `fbca8ab`。构建资源检查命令可执行并返回 PASS，但报告同时记录 `C:\code\forme\target` 超出缓存预算；当时约有 58 GiB 可用空间。本轮没有未经批准的缓存清理，证据文件留在 ignored 目录，不进入 Git。
 
 ## 3. 本机只读复核与历史边界
 
