@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-04 旧脑首次认领：持久状态组件
+
+已批准的候选协议继续落地为 claim journal v2：保留 v1 字节/hash 前缀、禁止版本降级、固定候选/epoch/owner/worker/receipt binding、区分 Committed 与 Activated、未激活数据重启转 RecoveryRequired，并提供内部 service/setup 绑定的只读查询。22 项 bootstrap 场景通过，其中 10 项新增 journal 场景已加入永久宿主命名门。详细全量验证状态见[组件验收](installed-bootstrap-legacy-claim-journal-20261104.md)。
+
+这不是完整 IP13：实际固定路径发现/只读解密、数据 worker intent 与复制恢复、Web setup/账号事务和 active data/config 激活仍待接入。候选和准备/激活回执目前是隔离 fixture，不能用来宣称真实旧脑已接管。本批没有修改已安装实例、启停服务或重跑原升级；缺基线旧升级的独立历史审查已另获协议细化与隔离实现批准，实际本机迁移仍不在范围内。
+
 ## 2026-11-03 升级中断裁决：实现与隔离验证
 
 owner 已批准并回填 `AbortBeforeSwitch` 契约（`f3f2e74`、`af0a73e`）。实现包括升级前源基线、独立恢复 intent/commit、原升级 Aborted、v1 原 hash 保留/v2 版本下限、固定 updater 真实能力探测，以及正式认证 Web 的裁决/原号核实/刷新找回。实现提交为 `fbca8ab`；源码质量门、238 项永久宿主门、配置/多进程组件门和前端门均已通过，详见[本轮验收](installed-release-recovery-20261103.md)。这些实现没有修改本机安装或关闭 IP14–15/IP24。

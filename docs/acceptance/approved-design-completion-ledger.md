@@ -14,6 +14,8 @@
 
 owner 已批准 `AbortBeforeSwitch` 契约及隔离实现：独立裁决、幂等/中断、v2 reader/updater 能力、正式认证 HTTP 和 Web 恢复控件已有实现/定向证据，完整门在[本轮报告](installed-release-recovery-20261103.md)登记。该旧 operation 缺升级前 journal 基线，因此正常恢复入口仍拒绝它；原生程序接入、历史状态裁决与后续新升级尚未执行或验收。真实 provider、完整 IP 与发布仍开放。以下段落保留历史时点，不覆盖本段最新边界。
 
+2026-11-04 已批准的旧脑首次认领继续实施：journal v2、候选/owner/worker/receipt 绑定、提交与激活分离、重启待恢复及只读查询已有组件和 22 项 bootstrap 测试证据，详见[组件报告](installed-bootstrap-legacy-claim-journal-20261104.md)。真实候选发现、数据 worker intent/复制恢复、Web 账号事务和 active data/config 联合激活仍未闭合；IP13/IP24 不变。独立的缺基线历史升级审查已另获协议细化与隔离实现批准，本组件不替代那项协议或实际本机迁移授权。
+
 ## 2. 核心与跨切面覆盖
 
 2026-11-02 后续状态：owner 已授权使用其本地测试凭据经公开正式认证/维护界面直接操作。首次 StartCore 与升级前 StopCore 各一次并 Committed，配置 ack=1，Brain 运行时正式 manifest/doctor 可读；通知后端阻断、旧 Host 状态缺陷和真实 provider 仍待闭合。当前停脑状态是明确的升级前维护，不再是“等待 owner 输入密码”。原报告不可覆盖，详见[升级计划 §8–9](installed-product-windows-upgrade-20261102-db96ec2-plan.md#8-owner-测试凭据与正式-http-操作授权)；目标保持 active，完整 IP 状态不变。

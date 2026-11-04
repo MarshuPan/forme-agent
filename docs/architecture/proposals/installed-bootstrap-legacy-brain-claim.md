@@ -79,10 +79,12 @@ setup session 持久化 `candidate_ref, candidate_kind, candidate_digest, verifi
 状态只允许沿以下顺序前进：
 
 ```text
-Observed -> Validated -> Selected -> DataPrepared -> Committed -> Activated
-             |             |            |             |
-          Rejected      Conflict    RecoveryRequired  Aborted
+Observed -> Selected -> DataPrepared -> Committed -> Activated
+               |
+            Aborted (only before any data side effect)
 ```
+
+`Validated`/`Rejected`/`Unverifiable` 描述 catalog 的候选核验结果，不是 `BootstrapClaimPhaseV2` 的额外阶段。冲突拒绝不推进认领状态。`Selected` 只有在尚无数据副作用、未决 worker intent 或未知结果时才可 Aborted；数据准备或提交后中断转 `RecoveryRequired`，不能从 `Committed` 终止为 Aborted。是否存在准备事实不能单独证明此前没有数据副作用，正式 broker 还必须联合核对原数据 worker intent/receipt。
 
 `Committed` 不是“数据已切换”；在 `Activated` 前 Web 仍显示初始化维护态，不能启动 Brain。`ClaimActivatedV2` 还必须绑定已提交 claim receipt digest 与 active data binding digest。`DataPrepared` 后任何写入结果不明、目标摘要缺失、worker 失联或服务重启都保持 `RecoveryRequired`，只允许原 operation 的只读核实/owner 裁决，禁止换候选、换 OwnerId、重发复制或盲目删除目标。
 
