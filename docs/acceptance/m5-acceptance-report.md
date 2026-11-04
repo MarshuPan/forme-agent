@@ -161,3 +161,19 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 当前主线工作树保持干净，独立执行 `py -3 tools/m5_release_audit.py --root C:\\code\\forme --output <ignored-output>`，9 项发布审计检查全部通过；生成回执与仓库回执的 `--verify`、`--compare` 均通过。当前唯一 tracked receipt 为 `sha256:3eebe149a2d3cc99df8c232a4a01eabed80d992d830e7c0536d57512795a529a`，绑定当前 release tree `sha256:50b7c80680f74dd4a74365b339bf44f9da68e0cf91b4aabaac49be1763bf73ce`。
 
 本次只修复当前树与旧 M5 receipt 的证据漂移，没有修改运行代码、模型配置、安装目录或用户数据。此前 Final 回归已完成核心测试和 M5 审计，但在最后的旧 receipt 比较处 fail-closed；因此本条只证明当前 M5 receipt 已闭合，不把此前整轮命令改写为新的 `M5 FINAL ACCEPTANCE: PASS`。核心 Final 仍需在该 receipt 收口后重新执行。
+
+## 13. 历史审查组件后的当前源码重验（2026-11-05）
+
+本节承接[缺基线历史升级的组件报告](installed-legacy-release-review-20261105.md)，只记录 `shu/bootstrap-claim-journal` 干净基线 `ab67e6c` 的源码回归和发布审计。实施代码包含 `8991875` 的独立 Host 审查；没有合入 main、推送或操作本机安装。
+
+完整 `pwsh -NoProfile -File tools/verify-m5.ps1` 于本地时间 07:01–07:43 执行。M0–M2 最终门、M3 permanent regression、S1–S99、M4/M5 显式多进程 golden 与工件核对、18-crate 依赖图、历史 97-kind strict prefix、fmt/check/strict Clippy、完整 workspace/Python 测试和合规均通过。最后一次完整 workspace 的唯一汇总为 **180 targets、1168 passed / 0 failed / 15 默认 ignored**；Python 为 **89 tests、1 skipped**，不累计前置重复运行。命令只临时设置 `CARGO_BUILD_JOBS=2` 限制编译并发，没有减少测试或改变运行语义。
+
+本轮 S99 的 8 项检查全部 PASS、`blocking=false`，生成回执为 `sha256:4cb70a891104726a19040c84f8a1323c4d88133b035b04b2b8544ec7ccc4806a`；生成与仓库回执各自的独立验证通过，但最终 `--compare` 返回 `1` 并触发脚本异常，**本次完整脚本没有取得 `M5 FINAL ACCEPTANCE: PASS`**。日志原样保留在本工作树 `target/legacy-release-review/final-m5-jobs2-20261105.log`。
+
+差异随后精确核实为外部漏洞审计观察的变化：整轮生成结果比仓库回执少一条 `TARGET_UNREACHABLE_YANKED_PACKAGE`，涉及仅在非 `x86_64-pc-windows-gnu` 目标可达的 `async-executor 1.14.0`。源码 root、8 项 input digest 和其他观察不变；在内存中仅移除原回执这一条观察后，重新计算的 domain digest 恰为上述 `4cb70a…`，该诊断没有写成替代审计工件或更改规则。
+
+在同一干净源码上另行完整执行 `py -3 tools/m5_release_audit.py --root . --output target/legacy-release-review/refreshed-m5-audit-20261105`，8 项检查再次全部通过；这次 cargo-audit 返回了该 yanked 观察，独立生成的回执恢复为仓库现有的 **`sha256:10e588f98be0d96220151e9d12f9f47cf01f75945c892dd59ebcb30c1303f5af`**，root 为 `sha256:97d1912cf9d734816bf307a38d4a82636dd9e76b4fb91b6ccaa355ac3e9706ec`。对新生成和仓库工件分别执行 `--verify`，再执行二者 `--compare`，全部 exit 0。无需替换 tracked receipt；这证明随后独立重验与当前回执一致，不将此前整轮失败改写为成功，也不宣称外部审计观察恒定。
+
+同一实施源码的永久宿主门 **266/266**、closure A/B/C 及 D `-RuntimeOnly` 分别 **47/47、50/50、36/36、71/71**，详细命令与分层证据见组件报告。当前 99 EventKinds、五个既有 unsafe 边界保持，默认忽略的原生场景和 Python symlink 跳过不计为通过。D runtime-only 没有重新调用真实 Provider；实际 Inno 退出夹具未提供工具链，因此仍为 NOT_RUN。本轮不证明新的 C24 live、D/Final、原生历史收集器、正式历史审查 HTTP/Web、本机 reader/journal 迁移、Linux/macOS 或完整 IP01–IP24，整体交付目标仍开放。
+
+构建资源报告保存为 `target/legacy-release-review/final-build-resources-20261105.json`：当前 checkout target 为 `33849706189` logical bytes / `31044564345` allocated bytes，低于 64 GiB 报告阈值，最终审计前可用空间为 25.3 GiB。本次收口未清理缓存、修改已安装程序/配置/现场 journal、启停服务或重跑原 Upgrade。
