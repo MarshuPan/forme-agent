@@ -79,6 +79,7 @@ owner 已批准**独立历史审查协议的细化、文档回填、实现和隔
 | `LegacyReleaseRecoveryRequest` | `schema_version, operation_id, idempotency_key, expected_revision, owner, review_id, review_digest, requested_deadline`。只引用 Host 已持久化、可验签的报告，不上传 report、路径、证据或成功断言。新授权窗口最多 120 秒。 |
 | `LegacyReleaseRecoveryVerification` | `schema_version, operation_id, request_digest, expected_revision, owner, requested_deadline`。只核实原决定，有独立 digest 和重新认证；不能创建替代决定或延长原升级。 |
 | `LegacyReleaseRecoveryView` | `schema_version, request, request_digest, revision, stage:Intent/Committed, review_digest, receipt_digest?`。Intent 无 receipt；Committed 必须有，且引用原报告。 |
+| `LegacyReleaseRecoveryList` | `schema_version, product_revision, owner, operations[]`。只含当前 owner 的最近至多 25 项，按 revision 严格降序，操作号不重复且水位不超过 product revision；读取不推进操作。 |
 
 schema 与摘要结构校验属于 protocol；材料来源、实际文件、签名及独占检查属于 Host/收集器；纯 journal fold 不打开文件、不调用服务或模型。反序列化一个自洽报告不等于报告可信。
 
@@ -102,10 +103,20 @@ schema 与摘要结构校验属于 protocol；材料来源、实际文件、签�
 
 reader 支持 v1/v2/v3 且 schema floor 单调；v1/v2 reader 遇 v3 拒绝。固定 updater 能力探测报告真实上限；普通恢复兼容准确的 2/2 或 3/3 组合，历史通道仅接受 3/3。新管理代码的业务发布声明最低 upgrader 3，实际管理程序修复继续由第二道精确管理员计划完成。不能为兼容而让旧程序跳过新事实。
 
-Host 的独立接口为 `legacy_release_review`、`owner_legacy_release_recovery`、`verify_owner_legacy_release_recovery`、`owner_legacy_release_recovery_operation`。它们沿用 Configuration 域真实认证与 owner/操作绑定的单次口令重认证，不接受 LocalAdministrator 字符串或 body owner 自证。内部路由使用 `/v1/host/configuration/legacy-release-recovery` 及其 `review/{original_id}`、`operations/{id}`、`verify` 子路径；公开 Web 对应 `/api/v1/product/legacy-release-recovery`。读取只查报告/原号，不重采后暗中提交。
+Host 的独立接口为 `legacy_release_review`、`owner_legacy_release_recovery`、`verify_owner_legacy_release_recovery`、`owner_legacy_release_recovery_operation`、`owner_legacy_release_recoveries`。它们沿用 Configuration 域真实认证与 owner/操作绑定的单次口令重认证，不接受 LocalAdministrator 字符串或 body owner 自证。内部路由使用 `/v1/host/configuration/legacy-release-recovery` 及其 `review/{original_id}`、`operations/{id}`、`operations`、`verify` 子路径；公开 Web 对应 `/api/v1/product/legacy-release-recovery`。读取只查报告/原号，不重采后暗中提交。
 
 同 key 同 request 是纯查询，即使过期也不重试；异义、跨普通维护/普通恢复/历史恢复的 key 或 operation 碰撞均拒绝。历史 intent 参与同一全局维护互斥。重启只 fold，不收集、签名、停服务或提交；只有 owner 显式 verify 原号并再次认证，才可重新核实和结束 intent。已 Committed 的查询不重复动作。不能开放普通维护入口来直接转阶段或绕过旧操作的 Unknown。
 
 ## 9. 分层实现与证据界限
 
 按协议与签名/结构反例 → 真实临时 journal 的 CAS/幂等/重放/原字节保持 → 原创文件/受控 collector 的材料缺失/漂移/错误来源 → 正式认证 HTTP 与只读 Web → 原生收集器和第二道本机方案推进。每层单独记证据；可信 collector fixture 不能证明真实 SCM、历史原件或本机数据已经核实。任何未实现依赖继续不可用，不能用报告结构存在声明整条历史通道已闭合。
+
+### 9.1 Host 隔离接缝与时间边界
+
+本轮增加 Host 内部的独立审查接缝，不改变已有 HostManagement 或脑 trait。`legacy_release_review(auth, original_id, workers, now)` 只读；`owner_legacy_release_recovery(auth, request, workers, now)` 与 `verify_owner_legacy_release_recovery(auth, verification, workers, now)` 返回 `LegacyReleaseRecoveryView`；`owner_legacy_release_recovery_operation(auth, id)` 只查原号，`owner_legacy_release_recoveries(auth)` 返回 `LegacyReleaseRecoveryList`。均使用 Configuration 域身份，核对持久配置的真实 owner；产品 HTTP 的口令重新认证仍由 PRD25 规定的认证层承担，Host 方法本身不能证明浏览器已重认证。
+
+独立公钥和 collector 只能由受保护的 Host 装配提供；包、报告和请求均不能提供公钥。Ed25519 严格验签的消息为 `LegacyReleaseReview::digest()` 所得完整 `sha256:...` 字符串的 UTF-8 字节，摘要域沿用 §6。collector 读取其自身固定的持久报告，重新验证八类材料的来源与语义，并在持有数据独占观察期间重查；Host 另外强制核对真实 worker fence、服务管理器观察到的 Host/Web/Brain 状态、collector 对固定独立 updater 的身份/有限恢复策略/Stopped 与准确 3/3 能力观察，以及配置/active release 与 journal CAS。最终观察摘要覆盖完整已签报告摘要、八项重查结果和 worker 水位。单有一个可解析或可验签的报告不允许提交。
+
+首次请求必须在原 takeover 授权已过期后发起，新的请求/核实各自最多 120 秒，且都不得超过报告期限。核实可以晚于首次请求期限，但必须仍在报告有效期内，绑定同一 request digest 和 intent revision；提交时间不得早于 intent。query/idempotent lookup 不延长期限、不重查后提交。原 takeover 的 deadline 永不修改。
+
+生产装配在真实原生 collector、独立信任配置和管理 reader 修复尚未闭合时不挂载该接缝，Host 返回 unavailable；不得提供默认 Verified collector 或借测试注入开启生产。隔离 collector 只验证编排、验签与拒绝语义。正式 HTTP/Web 接线和本机迁移仍分别记为未完成，不把私有 journal 场景称为 Host/HTTP 验收。

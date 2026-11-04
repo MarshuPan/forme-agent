@@ -439,7 +439,7 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 
 原生产 dispatch 在 Quiescing 前增加可选可信源基线。仅在实际 Brain 已停止且原 worker 全部终态时读取原源文件/固定服务登记及独占数据身份，落盘后才发布 handoff；Brain 运行的升级照常由原 updater 排空，不虚构离线数据连续性，也不承诺本次有限恢复。摘要读取拒绝链接、缺文件、未知注册、检查超时或状态漂移；固定文件集合由安装清单派生而非浏览器指定。
 
-新产品事实 envelope 使用 schema 2，原有事实保留 schema 1 编码；一旦追加 schema 2，其后所有 envelope 至少为 2。新 reader 校验 1/2 原字节 hash 和完整因果语义，拒绝版本回退；旧 reader 对 schema 2/未知事实整体拒绝，不跳过。`RELEASE_UPDATER_VERSION=2`，新恢复 UI/Host 只对匹配 reader/updater 生效；旧 immutable updater 必须在另行批准的本机签名修复中处理，不通过普通 business release 偷换。
+普通恢复最初以 schema 2 引入，原有事实保留 schema 1 编码；一旦追加 schema 2，其后所有 envelope 至少为 2。当前 reader/updater 随 §4.10.7 升为 3/3，普通恢复兼容准确的 2/2 或 3/3；新 reader 校验历史原字节 hash 和完整因果语义，拒绝版本回退，旧 reader 对更高版本/未知事实整体拒绝，不跳过。旧 immutable updater 必须在另行批准的本机签名修复中处理，不通过普通 business release 偷换。
 
 在普通升级预检、产生 v2 基线前及裁决前，System adapter 用固定初始 `forme-hostd --release-recovery-capabilities` 的离线模式核实上述能力。该模式仅接受 stdin 的单个 closed `{schema_version:1}` 行并返回 capabilities；不读取配置/凭据、不打开 journal、不接入 SCM/模型。沿用有界 maintenance pipe、最小环境和期限，失败不落基线。旧 binary 不识别参数或旧 reader/updater 返回不兼容则拒绝，不以新 Host 自报版本代替固定 updater。包含 v2 writer 的签名业务发布须声明 minimum_upgrader 至少 2；实际不可变 updater 迁移继续独立审查。
 
@@ -449,7 +449,7 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 
 `LegacyReleaseRecoveryIntent/Committed` 使用 envelope schema 3。reader floor 单调，旧 v1/v2 reader 拒绝；固定能力探测在普通通道接受准确的 2/2 或 3/3，历史通道仅 3/3。新管理代码发布最低 upgrader 3；签名管理修复的程序、OS 注册、原 installation 和业务 active release 有独立持久 binding。实际本机修复另行审查，不随本节实现自动执行。
 
-隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v2 拒旧读者、无源基线/owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
+隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v1–v2 reader 拒绝 v3、正常入口缺源基线以及历史入口的 owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
 
 ### 4.11 交互桌面会话 helper
 
