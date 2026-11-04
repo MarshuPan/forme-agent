@@ -39,3 +39,11 @@ Windows 的独占文件锁会拒绝测试通过第二个句柄读取 journal。�
 6. 正式安装包与真实 OS 权限/锁/key resolver/浏览器联合 IP13/IP24；已认领安装不能通过 bootstrap 换 owner。
 
 本机原中断升级仍是另一条未决操作。正常 `AbortBeforeSwitch` 必须继续拒绝缺少升级前基线的旧操作；[独立历史恢复审查方案](../architecture/proposals/installed-legacy-release-recovery-review.md)已另获协议细化与隔离实现批准，仍不授权本机程序替换、journal 迁移、服务启停或重发原升级。它不是本报告 journal 组件的验收内容。
+
+## 4. 后续完整源码门重验（2026-11-05）
+
+在包含 `8991875` 的当前源码上，`tools/verify-code-quality.ps1` 已以 exit 0 完整通过：180 个 Rust targets、1168 passed / 0 failed / 15 默认 ignored，fmt/check/strict Clippy、21 项结构/缓存工具回归、810 文件规模门（63 项债务未增长）、前端/打包/临时 NTFS/只读防火墙策略及完整默认合规均通过。这里的总数是整个工作区，不是 bootstrap 新增测试数量。
+
+`tools/verify-installed-host.ps1` 同轮 exit 0、266/266 个命名场景通过，十项 claim journal v2 场景全部逐名恰好执行一次；上文 §2 当时“正在复验”的完整 Rust/合规/宿主门与新增降级反例的 strict Clippy 义务由本条收取，原时点结果不改写。完整日志和相应核心/M5 回归入口见[本轮组件报告](installed-legacy-release-review-20261105.md)。
+
+该更新仍不证明真实旧脑发现/数据复制/账号事务/激活或 IP13/IP24。默认忽略的原生场景和未提供编译器的 Inno 退出夹具均未计为通过，没有改动安装现场。

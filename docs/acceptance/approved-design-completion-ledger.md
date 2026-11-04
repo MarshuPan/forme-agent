@@ -18,6 +18,8 @@ owner 已批准 `AbortBeforeSwitch` 契约及隔离实现：独立裁决、幂�
 
 ## 2. 核心与跨切面覆盖
 
+2026-11-05，缺基线历史升级的独立审查继续补齐 Host 隔离接缝、严格验签、配置/owner/worker/service 重查、到期边界和 reader/updater 3/3；此前私有 journal 证据不再笼统称为整个历史通道完成。源码与组件门见[本轮报告](installed-legacy-release-review-20261105.md)。正式 HTTP/Web、真实原生 collector/信任配置、管理 reader 修复与本机迁移仍未闭合；不据此关闭 IP14–15/IP24 或整体目标。
+
 2026-11-02 后续状态：owner 已授权使用其本地测试凭据经公开正式认证/维护界面直接操作。首次 StartCore 与升级前 StopCore 各一次并 Committed，配置 ack=1，Brain 运行时正式 manifest/doctor 可读；通知后端阻断、旧 Host 状态缺陷和真实 provider 仍待闭合。当前停脑状态是明确的升级前维护，不再是“等待 owner 输入密码”。原报告不可覆盖，详见[升级计划 §8–9](installed-product-windows-upgrade-20261102-db96ec2-plan.md#8-owner-测试凭据与正式-http-操作授权)；目标保持 active，完整 IP 状态不变。
 
 | 已确认设计 | 代码/既有证据入口 | 本里程碑还须核实的内容 |

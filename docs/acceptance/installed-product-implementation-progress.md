@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-05 缺基线历史升级：Host 隔离审查
+
+此前独立历史恢复只完成私有 journal 及其命名门，本轮补上 Host 的严格验签、持久 owner/config/active release 绑定、真实 worker 静止锁、提交前重查和只读原号/列表查询，同时修正原 takeover 到期、核实不得超出报告期限及 reader/updater 3/3 探测。实现提交为 `8991875`，统一源码门 PASS（1168 Rust passed / 0 failed / 15 默认 ignored）、永久宿主门 266/266 PASS；协议 6 项、相关 legacy 30 项与真实离线能力子进程 1 项另有定向证据，重复执行不相加。适用核心回归与 M5 的确切状态见[本轮组件报告](installed-legacy-release-review-20261105.md)。
+
+生产没有挂载真实原生 collector 与独立信任配置，正式历史审查 HTTP/Web、签名管理 reader 修复和实际本机迁移仍未闭合。八项文件/签名的隔离反例不证明真实 SCM、历史材料或本机数据通过；本轮未替换安装程序、迁移现场 journal、启停服务或重跑原 Upgrade，IP14–15/IP24 及整体目标保持开放。
+
 ## 2026-11-04 旧脑首次认领：持久状态组件
 
 已批准的候选协议继续落地为 claim journal v2：保留 v1 字节/hash 前缀、禁止版本降级、固定候选/epoch/owner/worker/receipt binding、区分 Committed 与 Activated、未激活数据重启转 RecoveryRequired，并提供内部 service/setup 绑定的只读查询。22 项 bootstrap 场景通过，其中 10 项新增 journal 场景已加入永久宿主命名门。详细全量验证状态见[组件验收](installed-bootstrap-legacy-claim-journal-20261104.md)。
