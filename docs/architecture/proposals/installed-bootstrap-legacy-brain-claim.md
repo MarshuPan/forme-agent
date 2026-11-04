@@ -34,13 +34,13 @@ Host 只在未认领 installation 上运行候选发现，并先取得候选源�
 
 ### 2.2 候选安全视图
 
-Host 返回 `BootstrapCandidateCatalogV2`，只含 opaque `candidate_ref`、候选类型、验证状态、候选 digest、schema/protection 状态、OwnerId 的安全引用和 issue ref；不含绝对路径、原文、key、私钥、cookie、凭据或可推导路径的文件名。
+Host 返回 `BootstrapCandidateCatalogV2`，只含 opaque `candidate_ref`、候选类型、验证状态、候选 digest、schema/protection 状态、Host 验证产生的 `owner_ref`/owner binding 和 issue ref；不含绝对路径、原文、key、私钥、cookie、凭据或可推导路径的文件名。`owner_ref` 是安全的稳定引用，不是浏览器提供的身份，也不是凭据；历史候选不能只带 owner digest 而省略该引用。
 
 候选 digest 是 Host 按固定 canonical tuple 重新计算的值：
 
 ```text
 (schema_version, install_ref, candidate_ref, candidate_kind,
- source_observation_digest, owner_binding_digest, store_identity_digest,
+ source_observation_digest, owner_ref, owner_binding_digest, store_identity_digest,
  schema_digest, protection_state, verification_epoch)
 ```
 
@@ -55,9 +55,9 @@ Owner 来源必须显式标记为 `GeneratedForNewBrain` 或 `VerifiedFromCandid
 - `BootstrapCandidateCatalogV2`：候选列表和当前 verification epoch。
 - `BootstrapCandidateSelectionV2`：`session, candidate_ref, expected_candidate_digest`。
 - `BootstrapClaimRequestV2`：`session, candidate_ref, expected_candidate_digest, account_commitment`。
-- `BootstrapClaimCommitV2`：claim receipt、owner binding、active data binding 和迁移结果的安全摘要。
+- `BootstrapClaimCommitV2`：claim receipt、其中的 owner/candidate binding 和迁移结果的安全摘要；不包含 active data binding。
 
-setup session 持久化 `candidate_ref, candidate_kind, candidate_digest, verification_epoch, owner_source, owner_binding_digest`。选择后必须重新取得同一候选的只读验证；候选 digest、owner/store/schema、安装身份或锁状态有任何变化，返回 conflict/recovery required，零账号、数据或 active binding 写入。
+setup session 持久化 `candidate_ref, candidate_kind, candidate_digest, verification_epoch, owner_source, owner_ref, owner_binding_digest`。选择后必须重新取得同一候选的只读验证；候选 digest、owner/store/schema、安装身份或锁状态有任何变化，返回 conflict/recovery required，零账号、数据或 active binding 写入。
 
 浏览器不能提交 OwnerId。新脑由 broker 生成 owner；已有脑/备份由验证结果提供 owner。claim 请求中的 expected digest 不是授权，也不能替换 Host 观察；它只用于发现页面与提交之间的 TOCTOU 漂移。
 
@@ -70,8 +70,8 @@ setup session 持久化 `candidate_ref, candidate_kind, candidate_digest, verifi
 | Fact | 作用 |
 |---|---|
 | `CandidateInventoryObserved` | 记录受保护候选集合 digest、verification epoch 和安全状态摘要。 |
-| `CandidateSelectedV2` | 绑定 setup operation、candidate ref/kind/digest、owner source 和 owner binding digest。 |
-| `ClaimDataPrepared` | 绑定新目标、源观察、目标摘要和迁移/恢复 worker 的已知终态；不表示已激活。 |
+| `CandidateSelectedV2` | 绑定 setup operation、candidate ref/kind/digest、Host 验证的 owner source/ref 和 owner binding digest。 |
+| `ClaimDataPrepared` | 绑定新目标、源观察、目标摘要和迁移/恢复 worker 的已知终态；它是 Host 构造的受信结果，不表示已激活。 |
 | `ClaimCommittedV2` | 在账号承诺、候选绑定、OwnerId、目标数据和 claim operation 全部一致后提交一次性认领事实。 |
 | `ClaimActivatedV2` | Host 已按同一 operation 完成 active data/config 切换并核对新目标；只在可验证终态追加。 |
 | `ClaimAbortedV2` | 仅用于 owner/本机管理身份明确终止尚未发生数据副作用的 pending claim；保留全部历史。 |
@@ -84,7 +84,20 @@ Observed -> Validated -> Selected -> DataPrepared -> Committed -> Activated
           Rejected      Conflict    RecoveryRequired  Aborted
 ```
 
-`Committed` 不是“数据已切换”；在 `Activated` 前 Web 仍显示初始化维护态，不能启动 Brain。`DataPrepared` 后任何写入结果不明、目标摘要缺失、worker 失联或服务重启都保持 `RecoveryRequired`，只允许原 operation 的只读核实/owner 裁决，禁止换候选、换 OwnerId、重发复制或盲目删除目标。
+`Committed` 不是“数据已切换”；在 `Activated` 前 Web 仍显示初始化维护态，不能启动 Brain。`ClaimActivatedV2` 还必须绑定已提交 claim receipt digest 与 active data binding digest。`DataPrepared` 后任何写入结果不明、目标摘要缺失、worker 失联或服务重启都保持 `RecoveryRequired`，只允许原 operation 的只读核实/owner 裁决，禁止换候选、换 OwnerId、重发复制或盲目删除目标。
+
+状态视图的字段矩阵也是协议的一部分：
+
+| phase | candidate ref/digest/epoch | receipt | activation + active binding | issue ref |
+|---|---|---|---|---|
+| `Observed` | 全部为空 | 空 | 成对为空 | 空 |
+| `Selected` / `DataPrepared` | 全部必有 | 空 | 成对为空 | 空 |
+| `Committed` | 全部必有 | 必有且绑定 candidate/operation | 成对为空 | 空 |
+| `Activated` | 全部必有 | 必有且绑定 candidate/operation | 成对必有且绑定 receipt | 空 |
+| `Aborted` | 全部必有 | 空 | 成对为空 | 必有 |
+| `RecoveryRequired` | 全部必有 | 可有（若已有可信 commit） | 成对为空 | 必有 |
+
+部分 candidate binding、部分 activation binding、带有互相矛盾的 receipt 或在终态混入 issue 都是无效状态；`RecoveryRequired` 不代表数据已激活。
 
 账号承诺先以受保护的临时记录保存，明文密码不进入 journal；claim commit 必须绑定真实 owner、候选 digest、account commitment、operation、install ref 和 expected revision。响应丢失或进程重启只按原 operation 重取相同 receipt；异义重试冲突且零推进。
 
@@ -93,7 +106,7 @@ Observed -> Validated -> Selected -> DataPrepared -> Committed -> Activated
 - `ExistingBrain` 与 `VerifiedBackup` 均恢复到新的、空的、安装派生目标；不在原源上原地改写，不覆盖 active brain，不删除原件。
 - 数据 worker 先建立受保护 intent，再执行有界复制/恢复，完成后重新计算目标 manifest、store identity、owner、schema、key/projection/replay 摘要；worker 自报或退出码不能单独形成 `ClaimDataPrepared`。
 - 目标已经存在、源摘要漂移、源重新被占用、错误 key/owner、明文保护状态、磁盘空间或 schema 不兼容，均为拒绝或恢复状态，不降级为 `NewBrainTarget`。
-- `ClaimActivatedV2` 需要同一 Host product transaction 完成 active data/config CAS、旧 authority fence 和配置/ack 核对。只读验证或 `ClaimCommittedV2` 不能声称已完成接管。
+- `ClaimActivatedV2` 需要同一 Host product transaction 完成 active data/config CAS、旧 authority fence 和配置/ack 核对，并绑定已提交 claim receipt digest 与 active data binding digest。只读验证、`ClaimDataPrepared` 或 `ClaimCommittedV2` 不能声称已完成接管。
 - 首次 claim 完成后，普通 bootstrap 端点失效；已认领 installation 不能用另一候选暗换 owner。后续接管必须走显式、独立的 owner-approved restore/re-adoption 流程。
 
 ## 6. 失败、未知与重启恢复

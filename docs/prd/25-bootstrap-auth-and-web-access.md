@@ -31,10 +31,12 @@
 | `SetupSession` | `setup_digest, install_ref, claim_operation, expires_at, csrf_digest, verified_data_candidate_ref?`。15 分钟，仅初始化范围，完成认领后消耗。 |
 | `ClaimRequest` | `install_id_safe_ref, verified_data_candidate_ref?, login_name, password, operation_id, idempotency_key`，由 setup session 认证。不允许调用者任意指定 OwnerId；已有脑按验证结果绑定。 |
 | `ClaimTransaction` | `operation_id, install_ref, claim_digest, stage, reserved_owner_ref, account_ref, expected_revision`。跨 broker/Web 认领事务可恢复，原证明只用其摘要。 |
-| `BootstrapCandidateCatalogV2` | `schema_version:2, verification_epoch, candidates[]`；候选仅含 opaque ref/kind/status/digest/owner source/binding digest/issue ref，不含路径、原文、key 或凭据。 |
+| `BootstrapCandidateCatalogV2` | `schema_version:2, verification_epoch, candidates[]`；候选仅含 opaque ref/kind/status/digest/owner source/安全 owner ref/binding digest/issue ref，不含路径、原文、key 或凭据。历史候选的 owner ref 必须由 Host 验证产生，不能只保留 digest。 |
 | `BootstrapCandidateSelectionV2` | `session, candidate_ref, expected_candidate_digest`；Host 重新读取固定候选并核对 digest/epoch/owner/store/schema/锁，不能由浏览器提交路径或 owner。 |
 | `BootstrapClaimRequestV2` | `session, candidate_ref, expected_candidate_digest, account_commitment`；candidate kind、OwnerId 和数据 binding 来自 Host 已验证选择，不接受调用者自报。 |
-| `BootstrapClaimCommitV2` | `claim receipt, owner binding, active data binding, candidate digest, migration outcome`；`Committed` 与 `Activated` 分开，前者不能表示数据已切换。 |
+| `BootstrapClaimDataPreparedV2` | Host/固定 worker 复核后的 candidate ref/digest/verification epoch、目标 binding、worker receipt 和已知迁移终态；不接受浏览器构造，不表示激活。 |
+| `BootstrapClaimCommitV2` | `claim receipt, owner binding, candidate digest, migration outcome`；`Committed` 与 `Activated` 分开，前者不能表示数据已切换。 |
+| `BootstrapClaimActivationV2` | Host 产生的 receipt digest 与 active data binding digest；只有配置 CAS、旧 authority fence、ack 和 post-switch probe 全部通过后才能追加。 |
 | `CoreSessionAssertion` | `install_ref, owner_id, session_digest, auth_epoch, audience, request_digest, expires_at, nonce, signature`。服务端签发/验证，不暴露浏览器。 |
 | `ProductConfigSnapshot` | `revision, owner_binding_ref, model_profiles, channel_configs, workspace_refs, capability_options, proxy_config, network_config, effective_sources, active_ack`。读取不含密钥原文。 |
 | `ConfigPatch` | `operation_id, idempotency_key, expected_revision, typed_changes, secret_mutations`。未声明字段和不允许 hot change 的字段拒绝或要求 restart。 |
@@ -147,7 +149,9 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 
 首次认领候选固定沿 [首次认领旧脑与备份候选协议](../architecture/proposals/installed-bootstrap-legacy-brain-claim.md)：`NewBrainTarget` 继续使用 schema 1 兼容路径；`ExistingBrain` 与 `VerifiedBackup` 必须使用 schema 2 catalog/selection/claim。候选发现只能来自安装器 manifest、Host 配置和固定受保护布局，浏览器不能提交路径、URL、owner、key 或“已验证”布尔值。历史明文、错误 key/owner、未知 schema、损坏、链接/别名或独占锁不明的候选只能显示为 rejected/unverifiable，不能为了完成初始化而回退为空新脑。
 
-候选选择先记录 candidate ref/kind/digest、verification epoch 和 owner source；数据接管再在新的空目标上执行有界复制/恢复，保留原件。产品 claim journal v2 依次区分 `CandidateInventoryObserved`、`CandidateSelectedV2`、`ClaimDataPrepared`、`ClaimCommittedV2`、`ClaimActivatedV2` 和 `ClaimAbortedV2`；旧 v1 journal 字节/hash 保留，旧 reader/writer 在首个 v2 fact 后必须拒绝。`ClaimCommittedV2` 不等于 active data 已切换，只有 Host 完成 active data/config CAS、旧 authority fence 和 ack 核对后才可 `Activated`。准备阶段之后的未知副作用、进程重启和响应丢失只允许核实原 operation/receipt，不能换候选、换 owner、重派或启动 Brain。
+候选选择先记录 candidate ref/kind/digest、verification epoch、owner source/ref 和 owner binding；数据接管再在新的空目标上执行有界复制/恢复，保留原件。产品 claim journal v2 依次区分 `CandidateInventoryObserved`、`CandidateSelectedV2`、`ClaimDataPrepared`、`ClaimCommittedV2`、`ClaimActivatedV2` 和 `ClaimAbortedV2`；旧 v1 journal 字节/hash 保留，旧 reader/writer 在首个 v2 fact 后必须拒绝。`ClaimCommittedV2` 不等于 active data 已切换，只有 Host 完成 active data/config CAS、旧 authority fence、ack 和 post-switch probe，并以独立 activation DTO 绑定原 receipt 后才可 `Activated`。准备阶段之后的未知副作用、进程重启和响应丢失只允许核实原 operation/receipt，不能换候选、换 owner、重派或启动 Brain。
+
+`BootstrapClaimViewV2` 必须遵守固定字段矩阵：`Observed` 不带任何 candidate/receipt/activation/issue；`Selected` 与 `DataPrepared` 只带完整 candidate ref/digest/epoch；`Committed` 另带已绑定 receipt；`Activated` 另带与 receipt 绑定的 activation 和 active data binding；`Aborted` 带完整 candidate 与 issue；`RecoveryRequired` 带完整 candidate、issue，并可保留已经可信提交的 receipt，但永远不能带 activation 或 active binding。candidate 三字段和 activation/active 两字段均要求成组出现或成组为空，receipt 的 install/operation/candidate 绑定必须一致。
 
 密码规则、Argon2id 和 TTL 统一引用 architecture/10 §5.1。改密码/本地恢复先写新 credential revision 与 revoke epoch，再提交最终状态；崩溃后不得重新激活旧口令。忘记口令通过本机管理员 `hostctl` 发起有限 reset 操作，记录事实、撤销会话，不建立匿名远程找回或重置 OwnerId。
 
