@@ -141,6 +141,14 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::release_recovery::tests::$name" }
 
     foreach ($name in @(
+        "verified_legacy_recovery_is_atomic_and_replays_without_touching_active_release",
+        "non_verified_or_drifted_reviews_are_rejected_without_append",
+        "recovery_cas_and_cross_domain_collisions_allow_only_one_intent",
+        "interrupted_recovery_requires_same_request_and_explicit_verification",
+        "schema_three_is_not_read_by_a_v2_reader_and_unknown_fact_fails_closed"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::legacy_recovery_review::tests::$name" }
+
+    foreach ($name in @(
         "release_recovery_host_commits_once_then_old_release_replay_and_queries_are_effect_free",
         "release_recovery_host_intent_fault_requires_explicit_verification_and_never_retries_on_replay",
         "release_recovery_host_rejects_missing_baseline_and_service_data_file_worker_drift"
