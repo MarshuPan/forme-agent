@@ -119,7 +119,11 @@ impl Projection {
                     || *at >= command.requested_deadline
                     || self.operations.contains_key(&command.operation_id)
                     || self.recoveries.contains_key(&command.operation_id)
+                    || self.legacy_reviews.contains_key(&command.operation_id)
                     || self.recovery_keys.contains_key(&command.idempotency_key)
+                    || self
+                        .legacy_review_keys
+                        .contains_key(&command.idempotency_key)
                     || self.commands.contains_key(&command.idempotency_key)
                     || self.has_unfinished_operation()
                     || *actor == p::MaintenanceActorClass::Setup && !command.kind.setup_allowed()
@@ -200,6 +204,13 @@ impl Projection {
                     return Err(invalid_journal());
                 }
                 release_recovery::fold(self, &envelope.fact, envelope.product_seq)?;
+            }
+            JournalFact::LegacyRecoveryReviewIntent { .. }
+            | JournalFact::LegacyRecoveryReviewCommitted { .. } => {
+                if envelope.schema_version.0 != 2 {
+                    return Err(invalid_journal());
+                }
+                legacy_recovery_review::fold(self, &envelope.fact, envelope.product_seq)?;
             }
             JournalFact::StageIntent {
                 operation_id,
@@ -298,6 +309,13 @@ impl Projection {
                 state.view.revision = envelope.product_seq;
             }
         }
+        let previous_history = self.history_digest()?;
+        self.history_digest = Some(p::canonical_digest(&(
+            "forme-product-journal-history-v1",
+            previous_history,
+            envelope.product_seq,
+            &envelope.digest,
+        ))?);
         self.sequence = envelope.product_seq;
         self.schema_floor = envelope.schema_version.0;
         self.head = Some(envelope.digest.clone());
@@ -311,5 +329,16 @@ impl Projection {
                 .recoveries
                 .values()
                 .any(|r| r.stage == p::ProductReleaseRecoveryStage::Intent)
+            || self
+                .legacy_reviews
+                .values()
+                .any(|r| r.stage == p::LegacyReleaseRecoveryReviewStage::Intent)
+    }
+
+    pub(super) fn history_digest(&self) -> p::Result<p::SchemaDigest> {
+        self.history_digest.clone().map_or_else(
+            || p::canonical_digest(&"forme-product-journal-history-v1"),
+            Ok,
+        )
     }
 }

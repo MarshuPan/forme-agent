@@ -8,6 +8,7 @@ use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
 use super::reject_linked_ancestors;
+mod legacy_recovery_review;
 #[path = "network_journal.rs"]
 mod network_journal;
 mod projection;
@@ -64,6 +65,19 @@ enum JournalFact {
     },
     ReleaseRecoveryCommitted {
         operation_id: String,
+        request_digest: p::SchemaDigest,
+        expected_evidence: p::SchemaDigest,
+        authorization_deadline: p::Timestamp,
+        actor: p::MaintenanceActorClass,
+        at: p::Timestamp,
+    },
+    LegacyRecoveryReviewIntent {
+        request: Box<p::LegacyReleaseRecoveryReviewRequest>,
+        actor: p::MaintenanceActorClass,
+        at: p::Timestamp,
+    },
+    LegacyRecoveryReviewCommitted {
+        review_id: String,
         request_digest: p::SchemaDigest,
         expected_evidence: p::SchemaDigest,
         authorization_deadline: p::Timestamp,
@@ -161,7 +175,10 @@ struct Projection {
     commands: BTreeMap<String, (p::SchemaDigest, String)>,
     recoveries: BTreeMap<String, p::ProductReleaseRecoveryView>,
     recovery_keys: BTreeMap<String, String>,
+    legacy_reviews: BTreeMap<String, p::LegacyReleaseRecoveryReviewView>,
+    legacy_review_keys: BTreeMap<String, String>,
     schema_floor: u32,
+    history_digest: Option<p::SchemaDigest>,
 }
 
 struct Writer {
@@ -261,6 +278,19 @@ impl ProductJournal {
             return Err(storage_error());
         }
         Ok(writer.projection.sequence)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn checkpoint(&self) -> p::Result<(u64, p::SchemaDigest, p::SchemaDigest)> {
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        Ok((
+            writer.projection.sequence,
+            writer.projection.head()?,
+            writer.projection.history_digest()?,
+        ))
     }
 
     pub fn active_release(&self) -> p::Result<Option<(String, p::SchemaDigest)>> {
@@ -367,6 +397,14 @@ impl ProductJournal {
             || writer
                 .projection
                 .recovery_keys
+                .contains_key(&command.idempotency_key)
+            || writer
+                .projection
+                .legacy_reviews
+                .contains_key(&command.operation_id)
+            || writer
+                .projection
+                .legacy_review_keys
                 .contains_key(&command.idempotency_key)
         {
             return Err(invalid_journal());
@@ -477,6 +515,8 @@ fn write_fact(writer: &mut Writer, expected: u64, fact: JournalFact) -> p::Resul
         JournalFact::ReleaseRecoveryBaselinePrepared { .. }
             | JournalFact::ReleaseRecoveryIntent { .. }
             | JournalFact::ReleaseRecoveryCommitted { .. }
+            | JournalFact::LegacyRecoveryReviewIntent { .. }
+            | JournalFact::LegacyRecoveryReviewCommitted { .. }
     ) {
         2
     } else {
