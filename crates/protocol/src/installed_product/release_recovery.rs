@@ -12,8 +12,10 @@ pub struct ProductReleaseRecoveryCapabilities {
 impl ProductReleaseRecoveryCapabilities {
     pub fn validate(&self) -> Result<()> {
         if self.schema_version != SchemaVersion(1)
-            || self.journal_read_max != 2
-            || self.updater_version != 2
+            || !matches!(
+                (self.journal_read_max, self.updater_version),
+                (2, 2) | (3, 3)
+            )
         {
             return Err(invalid());
         }

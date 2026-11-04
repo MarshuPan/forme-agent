@@ -8,9 +8,6 @@ use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
 use super::reject_linked_ancestors;
-// The journal primitives land before the separately gated Host collector.
-// Keep them private until that collector is approved and wired to auth.
-#[allow(dead_code)]
 mod legacy_recovery_review;
 #[path = "network_journal.rs"]
 mod network_journal;
@@ -24,7 +21,7 @@ mod verification;
 
 const MAX_JOURNAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = 64 * 1024;
-const CURRENT_JOURNAL_SCHEMA: u32 = 3;
+pub const PRODUCT_JOURNAL_READER_VERSION: u32 = 3;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "record", rename_all = "snake_case", deny_unknown_fields)]
 enum JournalFact {
@@ -174,8 +171,8 @@ struct OperationState {
 struct LegacyReviewState {
     view: p::LegacyReleaseRecoveryView,
     review: p::SignedLegacyReleaseReview,
-    #[allow(dead_code)]
     intent_revision: u64,
+    intent_at: p::Timestamp,
     final_observation_digest: Option<p::SchemaDigest>,
 }
 
@@ -209,7 +206,7 @@ pub struct ProductJournal {
 
 impl ProductJournal {
     pub fn open(path: &Path, install_id: &str) -> p::Result<Self> {
-        Self::open_with_schema(path, install_id, CURRENT_JOURNAL_SCHEMA)
+        Self::open_with_schema(path, install_id, PRODUCT_JOURNAL_READER_VERSION)
     }
 
     fn open_with_schema(path: &Path, install_id: &str, maximum_schema: u32) -> p::Result<Self> {
@@ -302,7 +299,7 @@ impl ProductJournal {
     }
 
     #[cfg(test)]
-    fn checkpoint(&self) -> p::Result<(u64, p::SchemaDigest)> {
+    pub(crate) fn checkpoint(&self) -> p::Result<(u64, p::SchemaDigest)> {
         let writer = self.writer.lock().map_err(|_| storage_error())?;
         if writer.poisoned {
             return Err(storage_error());

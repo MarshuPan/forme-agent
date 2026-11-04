@@ -23,7 +23,7 @@ pub(super) fn run() -> p::Result<()> {
     }
     let capabilities = p::ProductReleaseRecoveryCapabilities {
         schema_version: p::SchemaVersion(1),
-        journal_read_max: 2,
+        journal_read_max: forme_execution::installed::PRODUCT_JOURNAL_READER_VERSION,
         updater_version: forme_execution::installed::RELEASE_UPDATER_VERSION,
     };
     capabilities.validate()?;

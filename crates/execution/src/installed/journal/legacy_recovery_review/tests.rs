@@ -428,3 +428,93 @@ fn schema_three_is_not_read_by_a_v2_reader_and_unknown_fact_fails_closed() {
     std::fs::write(&path, corrupted).unwrap();
     assert!(ProductJournal::open(&path, INSTALL).is_err());
 }
+
+#[test]
+fn legacy_authorization_waits_for_expired_takeover_and_cannot_outlive_review() {
+    let fixture = Fixture::new();
+    let review = fixture.review();
+    let request = fixture.request(&review);
+    let before = journal_bytes(&fixture.journal);
+    assert!(fixture
+        .journal
+        .begin_legacy_recovery(request.clone(), review.clone(), 9_999)
+        .is_err());
+    assert_eq!(journal_bytes(&fixture.journal), before);
+    fixture
+        .journal
+        .begin_legacy_recovery(request.clone(), review, 10_001)
+        .unwrap();
+    let intent = fixture
+        .journal
+        .legacy_recovery_operation(&request.operation_id)
+        .unwrap();
+    let before = journal_bytes(&fixture.journal);
+    for (at, deadline) in [
+        (10_002, 20_001),
+        (20_000, 20_001),
+        (10_000, 19_500),
+        (10_002, 130_003),
+    ] {
+        assert!(
+            fixture
+                .journal
+                .commit_legacy_recovery(
+                    verification(&request, intent.revision, deadline),
+                    hash("final"),
+                    at,
+                )
+                .is_err(),
+            "at={at}, deadline={deadline}"
+        );
+        assert_eq!(journal_bytes(&fixture.journal), before);
+    }
+    // A fresh verification window may outlive the request, within the report.
+    fixture
+        .journal
+        .commit_legacy_recovery(
+            verification(&request, intent.revision, 20_000),
+            hash("final"),
+            19_001,
+        )
+        .unwrap();
+    assert_eq!(
+        fixture
+            .journal
+            .legacy_recovery_operation(&request.operation_id)
+            .unwrap()
+            .stage,
+        p::LegacyReleaseRecoveryStage::Committed
+    );
+}
+
+#[test]
+fn legacy_source_binding_is_checked_even_when_changed_report_digests_are_consistent() {
+    for mode in 0..7 {
+        let fixture = Fixture::new();
+        let mut review = fixture.review();
+        match mode {
+            0 => review.review.binding.owner = p::OwnerPrincipalRef("owner:foreign".into()),
+            1 => review.review.binding.install_ref = "install:foreign".into(),
+            2 => review.review.binding.original_command_digest = hash("foreign-command"),
+            3 => review.review.binding.config_digest = hash("drifted-config"),
+            4 => review.review.binding.original_release_digest = hash("foreign-release"),
+            5 => review.review.binding.journal_head = hash("foreign-head"),
+            _ => review.review.binding.journal_seq += 1,
+        }
+        let binding = review.review.binding.digest().unwrap();
+        for item in &mut review.review.evidence {
+            item.binding_digest = binding.clone();
+        }
+        let mut request = fixture.request(&review);
+        request.owner = review.review.binding.owner.clone();
+        let before = journal_bytes(&fixture.journal);
+        assert!(
+            fixture
+                .journal
+                .begin_legacy_recovery(request, review, 10_001)
+                .is_err(),
+            "mode {mode}"
+        );
+        assert_eq!(journal_bytes(&fixture.journal), before);
+    }
+}

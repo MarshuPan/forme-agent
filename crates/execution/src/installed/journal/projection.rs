@@ -16,7 +16,7 @@ impl Projection {
                 &envelope.previous,
                 &envelope.fact,
             )?,
-            CURRENT_JOURNAL_SCHEMA,
+            PRODUCT_JOURNAL_READER_VERSION,
         )
     }
 

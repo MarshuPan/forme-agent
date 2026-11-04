@@ -19,7 +19,7 @@ pub(crate) use recovery::RecoveryObservation;
 pub use recovery::ReleaseRecoveryDataInspection;
 
 pub const RELEASE_UPDATER_SERVICE: &str = "forme-release-updater";
-pub const RELEASE_UPDATER_VERSION: u32 = 2;
+pub const RELEASE_UPDATER_VERSION: u32 = 3;
 
 /// Trusted injection for component testing; no request can select a platform.
 pub trait ReleaseUpdaterPlatform: Send + Sync {

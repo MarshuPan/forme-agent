@@ -12,6 +12,8 @@ mod host_maintenance;
 #[path = "host_network.rs"]
 mod host_network;
 pub use host_network::PreparedOwnerNetwork;
+#[path = "host_legacy_release_recovery.rs"]
+mod host_legacy_release_recovery;
 #[path = "host_native.rs"]
 mod host_native;
 #[path = "host_operations.rs"]
@@ -189,6 +191,7 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     release_stager: Option<Arc<ReleaseStager>>,
     release_worker: Option<Arc<dyn ReleaseWorkerProvider>>,
     release_updater: Option<Arc<super::InstalledReleaseUpdater>>,
+    legacy_release_reviewer: Option<host_legacy_release_recovery::LegacyReleaseReviewer>,
     restore_worker: Option<Arc<dyn super::RestoreWorkerProvider>>,
     target: p::ProductTarget,
     install_id: String,
@@ -291,6 +294,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             release_stager: None,
             release_worker: None,
             release_updater: None,
+            legacy_release_reviewer: None,
             restore_worker: None,
             target,
             install_id: install_id.into(),

@@ -41,8 +41,8 @@ fn release_recovery_capability_mode_is_closed_and_never_loads_host_configuration
             let view: p::ProductReleaseRecoveryCapabilities =
                 serde_json::from_slice(&output.stdout).unwrap();
             view.validate().unwrap();
-            assert_eq!(view.journal_read_max, 2);
-            assert_eq!(view.updater_version, 2);
+            assert_eq!(view.journal_read_max, 3);
+            assert_eq!(view.updater_version, 3);
         } else {
             assert!(!output.status.success());
             assert!(output.stdout.is_empty());

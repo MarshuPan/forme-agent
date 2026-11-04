@@ -39,6 +39,23 @@ try {
     )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_product_contract") $name }
 
     foreach ($name in @(
+        "legacy_report_requires_complete_ordered_same_binding_evidence",
+        "legacy_rejected_and_unverifiable_reports_cannot_omit_or_repeat_issues",
+        "legacy_binding_digest_covers_every_source_identity_and_checkpoint",
+        "legacy_commands_are_closed_and_verification_has_independent_authorization_digest",
+        "legacy_views_and_lists_preserve_owner_revision_order_and_receipt_boundaries",
+        "recovery_capabilities_accept_only_exact_supported_reader_updater_pairs"
+    )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_legacy_release_recovery_contract") $name }
+
+    foreach ($name in @(
+        "legacy_host_verifies_signed_files_and_commits_once_with_no_service_effects",
+        "legacy_host_rejects_foreign_identity_missing_collector_and_forged_signatures_before_append",
+        "legacy_host_rejects_each_missing_or_changed_artifact_despite_valid_signature",
+        "legacy_host_rejects_service_worker_configuration_and_review_drift",
+        "legacy_host_interrupted_intent_is_query_only_until_original_verification"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
+
+    foreach ($name in @(
         "os_lock_blocks_a_second_writer_and_binding_survives_restart",
         "killed_writer_releases_os_lock_and_restart_never_repeats_the_observed_effect",
         "durable_idempotency_and_cas_reject_conflicts_without_writes",
@@ -145,7 +162,9 @@ try {
         "non_verified_or_drifted_reviews_are_rejected_without_append",
         "recovery_cas_and_cross_domain_collisions_allow_only_one_intent",
         "interrupted_recovery_requires_same_request_and_explicit_verification",
-        "schema_three_is_not_read_by_a_v2_reader_and_unknown_fact_fails_closed"
+        "schema_three_is_not_read_by_a_v2_reader_and_unknown_fact_fails_closed",
+        "legacy_authorization_waits_for_expired_takeover_and_cannot_outlive_review",
+        "legacy_source_binding_is_checked_even_when_changed_report_digests_are_consistent"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::legacy_recovery_review::tests::$name" }
 
     foreach ($name in @(

@@ -9,6 +9,32 @@ use super::*;
 mod tests;
 
 impl ProductJournal {
+    pub(crate) fn check_legacy_review(
+        &self,
+        review: &p::SignedLegacyReleaseReview,
+        now: p::Timestamp,
+    ) -> p::Result<()> {
+        review.validate()?;
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        validate_review_source(&writer.projection, &review.review.binding, None, now, true)
+    }
+
+    pub(crate) fn saved_legacy_review(&self, id: &str) -> p::Result<p::SignedLegacyReleaseReview> {
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        writer
+            .projection
+            .legacy_reviews
+            .get(id)
+            .map(|state| state.review.clone())
+            .ok_or_else(invalid_journal)
+    }
+
     pub(crate) fn legacy_recoveries(
         &self,
         owner: &p::OwnerPrincipalRef,
@@ -231,33 +257,52 @@ fn validate_review_binding(
     {
         return Err(invalid_journal());
     }
+    validate_review_source(
+        projection,
+        &review.review.binding,
+        Some(&request.operation_id),
+        at,
+        require_current_checkpoint,
+    )
+}
+
+fn validate_review_source(
+    projection: &Projection,
+    binding: &p::LegacyReleaseReviewBinding,
+    recovery_id: Option<&str>,
+    at: p::Timestamp,
+    require_current_checkpoint: bool,
+) -> p::Result<()> {
+    if at < 0 || at >= binding.expires_at {
+        return Err(invalid_journal());
+    }
     if require_current_checkpoint
-        && (request.expected_revision != projection.sequence
-            || review.review.binding.journal_seq != projection.sequence
-            || review.review.binding.journal_head != projection.head()?)
+        && (binding.journal_seq != projection.sequence
+            || binding.journal_head != projection.head()?)
     {
         return Err(invalid_journal());
     }
-    if projection.install_id.as_deref() != Some(&review.review.binding.install_ref) {
+    if projection.install_id.as_deref() != Some(&binding.install_ref) {
         return Err(invalid_journal());
     }
     let state = projection
         .operations
-        .get(&review.review.binding.original_operation_id)
+        .get(&binding.original_operation_id)
         .ok_or_else(invalid_journal)?;
     let takeover = state
         .release_takeover
         .as_ref()
         .ok_or_else(invalid_journal)?;
     let release = &takeover.release;
-    if takeover.owner != review.review.binding.owner
-        || release.install_ref != review.review.binding.install_ref
-        || release.operation_id != review.review.binding.original_operation_id
-        || release.command_digest != review.review.binding.original_command_digest
-        || release.original_release_ref != review.review.binding.original_release_ref
-        || release.original_release_digest != review.review.binding.original_release_digest
-        || state.view.command_digest != review.review.binding.original_command_digest
-        || state.view.original_release_ref != review.review.binding.original_release_ref
+    if at < takeover.deadline
+        || takeover.owner != binding.owner
+        || release.install_ref != binding.install_ref
+        || release.operation_id != binding.original_operation_id
+        || release.command_digest != binding.original_command_digest
+        || release.original_release_ref != binding.original_release_ref
+        || release.original_release_digest != binding.original_release_digest
+        || state.view.command_digest != binding.original_command_digest
+        || state.view.original_release_ref != binding.original_release_ref
         || state.release_images_claimed
         || state.release_checking.is_some()
         || state.release_recovery_baseline.is_some()
@@ -267,11 +312,11 @@ fn validate_review_binding(
             p::MaintenanceStage::Validated | p::MaintenanceStage::RecoveryRequired
         )
         || projection.active_release.as_ref().is_none_or(|active| {
-            active.release_id != review.review.binding.original_release_ref
-                || active.release_digest != review.review.binding.original_release_digest
+            active.release_id != binding.original_release_ref
+                || active.release_digest != binding.original_release_digest
         })
-        || review.review.binding.config_revision != takeover.expected_config_revision
-        || review.review.binding.config_digest != takeover.expected_config_digest
+        || binding.config_revision != takeover.expected_config_revision
+        || binding.config_digest != takeover.expected_config_digest
         || projection
             .installation_verification
             .as_ref()
@@ -281,15 +326,17 @@ fn validate_review_binding(
     {
         return Err(invalid_journal());
     }
-    if projection.operations.iter().any(|(id, other)| {
-        id != &review.review.binding.original_operation_id && !other.view.stage.is_terminal()
-    }) || projection
-        .recoveries
-        .values()
-        .any(|recovery| recovery.stage == p::ProductReleaseRecoveryStage::Intent)
+    if projection
+        .operations
+        .iter()
+        .any(|(id, other)| id != &binding.original_operation_id && !other.view.stage.is_terminal())
+        || projection
+            .recoveries
+            .values()
+            .any(|recovery| recovery.stage == p::ProductReleaseRecoveryStage::Intent)
         || projection.legacy_reviews.values().any(|existing| {
             existing.view.stage == p::LegacyReleaseRecoveryStage::Intent
-                && existing.view.request.operation_id != request.operation_id
+                && Some(existing.view.request.operation_id.as_str()) != recovery_id
         })
     {
         return Err(invalid_journal());
@@ -308,6 +355,7 @@ pub(super) fn fold(projection: &mut Projection, fact: &JournalFact, seq: u64) ->
             validate_review_binding(projection, request, review, *at, true)?;
             if *actor != p::MaintenanceActorClass::OwnerReauthenticated
                 || *at < 0
+                || request.expected_revision != projection.sequence
                 || *at >= request.requested_deadline
                 || request.requested_deadline - *at > 120_000
                 || projection
@@ -345,6 +393,7 @@ pub(super) fn fold(projection: &mut Projection, fact: &JournalFact, seq: u64) ->
                     view,
                     review: *review.clone(),
                     intent_revision: seq,
+                    intent_at: *at,
                     final_observation_digest: None,
                 },
             );
@@ -369,7 +418,9 @@ pub(super) fn fold(projection: &mut Projection, fact: &JournalFact, seq: u64) ->
                 || state.review.review_digest()? != *review_digest
                 || *actor != p::MaintenanceActorClass::OwnerReauthenticated
                 || *at < 0
+                || *at < state.intent_at
                 || *at >= *authorization_deadline
+                || *authorization_deadline > state.review.review.binding.expires_at
                 || authorization_deadline.saturating_sub(*at) > 120_000
                 || projection.sequence != state.view.revision
             {
