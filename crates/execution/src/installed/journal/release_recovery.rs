@@ -91,8 +91,14 @@ impl ProductJournal {
             return Ok(Some(view.clone()));
         }
         if projection.recoveries.contains_key(&request.operation_id)
+            || projection
+                .legacy_reviews
+                .contains_key(&request.operation_id)
             || projection.operations.contains_key(&request.operation_id)
             || projection.commands.contains_key(&request.idempotency_key)
+            || projection
+                .legacy_review_keys
+                .contains_key(&request.idempotency_key)
         {
             return Err(invalid_journal());
         }

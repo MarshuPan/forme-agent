@@ -8,6 +8,10 @@ use forme_protocol as p;
 use serde::{Deserialize, Serialize};
 
 use super::reject_linked_ancestors;
+// The journal primitives land before the separately gated Host collector.
+// Keep them private until that collector is approved and wired to auth.
+#[allow(dead_code)]
+mod legacy_recovery_review;
 #[path = "network_journal.rs"]
 mod network_journal;
 mod projection;
@@ -20,6 +24,7 @@ mod verification;
 
 const MAX_JOURNAL_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = 64 * 1024;
+const CURRENT_JOURNAL_SCHEMA: u32 = 3;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "record", rename_all = "snake_case", deny_unknown_fields)]
 enum JournalFact {
@@ -66,6 +71,21 @@ enum JournalFact {
         operation_id: String,
         request_digest: p::SchemaDigest,
         expected_evidence: p::SchemaDigest,
+        authorization_deadline: p::Timestamp,
+        actor: p::MaintenanceActorClass,
+        at: p::Timestamp,
+    },
+    LegacyReleaseRecoveryIntent {
+        request: Box<p::LegacyReleaseRecoveryRequest>,
+        review: Box<p::SignedLegacyReleaseReview>,
+        actor: p::MaintenanceActorClass,
+        at: p::Timestamp,
+    },
+    LegacyReleaseRecoveryCommitted {
+        operation_id: String,
+        request_digest: p::SchemaDigest,
+        review_digest: p::SchemaDigest,
+        final_observation_digest: p::SchemaDigest,
         authorization_deadline: p::Timestamp,
         actor: p::MaintenanceActorClass,
         at: p::Timestamp,
@@ -150,6 +170,15 @@ struct OperationState {
     release_recovery_baseline: Option<p::ProductReleaseRecoveryBaseline>,
 }
 
+#[derive(Clone)]
+struct LegacyReviewState {
+    view: p::LegacyReleaseRecoveryView,
+    review: p::SignedLegacyReleaseReview,
+    #[allow(dead_code)]
+    intent_revision: u64,
+    final_observation_digest: Option<p::SchemaDigest>,
+}
+
 #[derive(Clone, Default)]
 struct Projection {
     install_id: Option<String>,
@@ -161,6 +190,8 @@ struct Projection {
     commands: BTreeMap<String, (p::SchemaDigest, String)>,
     recoveries: BTreeMap<String, p::ProductReleaseRecoveryView>,
     recovery_keys: BTreeMap<String, String>,
+    legacy_reviews: BTreeMap<String, LegacyReviewState>,
+    legacy_review_keys: BTreeMap<String, String>,
     schema_floor: u32,
 }
 
@@ -178,7 +209,14 @@ pub struct ProductJournal {
 
 impl ProductJournal {
     pub fn open(path: &Path, install_id: &str) -> p::Result<Self> {
+        Self::open_with_schema(path, install_id, CURRENT_JOURNAL_SCHEMA)
+    }
+
+    fn open_with_schema(path: &Path, install_id: &str, maximum_schema: u32) -> p::Result<Self> {
         p::validate_product_id(install_id)?;
+        if maximum_schema == 0 {
+            return Err(invalid_journal());
+        }
         reject_linked_ancestors(path)?;
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true).truncate(false);
@@ -222,7 +260,7 @@ impl ProductJournal {
                 &envelope.previous,
                 raw.fact,
             ))?;
-            projection.fold_with_digest(&envelope, calculated)?;
+            projection.fold_with_digest_and_max(&envelope, calculated, maximum_schema)?;
         }
         if projection
             .install_id
@@ -261,6 +299,24 @@ impl ProductJournal {
             return Err(storage_error());
         }
         Ok(writer.projection.sequence)
+    }
+
+    #[cfg(test)]
+    fn checkpoint(&self) -> p::Result<(u64, p::SchemaDigest)> {
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        Ok((writer.projection.sequence, writer.projection.head()?))
+    }
+
+    #[cfg(test)]
+    fn open_with_maximum_schema(
+        path: &Path,
+        install_id: &str,
+        maximum_schema: u32,
+    ) -> p::Result<Self> {
+        Self::open_with_schema(path, install_id, maximum_schema)
     }
 
     pub fn active_release(&self) -> p::Result<Option<(String, p::SchemaDigest)>> {
@@ -366,7 +422,15 @@ impl ProductJournal {
             .contains_key(&command.operation_id)
             || writer
                 .projection
+                .legacy_reviews
+                .contains_key(&command.operation_id)
+            || writer
+                .projection
                 .recovery_keys
+                .contains_key(&command.idempotency_key)
+            || writer
+                .projection
+                .legacy_review_keys
                 .contains_key(&command.idempotency_key)
         {
             return Err(invalid_journal());
@@ -479,6 +543,12 @@ fn write_fact(writer: &mut Writer, expected: u64, fact: JournalFact) -> p::Resul
             | JournalFact::ReleaseRecoveryCommitted { .. }
     ) {
         2
+    } else if matches!(
+        fact,
+        JournalFact::LegacyReleaseRecoveryIntent { .. }
+            | JournalFact::LegacyReleaseRecoveryCommitted { .. }
+    ) {
+        3
     } else {
         1
     };

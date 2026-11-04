@@ -8,7 +8,7 @@ impl Projection {
             .map_or_else(|| p::canonical_digest(&"forme-product-journal-v1"), Ok)
     }
     pub(super) fn fold(&mut self, envelope: &JournalEnvelope) -> p::Result<()> {
-        self.fold_with_digest(
+        self.fold_with_digest_and_max(
             envelope,
             JournalEnvelope::calculate(
                 envelope.schema_version,
@@ -16,15 +16,17 @@ impl Projection {
                 &envelope.previous,
                 &envelope.fact,
             )?,
+            CURRENT_JOURNAL_SCHEMA,
         )
     }
 
-    pub(super) fn fold_with_digest(
+    pub(super) fn fold_with_digest_and_max(
         &mut self,
         envelope: &JournalEnvelope,
         calculated: p::SchemaDigest,
+        maximum_schema: u32,
     ) -> p::Result<()> {
-        if !matches!(envelope.schema_version.0, 1 | 2)
+        if !(1..=maximum_schema).contains(&envelope.schema_version.0)
             || envelope.schema_version.0 < self.schema_floor
             || envelope.product_seq != self.sequence.checked_add(1).ok_or_else(invalid_journal)?
             || envelope.previous != self.head()?
@@ -196,10 +198,17 @@ impl Projection {
             JournalFact::ReleaseRecoveryBaselinePrepared { .. }
             | JournalFact::ReleaseRecoveryIntent { .. }
             | JournalFact::ReleaseRecoveryCommitted { .. } => {
-                if envelope.schema_version.0 != 2 {
+                if !(2..=maximum_schema).contains(&envelope.schema_version.0) {
                     return Err(invalid_journal());
                 }
                 release_recovery::fold(self, &envelope.fact, envelope.product_seq)?;
+            }
+            JournalFact::LegacyReleaseRecoveryIntent { .. }
+            | JournalFact::LegacyReleaseRecoveryCommitted { .. } => {
+                if envelope.schema_version != p::SchemaVersion(3) {
+                    return Err(invalid_journal());
+                }
+                legacy_recovery_review::fold(self, &envelope.fact, envelope.product_seq)?;
             }
             JournalFact::StageIntent {
                 operation_id,
@@ -311,5 +320,9 @@ impl Projection {
                 .recoveries
                 .values()
                 .any(|r| r.stage == p::ProductReleaseRecoveryStage::Intent)
+            || self
+                .legacy_reviews
+                .values()
+                .any(|r| r.view.stage == p::LegacyReleaseRecoveryStage::Intent)
     }
 }

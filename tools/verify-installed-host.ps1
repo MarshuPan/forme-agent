@@ -395,6 +395,19 @@ try {
         "startup_panic_is_a_host_failure_and_is_joined"
     )) { Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::lifecycle::tests::$name" }
 
+    foreach ($name in @(
+        "v2_claim_preserves_v1_prefix_and_separates_commit_from_activation",
+        "restart_at_each_stage_is_read_only_and_unactivated_data_requires_recovery",
+        "verified_backup_uses_the_same_bound_commit_and_activation_lane",
+        "selection_rejects_wrong_session_digest_epoch_owner_or_unverified_candidate",
+        "inventory_rejects_stale_epoch_installation_drift_and_post_selection_refresh",
+        "prepared_and_commit_are_bound_to_candidate_owner_target_and_worker_result",
+        "abort_before_data_preserves_history_but_cannot_clear_prepared_data",
+        "query_requires_service_and_exact_setup_binding_without_appending",
+        "partial_unknown_and_downgraded_journals_are_preserved_and_fail_closed",
+        "hash_valid_v1_fact_cannot_downgrade_a_v2_journal"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::bootstrap::tests::legacy_journal::$name" }
+
     Write-Host "installed-host-foundation and core-shutdown-components: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }

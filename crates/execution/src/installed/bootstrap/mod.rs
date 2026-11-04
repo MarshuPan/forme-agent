@@ -1,6 +1,7 @@
 //! Installation claim authority. No models, brain tables or Agent permissions.
 mod config;
 mod journal;
+mod legacy_query;
 
 #[cfg(test)]
 mod tests;
@@ -104,7 +105,7 @@ impl BootstrapAuthority {
         if journal.state.rotations.contains(rotation) {
             return Err(BootstrapError(Code::Conflict));
         }
-        if journal.state.committed.is_some() {
+        if journal.state.is_claimed() || journal.state.has_legacy_selection() {
             return Err(BootstrapError(Code::Conflict));
         }
         let proof = random_secret()?;
@@ -144,7 +145,7 @@ impl BootstrapAuthority {
             .map_err(|_| BootstrapError(Code::InvalidInput))?;
         let digest = proof_digest(&self.config.install_ref, &request.proof)?;
         let mut journal = self.lock(now)?;
-        if journal.state.committed.is_some() {
+        if journal.state.is_claimed() {
             return Err(BootstrapError(Code::Conflict));
         }
         let proof = journal
@@ -187,6 +188,9 @@ impl BootstrapAuthority {
         self.check_service(auth)?;
         let journal = self.lock(now)?;
         let reservation = self.check_session(&journal, session, now, false)?;
+        if journal.state.has_legacy_selection() {
+            return Err(BootstrapError(Code::Conflict));
+        }
         let available = self.config.check_empty_target().is_ok();
         Ok(p::BootstrapDataCandidateView {
             schema_version: p::SchemaVersion(1),
@@ -210,6 +214,9 @@ impl BootstrapAuthority {
         }
         let mut journal = self.lock(now)?;
         let reservation = self.check_session(&journal, &request.session, now, false)?;
+        if journal.state.has_legacy_selection() {
+            return Err(BootstrapError(Code::Conflict));
+        }
         self.config.check_empty_target()?;
         if reservation.selection.is_none() {
             let owner = p::OwnerPrincipalRef(format!("owner:{}", random_secret()?));
@@ -328,10 +335,10 @@ impl BootstrapAuthority {
         {
             return Err(BootstrapError(Code::Conflict));
         }
-        if journal.state.committed.is_some() && committed_retry {
+        if journal.state.is_claimed() && committed_retry {
             return Ok(reservation);
         }
-        if journal.state.committed.is_some() {
+        if journal.state.is_claimed() {
             return Err(BootstrapError(Code::Conflict));
         }
         if now >= reservation.expires {

@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 use super::{BootstrapError, BootstrapResult};
 use p::BootstrapProblemCode as Code;
 
+mod legacy;
+use legacy::LegacyClaims;
+
 pub(super) const PROOF_TTL: i64 = 30 * 60 * 1000;
 pub(super) const SETUP_TTL: i64 = 15 * 60 * 1000;
 const LIMIT: u64 = 8 * 1024 * 1024;
@@ -30,6 +33,7 @@ pub(super) struct State {
     pub rotations: BTreeSet<String>,
     pub reservation: Option<Reservation>,
     pub committed: Option<p::WebClaimCommit>,
+    legacy: LegacyClaims,
     pub last_at: i64,
 }
 
@@ -61,9 +65,46 @@ pub(super) enum Fact {
         receipt: p::WebClaimCommit,
         at: i64,
     },
+    CandidateInventoryObserved {
+        operation: String,
+        catalog: p::BootstrapCandidateCatalogV2,
+        at: i64,
+    },
+    CandidateSelectedV2 {
+        selection: p::BootstrapCandidateSelectionV2,
+        candidate: p::BootstrapCandidateViewV2,
+        at: i64,
+    },
+    ClaimDataPrepared {
+        prepared: p::BootstrapClaimDataPreparedV2,
+        at: i64,
+    },
+    ClaimCommittedV2 {
+        commit: p::BootstrapClaimCommitV2,
+        at: i64,
+    },
+    ClaimActivatedV2 {
+        activation: p::BootstrapClaimActivationV2,
+        at: i64,
+    },
+    ClaimAbortedV2 {
+        operation: String,
+        candidate_ref: String,
+        candidate_digest: p::SchemaDigest,
+        issue_ref: String,
+        at: i64,
+    },
 }
 
 impl State {
+    pub fn is_claimed(&self) -> bool {
+        self.committed.is_some() || self.legacy.is_committed()
+    }
+
+    pub fn has_legacy_selection(&self) -> bool {
+        self.legacy.has_selection()
+    }
+
     fn fold(&mut self, fact: &Fact) -> BootstrapResult<()> {
         let bad = || BootstrapError(Code::RecoveryRequired);
         if self.binding.is_none() && !matches!(fact, Fact::Bound { .. }) {
@@ -90,7 +131,8 @@ impl State {
                 if self.rotations.contains(operation) {
                     return Err(bad());
                 }
-                if self.committed.is_some()
+                if self.is_claimed()
+                    || self.has_legacy_selection()
                     || *expires != at.checked_add(PROOF_TTL).ok_or_else(bad)?
                 {
                     return Err(bad());
@@ -108,7 +150,8 @@ impl State {
             } => {
                 p::validate_product_id(operation).map_err(|_| bad())?;
                 p::validate_product_digest(setup).map_err(|_| bad())?;
-                if self.committed.is_some()
+                if self.is_claimed()
+                    || self.has_legacy_selection()
                     || self.reservation.is_some()
                     || self
                         .proof
@@ -133,6 +176,9 @@ impl State {
             } => {
                 p::validate_product_id(candidate).map_err(|_| bad())?;
                 owner.validate().map_err(|_| bad())?;
+                if self.is_claimed() || self.has_legacy_selection() {
+                    return Err(bad());
+                }
                 let reservation = self.reservation.as_mut().ok_or_else(bad)?;
                 if self.committed.is_some()
                     || reservation.selection.is_some()
@@ -160,6 +206,20 @@ impl State {
                 self.committed = Some(receipt.clone());
                 *at
             }
+            Fact::CandidateInventoryObserved { at, .. }
+            | Fact::CandidateSelectedV2 { at, .. }
+            | Fact::ClaimDataPrepared { at, .. }
+            | Fact::ClaimCommittedV2 { at, .. }
+            | Fact::ClaimActivatedV2 { at, .. }
+            | Fact::ClaimAbortedV2 { at, .. } => {
+                if self.committed.is_some() {
+                    return Err(bad());
+                }
+                let install = &self.binding.as_ref().ok_or_else(bad)?.0;
+                let reservation = self.reservation.as_ref().ok_or_else(bad)?;
+                self.legacy.fold(fact, install, reservation, *at)?;
+                *at
+            }
         };
         if at <= 0 || at < self.last_at {
             return Err(bad());
@@ -180,13 +240,18 @@ struct Envelope {
 }
 
 fn digest(
+    schema_version: p::SchemaVersion,
     sequence: u64,
     previous: &p::SchemaDigest,
     fact: &Fact,
 ) -> BootstrapResult<p::SchemaDigest> {
     p::canonical_digest(&(
-        "forme-install-claim-journal-v1",
-        p::SchemaVersion(1),
+        if schema_version == p::SchemaVersion(1) {
+            "forme-install-claim-journal-v1"
+        } else {
+            "forme-install-claim-journal-v2"
+        },
+        schema_version,
         sequence,
         previous,
         fact,
@@ -200,10 +265,30 @@ pub(super) struct Journal {
     sequence: u64,
     head: p::SchemaDigest,
     poisoned: bool,
+    schema_version: p::SchemaVersion,
+    recovered_claims: BTreeSet<String>,
 }
 
 impl Journal {
     pub fn open(path: &Path, install: &str, key: p::SchemaDigest) -> BootstrapResult<Self> {
+        Self::open_version(path, install, key, p::SchemaVersion(2))
+    }
+
+    #[cfg(test)]
+    pub(super) fn open_v1(
+        path: &Path,
+        install: &str,
+        key: p::SchemaDigest,
+    ) -> BootstrapResult<Self> {
+        Self::open_version(path, install, key, p::SchemaVersion(1))
+    }
+
+    fn open_version(
+        path: &Path,
+        install: &str,
+        key: p::SchemaDigest,
+        maximum_version: p::SchemaVersion,
+    ) -> BootstrapResult<Self> {
         super::super::reject_linked_ancestors(path)
             .map_err(|_| BootstrapError(Code::InvalidInput))?;
         let existed = path.exists();
@@ -240,6 +325,8 @@ impl Journal {
             head: p::canonical_digest(&"forme-install-claim-journal-v1")
                 .map_err(|_| BootstrapError(Code::Unavailable))?,
             poisoned: false,
+            schema_version: p::SchemaVersion(1),
+            recovered_claims: BTreeSet::new(),
         };
         let mut reader = BufReader::new(&journal.file);
         loop {
@@ -257,20 +344,29 @@ impl Journal {
             }
             let record: Envelope = serde_json::from_slice(&line)
                 .map_err(|_| BootstrapError(Code::RecoveryRequired))?;
-            if record.schema_version != p::SchemaVersion(1)
+            if !(1..=maximum_version.0).contains(&record.schema_version.0)
+                || record.schema_version.0 < journal.schema_version.0
+                || record.schema_version.0 < record.fact.minimum_version().0
                 || record.sequence
                     != journal
                         .sequence
                         .checked_add(1)
                         .ok_or(BootstrapError(Code::RecoveryRequired))?
                 || record.previous != journal.head
-                || record.digest != digest(record.sequence, &record.previous, &record.fact)?
+                || record.digest
+                    != digest(
+                        record.schema_version,
+                        record.sequence,
+                        &record.previous,
+                        &record.fact,
+                    )?
             {
                 return Err(BootstrapError(Code::RecoveryRequired));
             }
             journal.state.fold(&record.fact)?;
             journal.sequence = record.sequence;
             journal.head = record.digest;
+            journal.schema_version = record.schema_version;
         }
         if journal.sequence == 0 {
             if existed {
@@ -288,7 +384,33 @@ impl Journal {
         if journal.state.binding.as_ref() != Some(&(install.to_owned(), key)) {
             return Err(BootstrapError(Code::RecoveryRequired));
         }
+        journal.recovered_claims = journal.state.legacy.pending_operations();
         Ok(journal)
+    }
+
+    pub fn claim_view_v2(&self, operation: &str) -> BootstrapResult<p::BootstrapClaimViewV2> {
+        self.ensure_healthy()?;
+        let install = &self
+            .state
+            .binding
+            .as_ref()
+            .ok_or(BootstrapError(Code::RecoveryRequired))?
+            .0;
+        self.state.legacy.view(
+            install,
+            operation,
+            self.recovered_claims.contains(operation),
+        )
+    }
+
+    #[cfg(test)]
+    pub(super) fn snapshot_for_test(&mut self) -> Vec<u8> {
+        let position = self.file.stream_position().unwrap();
+        self.file.rewind().unwrap();
+        let mut bytes = Vec::new();
+        self.file.read_to_end(&mut bytes).unwrap();
+        self.file.seek(SeekFrom::Start(position)).unwrap();
+        bytes
     }
 
     pub fn ensure_healthy(&self) -> BootstrapResult<()> {
@@ -304,16 +426,23 @@ impl Journal {
         if self.poisoned {
             return Err(BootstrapError(Code::RecoveryRequired));
         }
+        if fact
+            .legacy_operation()
+            .is_some_and(|operation| self.recovered_claims.contains(operation))
+        {
+            return Err(BootstrapError(Code::RecoveryRequired));
+        }
         let mut next = self.state.clone();
         next.fold(&fact)?;
         let sequence = self
             .sequence
             .checked_add(1)
             .ok_or(BootstrapError(Code::RecoveryRequired))?;
+        let schema_version = p::SchemaVersion(self.schema_version.0.max(fact.minimum_version().0));
         let record = Envelope {
-            schema_version: p::SchemaVersion(1),
+            schema_version,
             sequence,
-            digest: digest(sequence, &self.head, &fact)?,
+            digest: digest(schema_version, sequence, &self.head, &fact)?,
             previous: self.head.clone(),
             fact,
         };
@@ -337,7 +466,33 @@ impl Journal {
         self.state = next;
         self.sequence = sequence;
         self.head = record.digest;
+        self.schema_version = schema_version;
         self.poisoned = false;
         Ok(())
+    }
+}
+
+impl Fact {
+    fn legacy_operation(&self) -> Option<&str> {
+        match self {
+            Self::CandidateInventoryObserved { operation, .. }
+            | Self::ClaimAbortedV2 { operation, .. } => Some(operation),
+            Self::CandidateSelectedV2 { selection, .. } => Some(&selection.session.operation_id),
+            Self::ClaimDataPrepared { prepared, .. } => Some(&prepared.operation_id),
+            Self::ClaimCommittedV2 { commit, .. } => Some(&commit.receipt.operation_id),
+            Self::ClaimActivatedV2 { activation, .. } => Some(&activation.operation_id),
+            _ => None,
+        }
+    }
+
+    fn minimum_version(&self) -> p::SchemaVersion {
+        match self {
+            Self::Bound { .. }
+            | Self::ProofIssued { .. }
+            | Self::Reserved { .. }
+            | Self::Selected { .. }
+            | Self::Committed { .. } => p::SchemaVersion(1),
+            _ => p::SchemaVersion(2),
+        }
     }
 }
