@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:c2b6aa4ea14a56274f2c017ecc637e15f9e67f3ad9727ab48ddb0e1671259521",
+        "input_digest": "sha256:47d4c983fcd4dad3af2aaaadf780f7137a0e24d1febc0c02b20fee09d344fc16",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:12e946f27fd13031a255b36819c0fe21155a49facf98f795f7a3b379509af2ac",
+        "input_digest": "sha256:a14a9f9855279549612c31cc570f925a56c7e707768137417ab937a9a73d098d",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -103,6 +103,11 @@
             "code": "TARGET_UNREACHABLE_INFORMATIONAL_WARNING",
             "detail": "cargo-audit unmaintained warning affects locked zvariant_derive 5.13.0 only outside x86_64-pc-windows-gnu",
             "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_YANKED_PACKAGE",
+            "detail": "cargo-audit yanked warning affects locked async-executor 1.14.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
           }
         ],
         "outcome": "pass",
@@ -157,10 +162,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:b0d3cfc11b3e014cfd72c41de89f999fe7f542737f76f7fc794dfd37b96d28d3",
+    "root_digest": "sha256:8d5b60565c16d47ac875b86a2bb5d52b10ff5e8e4bf2a295b6d4c39a34b63709",
     "schema_version": 1,
     "tool_version": "forme-release-audit/5"
   },
-  "digest": "sha256:bbb99fdc82615c24ac696bd93e2bfb52aabb7f58896b4cdc4a479c6c006bd8dc",
+  "digest": "sha256:ca71acb09ebda81ed4143a85effb7d15858258167991547d4a7972dafb4a4b1a",
   "schema_version": 1
 }
