@@ -1,9 +1,12 @@
 //! Product-only setup messages. No brain events, arbitrary paths or owner input.
 use serde::{Deserialize, Serialize};
 
-use crate::{Result, SchemaDigest, SchemaVersion, Timestamp};
+use crate::{OwnerPrincipalRef, Result, SchemaDigest, SchemaVersion, Timestamp};
 
 pub const BOOTSTRAP_CANDIDATE_SCHEMA_VERSION: SchemaVersion = SchemaVersion(2);
+
+mod legacy_claim;
+pub use legacy_claim::*;
 
 /// Sensitive authenticated-service input; intentionally has no Debug.
 #[derive(Serialize, Deserialize)]
@@ -128,6 +131,10 @@ pub enum BootstrapCandidateStatus {
 pub enum BootstrapOwnerSource {
     GeneratedForNewBrain,
     VerifiedFromCandidate,
+    /// Historical identity is not established. This is only valid for a
+    /// rejected or unverifiable historical candidate and can never authorize
+    /// selection or claim.
+    NotEstablished,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,6 +152,22 @@ pub struct BootstrapSessionBindingV2 {
     pub schema_version: SchemaVersion,
     pub operation_id: String,
     pub setup_digest: SchemaDigest,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BootstrapCandidateCatalogRequestV2 {
+    pub schema_version: SchemaVersion,
+    pub session: BootstrapSessionBindingV2,
+}
+
+impl BootstrapCandidateCatalogRequestV2 {
+    pub fn validate(&self) -> Result<()> {
+        if self.schema_version != BOOTSTRAP_CANDIDATE_SCHEMA_VERSION {
+            return Err(crate::Error("unsupported candidate catalog version".into()));
+        }
+        self.session.validate()
+    }
 }
 
 impl BootstrapSessionBindingV2 {
@@ -167,6 +190,9 @@ pub struct BootstrapCandidateViewV2 {
     pub candidate_digest: SchemaDigest,
     pub verification_epoch: u64,
     pub owner_source: BootstrapOwnerSource,
+    /// A safe owner principal reference produced by the verifier. It is not
+    /// accepted from a browser and never contains a credential or key.
+    pub owner_ref: Option<OwnerPrincipalRef>,
     pub owner_binding_digest: Option<SchemaDigest>,
     pub store_identity_digest: Option<SchemaDigest>,
     pub schema_digest: Option<SchemaDigest>,
@@ -197,12 +223,27 @@ impl BootstrapCandidateViewV2 {
         {
             crate::validate_product_digest(digest)?;
         }
+        if let Some(owner_ref) = &self.owner_ref {
+            owner_ref.validate()?;
+        }
+        if let (Some(owner_ref), Some(owner_binding_digest)) =
+            (&self.owner_ref, &self.owner_binding_digest)
+        {
+            let expected_owner_binding =
+                crate::canonical_digest(&("forme-bootstrap-owner-binding-v2", owner_ref))?;
+            if owner_binding_digest != &expected_owner_binding {
+                return Err(crate::Error(
+                    "bootstrap candidate owner binding is invalid".into(),
+                ));
+            }
+        }
         if let Some(issue_ref) = &self.issue_ref {
             crate::validate_product_id(issue_ref)?;
         }
         match self.kind {
             BootstrapCandidateKind::NewBrainTarget => {
                 if self.owner_source != BootstrapOwnerSource::GeneratedForNewBrain
+                    || self.owner_ref.is_some()
                     || self.owner_binding_digest.is_some()
                     || self.store_identity_digest.is_some()
                     || self.schema_digest.is_some()
@@ -213,10 +254,23 @@ impl BootstrapCandidateViewV2 {
                 }
             }
             BootstrapCandidateKind::ExistingBrain | BootstrapCandidateKind::VerifiedBackup => {
-                if self.owner_source != BootstrapOwnerSource::VerifiedFromCandidate
-                    || self.owner_binding_digest.is_none()
-                    || self.store_identity_digest.is_none()
-                    || self.schema_digest.is_none()
+                let established = self.owner_source == BootstrapOwnerSource::VerifiedFromCandidate
+                    && self.owner_ref.is_some()
+                    && self.owner_binding_digest.is_some()
+                    && self.store_identity_digest.is_some()
+                    && self.schema_digest.is_some();
+                let unavailable = self.owner_source == BootstrapOwnerSource::NotEstablished
+                    && self.owner_ref.is_none()
+                    && self.owner_binding_digest.is_none()
+                    && self.store_identity_digest.is_none()
+                    && self.schema_digest.is_none();
+                if self.status == BootstrapCandidateStatus::Available && !established
+                    || self.status != BootstrapCandidateStatus::Available
+                        && !(established || unavailable)
+                    || self.status == BootstrapCandidateStatus::Available
+                        && self.issue_ref.is_some()
+                    || self.status != BootstrapCandidateStatus::Available
+                        && self.issue_ref.is_none()
                 {
                     return Err(crate::Error(
                         "historical candidate lacks verified identity".into(),
@@ -250,6 +304,7 @@ impl BootstrapCandidateViewV2 {
             self.kind,
             &self.source_observation_digest,
             &self.owner_binding_digest,
+            &self.owner_ref,
             &self.store_identity_digest,
             &self.schema_digest,
             self.protection_state,
@@ -309,134 +364,5 @@ impl BootstrapCandidateCatalogV2 {
         self.candidates
             .iter()
             .find(|candidate| candidate.candidate_ref == candidate_ref)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BootstrapCandidateSelectionV2 {
-    pub schema_version: SchemaVersion,
-    pub session: BootstrapSessionBindingV2,
-    pub candidate_ref: String,
-    pub expected_candidate_digest: SchemaDigest,
-}
-
-impl BootstrapCandidateSelectionV2 {
-    pub fn validate(&self) -> Result<()> {
-        if self.schema_version != BOOTSTRAP_CANDIDATE_SCHEMA_VERSION {
-            return Err(crate::Error(
-                "unsupported candidate selection version".into(),
-            ));
-        }
-        self.session.validate()?;
-        crate::validate_product_id(&self.candidate_ref)?;
-        crate::validate_product_digest(&self.expected_candidate_digest)
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BootstrapClaimRequestV2 {
-    pub schema_version: SchemaVersion,
-    pub session: BootstrapSessionBindingV2,
-    pub candidate_ref: String,
-    pub expected_candidate_digest: SchemaDigest,
-    pub account_commitment: SchemaDigest,
-}
-
-impl BootstrapClaimRequestV2 {
-    pub fn validate(&self) -> Result<()> {
-        if self.schema_version != BOOTSTRAP_CANDIDATE_SCHEMA_VERSION {
-            return Err(crate::Error("unsupported candidate claim version".into()));
-        }
-        self.session.validate()?;
-        crate::validate_product_id(&self.candidate_ref)?;
-        crate::validate_product_digest(&self.expected_candidate_digest)?;
-        crate::validate_product_digest(&self.account_commitment)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BootstrapMigrationOutcome {
-    NotStarted,
-    Prepared,
-    Recovered,
-    Unknown,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BootstrapClaimReceiptV2 {
-    pub schema_version: SchemaVersion,
-    pub install_ref: String,
-    pub operation_id: String,
-    pub candidate_ref: String,
-    pub candidate_kind: BootstrapCandidateKind,
-    pub candidate_digest: SchemaDigest,
-    pub owner_source: BootstrapOwnerSource,
-    pub owner_binding_digest: SchemaDigest,
-    pub account_commitment: SchemaDigest,
-    pub target_binding_digest: SchemaDigest,
-    pub migration_outcome: BootstrapMigrationOutcome,
-    pub expires_at: Timestamp,
-}
-
-impl BootstrapClaimReceiptV2 {
-    pub fn validate(&self) -> Result<()> {
-        if self.schema_version != BOOTSTRAP_CANDIDATE_SCHEMA_VERSION {
-            return Err(crate::Error("unsupported candidate receipt version".into()));
-        }
-        crate::validate_product_id(&self.install_ref)?;
-        crate::validate_product_id(&self.operation_id)?;
-        crate::validate_product_id(&self.candidate_ref)?;
-        for digest in [
-            &self.candidate_digest,
-            &self.owner_binding_digest,
-            &self.account_commitment,
-            &self.target_binding_digest,
-        ] {
-            crate::validate_product_digest(digest)?;
-        }
-        if self.expires_at <= 0
-            || self.candidate_kind == BootstrapCandidateKind::NewBrainTarget
-            || self.owner_source != BootstrapOwnerSource::VerifiedFromCandidate
-        {
-            return Err(crate::Error("invalid historical claim receipt".into()));
-        }
-        Ok(())
-    }
-
-    pub fn digest(&self) -> Result<SchemaDigest> {
-        self.validate()?;
-        crate::canonical_digest(&("forme-bootstrap-claim-receipt-v2", self))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct BootstrapClaimCommitV2 {
-    pub schema_version: SchemaVersion,
-    pub receipt: BootstrapClaimReceiptV2,
-    pub active_data_binding_digest: Option<SchemaDigest>,
-}
-
-impl BootstrapClaimCommitV2 {
-    pub fn validate(&self) -> Result<()> {
-        if self.schema_version != BOOTSTRAP_CANDIDATE_SCHEMA_VERSION {
-            return Err(crate::Error("unsupported candidate commit version".into()));
-        }
-        self.receipt.validate()?;
-        if let Some(digest) = &self.active_data_binding_digest {
-            crate::validate_product_digest(digest)?;
-        }
-        if self.receipt.migration_outcome != BootstrapMigrationOutcome::Recovered
-            && self.active_data_binding_digest.is_some()
-        {
-            return Err(crate::Error(
-                "inactive claim cannot have active binding".into(),
-            ));
-        }
-        Ok(())
     }
 }
