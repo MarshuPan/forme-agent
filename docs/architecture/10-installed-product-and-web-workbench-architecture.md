@@ -281,6 +281,14 @@ Binary rollback 只在 schema/config 兼容时允许；不兼容进入新路径�
 
 产品 journal 的 schema 2 新事实为 `ReleaseRecoveryBaselinePrepared`、`ReleaseRecoveryIntent`、`ReleaseRecoveryCommitted`；新 reader 逐行验证历史原 hash，首次 v2 后不得降回 v1。一次 committed fact 原子使原升级 Aborted、新恢复决定 Committed，历史原记录不改；原操作不再占管理互斥，工作准入仍需正式启动和 readiness。恢复 intent 自身占互斥；同义重发只查，专用 verify 才能重核原决定，任何核实失败保留未决。旧 reader/updater 不支持新事实；实际安装程序迁移、旧操作缺基线的处理需另备精确管理员计划，不现场补造历史。
 
+### 9.2 缺少升级前基线的历史安装审查
+
+旧安装如果没有升级前 `ProductReleaseRecoveryBaseline`，不能复用 §9.1 的正常恢复，也不能通过故障后的当前状态证明“升级前没有副作用”。系统为此保留一个独立的历史审查域：受信 Host 只读核对完整原 journal 因果链、历史档案、当前独占观察、数据/schema、worker、服务、配置、程序、修复包与 reader/updater 兼容性，并将每项结果标为 `Verified`、`Rejected` 或 `Unverifiable`。历史审查证据绑定原 installation/owner/operation/command/release、原 journal head/sequence/完整历史摘要和当前观察摘要；head 与完整历史摘要是独立字段，分别需要受信 Host 重新计算；不含路径、正文、凭据或程序内容，不能由浏览器提交“已验证”布尔值。
+
+只有完整 `Verified` 证据才能创建 `LegacyReleaseRecoveryReviewRequest`。产品 journal 以 schema 2 追加独立 `LegacyRecoveryReviewIntent` / `LegacyRecoveryReviewCommitted` facts；一次 commit 原子地保留原 operation 全部历史、将原 operation 置为 `Aborted`、将 review 置为 `Committed`，不改变 active release，不做 backup/switch/service start/stop/data 或 journal migration，不产生脑事件。旧 baseline 仍不存在，原升级不被解释为成功。
+
+该协议采用同 key 同义只查询、同 key 异义拒绝、全域 operation/idempotency key 冲突拒绝、owner/revision/CAS/evidence digest 绑定和原 review id 重核。`LegacyReleaseRecoveryReviewVerification` 只允许 owner 绑定原 review id、原 request digest 和新的 CAS revision 重新核实未完成 intent；读取 view 不能自动提交。intent 后崩溃不自动完成、不换 key、不重派。隔离实现仅覆盖 protocol/journal/replay/CAS，暂不添加 Web/Apply 路由；实际本机 reader/updater 替换和旧 journal 迁移另需独立签名修复方案及批准。正常无基线拒绝、历史证据不充分拒绝、旧 reader fail closed 和零产品/脑副作用均纳入隔离验收。
+
 ## 10. Web 状态与交互架构
 
 前端采用 React + TypeScript + Vite，构建静态资源，版本绑定整个产品 release。布局借鉴 DeepSeek，复用须符合 [frontend-reuse-policy](../compliance/frontend-reuse-policy.md)；不带 Cordis/上游 RPC、内核、插件架构或服务端。

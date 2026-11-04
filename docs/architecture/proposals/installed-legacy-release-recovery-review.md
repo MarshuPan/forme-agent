@@ -1,6 +1,6 @@
 # 历史安装缺少恢复基线时的独立审查与迁移方案
 
-状态：**待 owner 审查；没有激活新的冻结协议，也不是本机 Apply 授权。** 本方案承接已批准并实现的[有限恢复契约](installed-release-interruption-adjudication.md)，只处理正常 `AbortBeforeSwitch` 明确不适用的旧安装。先完成本方案的协议确认和隔离验证，再准备确切签名包、程序摘要与实际迁移脚本；不能倒置顺序。
+状态：**owner 已批准协议细化与隔离实现；本方案仍不是本机 Apply 授权。** 本方案承接已批准并实现的[有限恢复契约](installed-release-interruption-adjudication.md)，只处理正常 `AbortBeforeSwitch` 明确不适用的旧安装。当前仅落地冻结口径、产品协议和 journal/replay/CAS 隔离验证；确切签名包、程序摘要与实际迁移脚本必须另行设计和批准，不能倒置顺序。
 
 ## 1. 精确对象与证据缺口
 
@@ -44,6 +44,12 @@
 
 精确 DTO、fact/reader 版本、授权和 apply/verify/replay 签名须先回填 PRD24–26/canonical/architecture，再写实现；本方案没有把暂定字段当作已冻结接口。不得借复用正常恢复函数抹去两种证据来源的差别。
 
+### 2.1 本轮冻结的产品 DTO 与事实
+
+本轮将上述边界冻结为 schema 1 的 `LegacyReleaseRecoveryEvidence`、`LegacyReleaseRecoveryReviewRequest`、`LegacyReleaseRecoveryReviewVerification`、`LegacyReleaseRecoveryReviewView` 和 `LegacyReleaseRecoveryReviewList`。证据 status 只有 `Verified`、`Rejected`、`Unverifiable`；只有 `Verified` 且所有历史/当前摘要完整一致时才允许 request。request digest 覆盖完整证据，journal 再以安装身份、owner、原 operation/command/release、当前 head/sequence 和 CAS 重核，避免浏览器或当前状态替换历史来源。head 与完整历史摘要是独立证据字段，不能以其中一个替代另一个；verification 只能绑定原 review id 与 request digest 重新核实未完成 intent。
+
+产品 journal 新增 schema 2 facts `LegacyRecoveryReviewIntent` 与 `LegacyRecoveryReviewCommitted`。它们只产生产品侧历史审查记录；commit 原子将原 operation 置 `Aborted`、review 置 `Committed`，保留原历史和 active release，不做 backup/switch/service/data/journal migration，不产生 brain event。旧 reader 遇到新 fact fail closed；没有受信 Host 证据采集器时不开放 Web/Apply 路由。
+
 ## 3. 隔离实现的完成标准
 
 - 从原创 v1 journal 和复制的历史材料构造测试，不复制真实账号/密钥或用户正文进入 fixture；验证已缺失基线的正常入口仍拒绝。
@@ -51,6 +57,8 @@
 - 原始 journal 字节/hash 不改；独立新 intent/commit、CAS、跨域幂等和崩溃 verify 全部验证。未知结果只查原号；不删除 claim/handoff，不恢复旧 journal 伪装成功。
 - 管理程序修复有独立的签名/授权和持久 binding，不能暗改初始安装 manifest，也不能以“管理修复”名义偷偷更换业务 active release。证明旧程序拒绝新事实且不会被自动恢复启动。
 - 明确审查即使实现也可能对本机返回 Unverifiable；不能为了让现场通过而放宽必需材料。
+
+本轮“实现完成”仅指上述 closed DTO、产品 journal facts、replay/CAS/幂等投影和隔离测试闭合；不指本机旧安装已裁决、程序已替换、journal 已迁移或服务已启停。
 
 ## 4. 实际本机迁移前的第二道审查
 

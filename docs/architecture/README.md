@@ -49,7 +49,7 @@ V1 核心大脑闭合由 `requirements/15-16` 定义，明确不是 M6。`09-v1-
 | [10-installed-product-and-web-workbench-architecture.md](10-installed-product-and-web-workbench-architecture.md) | 整体安装、系统服务、Web/core/维护/worker 边界、bootstrap/身份/配置、网络、升级恢复及五个工作面。 | 宿主/认证基础与 Web 基础工作台已实施；安装事务、原生平台验收和完整五面仍待完成；18-crate 图与 99 EventKinds 不变。 |
 | [proposals/installed-release-interruption-adjudication.md](proposals/installed-release-interruption-adjudication.md) | `AbortBeforeSwitch` 升级中断裁决的冻结补充与范围边界。 | 已批准并实现隔离协议；不授权本机程序替换、旧 journal 迁移或旧升级重跑。 |
 | [proposals/installed-bootstrap-legacy-brain-claim.md](proposals/installed-bootstrap-legacy-brain-claim.md) | 首次认领旧脑与备份候选的发现、验证、setup 绑定和 claim journal v2。 | owner 已批准文档冻结；实现与真实 IP13 仍待完成；不授权本机数据迁移或服务操作。 |
-| [proposals/installed-legacy-release-recovery-review.md](proposals/installed-legacy-release-recovery-review.md) | 缺少升级前恢复基线的历史安装审查方案。 | 待 owner 审查；不是 Apply 授权，不能被本轮协议替代。 |
+| [proposals/installed-legacy-release-recovery-review.md](proposals/installed-legacy-release-recovery-review.md) | 缺少升级前恢复基线的历史安装审查方案。 | owner 已批准协议细化与隔离实现；不是 Apply 授权，不代表本机迁移完成。 |
 | `m5-a-protocol-compatibility.md` | M5-A publisher/package/admission 与四个 Q 组事件的兼容边界。 | 已随 M5-A 激活；93-kind exact prefix、legacy/fail-closed contracts PASS。 |
 | `m5-b-protocol-compatibility.md` | M5-B install plan/lifecycle/approval 与 registry projection 的兼容边界。 | 已随 M5-B 激活；legacy admission 不产生 Installed/Enabled。 |
 | `m5-c-protocol-compatibility.md` | M5-C distribution receipt、M4 binding 与 portable evidence 的兼容边界。 | 已随 M5-C 激活；self-report/legacy receipt 不产生 verified distribution。 |

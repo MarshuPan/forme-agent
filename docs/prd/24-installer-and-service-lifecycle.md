@@ -445,6 +445,25 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 
 隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v2 拒旧读者、无源基线/owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
 
+#### 4.10.7 历史安装缺少源基线的独立审查协议
+
+`ProductReleaseRecoveryBaseline` 缺失时，正常 `AbortBeforeSwitch` 恢复必须继续拒绝。旧安装采用独立的历史审查协议；它不是对原升级补写 baseline，也不是把当前观察解释为升级前事实。该通道只负责把证据完整性和可裁决性持久化，暂不提供 Web/Apply 路由或本机迁移动作。
+
+**证据 DTO（schema 1，产品侧 closed DTO）**：
+
+- `LegacyReleaseRecoveryEvidence`：`status(Verified|Rejected|Unverifiable)`、`installation_id`、`owner`、`original_operation_id`、`original_command_digest`、`original_release_ref/digest`、`historical_journal_head`、`historical_journal_sequence`、`historical_journal_history_digest`、`historical_archive_digest`、`current_journal_head`、`current_journal_sequence`、`current_journal_history_digest`、`current_observation_digest`、`historical/current_data_identity`、`historical/current_worker_digest`、`historical/current_service_digest`、`historical/current_config_digest`、`historical/current_program_digest`、`repair_package_digest`、`reader_updater_compatibility_digest`、`reviewed_at` 和可选 `reason_digest`。所有摘要必须是规范化 SHA-256；不保存路径、正文、凭据或程序内容。
+- `LegacyReleaseRecoveryReviewRequest`：`schema_version`、`review_id`、`idempotency_key`、`expected_revision`、`owner`、`evidence`、`evidence_digest`、`requested_deadline`。`evidence_digest` 覆盖完整证据，且只接受 `Verified` 证据；原 operation/command/release/installation/owner 必须由 journal 和受信 Host 观察再次绑定。
+- `LegacyReleaseRecoveryReviewVerification`：`schema_version`、原 `review_id`、`request_digest`、新的 `expected_revision`、`owner`、新的 `requested_deadline`。它只允许 owner 对同一 review id 重新核实未完成 intent；不能换 id/key 或把读取操作升级为提交。
+- `LegacyReleaseRecoveryReviewView/List`：只读显示 intent/committed、request digest、revision、receipt digest 和原 operation 引用；List 绑定 owner、产品 revision、最多 25 个按 revision 倒序的 view；不携带密码/proof，不成为第二事实源。
+
+`historical_journal_head` 与 `historical_journal_history_digest` 是两个独立证据字段：前者证明指定 checkpoint 的链尾，后者证明截至该 checkpoint 的完整历史摘要；current 两个字段同理。任何一项缺失、彼此不一致或无法由受信 Host 重新计算，都不能提升为 `Verified`。
+
+**证据判定**：`Verified` 只有在历史档案/原 journal 因果链、当前独占只读观察、数据/schema、worker、服务、配置、程序、修复包和 reader/updater 兼容性逐项可验证且相互一致时才可由受信 Host 构造；缺项、篡改、漂移、未知 worker/副作用、无法验证原代码或旧 reader/updater 兼容性时必须是 `Rejected` 或 `Unverifiable`。当前停止、当前文件摘要或 owner 口头批准不能替代历史证据。
+
+**事实与提交**：新增产品 facts `LegacyRecoveryReviewIntent`、`LegacyRecoveryReviewCommitted`，均使用 journal schema 2；首个 v2 fact 后继续保持 schema floor 2，旧 reader/writer 对新事实整体拒绝。intent 必须通过原 operation、takeover、安装/owner/release/当前 journal head+sequence、CAS 和全域幂等检查，并且原 operation 尚未终态、仍为 backup/switch 前的 pending Quiescing。commit 必须在同一 journal writer 的 expected revision 下，将原 operation 置 `Aborted`、清空 pending stage、保留原 failure/receipt/claim/history，并将 review 置 `Committed`；active release 保持不变。任何一步失败都零推进。
+
+**幂等与恢复**：同 key 同 request 只返回原 view；同 key 异内容、同 review id 冲突、跨域 key 冲突、owner/revision/evidence digest/CAS 漂移均拒绝。intent 后中断只允许 owner 对原 review id 重新核实，不能换 key、自动完成或重派。协议实现和隔离测试不得启停服务、备份、切换 release、迁移 journal/data、改变真实安装或产生 brain EventKind；这些动作另需独立的签名修复/迁移方案和批准。
+
 ### 4.11 交互桌面会话 helper
 
 交互 helper 是 Host 管理的低权限执行单元，不是服务、Agent、策略引擎或第二个大脑。它只接受由 Core/Harness 经过最终 recheck 后、绑定现有 `WorkerJob`/`WorkerPermit` 的 exact desktop action；Web、模型和浏览器不能直接访问 helper。

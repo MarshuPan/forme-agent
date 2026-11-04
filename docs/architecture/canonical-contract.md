@@ -738,6 +738,14 @@ owner 已批准有限的 `AbortBeforeSwitch` 恢复协议：只有存在原升�
 
 重放不执行 IO；同 key 异义拒绝、同义只查询。intent 后中断只能由 owner 对原决定再次明确认证核实，不能换 key 或自动完成。没有源基线的历史操作继续拒绝；不能用故障后采集的摘要自证未变化。产品 journal 新事实采用 schema 2，reader/updater 最低版本 2；历史 schema 1 字节及 hash 不改，旧 reader 拒绝新版本。实际本机 reader/updater 替换与 journal 迁移仍须精确签名修复方案，不能由本次实现/隔离测试授权推出。详见 prd/24 §4.10.5–6。
 
+#### 29.11.1 缺少升级前基线的历史安装独立审查
+
+没有 `ProductReleaseRecoveryBaseline` 的旧安装，**永远不能进入 29.11 的正常 `AbortBeforeSwitch` 路径**。兼容处理是独立的历史审查域，不回填一个声称发生在升级前的 baseline，也不把当前状态倒推成历史事实。审查证据必须显式标为 `Verified`、`Rejected` 或 `Unverifiable`，并绑定原 installation、owner、operation、command、release、原 journal 的 head/sequence/完整历史摘要、历史档案摘要、当前只读观察、数据/schema、worker、服务、配置、程序摘要，以及独立修复包和 reader/updater 兼容摘要。
+
+只有完整 `Verified` 证据才能形成 `LegacyReleaseRecoveryReviewRequest`；`Rejected`/`Unverifiable` 只能返回审查结果，不能产生 intent。产品 journal 以 schema 2 追加独立的 `LegacyRecoveryReviewIntent` 与 `LegacyRecoveryReviewCommitted`：一次 committed fact 原子保留原 operation 全部历史、将原 operation 置为 `Aborted`、将 review 置为 `Committed`，不改变 active release，不启动服务、不备份、不切换、不迁移数据、不产生脑事件。原 baseline 仍缺失，原升级不被解释为成功。
+
+同 key 同内容只查询；同 key 异内容、operation/id 冲突、owner/CAS/revision/evidence digest 任何漂移均拒绝。`LegacyReleaseRecoveryReviewVerification` 只允许 owner 绑定**原 review id**、原 request digest 和新的 CAS revision 重新核实未完成 intent；读取 view 不能自动提交，不能换 key、自动完成或重派。旧 journal 字节/hash 保留，旧 reader 遇到新事实 fail closed。实现只提供产品 journal 的协议与隔离 replay/CAS 测试，不添加 Web/Apply 路由；没有可信 Host 历史证据采集器时，浏览器不能提交“已验证”证据。实际本机 reader/updater 替换、journal 迁移、服务启停和程序切换另需独立批准。
+
 ### 29.12 首次认领旧脑与备份候选
 
 - 未认领 installation 的 bootstrap 只允许三类候选：`NewBrainTarget`、`ExistingBrain`、`VerifiedBackup`。候选发现由安装器 manifest、Host 配置和固定受保护布局派生；浏览器、模型或 Web setup session 不能提交路径、URL、owner、key、SQL 或“已验证”布尔值。
