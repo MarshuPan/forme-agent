@@ -137,6 +137,12 @@ Start/Restart 先验证当前绑定配置，StageSignedRelease 只有独立 rele
 
 首次恢复已落 intent 后断线/重启，重复原 POST 只查；查询不提交或结束恢复。仅用户显式 verify 原号/原 request_digest/当前 revision 才能继续只读核实并记 receipt，失败保留 intent。不存在/错 owner/未知 schema/不同 digest/CAS 均拒绝；配置 token 不得接触通用管理/worker 路由。普通维护 body 仍不接受恢复参数，UI 不用新增入口执行任意 stage/retry/shell。
 
+### 4.4.2 独立历史审查与恢复
+
+按[历史审查协议 §6–9](../architecture/proposals/installed-legacy-release-recovery-review.md#6-精确协议独立审查与决定) 接入独立 `legacy-release-recovery` Configuration 域及对应公开产品路由。读取要求真实 owner session，写操作要求 Origin/CSRF、同 operation 的 idempotency key 和摘要绑定的一次性口令重新认证；owner 始终由服务端重建。公开请求只提交报告 ref/digest，不上传证据、程序、路径、公钥或“已验证”状态。
+
+报告、原历史决定、普通恢复与普通维护不能互换。Verified 报告才允许申请决定，Host 仍必须执行前重查；未知或丢响应只查原号。持久 intent 的结束只能显式 verify 原 request digest/当前 revision，不能用重新登录或新 key 绕过互斥。collector/reader 修复未就绪时显示真实 unavailable/unverifiable，不产生假可执行入口。本轮协议与隔离授权不包含本机程序/journal 迁移。
+
 ## 5. 行为、状态与并发
 
 ### 5.1 认领与口令恢复

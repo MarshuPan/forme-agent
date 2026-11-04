@@ -281,6 +281,12 @@ Binary rollback 只在 schema/config 兼容时允许；不兼容进入新路径�
 
 产品 journal 的 schema 2 新事实为 `ReleaseRecoveryBaselinePrepared`、`ReleaseRecoveryIntent`、`ReleaseRecoveryCommitted`；新 reader 逐行验证历史原 hash，首次 v2 后不得降回 v1。一次 committed fact 原子使原升级 Aborted、新恢复决定 Committed，历史原记录不改；原操作不再占管理互斥，工作准入仍需正式启动和 readiness。恢复 intent 自身占互斥；同义重发只查，专用 verify 才能重核原决定，任何核实失败保留未决。旧 reader/updater 不支持新事实；实际安装程序迁移、旧操作缺基线的处理需另备精确管理员计划，不现场补造历史。
 
+### 9.2 缺基线旧安装的独立历史审查
+
+按 owner 已批准的[精确历史协议](proposals/installed-legacy-release-recovery-review.md) §6–9 实施。它不复用正常恢复的 evidence/baseline 含义：原 journal 与历史档案、原代码审计、服务/程序/配置/worker 连续性、已签名管理修复和当前独占检查分别核实，报告分 Verified/Rejected/Unverifiable。报告签名使用受保护预置的独立审查公钥，不接受包或 Web 自带信任根。实际原生 collector 未完成时不产生 Verified。
+
+新 intent/commit 只进入产品 journal schema 3；旧 reader 拒绝，历史原记录不回写。只读报告与 owner apply/verify 分离，执行前重查、原号幂等、CAS、全局维护互斥和 Unknown 边界与正常路径同等严格。管理程序修复与业务 active release 分开绑定，不能暗改初始安装清单。协议和隔离验证不授权本机 Apply。
+
 ## 10. Web 状态与交互架构
 
 前端采用 React + TypeScript + Vite，构建静态资源，版本绑定整个产品 release。布局借鉴 DeepSeek，复用须符合 [frontend-reuse-policy](../compliance/frontend-reuse-policy.md)；不带 Cordis/上游 RPC、内核、插件架构或服务端。

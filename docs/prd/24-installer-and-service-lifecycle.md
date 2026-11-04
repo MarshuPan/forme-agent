@@ -425,7 +425,7 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 | `ProductReleaseRecoveryView` | `schema_version, request, request_digest, revision, stage: Intent/Committed, receipt_digest?`。新恢复操作独立于原 MaintenanceOperation。Intent 无回执，Committed 必须有回执；不包含 password/proof。 |
 | `ProductReleaseRecoveryVerification` | `schema_version, operation_id, request_digest, expected_revision, owner, requested_deadline`。只重新核实已落盘原 intent；独立 digest/单次重新认证，允许新的 ≤120s 核实窗口，不延长旧升级授权。 |
 | `ProductReleaseRecoveryList` | `schema_version, product_revision, owner, operations: Vec<ProductReleaseRecoveryView>`。原 journal 的只读投影，按回执 revision 倒序，最多 25 项（含唯一未决 intent）；同 owner、无重复号、每项 revision 不超过快照。页面重载据此找回原请求，不缓存密码、不形成第二事实源，不改普通维护快照 v1。 |
-| `ProductReleaseRecoveryCapabilities` | `schema_version, journal_read_max, updater_version`。仅固定 updater 程序的离线能力探测输出，须为 schema 1、reader 2、updater 2；不是健康、恢复或安装成功回执。 |
+| `ProductReleaseRecoveryCapabilities` | `schema_version, journal_read_max, updater_version`。仅固定 updater 程序的离线能力探测输出，须为 schema 1、准确的 reader/updater 2/2 或 3/3；历史恢复另要求 3/3。不是健康、恢复或安装成功回执。 |
 
 服务内部新增 `ProductHostBroker::{release_recovery_candidate, owner_release_recovery, verify_owner_release_recovery, owner_release_recovery_operation, owner_release_recoveries}`。原 HostManagement/脑 trait 不变。读取只核实，不启动服务；新写请求时间窗 ≤120s。同 key 同 request 只查原 view（即使截止已过），不同语义冲突；新恢复 key/op 与一般维护和既有恢复操作交叉去重。未完成 intent 禁止替代 key。CAS、actor、owner、原 operation/command/release、config、evidence 的任一不一致均零裁决。
 
@@ -442,6 +442,12 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 新产品事实 envelope 使用 schema 2，原有事实保留 schema 1 编码；一旦追加 schema 2，其后所有 envelope 至少为 2。新 reader 校验 1/2 原字节 hash 和完整因果语义，拒绝版本回退；旧 reader 对 schema 2/未知事实整体拒绝，不跳过。`RELEASE_UPDATER_VERSION=2`，新恢复 UI/Host 只对匹配 reader/updater 生效；旧 immutable updater 必须在另行批准的本机签名修复中处理，不通过普通 business release 偷换。
 
 在普通升级预检、产生 v2 基线前及裁决前，System adapter 用固定初始 `forme-hostd --release-recovery-capabilities` 的离线模式核实上述能力。该模式仅接受 stdin 的单个 closed `{schema_version:1}` 行并返回 capabilities；不读取配置/凭据、不打开 journal、不接入 SCM/模型。沿用有界 maintenance pipe、最小环境和期限，失败不落基线。旧 binary 不识别参数或旧 reader/updater 返回不兼容则拒绝，不以新 Host 自报版本代替固定 updater。包含 v2 writer 的签名业务发布须声明 minimum_upgrader 至少 2；实际不可变 updater 迁移继续独立审查。
+
+#### 4.10.7 缺基线历史审查（owner 已批准）
+
+精确 DTO、八类证据、签名/domain、Host 方法与 apply/verify/replay 语义单源定义在[历史审查协议 §6–9](../architecture/proposals/installed-legacy-release-recovery-review.md#6-精确协议独立审查与决定)。普通恢复的无基线拒绝不变；历史审查不生成事后 baseline，不接受浏览器自报材料、路径、公钥或验证成功。闭合材料及当前真实独占检查缺一项即不形成可执行决定；fixture 通过不能代替原生 collector。
+
+`LegacyReleaseRecoveryIntent/Committed` 使用 envelope schema 3。reader floor 单调，旧 v1/v2 reader 拒绝；固定能力探测在普通通道接受准确的 2/2 或 3/3，历史通道仅 3/3。新管理代码发布最低 upgrader 3；签名管理修复的程序、OS 注册、原 installation 和业务 active release 有独立持久 binding。实际本机修复另行审查，不随本节实现自动执行。
 
 隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v2 拒旧读者、无源基线/owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
 

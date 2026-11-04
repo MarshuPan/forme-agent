@@ -1,6 +1,6 @@
 # 历史安装缺少恢复基线时的独立审查与迁移方案
 
-状态：**待 owner 审查；没有激活新的冻结协议，也不是本机 Apply 授权。** 本方案承接已批准并实现的[有限恢复契约](installed-release-interruption-adjudication.md)，只处理正常 `AbortBeforeSwitch` 明确不适用的旧安装。先完成本方案的协议确认和隔离验证，再准备确切签名包、程序摘要与实际迁移脚本；不能倒置顺序。
+状态：**owner 已于 2026-11-04 批准协议细化、文档回填和隔离实现；尚非本机 Apply 授权。** 本方案承接已批准并实现的[有限恢复契约](installed-release-interruption-adjudication.md)，只处理正常 `AbortBeforeSwitch` 明确不适用的旧安装。先冻结精确协议并完成隔离验证，再准备确切签名包、程序摘要与实际迁移脚本；不能倒置顺序。
 
 ## 1. 精确对象与证据缺口
 
@@ -62,4 +62,50 @@
 
 ## 5. 本方案请求的确认范围
 
-只请求批准**独立历史审查协议的细化、文档回填、实现和隔离测试**。不请求批准本机迁移或原生升级。原因是 AGENTS.md 硬规则 3 要求冻结协议变更先经确认，且前一批准范围没有授权为缺基线旧操作增加另一种证据来源或裁决通道。
+owner 已批准**独立历史审查协议的细化、文档回填、实现和隔离测试**。不包含本机迁移或原生升级。此次独立批准依据 AGENTS.md 硬规则 3；原有限恢复授权没有覆盖缺基线旧操作的新证据来源或裁决通道。批准是实现权限，不是缺失材料的替代证明，也不意味着本机一定能取得 Verified。
+
+## 6. 精确协议：独立审查与决定
+
+以下是本次批准后的细化，全部为 closed/schema 1 产品对象；不修改普通恢复请求的证据语义。安全摘要不包含路径、正文、密码、token、key 或 private key。`SchemaDigest` 必须为规范 SHA-256；ref 使用既有有界产品 id 校验。
+
+| 对象 | 字段与约束 |
+|---|---|
+| `LegacyReleaseReviewBinding` | `schema_version, review_id, install_ref, owner, original_operation_id, original_command_digest, original_release_ref, original_release_digest, config_revision, config_digest, journal_seq, journal_head, expires_at`。绑定完整原 journal 快照；期限只用于新的审查，不延长原升级授权。 |
+| `LegacyReleaseEvidenceKind` | 固定八项：`OriginalJournal`、`ArchivedDataIdentity`、`UpdaterCodeAudit`、`SourceImagesAndServices`、`ConfigurationContinuity`、`WorkerContinuity`、`ManagementReaderRepair`、`CurrentExclusiveInspection`。不是八个可由请求填 true 的开关。 |
+| `LegacyReleaseEvidence` | `schema_version, kind, artifact_digest, binding_digest, observation_digest`。`binding_digest` 必须等于同一 `LegacyReleaseReviewBinding` 的 domain digest。每项 artifact 只能来自受保护配置指定的闭合集合，并由可信收集器重新读取、验证其本源及语义；浏览器不能提交本对象。 |
+| `LegacyReleaseReviewStatus` | `Verified / Rejected / Unverifiable`。缺材料或无法确认来源为 Unverifiable；已证明不匹配为 Rejected。 |
+| `LegacyReleaseReview` | `schema_version, binding, evidence[], status, issues[]`。evidence 最多八项、按上表严格顺序且不可重复；Verified 必须恰好八项且 issues 为空；其他状态至少一个安全 issue ref。report digest 覆盖完整对象和固定 legacy-review domain。 |
+| `SignedLegacyReleaseReview` | `schema_version, review, signature:64 bytes`。签名只来自独立审查权威，验证公钥由本机受保护修复配置预置，不能由 review、包或 Web payload 携带。签名只证明既定权威出具了这份报告；必须先完成真实材料核验，不能用签名代替证据语义。 |
+| `LegacyReleaseRecoveryRequest` | `schema_version, operation_id, idempotency_key, expected_revision, owner, review_id, review_digest, requested_deadline`。只引用 Host 已持久化、可验签的报告，不上传 report、路径、证据或成功断言。新授权窗口最多 120 秒。 |
+| `LegacyReleaseRecoveryVerification` | `schema_version, operation_id, request_digest, expected_revision, owner, requested_deadline`。只核实原决定，有独立 digest 和重新认证；不能创建替代决定或延长原升级。 |
+| `LegacyReleaseRecoveryView` | `schema_version, request, request_digest, revision, stage:Intent/Committed, review_digest, receipt_digest?`。Intent 无 receipt；Committed 必须有，且引用原报告。 |
+
+schema 与摘要结构校验属于 protocol；材料来源、实际文件、签名及独占检查属于 Host/收集器；纯 journal fold 不打开文件、不调用服务或模型。反序列化一个自洽报告不等于报告可信。
+
+## 7. 证据收集与判定算法
+
+收集器必须从原 journal 和管理员预置修复配置派生路径，不接受请求携带路径或公钥。它持有配置锁与 worker operations 锁，按以下顺序取得材料：
+
+1. 从当前 writer 快照取得 install、完整 head/seq、原 command/takeover 和阶段；原 deadline 已过，只允许未完成的 Quiescing。原 baseline 必须确实缺失；有 baseline 的正常情况仍走普通入口。
+2. 验证整个原因果链没有备份/切换/checking/image claim、业务 active release 或 release config binding 变化。单个 marker 不存在不是证据。
+3. 校验闭合历史档案的原字节摘要及其独立来源，读取原 owner/store/schema/数据库摘要和事件水位，与当前独占只读数据检查逐项比较。旧 `database_schema_version=null` 保留 null；实际 schema 版本只记为本次观察，不回填历史。
+4. 核实原 updater 精确 image 与被审计源码/构建来源，证明该版本先写 intent 再发生相关动作；无法确认实现时 Unverifiable。历史 worker 连续性必须有独立档案或完整可核实因果链，当前静止不够。
+5. 核实原六程序、配置、服务账户/参数/恢复策略及唯一获准的路径表示修复。签名管理修复回执必须绑定新 reader/updater 至少 3、实际文件及 OS 注册、原 installation 和业务 active release；不能改写初始安装 manifest。
+6. 实际 Brain/updater 停止，Host/Web 可维护；worker 无 Pending/Running/CancelRequested/Unknown。数据独占检查与 worker fence 保留到提交完成或明确释放，任何不明结果拒绝。
+7. 八类材料全部核实才构造 Verified 并由独立审查权威签名；缺项保留具体安全 issue ref，拒绝的审查不写可执行裁决事实。当前收集器未能实现某类原生核验时必须 Unverifiable，不提供默认成功 adapter。
+
+正式 apply 和 verify 都要重新取得同一组真实观察并比较完整 report binding；首次只读报告的存在不能替代执行前重查。报告过期、journal/config/worker/data/program/SCM 漂移或不同 owner 均拒绝。恢复 intent 引起的唯一 journal 变化由原 request 精确记录；verify 不要求伪造最初 head，但必须验证从原 head 到当前只有同一恢复 intent 及允许的只读审计，没有旁路操作。
+
+## 8. journal、接口与恢复
+
+产品 journal 增加独立 `LegacyReleaseRecoveryIntent` 与 `LegacyReleaseRecoveryCommitted`，最低 envelope schema 为 **3**，不借普通 `ReleaseRecoveryBaselinePrepared/Intent/Committed` 伪装来源。Intent 包含完整、已经验签的安全 review、原 request、actor 和时间；Committed 绑定 request/report digest、执行前最终观察摘要、owner 授权期限和时间。一次 committed fact 原子使原维护 operation Aborted、新历史恢复决定 Committed，原 baseline 仍缺失，所有历史字节/hash、失败和 marker 保留。
+
+reader 支持 v1/v2/v3 且 schema floor 单调；v1/v2 reader 遇 v3 拒绝。固定 updater 能力探测报告真实上限；普通恢复兼容准确的 2/2 或 3/3 组合，历史通道仅接受 3/3。新管理代码的业务发布声明最低 upgrader 3，实际管理程序修复继续由第二道精确管理员计划完成。不能为兼容而让旧程序跳过新事实。
+
+Host 的独立接口为 `legacy_release_review`、`owner_legacy_release_recovery`、`verify_owner_legacy_release_recovery`、`owner_legacy_release_recovery_operation`。它们沿用 Configuration 域真实认证与 owner/操作绑定的单次口令重认证，不接受 LocalAdministrator 字符串或 body owner 自证。内部路由使用 `/v1/host/configuration/legacy-release-recovery` 及其 `review/{original_id}`、`operations/{id}`、`verify` 子路径；公开 Web 对应 `/api/v1/product/legacy-release-recovery`。读取只查报告/原号，不重采后暗中提交。
+
+同 key 同 request 是纯查询，即使过期也不重试；异义、跨普通维护/普通恢复/历史恢复的 key 或 operation 碰撞均拒绝。历史 intent 参与同一全局维护互斥。重启只 fold，不收集、签名、停服务或提交；只有 owner 显式 verify 原号并再次认证，才可重新核实和结束 intent。已 Committed 的查询不重复动作。不能开放普通维护入口来直接转阶段或绕过旧操作的 Unknown。
+
+## 9. 分层实现与证据界限
+
+按协议与签名/结构反例 → 真实临时 journal 的 CAS/幂等/重放/原字节保持 → 原创文件/受控 collector 的材料缺失/漂移/错误来源 → 正式认证 HTTP 与只读 Web → 原生收集器和第二道本机方案推进。每层单独记证据；可信 collector fixture 不能证明真实 SCM、历史原件或本机数据已经核实。任何未实现依赖继续不可用，不能用报告结构存在声明整条历史通道已闭合。

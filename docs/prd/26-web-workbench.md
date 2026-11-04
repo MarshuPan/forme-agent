@@ -264,6 +264,8 @@ mutation 在单写者/CAS 内核对当前 project digest 与 supervision version
 
 系统维护仅为已获得 PRD25 §4.4.1 真实 candidate 的原中断操作提供“终止本次升级，保留原版本”。确认明确区分原升级 Aborted 与独立恢复 Committed；不称“升级完成”。提交包含原 candidate/CAS 和新恢复号，结果不明保留原 body/key，只查询原恢复操作；Intent 提供显式“核实原裁决”，重新认证并使用当前 revision，页面加载不自动提交。刷新/重新登录从只读恢复列表找回原 intent，不能丢失后另造 key；Aborted 是已终止而非成功，也不再占普通维护的未决状态。缺基线、晚阶段或实际状态不符时显示不能裁决，不提供强制成功按钮。恢复成功后也不自动启动脑或重试升级，按真实产品状态呈现。
 
+缺基线历史安装的独立审查沿 PRD25 §4.4.2 与[精确协议](../architecture/proposals/installed-legacy-release-recovery-review.md#6-精确协议独立审查与决定)，不能复用普通 candidate 暗改来源。页面只读展示 Verified/Rejected/Unverifiable、安全 issue ref 与原操作；只有 Host 已验证的签名报告才允许 owner 申请历史决定，且需操作绑定重新认证。collector、管理 reader 修复或材料不足时保持不可执行；页面不上传材料/路径/公钥、不提供强制通过、默认勾选或自动 apply/verify。此 UI 不表示本机迁移已获批准。
+
 ### 5.8 断线、长任务与错误
 
 连接丢失显示时间和最后 watermark，指数退避+抖动；401 重新登录、429 尊重 Retry-After、409 更新 snapshot/提示冲突、503 显示 core/维护状态。不要所有错误都自动重发 mutation。

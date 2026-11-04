@@ -749,3 +749,9 @@ owner 已批准有限的 `AbortBeforeSwitch` 恢复协议：只有存在原升�
 - `ExistingBrain`/`VerifiedBackup` 必须恢复到新的空目标并保留原件；数据准备后副作用不明、响应丢失或进程重启只能核实原 operation/receipt，不能换候选、换 OwnerId、重派 worker、删除目标或启动 Brain。已认领 installation 不得由 bootstrap 暗换 owner，后续接管必须走独立恢复流程。
 - 首次认领完成只表示协议事实和 active data binding 均可验证；真实 IP13/IP24 仍需正式安装包、原生权限、真实 key resolver、锁和浏览器联合证据。该协议不授权本机旧脑/备份迁移、服务启停、程序替换或旧 journal 修复。
 
+### 29.13 缺基线历史升级的独立审查
+
+owner 已批准[历史安装审查协议](proposals/installed-legacy-release-recovery-review.md)的细化、实现和隔离测试。正常恢复仍要求升级前基线，不接纳故障后补造。历史通道必须以原完整 journal、闭合历史档案、原 updater 代码审计、程序/配置/服务与 worker 连续性、独立签名的管理 reader 修复以及当前独占检查形成完整审查；缺项为 Unverifiable，确定冲突为 Rejected，只有完整 Verified 才可成为新 owner 决定的输入。签名与 owner 批准均不能代替缺失证据。
+
+历史裁决使用独立产品 DTO/domain/facts，最低 journal reader/updater 3，保留 v1/v2 原字节/hash 与正常恢复接口。单个 commit 原子形成原升级 Aborted、新历史决定 Committed，原 baseline 仍缺失。重放无 IO，同义只查，intent 后必须原号显式重新认证 verify；执行前重查和全局维护互斥保留。实际本机管理程序替换、旧 journal 接入、服务启停与新升级仍须独立精确方案；隔离实现不关闭 IP14–15/IP24。
+
