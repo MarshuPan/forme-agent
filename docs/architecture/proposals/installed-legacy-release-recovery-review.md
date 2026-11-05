@@ -130,3 +130,26 @@ Host 的独立接口为 `legacy_release_review`、`owner_legacy_release_recovery
 显式 verify 使用查询取得的报告原期限及当前 intent revision，重新认证且最多授权 120 秒；不能猜测期限、重发初始 apply 或延长原升级。Host 在 verify 中重新取得真实材料/worker/服务观察并执行 CAS。断线只保留原号查询；已 Committed 的结果不能再次执行。owner/API/维护水位变化后，页面丢弃旧报告并屏蔽迟到响应。
 
 浏览器重建 report binding/report/request digest 时，沿用 protocol 的 domain 与 Rust struct 声明字段顺序；不使用 sorted-key JSON 或 HTTP 属性到达顺序。Rust/TypeScript 使用共同 golden 验证，浏览器检查只用于发现传输/绑定错误，不能替代 Host 的签名、材料来源和执行前重查。组件与正式 HTTP 的证据见[接线验收](../../acceptance/installed-legacy-release-http-web-20261105.md)，原生材料和实际迁移继续单列。
+
+### 9.3 受保护管理修复的私有证据
+
+本节细化已经批准的 `ManagementReaderRepair` 依赖，不新增 Web DTO、脑事件、冻结 trait、授权域或 unsafe 边界；实际管理员 Apply 仍受 §4 的第二道精确审查约束。独立修复只可更换初始固定目录内的 Host（与 fixed updater 共用）、Web 与 hostctl，保留 Brain/CLI/executord、初始 InstallationManifest、业务 active release、六配置、原 journal、数据与 keys。原 Upgrade 的 dispatch marker/handoff 不删除、不重新派发。
+
+以下私有磁盘对象均为 closed/schema 1，字段顺序固定；不是浏览器可提交的协议对象：
+
+| 对象 | 精确字段 |
+|---|---|
+| `RepairImageBinding` | `schema_version, image, source_size, source_digest, target_size, target_digest`。image 固定顺序为 `host, web, brain, cli, hostctl, executord`；只允许 host/web/hostctl 的 source 与 target 不同。 |
+| `RepairPlan` | `schema_version, repair_id, distribution_digest, install_ref, installation_digest, owner, original_operation_id, original_command_digest, original_release_ref, original_release_digest, journal_seq, journal_head, config_files_digest, service_configuration_digest, images, journal_read_max, updater_version, authorized_at, authorization_deadline`。准确 reader/updater 3/3，授权时间窗正数且不超过 15 分钟。 |
+| `RepairReceipt` | `schema_version, repair_id, plan_digest, distribution_digest, install_ref, installation_digest, owner, original_operation_id, original_command_digest, original_release_ref, original_release_digest, journal_seq, journal_head, config_files_digest, service_configuration_digest, installed_images_digest, journal_read_max, updater_version, committed_at`。所有共同字段必须等于 plan；commit 必须在原授权窗口内且不在未来。 |
+| `SignedPlan / SignedReceipt` | 分别为 `schema_version, plan/receipt, signature`，signature 恰为 64 bytes；不带验证公钥或路径。 |
+
+plan/receipt 的签名消息分别为 `canonical_digest(("forme-management-reader-repair-plan-v1", plan))` 与 `canonical_digest(("forme-management-reader-repair-receipt-v1", receipt))` 的完整 `sha256:...` UTF-8 字符串。`installed_images_digest` 使用独立域 `forme-management-reader-repair-images-v1`，覆盖固定六项 `(image, target_size, target_digest)`。receipt 的长期重读不要求旧授权窗口仍有效，也不因此重新获得 Apply 权限。
+
+修复材料使用已有完整签名 ReleaseManifest 与闭合 content；manifest、plan、receipt 独立签名且不能循环引用摘要。三者使用分发 manifest 的 signature_ref，在管理员独立预置的 release trust 中验签；材料包和 Web 不能增加信任根。三个可变 image 的 target bytes/digest 必须来自同一分发；其他三个 image 保留原字节，不能借完整分发暗换业务程序。该有限适配只针对原业务仍处于初始 release 的历史安装，其他布局保持 unavailable。
+
+固定根为 `installation.paths.host_state/management-repair`，只含 `receipt.json` 和一个目录；目录名为 repair_id UTF-8 的 SHA-256 小写 hex，不直接把 opaque id 拼为 Windows 路径。该目录只含 `plan.json` 与 `distribution`；distribution 只含 `manifest.json`、`signature.ed25519`、`content`。内容逐项受原 ReleaseManifest 闭合集合约束。记录 ≤64 KiB、manifest ≤8 MiB、单个内容/程序 ≤512 MiB、分发总量 ≤2 GiB；拒绝链接、hardlink alias、额外文件、未知字段、无界或冲突材料。
+
+实现明确分为两层：`ManagementReaderRepairEvidence::load` 仅验证独立信任、完整分发、签名及原安装/owner/operation/release/journal checkpoint 的绑定；它不返回历史审查 Verified。`inspect_current` 才读取固定六个实际 image、六配置、真实四服务的身份/参数/恢复策略和固定 updater 的实际 3/3 离线能力，核对与签名 receipt 一致。Windows 保持实际文件与祖先目录的只读 handle custody，拒绝多硬链接，直到 inspection 释放；提交前 `recheck` 重查记录、闭合文件集合、程序、配置、SCM 与准确能力。非 Windows 没有原生适配时拒绝，受控观察只用于隔离测试。
+
+这些动作不写 product/brain journal、不备份或切换业务数据、不启停服务；离线 capabilities 子进程只读固定协议。原 updater 源码/构建来源、历史材料本源、worker 因果链和数据独占检查仍属于其余七类材料，不能由一个可验签管理回执代替。真实 collector、精确本机修复与 IP14–15/IP24 的整体状态仍独立登记。

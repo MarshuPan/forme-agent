@@ -449,6 +449,8 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 
 `LegacyReleaseRecoveryIntent/Committed` 使用 envelope schema 3。reader floor 单调，旧 v1/v2 reader 拒绝；固定能力探测在普通通道接受准确的 2/2 或 3/3，历史通道仅 3/3。新管理代码发布最低 upgrader 3；签名管理修复的程序、OS 注册、原 installation 和业务 active release 有独立持久 binding。实际本机修复另行审查，不随本节实现自动执行。
 
+管理修复私有记录、独立签名域、固定受保护布局、有限替换范围与真实文件/SCM/能力重查按历史审查协议 §9.3。结构/签名 load 与原生 inspection 分开，不能把 receipt 可解析计为已安装修复；原版本和原 journal checkpoint 连续性仍由完整 collector 核实。
+
 隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v1–v2 reader 拒绝 v3、正常入口缺源基线以及历史入口的 owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
 
 ### 4.11 交互桌面会话 helper
