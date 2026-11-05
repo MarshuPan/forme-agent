@@ -177,3 +177,9 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 同一实施源码的永久宿主门 **266/266**、closure A/B/C 及 D `-RuntimeOnly` 分别 **47/47、50/50、36/36、71/71**，详细命令与分层证据见组件报告。当前 99 EventKinds、五个既有 unsafe 边界保持，默认忽略的原生场景和 Python symlink 跳过不计为通过。D runtime-only 没有重新调用真实 Provider；实际 Inno 退出夹具未提供工具链，因此仍为 NOT_RUN。本轮不证明新的 C24 live、D/Final、原生历史收集器、正式历史审查 HTTP/Web、本机 reader/journal 迁移、Linux/macOS 或完整 IP01–IP24，整体交付目标仍开放。
 
 构建资源报告保存为 `target/legacy-release-review/final-build-resources-20261105.json`：当前 checkout target 为 `33849706189` logical bytes / `31044564345` allocated bytes，低于 64 GiB 报告阈值，最终审计前可用空间为 25.3 GiB。本次收口未清理缓存、修改已安装程序/配置/现场 journal、启停服务或重跑原 Upgrade。
+
+## 14. 旧脑离线激活源码后的重验（2026-11-05）
+
+本节承接[旧脑数据激活与账号衔接](installed-bootstrap-data-activation-20261105.md)。该批正式源码及隔离验证不代表本机接管、原生历史恢复或 IP01–IP24；它没有替换安装程序、启停服务或调用用户配置的 provider。完整 M5/S1–S99 与当前干净源码发布回执在本节单独收取，不沿用 §13 的旧源码/外部审计观察。
+
+本轮全量源码门和对应核心门正在执行；在取得最终日志、干净提交与独立 current-tree 回执之前，本节不声明 `M5 FINAL ACCEPTANCE: PASS`。

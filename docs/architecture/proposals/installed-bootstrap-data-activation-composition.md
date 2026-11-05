@@ -72,6 +72,8 @@ worker 通过既有 Store backup/restore 在新副本封存执行授权水位；
 
 Host 的 config→claim 互斥顺序覆盖完整操作，revision 0 的 owner/data CAS 使用原 receipt digest 作为幂等绑定。`Confirm` 只带原 receipt、受保护 config snapshot 的 opaque revision ref 与摘要；固定 verifier 从模板派生快照路径，重新核对实际 owner/revision/models/active_data、未发布 core 配置、新目标/keys/manifest/replay/执行水位及产物。返回前持久化独立 `confirmation.json`；Host 对原 commit/快照/目标再次匹配，追加 `ClaimDataBindingConfirmedV2` 后才允许 activation。`Release` 仅释放该管道，不进行清理或启动服务。所有内部帧带 schema 2，使用既有有界帧、截止时间和子进程回收；stdout 不含 keys、口令或模型凭据。
 
+兼容实现只在旧 schema 1 配置**没有声明任何历史源根、也未挂载固定候选 worker**时，沿用原 `check_empty_target` 产生单一新脑观察；它仍由 journal writer 分配并记录 epoch。已声明源根或 worker 运行失败绝不进入此分支。原 schema 1 的新脑选择仍由原协议提交；新页面刷新已完成的选择只读回原 catalog/选择并重新检查空目标，不重新发现或改选。旧脑选择响应丢失时，原 setup 可在 Selected 阶段只读取得原 catalog 与 state；Web 必须匹配原 ref/digest/epoch，才能补记原选择，不能调用 select/adopt 来找回。prepared/committed/待恢复状态不能通过该通道重开选择。检查/选择的 Web 截止时间须覆盖固定 30 秒 inspection 及原选择状态查询，claim 截止时间须覆盖固定 120 秒 worker；普通业务保持原 30 秒上限。锁等待时间计入 TTL/时间单调性校验，不因并发同义请求而误报回退，也不延长原 setup/receipt。
+
 确认后先回填 legacy-claim 提案 §3–6、prd/25 §3/§5.1、architecture/10 §3/§8 及必要的 canonical §29.5，再实现 additive 对象和正式装配。schema 1 新脑流程与既有 runtime ack 不改语义。
 
 隔离验收须覆盖完整成功链及第 5 节每一中断点、错误签名、公钥替换、candidate/receipt/account/config TOCTOU、revision 0 CAS 并发、原号重取、跨 owner/已认领拒绝、零空脑替代、激活前零 Brain 启动、激活后仍未配置且无假 runtime ack、模型配置后真实自动启动与 ack。通过隔离验收不代表本机接管或 IP13/IP24 原生验收。

@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-05 旧脑首次认领：正式数据激活与 Web 账号衔接
+
+owner 已批准离线数据绑定确认与 runtime ack 分界，契约先以 `d8fdeec`、`968f571` 落库。当前源码接通真实固定候选发现、Store backup/restore、Host/worker 双 durable intent、revision 0 owner/data CAS、离线重验确认、持久 activation 与安装器公钥签名、Web auth schema 10 原账号承诺事务及前端选择入口；schema 1 新脑语义保留。重复请求、选择响应丢失、worker EOF、config CAS 后 activation 前 Host 重启均保留原号和失败现场，不盲重试或变成空脑。
+
+当前源码完整质量门（1230 Rust passed、前端 110/110）、永久宿主 326/326、身份 27/27、配置门，以及 closure A/B/C、D runtime-only 的 47/50/36/71 项逐名场景全部通过，精确结果与分层证据见[本轮报告](installed-bootstrap-data-activation-20261105.md)。M5 与干净源码发布回执最终状态独立记在 [M5 报告 §14](m5-acceptance-report.md#14-旧脑离线激活源码后的重验2026-11-05)。本批没有修改已安装实例、启停服务、接管用户数据或重跑原升级；真实模型配置后自动启动/ack、浏览器/SCM/ACL 联合旧脑接管与完整 IP13/IP24 尚未通过。缺基线历史 Upgrade 的原生 collector、可信历史材料、签名管理 reader 修复及实际迁移继续独立开放。
+
 ## 2026-11-05 缺基线历史升级：正式 HTTP/Web 接线与原生只读预检
 
 `ad05bc7` 接通 Configuration 域的五个 Host 路由、真实 owner/session/CSRF/操作摘要重新认证的 Web API 和独立历史恢复面板。Intent 刷新只取原签名报告、结果未知只查原号，JSON 属性重排不改变 Rust/TypeScript 共同 domain digest。统一源码门 1174 Rust passed / 0 failed / 15 默认 ignored、前端 105/105、永久宿主门 272/272 和 closure A/B/C 均 PASS。获准清理无占用旧 dev 缓存并校验保留摘要后，D runtime-only 完整复跑 PASS（exit 0）；不证明新的 C24 live 或 D/Final。当前 M5 尚未重验，不沿用上批 receipt。详见[HTTP/Web 组件报告](installed-legacy-release-http-web-20261105.md)。

@@ -14,11 +14,11 @@
 
 owner 已批准 `AbortBeforeSwitch` 契约及隔离实现：独立裁决、幂等/中断、v2 reader/updater 能力、正式认证 HTTP 和 Web 恢复控件已有实现/定向证据，完整门在[本轮报告](installed-release-recovery-20261103.md)登记。该旧 operation 缺升级前 journal 基线，因此正常恢复入口仍拒绝它；原生程序接入、历史状态裁决与后续新升级尚未执行或验收。真实 provider、完整 IP 与发布仍开放。以下段落保留历史时点，不覆盖本段最新边界。
 
-2026-11-04 已批准的旧脑首次认领继续实施：journal v2、候选/owner/worker/receipt 绑定、提交与激活分离、重启待恢复及只读查询已有组件和 22 项 bootstrap 测试证据，详见[组件报告](installed-bootstrap-legacy-claim-journal-20261104.md)。真实候选发现、数据 worker intent/复制恢复、Web 账号事务和 active data/config 联合激活仍未闭合；IP13/IP24 不变。独立的缺基线历史升级审查已另获协议细化与隔离实现批准，本组件不替代那项协议或实际本机迁移授权。
+2026-11-05 旧脑首次认领已接入真实离线候选发现、固定数据 worker、源保留的新目标恢复、revision 0 owner/data CAS、独立离线确认、签名 activation 与 Web 原账号事务。选择丢包后只读找回、重复接管并发、配置已提交但未激活的真实 Host 重启均有隔离测试；当前源码完整质量门、326 项宿主门、27 项身份门、配置门及 closure A/B/C、D runtime-only 全部通过，详见[数据激活报告](installed-bootstrap-data-activation-20261105.md)。M5 与当前干净源码回执的最终状态独立记在 [M5 报告 §14](m5-acceptance-report.md#14-旧脑离线激活源码后的重验2026-11-05)。本机旧脑接管、完整浏览器/SCM/真实 provider 与 IP13/IP24 仍开放，缺基线旧升级的原生 collector/签名管理修复也是独立未决义务。此前的[journal 组件报告](installed-bootstrap-legacy-claim-journal-20261104.md)保留原时点边界，不代表本轮这些源码仍待实现。
 
 ## 2. 核心与跨切面覆盖
 
-2026-11-05，缺基线历史升级的独立审查继续补齐 Host 隔离接缝、严格验签、配置/owner/worker/service 重查、到期边界和 reader/updater 3/3；此前私有 journal 证据不再笼统称为整个历史通道完成。源码与组件门见[本轮报告](installed-legacy-release-review-20261105.md)。正式 HTTP/Web、真实原生 collector/信任配置、管理 reader 修复与本机迁移仍未闭合；不据此关闭 IP14–15/IP24 或整体目标。
+2026-11-05，缺基线历史升级的独立审查已补齐 Host 隔离接缝、严格验签、配置/owner/worker/service 重查、到期边界和 reader/updater 3/3；正式 HTTP/Web 也已有[接线证据](installed-legacy-release-http-web-20261105.md)。此前私有 journal 证据不再笼统称为整个历史通道完成，Host 组件边界见[独立审查报告](installed-legacy-release-review-20261105.md)。真实原生 collector/信任配置、管理 reader 修复与本机迁移仍未闭合；不据此关闭 IP14–15/IP24 或整体目标。
 
 2026-11-02 后续状态：owner 已授权使用其本地测试凭据经公开正式认证/维护界面直接操作。首次 StartCore 与升级前 StopCore 各一次并 Committed，配置 ack=1，Brain 运行时正式 manifest/doctor 可读；通知后端阻断、旧 Host 状态缺陷和真实 provider 仍待闭合。当前停脑状态是明确的升级前维护，不再是“等待 owner 输入密码”。原报告不可覆盖，详见[升级计划 §8–9](installed-product-windows-upgrade-20261102-db96ec2-plan.md#8-owner-测试凭据与正式-http-操作授权)；目标保持 active，完整 IP 状态不变。
 
@@ -40,7 +40,7 @@ owner 已批准 `AbortBeforeSwitch` 契约及隔离实现：独立裁决、幂�
 | P02–03 / IP02–03：常驻、唯一主脑 | 三 daemon、SCM host、有限退避、core drain、独占 writer | 无桌面冷启动、故障/注销后任务持续、双启动与 Unknown 恢复原生证据。 |
 | P09 / IP10：实际分权与 worker | 双域 broker、exact permit、持久 job receipt；普通进程生产 blocked；Windows 新安装 ACL/Service SID；`1ae55c6` 正式 core→worker/加密结果/双向 peer，`cc43440`、`1270e54`、`7cb5b8b` 有限文件入口、首装 profile/workspace 装配与活动程序绑定，详见本批文件 worker 组件报告。 | 原生 SCM/LocalSystem 安装后的账户、文件/网络/进程隔离及拒绝证据；每个平台独立验证。交互 Host/AppContainer 与临时进程不等于 IP10 PASS。 |
 | P09 / IP11：会话桥 | 核心 desktop grant/driver 治理基线；Windows 受管 Host 的 `WindowsDesktopHelperAdapter`、固定 `forme-executord --desktop-session-helper`、登录用户 session/token generation、受保护 peer 和 Unknown 边界已实现 | 指定 OS 会话的真实安装后 helper、TTL/liveness/锁屏/注销/TCC/Wayland 行为与平台证据；当前源码实现不等于 IP11 通过。 |
-| P10 / IP12–13：数据与接管 | AEAD/backup/restore/data lifecycle 核心；新脑认领；旧安装 template 原位保留 | 旧脑/备份离线验证、候选绑定、显式迁移与新路径切换、恢复材料；不接管错误 owner/key/占用库。 |
+| P10 / IP12–13：数据与接管 | AEAD/backup/restore/data lifecycle 核心；新脑认领；旧安装 template 原位保留；旧脑/备份真实离线验证、原选择绑定、固定 worker 新路径恢复、离线数据/config 激活与 Web 账号事务，见[隔离报告](installed-bootstrap-data-activation-20261105.md)。 | 实际安装/ACL/key resolver/浏览器联合接管与模型配置后 runtime ack；未激活未知结果的显式恢复仍须原证据与精确授权。不接管错误 owner/key/占用库，不把隔离测试计为 IP13。 |
 | P11 / IP14–15：升级回滚恢复 | product journal、release trust/compatibility、服务 adapter；`5b99ac5` 已实现恢复水位、活动数据 CAS、完整 CommitRestore 与提交后准入；`e36b5b9` 增加独立 Web 激活与已暂存发布的重新认证 | 恢复的原生 SCM 联调；签名 Upgrade/Rollback/self-update 的排空→备份→程序切换→健康验证与断电/磁盘失败恢复。不以恢复组件/禁用状态截图代替原生升级验收。 |
 | P11 / IP16：卸载 | typed 停服/移除、默认保留数据的安装入口 | 原生卸载/网络与 helper 清理、准确范围/恢复说明；受阻时不继续删除程序。 |
 | 平台账户/权限 | Windows 新布局组件验证；Linux/macOS 服务模板 | Linux/macOS 固定账户与权限预置、包生命周期、SELinux；平台未跑不扩大支持声明。 |
@@ -49,7 +49,7 @@ owner 已批准 `AbortBeforeSwitch` 契约及隔离实现：独立裁决、幂�
 
 | 设计/验收 | 已有实现 | 未闭合义务 |
 |---|---|---|
-| P04–05 / IP04–05：无配置可达与认领 | 独立 Web、证明/CAS、有限 setup、新脑签名 claim、断线恢复 | 与整机首次安装连接；旧脑/备份候选与并发/中断的完整路径。 |
+| P04–05 / IP04–05：无配置可达与认领 | 独立 Web、证明/CAS、有限 setup、新脑签名 claim；旧脑/备份候选、签名 activation、原账号事务及选择丢包只读找回已有源码/隔离证据。 | 与整机首次安装连接；真实旧脑、并发/中断、网页登录和模型配置后的联合验收。 |
 | P06 / IP06–07：账号与可信身份 | Argon2id、cookie/CSRF/epoch、plan-bound reauth、签名 bridge/durable fence | core 离线撤销恢复、OS 管理员有限口令恢复；账号/owner/keys 保持。 |
 | P07 / IP08：持久设置 | 模型 patch/CAS/journal、不可变凭据、validate/start/restart/ack；`0990bd0` 接入默认 workspace、前台优先与后台相关性模型；受管 skills、公共设置 v2、受管模型代理与可用性投影已接入正式 `SkillRegistry`/ProductionRuntime，组件见 `installed-product-managed-skills-acceptance.md` 与 `installed-product-model-proxy-acceptance.md`。 | MCP/plugin/package、消息渠道、真实外部 provider 和完整产品验收仍仅经 core；组件通过不单独提升 IP08。 |
 | P08 / IP09：本地与 LAN | 精确 Host/Origin、分桶限流；受管网络投影、TLS 材料校验、公共设置 v2、监听健康/有界回退、单次维护派发和 Windows 管理员 firewall 规则的只读核验已接入，见网络组件报告。 | 其他平台核验、真实管理员规则/SCM、证书客户端信任及跨设备证据；不自动改防火墙。 |
