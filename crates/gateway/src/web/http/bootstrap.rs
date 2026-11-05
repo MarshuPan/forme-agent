@@ -48,7 +48,7 @@ pub(super) struct ClaimBody {
     password: SensitivePassword,
 }
 
-fn client(state: &WebState) -> Result<Arc<LocalBootstrapClient>, WebError> {
+pub(super) fn client(state: &WebState) -> Result<Arc<LocalBootstrapClient>, WebError> {
     state.bootstrap.clone().ok_or_else(|| {
         WebError::new(
             StatusCode::SERVICE_UNAVAILABLE,
@@ -58,7 +58,7 @@ fn client(state: &WebState) -> Result<Arc<LocalBootstrapClient>, WebError> {
     })
 }
 
-fn cookie(headers: &HeaderMap) -> Result<SensitiveCookie, WebError> {
+pub(super) fn cookie(headers: &HeaderMap) -> Result<SensitiveCookie, WebError> {
     security::cookie(headers, security::SETUP_COOKIE)?
         .ok_or_else(|| AuthError::Unauthenticated.into())
 }
@@ -188,6 +188,20 @@ pub(super) async fn claim(
     };
     let session = state
         .blocking(true, move |identity| {
+            if identity
+                .setup_access(
+                    &input.cookie,
+                    WebRequestBinding {
+                        mutation: false,
+                        csrf: None,
+                    },
+                    true,
+                )?
+                .legacy_candidate
+                .is_some()
+            {
+                return Err(AuthError::Conflict);
+            }
             identity.finish_bootstrap(&client, configuration.as_deref(), input)
         })
         .await?;

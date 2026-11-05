@@ -79,6 +79,14 @@ pub(super) enum Fact {
         prepared: p::BootstrapClaimDataPreparedV2,
         at: i64,
     },
+    ClaimDataIntentV2 {
+        intent: p::BootstrapDataIntentV2,
+        at: i64,
+    },
+    ClaimDataBindingConfirmedV2 {
+        confirmation: p::BootstrapDataBindingConfirmationV2,
+        at: i64,
+    },
     ClaimCommittedV2 {
         commit: p::BootstrapClaimCommitV2,
         at: i64,
@@ -97,6 +105,18 @@ pub(super) enum Fact {
 }
 
 impl State {
+    pub fn candidate_catalog(&self, operation: &str) -> Option<&p::BootstrapCandidateCatalogV2> {
+        self.legacy.catalog(operation)
+    }
+
+    pub fn next_verification_epoch(&self) -> BootstrapResult<u64> {
+        self.legacy.next_epoch()
+    }
+
+    pub fn legacy_intent(&self, operation: &str) -> Option<&p::BootstrapDataIntentV2> {
+        self.legacy.intent(operation)
+    }
+
     pub fn is_claimed(&self) -> bool {
         self.committed.is_some() || self.legacy.is_committed()
     }
@@ -209,6 +229,8 @@ impl State {
             Fact::CandidateInventoryObserved { at, .. }
             | Fact::CandidateSelectedV2 { at, .. }
             | Fact::ClaimDataPrepared { at, .. }
+            | Fact::ClaimDataIntentV2 { at, .. }
+            | Fact::ClaimDataBindingConfirmedV2 { at, .. }
             | Fact::ClaimCommittedV2 { at, .. }
             | Fact::ClaimActivatedV2 { at, .. }
             | Fact::ClaimAbortedV2 { at, .. } => {
@@ -270,6 +292,9 @@ pub(super) struct Journal {
 }
 
 impl Journal {
+    pub fn require_recovery(&mut self, operation: &str) {
+        self.recovered_claims.insert(operation.to_owned());
+    }
     pub fn open(path: &Path, install: &str, key: p::SchemaDigest) -> BootstrapResult<Self> {
         Self::open_version(path, install, key, p::SchemaVersion(2))
     }
@@ -479,6 +504,10 @@ impl Fact {
             | Self::ClaimAbortedV2 { operation, .. } => Some(operation),
             Self::CandidateSelectedV2 { selection, .. } => Some(&selection.session.operation_id),
             Self::ClaimDataPrepared { prepared, .. } => Some(&prepared.operation_id),
+            Self::ClaimDataIntentV2 { intent, .. } => Some(&intent.request.session.operation_id),
+            Self::ClaimDataBindingConfirmedV2 { confirmation, .. } => {
+                Some(&confirmation.operation_id)
+            }
             Self::ClaimCommittedV2 { commit, .. } => Some(&commit.receipt.operation_id),
             Self::ClaimActivatedV2 { activation, .. } => Some(&activation.operation_id),
             _ => None,

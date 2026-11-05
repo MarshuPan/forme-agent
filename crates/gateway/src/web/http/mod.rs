@@ -3,6 +3,7 @@ mod assets;
 mod auth;
 mod backup_verification;
 mod bootstrap;
+mod bootstrap_legacy;
 mod configuration;
 mod connections;
 #[path = "core.rs"]
@@ -314,6 +315,7 @@ fn router(state: Arc<WebState>) -> Router {
             axum::http::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(30),
         ))
+        .merge(bootstrap_legacy::routes())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security::boundary,

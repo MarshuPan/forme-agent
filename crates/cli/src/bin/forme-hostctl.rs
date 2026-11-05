@@ -20,6 +20,18 @@ fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if args
         .first()
+        .is_some_and(|value| value == "maintenance-bootstrap-candidates")
+    {
+        return forme_cli::hostctl_bootstrap_candidates::run(&args[1..]);
+    }
+    if args
+        .first()
+        .is_some_and(|value| value == "maintenance-bootstrap-data")
+    {
+        return forme_cli::hostctl_bootstrap_data::run(&args[1..]);
+    }
+    if args
+        .first()
         .is_some_and(|value| value == "maintenance-verify-backup")
     {
         return forme_cli::hostctl_backup_verification::run(&args[1..]);

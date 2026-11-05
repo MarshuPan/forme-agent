@@ -465,6 +465,47 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::bootstrap::tests::legacy_journal::$name" }
 
     foreach ($name in @(
+        "offline_activation_restart_at_every_fact_never_redispatches_or_invents_confirmation",
+        "activation_requires_original_account_and_exact_offline_confirmation_before_signing"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::bootstrap::tests::legacy_journal::activation::$name" }
+    foreach ($name in @(
+        "old_configuration_lists_only_checked_empty_target_and_preserves_original_selection",
+        "unavailable_historical_discovery_cannot_downgrade_to_a_new_brain_catalog"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::bootstrap::tests::catalog_compat::$name" }
+    foreach ($name in @(
+        "bootstrap_data_binding_is_exact_idempotent_revision_zero_and_survives_restart_without_runtime_ack",
+        "concurrent_first_adoptions_allow_one_owner_and_reject_foreign_target_before_publication"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::product_config::tests::bootstrap::$name" }
+    foreach ($name in @(
+        "bootstrap_v2_http_rejects_unbound_cookie_csrf_version_and_paths_before_host_io",
+        "bootstrap_v2_http_recovers_only_the_exact_host_selection_after_a_lost_response",
+        "bootstrap_v2_http_recovers_the_original_schema_one_new_choice_without_selecting_again",
+        "bootstrap_v2_http_creates_owner_session_only_after_pinned_activation_without_starting_a_core"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::bootstrap_legacy::$name" }
+    foreach ($name in @(
+        "bootstrap_catalog_verifies_actual_owner_protection_replay_and_holds_source_fence",
+        "bootstrap_wrong_owner_corrupt_database_and_unknown_schema_never_become_empty_brain",
+        "bootstrap_owner_digest_without_authenticated_content_is_unverifiable",
+        "bootstrap_aliases_and_busy_sources_remain_visible_and_unverifiable",
+        "bootstrap_existing_fence_is_respected_without_recreating_or_rebinding_it",
+        "bootstrap_epoch_digest_and_source_identity_are_bound_to_real_observation"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") "server::lifecycle_tests::installed_bootstrap::$name" }
+    Invoke-NamedTest "forme-store" @("--lib") "offline_validation::tests::crypto_deleted_envelopes_do_not_count_as_authenticated_owner_content"
+    Assert-FormeBuildSpace $repoRoot
+    & cargo build --locked -p forme-execution --bin forme-hostd -p forme-cli --bins
+    if ($LASTEXITCODE -ne 0) { throw "bootstrap fixed-process binaries could not be built" }
+    foreach ($name in @(
+        "fixed_child_validates_candidates_without_creating_claim_brain_or_runtime",
+        "real_host_catalog_owns_epoch_authentication_journal_and_preserves_new_brain_compatibility",
+        "real_host_rechecks_source_before_selection_and_recovers_selection_without_activation",
+        "adoption::real_host_adopts_encrypted_data_before_signing_without_core_or_account",
+        "adoption::real_host_restores_verified_backup_preserving_source_owner_and_original_files",
+        "adoption::real_host_restart_after_config_cas_requires_recovery_without_recopying_or_signing",
+        "data_worker::bootstrap_worker_eof_keeps_original_intent_prepared_data_and_refuses_a_second_copy",
+        "data_worker::bootstrap_worker_confirmation_rechecks_receipt_snapshot_and_exact_target_before_release"
+    )) { Invoke-NamedTest "forme-cli" @("--test", "installed_bootstrap_candidates") $name }
+
+    foreach ($name in @(
         "signed_repair_binds_full_distribution_and_preserves_business_images_and_state",
         "durable_receipt_survives_authorization_expiry_but_requires_commit_inside_window",
         "correctly_resigned_foreign_installation_owner_operation_release_and_checkpoint_are_rejected",

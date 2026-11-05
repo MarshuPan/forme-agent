@@ -13,6 +13,7 @@ use zeroize::Zeroizing;
 
 const LIMIT: usize = 64 * 1024;
 const DEADLINE: Duration = Duration::from_secs(5);
+const INSPECTION_DEADLINE: Duration = Duration::from_secs(35);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BootstrapClientError(pub p::BootstrapProblemCode);
@@ -115,11 +116,134 @@ impl LocalBootstrapClient {
         )
     }
 
+    pub fn candidate_catalog_v2(
+        &self,
+        request: &p::BootstrapCandidateCatalogRequestV2,
+    ) -> Result<p::BootstrapCandidateCatalogV2> {
+        request
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        let result: p::BootstrapCandidateCatalogV2 = self.post_version(
+            "/v1/setup/candidates-v2",
+            Some(&request.session.operation_id),
+            request,
+            2,
+        )?;
+        result
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        Ok(result)
+    }
+
+    pub fn adopt_data_v2(
+        &self,
+        request: &p::BootstrapClaimRequestV2,
+    ) -> Result<p::SignedBootstrapClaimActivationV2> {
+        request
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        let result: p::SignedBootstrapClaimActivationV2 = self.post_version(
+            "/v1/setup/adopt-v2",
+            Some(&request.session.operation_id),
+            request,
+            2,
+        )?;
+        result
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        if result.receipt.operation_id != request.session.operation_id
+            || result.receipt.candidate_ref != request.candidate_ref
+            || result.receipt.candidate_digest != request.expected_candidate_digest
+            || result.receipt.account_commitment != request.account_commitment
+        {
+            return Err(BootstrapClientError(Code::InvalidInput));
+        }
+        Ok(result)
+    }
+
+    pub fn claim_activation_v2(
+        &self,
+        request: &p::BootstrapClaimQueryV2,
+    ) -> Result<p::SignedBootstrapClaimActivationV2> {
+        request
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        let result: p::SignedBootstrapClaimActivationV2 = self.post_version(
+            "/v1/setup/activation-v2",
+            Some(&request.session.operation_id),
+            request,
+            2,
+        )?;
+        result
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        if result.receipt.operation_id != request.session.operation_id {
+            return Err(BootstrapClientError(Code::InvalidInput));
+        }
+        Ok(result)
+    }
+
+    pub fn select_candidate_v2(
+        &self,
+        request: &p::BootstrapCandidateSelectionV2,
+    ) -> Result<p::BootstrapCandidateViewV2> {
+        request
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        let candidate: p::BootstrapCandidateViewV2 = self.post_version(
+            "/v1/setup/select-v2",
+            Some(&request.session.operation_id),
+            request,
+            2,
+        )?;
+        if candidate.candidate_ref != request.candidate_ref
+            || candidate.candidate_digest != request.expected_candidate_digest
+            || candidate.status != p::BootstrapCandidateStatus::Available
+            || candidate.kind == p::BootstrapCandidateKind::NewBrainTarget
+            || candidate.verification_epoch == 0
+        {
+            return Err(BootstrapClientError(Code::InvalidInput));
+        }
+        Ok(candidate)
+    }
+
+    pub fn claim_state_v2(
+        &self,
+        request: &p::BootstrapClaimQueryV2,
+    ) -> Result<p::BootstrapClaimViewV2> {
+        request
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        let result: p::BootstrapClaimViewV2 = self.post_version(
+            "/v1/setup/state-v2",
+            Some(&request.session.operation_id),
+            request,
+            2,
+        )?;
+        result
+            .validate()
+            .map_err(|_| BootstrapClientError(Code::InvalidInput))?;
+        if result.operation_id != request.session.operation_id {
+            return Err(BootstrapClientError(Code::InvalidInput));
+        }
+        Ok(result)
+    }
+
     fn post<T: DeserializeOwned>(
         &self,
         path: &str,
         key: Option<&str>,
         body: &impl Serialize,
+    ) -> Result<T> {
+        self.post_version(path, key, body, 1)
+    }
+
+    fn post_version<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        key: Option<&str>,
+        body: &impl Serialize,
+        version: u64,
     ) -> Result<T> {
         if let Some(key) = key {
             p::validate_product_id(key).map_err(|_| BootstrapClientError(Code::InvalidInput))?;
@@ -129,7 +253,16 @@ impl LocalBootstrapClient {
         if body.len() > 8192 {
             return Err(BootstrapClientError(Code::InvalidInput));
         }
-        let deadline = Instant::now() + DEADLINE;
+        // Candidate verification supervises a fixed worker for up to 30s;
+        // ordinary setup/status calls retain the original short deadline.
+        let deadline = Instant::now()
+            + if path == "/v1/setup/adopt-v2" {
+                Duration::from_secs(130)
+            } else if matches!(path, "/v1/setup/candidates-v2" | "/v1/setup/select-v2") {
+                INSPECTION_DEADLINE
+            } else {
+                DEADLINE
+            };
         let mut stream =
             TcpStream::connect_timeout(&self.address, DEADLINE).map_err(|_| unavailable())?;
         stream
@@ -182,7 +315,7 @@ impl LocalBootstrapClient {
         if value
             .get("schema_version")
             .and_then(serde_json::Value::as_u64)
-            != Some(1)
+            != Some(version)
         {
             return Err(BootstrapClientError(Code::InvalidInput));
         }

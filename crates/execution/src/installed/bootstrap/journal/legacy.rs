@@ -14,13 +14,30 @@ pub(super) struct LegacyClaims {
 struct Claim {
     catalog: Option<p::BootstrapCandidateCatalogV2>,
     selected: Option<p::BootstrapCandidateViewV2>,
+    intent: Option<p::BootstrapDataIntentV2>,
     prepared: Option<p::BootstrapClaimDataPreparedV2>,
     commit: Option<p::BootstrapClaimCommitV2>,
     activation: Option<p::BootstrapClaimActivationV2>,
+    confirmation: Option<p::BootstrapDataBindingConfirmationV2>,
     aborted: Option<String>,
 }
 
 impl LegacyClaims {
+    pub fn intent(&self, operation: &str) -> Option<&p::BootstrapDataIntentV2> {
+        self.claims
+            .get(operation)
+            .and_then(|claim| claim.intent.as_ref())
+    }
+    pub fn catalog(&self, operation: &str) -> Option<&p::BootstrapCandidateCatalogV2> {
+        self.claims
+            .get(operation)
+            .and_then(|claim| claim.catalog.as_ref())
+    }
+
+    pub fn next_epoch(&self) -> BootstrapResult<u64> {
+        self.last_epoch.checked_add(1).ok_or_else(invalid)
+    }
+
     pub fn is_committed(&self) -> bool {
         self.claims.values().any(|claim| claim.commit.is_some())
     }
@@ -34,7 +51,9 @@ impl LegacyClaims {
     pub fn pending_operations(&self) -> BTreeSet<String> {
         self.claims
             .iter()
-            .filter(|(_, claim)| claim.prepared.is_some() && claim.activation.is_none())
+            .filter(|(_, claim)| {
+                (claim.intent.is_some() || claim.prepared.is_some()) && claim.activation.is_none()
+            })
             .map(|(operation, _)| operation.clone())
             .collect()
     }
@@ -54,6 +73,8 @@ impl LegacyClaims {
             | Fact::ClaimAbortedV2 { operation, .. } => operation,
             Fact::CandidateSelectedV2 { selection, .. } => &selection.session.operation_id,
             Fact::ClaimDataPrepared { prepared, .. } => &prepared.operation_id,
+            Fact::ClaimDataIntentV2 { intent, .. } => &intent.request.session.operation_id,
+            Fact::ClaimDataBindingConfirmedV2 { confirmation, .. } => &confirmation.operation_id,
             Fact::ClaimCommittedV2 { commit, .. } => &commit.receipt.operation_id,
             Fact::ClaimActivatedV2 { activation, .. } => &activation.operation_id,
             _ => return Err(invalid()),
@@ -67,6 +88,30 @@ impl LegacyClaims {
             return Err(invalid());
         }
         match fact {
+            Fact::ClaimDataIntentV2 { intent, .. } => {
+                intent.validate().map_err(|_| invalid())?;
+                if claim.intent.is_some()
+                    || claim.prepared.is_some()
+                    || claim.commit.is_some()
+                    || at >= reservation.expires
+                    || intent.install_ref != install
+                    || intent.request.session.setup_digest != reservation.setup
+                    || Some(&intent.candidate) != claim.selected.as_ref()
+                {
+                    return Err(invalid());
+                }
+                claim.intent = Some(intent.clone());
+            }
+            Fact::ClaimDataBindingConfirmedV2 { confirmation, .. } => {
+                let receipt = &claim.commit.as_ref().ok_or_else(invalid)?.receipt;
+                confirmation
+                    .validate_against_receipt(receipt)
+                    .map_err(|_| invalid())?;
+                if claim.confirmation.is_some() || claim.intent.is_none() {
+                    return Err(invalid());
+                }
+                claim.confirmation = Some(confirmation.clone());
+            }
             Fact::CandidateInventoryObserved { catalog, .. } => {
                 catalog.validate().map_err(|_| invalid())?;
                 if claim.selected.is_some()
@@ -121,6 +166,9 @@ impl LegacyClaims {
                 let selected = claim.selected.as_ref().ok_or_else(invalid)?;
                 let receipt = &commit.receipt;
                 if claim.commit.is_some()
+                    || claim.intent.as_ref().is_some_and(|intent| {
+                        intent.request.account_commitment != receipt.account_commitment
+                    })
                     || at >= reservation.expires
                     || receipt.install_ref != install
                     || receipt.candidate_kind != selected.kind
@@ -134,6 +182,9 @@ impl LegacyClaims {
                 claim.commit = Some(commit.clone());
             }
             Fact::ClaimActivatedV2 { activation, .. } => {
+                if claim.intent.is_some() && claim.confirmation.is_none() {
+                    return Err(invalid());
+                }
                 activation
                     .validate_against_commit(claim.commit.as_ref().ok_or_else(invalid)?)
                     .map_err(|_| invalid())?;
@@ -147,7 +198,8 @@ impl LegacyClaims {
             } => {
                 p::validate_product_id(issue_ref).map_err(|_| invalid())?;
                 let selected = claim.selected.as_ref().ok_or_else(invalid)?;
-                if claim.prepared.is_some()
+                if claim.intent.is_some()
+                    || claim.prepared.is_some()
                     || claim.commit.is_some()
                     || candidate_ref != &selected.candidate_ref
                     || candidate_digest != &selected.candidate_digest
@@ -178,7 +230,7 @@ impl LegacyClaims {
             (p::BootstrapClaimPhaseV2::Activated, None)
         } else if let Some(issue) = aborted {
             (p::BootstrapClaimPhaseV2::Aborted, Some(issue))
-        } else if recovered {
+        } else if recovered || claim.is_some_and(|c| c.intent.is_some() && c.prepared.is_none()) {
             (
                 p::BootstrapClaimPhaseV2::RecoveryRequired,
                 Some("issue:bootstrap-claim-interrupted".into()),

@@ -40,6 +40,31 @@ pub(super) fn route(
         }
         let auth = authority.authenticate_service(bearer)?;
         match request.path.as_str() {
+            "/v1/setup/activation-v2" => {
+                let body: p::BootstrapClaimQueryV2 = parse(request)?;
+                require_operation_key(request, &body.session.operation_id)?;
+                encode(&authority.claim_activation_v2(&auth, body, now_ms())?)
+            }
+            "/v1/setup/adopt-v2" => {
+                let body: p::BootstrapClaimRequestV2 = parse(request)?;
+                require_operation_key(request, &body.session.operation_id)?;
+                encode(&broker.adopt_bootstrap_data(authority, &auth, body, now_ms())?)
+            }
+            "/v1/setup/candidates-v2" => {
+                let body: p::BootstrapCandidateCatalogRequestV2 = parse(request)?;
+                require_operation_key(request, &body.session.operation_id)?;
+                encode(&authority.candidate_catalog_v2(&auth, body, now_ms())?)
+            }
+            "/v1/setup/select-v2" => {
+                let body: p::BootstrapCandidateSelectionV2 = parse(request)?;
+                require_operation_key(request, &body.session.operation_id)?;
+                encode(&authority.select_candidate_v2(&auth, body, now_ms())?)
+            }
+            "/v1/setup/state-v2" => {
+                let body: p::BootstrapClaimQueryV2 = parse(request)?;
+                require_operation_key(request, &body.session.operation_id)?;
+                encode(&authority.claim_state_v2(&auth, body, now_ms())?)
+            }
             "/v1/setup/reserve" => {
                 let body: p::BootstrapReserveRequest = parse(request)?;
                 require_operation_key(request, &body.operation_id)?;

@@ -28,6 +28,9 @@ try {
     Invoke-QualityStep 'crate boundaries and size ratchet' $python ($pythonArguments + @('tools/code-quality.py'))
     Invoke-QualityStep 'Rust formatting' 'cargo' @('fmt', '--all', '--', '--check')
     Invoke-QualityStep 'all Rust targets' 'cargo' @('check', '--locked', '--workspace', '--all-targets')
+    # Cross-crate process fixtures resolve the ordinary workspace executables;
+    # cargo test does not build another package's non-test binary for them.
+    Invoke-QualityStep 'current workspace binaries for process regressions' 'cargo' @('build', '--locked', '--workspace', '--bins')
     Invoke-QualityStep 'complete Rust regression' 'cargo' @('test', '--locked', '--workspace', '--all-targets')
     Invoke-QualityStep 'strict Clippy' 'cargo' @('clippy', '--locked', '--workspace', '--all-targets', '--', '-D', 'warnings')
     Invoke-QualityStep 'locked frontend dependencies (no install scripts)' 'npm' @('ci', '--prefix', 'frontend', '--ignore-scripts', '--no-fund')

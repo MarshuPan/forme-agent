@@ -1,5 +1,6 @@
 //! Original isolated claim-journal fixtures. No data worker or native install.
 use super::*;
+mod activation;
 
 fn digest(value: &str) -> p::SchemaDigest {
     p::canonical_digest(&("legacy-claim-journal-fixture", value)).unwrap()

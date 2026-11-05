@@ -3,6 +3,7 @@ mod account;
 mod challenge;
 mod local_fence;
 pub(crate) use local_fence::fence_installed_sessions;
+mod legacy_account;
 mod maintenance;
 mod password;
 mod proposals;
@@ -10,6 +11,7 @@ mod recovery;
 mod sessions;
 mod setup;
 mod setup_claim;
+mod setup_legacy;
 mod storage;
 mod workbench;
 

@@ -14,6 +14,8 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 #[path = "server_lifecycle_tests/installed_backup_verification.rs"]
 mod installed_backup_verification;
+#[path = "server_lifecycle_tests/installed_bootstrap.rs"]
+mod installed_bootstrap;
 #[path = "server_lifecycle_tests/installed_release.rs"]
 mod installed_release;
 #[path = "server_lifecycle_tests/installed_restore.rs"]

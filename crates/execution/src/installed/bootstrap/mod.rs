@@ -1,7 +1,10 @@
 //! Installation claim authority. No models, brain tables or Agent permissions.
+mod adoption;
 mod config;
 mod journal;
+mod legacy_candidates;
 mod legacy_query;
+mod source_custody;
 
 #[cfg(test)]
 mod tests;
@@ -16,6 +19,7 @@ use p::BootstrapProblemCode as Code;
 use super::{HostAuth, HostCredentialDomain};
 pub use config::BootstrapAuthorityConfig;
 use journal::{Fact, Journal, PROOF_TTL, SETUP_TTL};
+pub use source_custody::BootstrapSourceCustody;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BootstrapError(pub Code);
@@ -36,6 +40,7 @@ pub struct BootstrapAuthority {
     web_digest: p::SchemaDigest,
     maintenance_digest: p::SchemaDigest,
     journal: Mutex<Journal>,
+    candidate_program: Option<super::maintenance_pipe::ReleaseDataProgram>,
 }
 
 impl BootstrapAuthority {
@@ -68,6 +73,7 @@ impl BootstrapAuthority {
             web_digest,
             maintenance_digest,
             journal: Mutex::new(journal),
+            candidate_program: None,
         })
     }
 

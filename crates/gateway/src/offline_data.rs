@@ -17,6 +17,11 @@ mod release;
 pub use release::OfflineReleaseWorker;
 mod verification;
 pub use verification::verify_installed_backup;
+mod bootstrap;
+pub use bootstrap::OfflineBootstrapInspection;
+mod bootstrap_adoption;
+mod bootstrap_files;
+pub use bootstrap_adoption::OfflineBootstrapDataWorker;
 #[cfg(test)]
 mod config_tests;
 

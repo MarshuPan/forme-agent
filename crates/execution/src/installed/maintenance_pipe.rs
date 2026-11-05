@@ -99,9 +99,48 @@ impl ReleaseDataProgram {
         self.spawn_command("maintenance-verify-backup", deadline)
     }
 
+    pub(super) fn inspect_bootstrap_candidates(
+        &self,
+        request: &p::BootstrapCandidateCatalogRequestV2,
+        epoch: u64,
+        deadline: Instant,
+    ) -> p::Result<p::BootstrapCandidateCatalogV2> {
+        let mut pipe: MaintenancePipe<p::BootstrapCandidateCatalogV2> = self
+            .spawn_command_arguments(
+                "maintenance-bootstrap-candidates",
+                &["--verification-epoch".into(), epoch.to_string()],
+                deadline,
+            )?;
+        let catalog = pipe.exchange(request)?;
+        pipe.finish()?;
+        catalog.validate()?;
+        if catalog.install_ref != self.installation.install_id
+            || catalog.verification_epoch != epoch
+        {
+            return Err(unavailable());
+        }
+        Ok(catalog)
+    }
+
+    pub(super) fn spawn_bootstrap_data(
+        &self,
+        deadline: Instant,
+    ) -> p::Result<MaintenancePipe<p::BootstrapDataWorkerResponseV2>> {
+        self.spawn_command("maintenance-bootstrap-data", deadline)
+    }
+
     fn spawn_command<T: DeserializeOwned + Send + 'static>(
         &self,
         command_name: &'static str,
+        deadline: Instant,
+    ) -> p::Result<MaintenancePipe<T>> {
+        self.spawn_command_arguments(command_name, &[], deadline)
+    }
+
+    fn spawn_command_arguments<T: DeserializeOwned + Send + 'static>(
+        &self,
+        command_name: &'static str,
+        arguments: &[String],
         deadline: Instant,
     ) -> p::Result<MaintenancePipe<T>> {
         self.preflight()?;
@@ -132,6 +171,7 @@ impl ReleaseDataProgram {
         command
             .args([command_name, "--installation-manifest"])
             .arg(&self.manifest_path)
+            .args(arguments)
             .current_dir(&self.installation.paths.host_state)
             .env_clear()
             .env("TEMP", &scratch)

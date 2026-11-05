@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "0564d56f7ab1f3442b4964ac505cf59848d4fad57151d0c361a8235b88c733b5",
+  "source_digest": "d7f1325ac787947de577787ab55570dd0cab8623bdd6df61b95b8bdbb5d427af",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "076fa39ea41369c731056320c982322cfd75031215302a467def49b3da2cd58a"
+      "sha256": "8a3de46acfd5858f75af8613ba210ef6a6cd2a148eb0f18981e5185a0a8d40a7"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -33,6 +33,10 @@
     {
       "path": "frontend/src/auth-sync.ts",
       "sha256": "01b45ad179786755002393c5f99a8950b3b285c3f02fe3b333faf3a602c27243"
+    },
+    {
+      "path": "frontend/src/bootstrap.ts",
+      "sha256": "c8f074f8dfdc1c1753e2de5766db4fe92c7da710a3454bf3e3edd9698521a187"
     },
     {
       "path": "frontend/src/components/Approval.tsx",
@@ -68,7 +72,7 @@
     },
     {
       "path": "frontend/src/components/Entry.tsx",
-      "sha256": "ded57d529c4612346209c40cd614fbcdff853eb8d3506f400fe136d2817c0887"
+      "sha256": "d758c43d29d72ce24324356a5597325dbba3e92e9e379300749434b74859b6ab"
     },
     {
       "path": "frontend/src/components/LegacyReleaseRecovery.tsx",
@@ -223,6 +227,10 @@
       "sha256": "a4355fbfba0734a88ce4eeb1c4ff7389ce732e941bf65fe3a6b14d166eab198c"
     },
     {
+      "path": "frontend/src/tests/bootstrap.test.ts",
+      "sha256": "a0705b77425fd19f9abe303152c1b25a0bee1a41a9d67cc1c3baf5da3325ab49"
+    },
+    {
       "path": "frontend/src/tests/client.test.ts",
       "sha256": "0abd83fe309c9ae3f80798e6ce37da686fba39c442b204abbfa9d18f61dee550"
     },
@@ -321,14 +329,14 @@
   ],
   "files": [
     {
+      "path": "assets/index-6hdQj5Xo.js",
+      "sha256": "e79809787b54e1db36d91442cbc17a1626c4393a36f0500f20397433c527c03a",
+      "bytes": 399096
+    },
+    {
       "path": "assets/index-BbhQ1fO8.css",
       "sha256": "4375a8d4833de33a7f9616a54330385a391954c6c0b0366de498b8f47a313aa7",
       "bytes": 14769
-    },
-    {
-      "path": "assets/index-DMtCYaxf.js",
-      "sha256": "c206131b847e4bcf44a4d38d76bdc1ba57f76300f5bc82ae248d4fe2f66cd230",
-      "bytes": 394864
     },
     {
       "path": "dependencies.json",
@@ -342,7 +350,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "9c679068e7e5107b1443149291a397cff3a57fdd2b69322a974689581f921bc1",
+      "sha256": "7d52cd4bf9db09315b993f0f0d42e3351518bbf2eccae94540c57186a396effe",
       "bytes": 595
     },
     {

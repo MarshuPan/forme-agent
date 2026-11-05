@@ -29,7 +29,9 @@ try {
         "proposal_cases::proposal_recovery_survives_installed_session_fence_and_requires_fresh_login",
         "proposal_cases::proposal_recovery_upgrades_v8_without_replacing_account_or_active_sessions",
         "proposal_recovery_capacity_fails_before_accepting_a_257th_operation",
-        "proposal_recovery_is_exact_owner_bound_and_survives_identity_restart"
+        "proposal_recovery_is_exact_owner_bound_and_survives_identity_restart",
+        "legacy_activation::identity_legacy_activation_requires_pinned_signature_candidate_owner_and_original_account",
+        "legacy_activation::identity_legacy_startup_queries_only_original_activation_without_redispatch"
     )
     $ErrorActionPreference = "Continue"
     $output = @(& cargo test -p forme-gateway --lib web::identity::tests:: -- --test-threads=2 2>&1 | ForEach-Object { "$_" })

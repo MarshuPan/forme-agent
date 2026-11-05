@@ -1,4 +1,5 @@
 //! Self-authored isolated fixtures; no installed service or personal brain.
+mod catalog_compat;
 mod legacy_journal;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};

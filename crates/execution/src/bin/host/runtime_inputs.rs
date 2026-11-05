@@ -142,10 +142,29 @@ pub(crate) fn load_bootstrap_authority(
         .agent_execution()
         .map(|value| p::canonical_digest(&value))
         .transpose()?;
-    BootstrapAuthority::open(config, maintenance, agent.as_ref())
-        .map(Arc::new)
-        .map(Some)
-        .map_err(|e| p::Error(e.to_string()))
+    let has_sources =
+        config.historical_brain_directory.is_some() || config.verified_backup_directory.is_some();
+    let mut authority = BootstrapAuthority::open(config, maintenance, agent.as_ref())
+        .map_err(|e| p::Error(e.to_string()))?;
+    if has_sources {
+        let manifest_path = path
+            .parent()
+            .ok_or_else(|| p::Error("setup layout is invalid".into()))?
+            .join("installation.json");
+        let mut custody = forme_execution::installed::bootstrap::BootstrapSourceCustody::default();
+        let manifest: p::InstallationManifest =
+            serde_json::from_slice(&custody.read(&manifest_path, 256 * 1024)?)
+                .map_err(|_| p::Error("setup installation is invalid".into()))?;
+        if manifest.paths.config.join("installation.json") != manifest_path
+            || manifest.paths.config.join("bootstrap.json") != path
+        {
+            return Err(p::Error("setup layout is invalid".into()));
+        }
+        authority = authority
+            .with_installed_candidates(manifest)
+            .map_err(|e| p::Error(e.to_string()))?;
+    }
+    Ok(Some(Arc::new(authority)))
 }
 
 pub(crate) fn required_path(key: &str) -> p::Result<PathBuf> {

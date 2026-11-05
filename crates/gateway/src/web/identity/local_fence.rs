@@ -56,7 +56,7 @@ pub(crate) fn fence_installed_sessions(
         .query_row("PRAGMA quick_check", [], |r| r.get(0))
         .map_err(storage_error)?;
     if app != 0x46415531
-        || !matches!(version, 6..=9)
+        || !matches!(version, 6..=10)
         || bound != (install.to_owned(), expected_key.0)
         || integrity != "ok"
     {

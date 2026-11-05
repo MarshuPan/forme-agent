@@ -1,4 +1,6 @@
 import { isRecord, versioned } from '../types.ts';
+import { parseBootstrapCatalog, parseBootstrapCandidate } from '../bootstrap.ts';
+import type { BootstrapCandidate } from '../bootstrap.ts';
 import type { ArtifactCatalogView } from '../types.ts';
 import type { ProjectSupervisionCommand, WorkspaceControlSnapshot } from '../types.ts';
 import type { ArtifactUploadReceipt, ControlProfile, DataCandidate, HostStatus, OrchestrationLedger, PendingApproval, ProductModelProfilePatch, ProductNetworkConfig, ProductNetworkConfigPatch, ProductProxyConfigPatch, ProjectCommand, RunCommand, RunSummary, RuntimeView, ScheduleCommand, ScheduledJob, SessionResponse, WorkbenchSessionList, WorkbenchSessionRecord, WorkbenchSessionMutation, WorkspaceCharterChangedPayload, WorkspaceCharterRecord } from '../types.ts';
@@ -59,7 +61,7 @@ export class WorkbenchClient {
     try {
       response = await this.transport(`/api/v1/${path}`, {
         method, headers, credentials: 'same-origin', cache: 'no-store',
-        body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(28_000),
+        body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path === 'bootstrap/claim-v2' ? 140_000 : path.startsWith('bootstrap/') ? 50_000 : 28_000),
       });
     } catch {
       // Mutation outcomes are unknown. Never create a new key or retry here.
@@ -111,6 +113,21 @@ export class WorkbenchClient {
     this.csrf = result.csrf; return result;
   }
   data() { return this.json<DataCandidate>('bootstrap/data'); }
+  async bootstrapCandidates() { return parseBootstrapCatalog(await this.json<unknown>('bootstrap/candidates', 'GET', undefined, undefined, 2)); }
+  async selectLegacy(candidate: BootstrapCandidate, operation: string) {
+    if (candidate.kind === 'new_brain_target' || candidate.status !== 'available') throw new Error('请选择已验证的原数据。');
+    const selected = parseBootstrapCandidate(await this.json<unknown>('bootstrap/select-v2', 'POST', {
+      schema_version: 2, candidate_ref: candidate.candidate_ref, expected_candidate_digest: candidate.candidate_digest,
+    }, operation, 2));
+    if (selected.candidate_ref !== candidate.candidate_ref || selected.candidate_digest !== candidate.candidate_digest
+      || selected.verification_epoch !== candidate.verification_epoch || selected.kind !== candidate.kind
+      || selected.status !== 'available' || selected.owner_ref !== candidate.owner_ref) throw new Error('数据选择已变化，请重新核实。');
+    return selected;
+  }
+  async claimLegacy(candidate_ref: string, login_name: string, password: string, operation: string) {
+    const view = await this.json<SessionResponse>('bootstrap/claim-v2', 'POST', { schema_version: 2, candidate_ref, login_name, password, operation_id: operation }, operation);
+    this.csrf = view.csrf; return view;
+  }
   select(candidate_ref: string, operation: string) { return this.json<DataCandidate>('bootstrap/data', 'POST', { schema_version: 1, candidate_ref }, operation); }
   async claim(candidate_ref: string, login_name: string, password: string, operation: string) {
     const view = await this.json<SessionResponse>('bootstrap/claim', 'POST', { schema_version: 1, candidate_ref, login_name, password, operation_id: operation }, operation);

@@ -7,6 +7,8 @@ pub const BOOTSTRAP_CANDIDATE_SCHEMA_VERSION: SchemaVersion = SchemaVersion(2);
 
 mod legacy_claim;
 pub use legacy_claim::*;
+mod data_activation;
+pub use data_activation::*;
 
 /// Sensitive authenticated-service input; intentionally has no Debug.
 #[derive(Serialize, Deserialize)]

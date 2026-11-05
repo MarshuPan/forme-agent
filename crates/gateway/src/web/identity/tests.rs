@@ -4,6 +4,8 @@ use ed25519_dalek::{Signer, SigningKey};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 
+#[path = "tests/legacy_activation.rs"]
+mod legacy_activation;
 #[path = "tests/proposals.rs"]
 mod proposal_cases;
 
@@ -1028,7 +1030,7 @@ fn identity_known_schema_upgrade_preserves_existing_account_and_session() {
         .connection
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 9);
+    assert_eq!(version, 10);
     let workbench_commands: i64 = store
         .database()
         .unwrap()

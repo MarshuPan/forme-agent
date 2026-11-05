@@ -89,6 +89,29 @@ impl OfflineBrainSource {
     ) -> p::Result<Self> {
         let path = normalized(source)?;
         let access = OfflineSource::acquire(&path)?;
+        Self::open_guarded(path, owner, scope, key_directory, access)
+    }
+
+    /// Candidate discovery must not create even an access-lock sidecar in a
+    /// historical source. Retain an existing fence or the actual cold-file lock.
+    pub fn open_existing(
+        source: &Path,
+        owner: &p::VerifiedPrincipal,
+        scope: p::Scope,
+        key_directory: &Path,
+    ) -> p::Result<Self> {
+        let path = normalized(source)?;
+        let access = OfflineSource::acquire_legacy(&path)?;
+        Self::open_guarded(path, owner, scope, key_directory, access)
+    }
+
+    fn open_guarded(
+        path: PathBuf,
+        owner: &p::VerifiedPrincipal,
+        scope: p::Scope,
+        key_directory: &Path,
+        access: OfflineSource,
+    ) -> p::Result<Self> {
         let key_directory = normalized(key_directory)?;
         if path.starts_with(&key_directory) {
             return Err(invalid());

@@ -1,5 +1,6 @@
 //! Installed offline data facade. It never builds a runtime or calls a model.
 use crate::{managed_config::check_managed_path, ManagedBrainConfig};
+pub use forme_execution::installed::bootstrap::BootstrapSourceCustody;
 use forme_protocol as p;
 pub use forme_store::{OfflineBrainIdentity, OfflineRestorePlan, OfflineRestoreReceipt};
 use std::path::Path;
@@ -46,6 +47,30 @@ impl OfflineBrainMaintenance {
         keys: &Path,
         backup: Option<&Path>,
     ) -> p::Result<Self> {
+        Self::open_storage_checked(owner, scope, database, artifacts, keys, backup, false)
+    }
+
+    /// Read-only bootstrap inspection does not create a source access sidecar.
+    pub fn inspect_storage(
+        owner: &p::VerifiedPrincipal,
+        scope: p::Scope,
+        database: &Path,
+        artifacts: &Path,
+        keys: &Path,
+        backup: Option<&Path>,
+    ) -> p::Result<Self> {
+        Self::open_storage_checked(owner, scope, database, artifacts, keys, backup, true)
+    }
+
+    fn open_storage_checked(
+        owner: &p::VerifiedPrincipal,
+        scope: p::Scope,
+        database: &Path,
+        artifacts: &Path,
+        keys: &Path,
+        backup: Option<&Path>,
+        read_only: bool,
+    ) -> p::Result<Self> {
         p::OwnerPrincipalRef(owner.0.clone()).validate()?;
         if scope.0.trim().is_empty() {
             return Err(p::Error("offline workspace binding is invalid".into()));
@@ -59,7 +84,11 @@ impl OfflineBrainMaintenance {
         }
         let source = backup.unwrap_or(database);
         check_managed_path(source)?;
-        let source = forme_store::OfflineBrainSource::open(source, owner, scope, keys)?;
+        let source = if read_only {
+            forme_store::OfflineBrainSource::open_existing(source, owner, scope, keys)?
+        } else {
+            forme_store::OfflineBrainSource::open(source, owner, scope, keys)?
+        };
         if backup.is_some() {
             source.verify_backup()?;
         }

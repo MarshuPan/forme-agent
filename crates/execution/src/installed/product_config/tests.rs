@@ -1,6 +1,7 @@
 use super::*;
 use ed25519_dalek::SigningKey;
 use std::fs;
+mod bootstrap;
 
 pub(crate) fn web_assertion_signing_key() -> SigningKey {
     SigningKey::from_bytes(&[7; 32])

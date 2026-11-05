@@ -24,12 +24,12 @@ struct PasswordChangeCommandRecord {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct PreparedAccount {
-    schema_version: p::SchemaVersion,
-    operation_id: String,
-    login_name: String,
-    password: PasswordRecord,
-    commitment: p::SchemaDigest,
+pub(super) struct PreparedAccount {
+    pub(super) schema_version: p::SchemaVersion,
+    pub(super) operation_id: String,
+    pub(super) login_name: String,
+    pub(super) password: PasswordRecord,
+    pub(super) commitment: p::SchemaDigest,
 }
 
 impl WebIdentityStore {

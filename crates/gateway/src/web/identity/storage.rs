@@ -95,7 +95,7 @@ impl Database {
             let version: i64 = reader
                 .pragma_query_value(None, "user_version", |r| r.get(0))
                 .map_err(|_| AuthError::RecoveryRequired)?;
-            if application != APPLICATION_ID || !matches!(version, 1..=9) {
+            if application != APPLICATION_ID || !matches!(version, 1..=10) {
                 return Err(AuthError::RecoveryRequired);
             }
         } else {
@@ -284,6 +284,15 @@ impl Database {
                  PRAGMA user_version=9;",
             )
             .map_err(storage_error)?;
+            tx.commit().map_err(storage_error)?;
+        }
+        if version <= 9 {
+            let tx = connection.transaction().map_err(storage_error)?;
+            tx.execute_batch(
+                "CREATE TABLE IF NOT EXISTS setup_candidates_v2 (operation TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 CREATE TABLE IF NOT EXISTS activated_claims_v2 (operation TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 PRAGMA user_version=10;",
+            ).map_err(storage_error)?;
             tx.commit().map_err(storage_error)?;
         }
         connection

@@ -2,6 +2,8 @@
 use crate::{at_rest, backup, offline_access::immutable_source, StoreContentProtection};
 use forme_protocol as p;
 use rusqlite::{params, Connection};
+#[cfg(test)]
+mod tests;
 use std::{
     path::Path,
     sync::{Arc, RwLock},
@@ -87,8 +89,8 @@ pub(crate) fn inspect(
                 // Both authentication and row binding are checked, never just
                 // envelope shape or the availability of some unrelated key.
                 at_rest::open_bound_blob(&connection, &bytes, table, &key)?;
+                rows += 1;
             }
-            rows += 1;
         }
     }
     let mut query = connection

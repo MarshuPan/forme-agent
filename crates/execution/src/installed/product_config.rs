@@ -1,6 +1,7 @@
 //! Host-owned, recoverable configuration transactions. Never a brain writer.
 #[cfg(test)]
 mod activation_tests;
+mod bootstrap;
 mod journal;
 #[cfg(test)]
 mod legacy_journal_tests;

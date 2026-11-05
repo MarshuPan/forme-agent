@@ -46,17 +46,28 @@ impl WebIdentityStore {
             &input.login.login_name,
             SensitivePassword::new(input.login.password.0.to_string()),
         )?;
-        let receipt = client.commit(&p::BootstrapCommitRequest {
-            schema_version: p::SchemaVersion(1),
-            session: setup.binding,
-            candidate_ref: input.candidate_ref,
-            account_commitment: commitment,
-        })?;
-        let configuration = configuration.ok_or(AuthError::Unavailable)?;
-        configuration
-            .bind_owner(&input.operation, 0, receipt.receipt.owner.clone())
-            .map_err(|_| AuthError::Unavailable)?;
-        self.commit_claim(&receipt)?;
+        if let Some(candidate) = setup.legacy_candidate {
+            let grant = client.adopt_data_v2(&p::BootstrapClaimRequestV2 {
+                schema_version: p::SchemaVersion(2),
+                session: super::setup_legacy::binding_v2(&setup.binding),
+                candidate_ref: input.candidate_ref,
+                expected_candidate_digest: candidate.candidate_digest,
+                account_commitment: commitment,
+            })?;
+            self.commit_claim_activation(&grant)?;
+        } else {
+            let receipt = client.commit(&p::BootstrapCommitRequest {
+                schema_version: p::SchemaVersion(1),
+                session: setup.binding,
+                candidate_ref: input.candidate_ref,
+                account_commitment: commitment,
+            })?;
+            let configuration = configuration.ok_or(AuthError::Unavailable)?;
+            configuration
+                .bind_owner(&input.operation, 0, receipt.receipt.owner.clone())
+                .map_err(|_| AuthError::Unavailable)?;
+            self.commit_claim(&receipt)?;
+        }
         let attempt = challenge::reference(&input.cookie)?;
         let csrf = SensitiveCookie::new(challenge::csrf(&input.cookie)?);
         {
@@ -93,6 +104,22 @@ impl WebIdentityStore {
         client: &LocalBootstrapClient,
         configuration: Option<&LocalConfigurationClient>,
     ) -> AuthResult<()> {
+        if let Some(original) = self.pending_legacy_bootstrap()? {
+            // Never call adopt on startup: only re-fetch an already activated
+            // original result and complete its existing staged-account commit.
+            let grant = client.claim_activation_v2(&p::BootstrapClaimQueryV2 {
+                schema_version: p::SchemaVersion(2),
+                session: original.session,
+            })?;
+            if grant.receipt.candidate_ref != original.candidate_ref
+                || grant.receipt.candidate_digest != original.expected_candidate_digest
+                || grant.receipt.account_commitment != original.account_commitment
+            {
+                return Err(AuthError::Conflict);
+            }
+            self.commit_claim_activation(&grant)?;
+            return Ok(());
+        }
         let Some(request) = self.pending_bootstrap()? else {
             return Ok(());
         };

@@ -11,6 +11,7 @@ use super::*;
 use crate::web::identity::{SensitivePassword, WebIdentityStore};
 
 mod backup_verification;
+mod bootstrap_legacy;
 mod proposals;
 mod release_recovery;
 
@@ -43,6 +44,15 @@ impl Fixture {
         claimed: bool,
         core: Option<Arc<crate::web::core::CoreBridgeClient>>,
         configuration: Option<Arc<crate::web::configuration::LocalConfigurationClient>>,
+    ) -> Self {
+        Self::with_setup(claimed, core, configuration, None)
+    }
+
+    fn with_setup(
+        claimed: bool,
+        core: Option<Arc<crate::web::core::CoreBridgeClient>>,
+        configuration: Option<Arc<crate::web::configuration::LocalConfigurationClient>>,
+        bootstrap: Option<Arc<crate::web::bootstrap::LocalBootstrapClient>>,
     ) -> Self {
         let mut bytes = [0; 16];
         getrandom::fill(&mut bytes).unwrap();
@@ -94,7 +104,7 @@ impl Fixture {
                 serve_identity_with_setup_until(
                     connections::BoundedListener::new(listener),
                     Arc::new(identity),
-                    None,
+                    bootstrap,
                     configuration,
                     core,
                     |address| {

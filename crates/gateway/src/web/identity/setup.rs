@@ -14,6 +14,7 @@ pub(crate) struct SetupCookie {
 pub(crate) struct SetupAccess {
     pub binding: p::BootstrapSessionBinding,
     pub candidate: Option<String>,
+    pub legacy_candidate: Option<p::BootstrapCandidateViewV2>,
 }
 
 impl WebIdentityStore {
@@ -187,6 +188,7 @@ impl WebIdentityStore {
             }
         }
         Ok(SetupAccess {
+            legacy_candidate: super::setup_legacy::selected(&db.connection, &operation)?,
             binding: p::BootstrapSessionBinding {
                 schema_version: p::SchemaVersion(1),
                 operation_id: operation,
@@ -212,6 +214,9 @@ impl WebIdentityStore {
         if account(&db.connection)?.is_some() {
             return Err(AuthError::Conflict);
         }
+        if super::setup_legacy::selected(&db.connection, &setup.binding.operation_id)?.is_some() {
+            return Err(AuthError::Conflict);
+        }
         let changed = db.connection.execute("UPDATE setup_sessions SET candidate=?1 WHERE operation=?2 AND digest=?3 AND active=1 AND expires>?4 AND (candidate IS NULL OR candidate=?1)",
             params![candidate.candidate_ref,setup.binding.operation_id,setup.binding.setup_digest.0,now()]).map_err(storage_error)?;
         if changed != 1 {
@@ -226,7 +231,7 @@ impl WebIdentityStore {
             if account(&db.connection)?.is_some() {
                 return Ok(None);
             }
-            db.connection.query_row("SELECT operation,digest,candidate FROM setup_sessions WHERE active=1 AND candidate IS NOT NULL", [],
+            db.connection.query_row("SELECT operation,digest,candidate FROM setup_sessions WHERE active=1 AND candidate IS NOT NULL AND operation NOT IN (SELECT operation FROM setup_candidates_v2)", [],
                 |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?))).optional().map_err(storage_error)?
         };
         let Some((operation, digest, candidate)) = row else {

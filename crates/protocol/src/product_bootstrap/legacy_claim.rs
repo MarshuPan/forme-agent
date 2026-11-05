@@ -33,7 +33,7 @@ impl BootstrapCandidateSelectionV2 {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BootstrapClaimRequestV2 {
     pub schema_version: SchemaVersion,
