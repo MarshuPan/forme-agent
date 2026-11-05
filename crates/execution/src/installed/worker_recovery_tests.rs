@@ -99,6 +99,41 @@ fn job(suffix: &str) -> (p::WorkerJob, p::WorkerPermit) {
 }
 
 #[test]
+fn receipt_confirmation_rechecks_original_bytes_and_refuses_a_missing_durable_receipt() {
+    let f = Fixture::new();
+    let (job, permit) = job("receipt-origin");
+    f.journal.admit(job.clone(), permit, 2).unwrap();
+    f.journal.start(&job.job_id, 3).unwrap();
+    let prefix = f.bytes();
+    let receipt = p::WorkerReceipt {
+        schema_version: p::SchemaVersion(1),
+        receipt_ref: "receipt:original".into(),
+        job_id: job.job_id.clone(),
+        plan_digest: job.plan_digest.clone(),
+        authority_epoch: job.authority_epoch,
+        nonce: job.nonce.clone(),
+        observed_outcome: p::WorkerOutcome::Completed,
+        safe_result_ref: None,
+        ground_truth_refs: Vec::new(),
+        started_at: 3,
+        finished_at: Some(4),
+    };
+    f.journal.record_receipt(receipt.clone(), 4).unwrap();
+    let original = f.bytes();
+    assert_eq!(
+        f.journal.confirm_receipt(&receipt, 5).unwrap().state,
+        p::WorkerState::Completed
+    );
+    assert_eq!(f.bytes(), original);
+    // A still-valid old prefix has no persisted receipt, even though memory does.
+    f.replace(&prefix);
+    assert!(f.journal.confirm_receipt(&receipt, 6).is_err());
+    assert!(f.journal.writer.lock().unwrap().poisoned);
+    assert!(f.journal.confirm_receipt(&receipt, 7).is_err());
+    f.assert_poisoned_without_repair(&prefix);
+}
+
+#[test]
 fn quiescent_digest_rejects_valid_truncation_against_live_writer() {
     let f = Fixture::new();
     f.cancelled("first");

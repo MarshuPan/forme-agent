@@ -193,6 +193,65 @@ fn windows_job_worker_reports_real_completion_and_failure() {
 }
 
 #[test]
+fn a_caller_receipt_cannot_settle_a_live_native_worker_or_unlock_release_recovery() {
+    let temp = Temp::new();
+    let auth = agent_auth(&temp);
+    let host = host(&temp, vec!["--sleep-ms=10000".into()]);
+    let (job, permit) = job("job-unobserved-receipt", 20000);
+    host.dispatch(&auth, job.clone(), permit, 10).unwrap();
+    for _ in 0..200 {
+        if temp.workspace().join("worker-fixture-ran").is_file() {
+            break;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert!(temp.workspace().join("worker-fixture-ran").is_file());
+    let before = fs::metadata(temp.journal()).unwrap().len();
+    let claimed = p::WorkerReceipt {
+        schema_version: p::SchemaVersion(1),
+        receipt_ref: "receipt:unobserved-native-worker".into(),
+        job_id: job.job_id.clone(),
+        plan_digest: job.plan_digest.clone(),
+        authority_epoch: job.authority_epoch,
+        nonce: job.nonce.clone(),
+        observed_outcome: p::WorkerOutcome::Completed,
+        safe_result_ref: None,
+        ground_truth_refs: Vec::new(),
+        started_at: 10,
+        finished_at: Some(11),
+    };
+    let rejected = host.record_receipt(&auth, claimed, 11).is_err();
+    let mut callbacks = 0;
+    let blocked = host
+        .with_quiescent_workers(&mut |_| {
+            callbacks += 1;
+            Ok(())
+        })
+        .is_err();
+    assert!(
+        rejected,
+        "a supplied receipt is not an OS terminal observation"
+    );
+    assert!(blocked);
+    assert_eq!(callbacks, 0);
+    assert_eq!(fs::metadata(temp.journal()).unwrap().len(), before);
+    assert_eq!(
+        host.probe(&auth, &job.job_id, 12).unwrap().state,
+        p::WorkerState::Running
+    );
+    assert_eq!(
+        host.cancel(&auth, &job.job_id, 13).unwrap().outcome,
+        p::WorkerOutcome::Cancelled
+    );
+    host.with_quiescent_workers(&mut |_| {
+        callbacks += 1;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(callbacks, 1);
+}
+
+#[test]
 fn windows_job_terminates_a_descendant_without_replaying_the_job() {
     let temp = Temp::new();
     let auth = agent_auth(&temp);

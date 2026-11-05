@@ -8,6 +8,8 @@ use forme_execution::installed::{
     NativeServiceManager, ProductHostBroker, WorkerExecutorHost, WorkerIsolation,
 };
 use forme_protocol as p;
+#[path = "installed_worker_contract/receipt_cases.rs"]
+mod receipt_cases;
 #[path = "installed_worker_contract/recovery_cases.rs"]
 mod recovery_cases;
 
@@ -599,29 +601,22 @@ fn worker_admission_is_idempotent_and_restart_marks_exact_job_unknown() {
 fn worker_receipt_and_cancel_are_bound_to_the_original_job() {
     let temp = Temp::new();
     let (_broker, _maintenance, agent) = auths(&temp);
-    let isolation = FakeIsolation::default();
+    let isolation = receipt_cases::ObservedIsolation::default();
     let host = host(&temp, isolation.clone());
     let (job, permit) = make_job(100);
     host.dispatch(&agent, job.clone(), permit, 10).unwrap();
-    let receipt = p::WorkerReceipt {
-        schema_version: p::SchemaVersion(1),
-        receipt_ref: "receipt:completed".into(),
-        job_id: job.job_id.clone(),
-        plan_digest: job.plan_digest.clone(),
-        authority_epoch: job.authority_epoch,
-        nonce: job.nonce.clone(),
-        observed_outcome: p::WorkerOutcome::Completed,
-        safe_result_ref: Some("result:completed".into()),
-        ground_truth_refs: vec!["ground-truth:1".into()],
-        started_at: 10,
-        finished_at: Some(20),
-    };
+    let receipt = isolation.receipt(&job);
+    assert!(host.record_receipt(&agent, receipt.clone(), 20).is_err());
+    assert_eq!(
+        host.probe(&agent, &job.job_id, 20).unwrap().state,
+        p::WorkerState::Completed
+    );
     assert_eq!(
         host.record_receipt(&agent, receipt, 20).unwrap().state,
         p::WorkerState::Completed
     );
     assert!(host.cancel(&agent, &job.job_id, 21).is_err());
-    assert_eq!(isolation.cancelled.load(Ordering::SeqCst), 0);
+    assert_eq!(isolation.platform.cancelled.load(Ordering::SeqCst), 0);
 }
 
 #[test]

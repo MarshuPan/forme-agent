@@ -537,17 +537,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         if receipt.authority_epoch != self.authority_epoch {
             return Err(p::Error("worker receipt authority epoch is stale".into()));
         }
-        let job = self.journal.job(&receipt.job_id)?;
-        self.seal_result(WorkerResultSealRequest {
-            job: &job,
-            receipt_ref: Some(receipt.receipt_ref.clone()),
-            result_ref: receipt.safe_result_ref.clone(),
-            outcome: Some(receipt.observed_outcome),
-            source: None,
-            evidence_refs: receipt.ground_truth_refs.clone(),
-            now,
-        })?;
-        self.journal.record_receipt(receipt, now)
+        self.journal.confirm_receipt(&receipt, now)
     }
 
     fn result_manifest(

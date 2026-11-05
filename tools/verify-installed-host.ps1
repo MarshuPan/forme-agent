@@ -60,6 +60,7 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
 
     foreach ($name in @(
+        "receipt_confirmation_rechecks_original_bytes_and_refuses_a_missing_durable_receipt",
         "quiescent_digest_rejects_valid_truncation_against_live_writer",
         "original_worker_recheck_preserves_bytes_cursor_digest_and_os_lock",
         "original_worker_recheck_rejects_same_sequence_with_another_valid_chain",
@@ -354,6 +355,21 @@ try {
         "concurrent_cancel_and_probe_cannot_duplicate_the_platform_effect",
         "cancellation_waits_for_admission_to_finish_before_touching_the_platform"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") $name }
+
+    foreach ($name in @(
+        "caller_receipt_cannot_probe_seal_or_complete_an_unobserved_job",
+        "receipt_confirmation_rejects_every_changed_field_without_side_effects",
+        "persisted_receipt_confirmation_survives_restart_and_preserves_all_outcomes",
+        "cleanup_failure_or_restart_unknown_cannot_be_laundered_by_a_receipt",
+        "concurrent_receipt_confirmations_cannot_repeat_observation_or_sealing"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "receipt_cases::$name" }
+    if ($isWindowsHost) {
+        foreach ($name in @(
+            "a_caller_receipt_cannot_settle_a_live_native_worker_or_unlock_release_recovery",
+            "windows_job_worker_reports_real_completion_and_failure",
+            "windows_job_terminates_a_descendant_without_replaying_the_job"
+        )) { Invoke-NamedTest "forme-execution" @("--test", "installed_windows_job_worker_contract") $name }
+    }
 
     foreach ($name in @(
         "process_worker_uses_registered_program_and_reports_completion",

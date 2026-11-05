@@ -6,6 +6,35 @@ use super::*;
 mod tests;
 
 impl WorkerJournal {
+    /// Agent input only confirms an already persisted Host observation. It
+    /// cannot create an outcome, artifact, cleanup or journal fact.
+    pub(in crate::installed) fn confirm_receipt(
+        &self,
+        receipt: &p::WorkerReceipt,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerObservation> {
+        let mut writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        if let Err(error) = recheck_writer(&mut writer) {
+            writer.poisoned = true;
+            return Err(error);
+        }
+        let record = writer
+            .projection
+            .jobs
+            .get(&receipt.job_id)
+            .ok_or_else(|| p::Error("worker job does not exist".into()))?;
+        receipt.validate_for(&record.job)?;
+        if record.receipt.as_ref() != Some(receipt) {
+            return Err(p::Error(
+                "worker receipt is not an existing Host observation".into(),
+            ));
+        }
+        Ok(observation(record, now))
+    }
+
     pub(in crate::installed) fn quiescent_digest(&self) -> p::Result<p::SchemaDigest> {
         let mut writer = self.writer.lock().map_err(|_| storage_error())?;
         if writer.poisoned {
