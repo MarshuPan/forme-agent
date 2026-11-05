@@ -181,3 +181,17 @@ plan/receipt 的签名消息分别为 `canonical_digest(("forme-management-reade
 普通有基线恢复同样必须在最终文件/服务重查后、Committed 前检查原数据 guard；初始观察也检查一次。没有存活检查实现的可信测试 adapter 不得默认成功。此项沿用已批准的持锁至提交要求，不改变产品 DTO、线协议或 PRD 冻结接口，也不把 child 存活等同于八类材料本源、历史连续性或数据再次完整核验。真实历史 collector 的后续实现仍须独立核实这些材料。
 
 历史通道也不能仅凭 `recheck` 返回完整材料就认为观察持续有效：其后对真实服务的查询可能耗时。Host 在原服务查询和观察摘要计算后、写 Intent/Committed 前必须再核对同一 guard 与原截止时间；内部 inspection 接缝必须显式实现该检查，不提供默认成功。首次检查前失锁为零新事实，Intent 后失锁保留原 Intent/原升级阶段；重放与同号查询不收集或提交，独立重新认证的原号 verify 才能取得新 guard。该内部接缝细化不改变对外冻结协议或本机操作授权。
+
+### 9.7 历史数据档案的来源与比较
+
+本节细化已批准的 `ArchivedDataIdentity` 材料读取，不增加公开产品 DTO、冻结 trait、授权域或脑事件。它只产生一项材料，不能出具完整 Verified、接通尚缺其他材料的生产 collector，或替代当前数据 worker 的独占持有检查。
+
+档案根固定为 `installation.paths.host_state/legacy-data-archives/<archive_sha256_hex>`，每项恰好包含 `archive.json` 与 `origin.json`。目录名从受保护 Host 配置中固定的原档案摘要派生，不来自 Web、报告内路径或文件名。两个文件分别限 256 KiB、16 KiB；使用 §9.3 的原文件和祖先目录 custody，拒绝链接、多硬链接、额外文件和读取后变化。检查不创建目录、不迁移文件、不写日志或启动进程。
+
+`origin.json` 是私有 closed/schema 1 的 `SignedArchiveOrigin { schema_version, origin, signature }`。其中 `ArchiveOrigin` 的字段顺序为 `schema_version, source_ref, install_ref, installation_digest, owner, original_operation_id, original_command_digest, original_release_ref, original_release_digest, target_release_ref, target_release_digest, config_revision, config_digest, archive_digest, archive_revision, recorded_at`。签名消息为 `canonical_digest(("forme-legacy-data-archive-origin-v1", origin))` 的完整 `sha256:...` UTF-8 字节；signature 恰为 64 bytes。原档案摘要、**原来源记录的原字节摘要**和独立来源公钥均须由受保护、独立核实的 Host 修复配置预置，不能从档案、同一审查报告或请求导入。公钥匹配与签名自洽不能替代该独立来源核实；禁止为现有无来源文件现场生成记录、倒填时间、补签后直接接纳。本机没有此来源时仍为 Unverifiable。
+
+load 还绑定原 installation digest、owner、原 operation/command/release、目标签名发布、配置 revision/digest。`recorded_at` 必须非负且严格早于从原 journal 取得的 operation 起始时间；`archive_revision` 与旧报告一致且小于原 review checkpoint。时间和水位只检查来源声明的因果一致性，不充当独立时间戳或补造升级前基线。
+
+`archive.json` 保留原离线入库报告的字段和大小写，全部 closed/schema 1。只接受 `inbox_prepared_only`、完整三步入库 changes、无 failure、无模型/密钥读取、零服务/维护命令和未更换程序的报告。目标 release 与原升级请求一致；四服务描述是历史观察，不当作当前 SCM 或完整恢复策略的证明。`database_schema_version` 必须显式出现：旧 null 保持 null，已记录的非零版本才可与当前版本比较；缺字段、未知字段、重复字段和错误类型均拒绝。
+
+比较在 collector 已持有原数据 worker 的临界区内调用，逐项核对 owner/store/schema/database digest、事件数、最后 stream sequence 与实际 config schema。当前实际 database schema 必须有效，即使历史值为空也纳入本次 observation digest；不得回填原报告。历史 `authenticated_content_rows` 原样进入摘要，不声称当前 DTO 已测量该数量。`ArchivedDataIdentity` 的 artifact digest 为原档案原字节摘要；observation digest 覆盖域 `forme-legacy-data-archive-observation-v1`、原来源记录原字节摘要、来源 domain digest、完整 review binding digest、历史身份、历史可空数据库版本及当前实际数据身份。每次比较前后重查同一 custody 与原 deadline；返回一项 evidence 不代表其余七项或数据 guard 已完成验证。
