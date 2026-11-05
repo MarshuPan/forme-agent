@@ -163,3 +163,13 @@ plan/receipt 的签名消息分别为 `canonical_digest(("forme-management-reade
 该项 `artifact_digest` 为直到原 checkpoint（含各行换行）的真实原字节 SHA-256；`binding_digest` 沿用同一 report binding digest；`observation_digest` 为 `canonical_digest(("forme-legacy-original-journal-v1", binding_digest, prefix_byte_length, original_takeover_digest))`。摘要不含原文或路径。Host 在真实 inspection 之内、决定追加之前重新计算并与已签报告的第一项逐字段比较，不因 collector 回传相同报告而省略原句柄检查。
 
 这只闭合原 journal 的本源与因果核查，不代替历史数据、原 updater 审计、worker 连续性、管理修复、独占数据检查或完整原生 collector；未实现的材料仍保持 unavailable。
+
+### 9.5 管理修复前的离线原件观察
+
+精确管理员计划可使用独立的 `forme-hostd --inspect-legacy-repair-source --installation <installation.json> --operation <original_id>` 只读入口准备 §9.3 的 journal binding。该入口在服务 dispatcher、运行时装配、配置/凭据加载之前退出，不使用 `ProductJournal::open`，不创建任何文件或 InstallationBound，不启动服务、worker、模型或监听器。它只接受原 manifest 的精确固定配置位置，从 manifest 推导 `host_state/host.journal`；不接受浏览器或网络请求。
+
+安装 manifest 和祖先目录保持只读 custody，原 journal 必须是已存在、单硬链接、有界的普通文件，读取前取得独占 OS 文件锁。现有 Host 正持锁时拒绝，不能绕过锁读取“足够新”的副本；本机停服仍须 §4 的具体批准。原字节沿用 closed envelope、原 fact JSON 摘要、单调 schema floor 和完整 projection fold，核对原 installation manifest digest、原 release 及指定 operation/takeover 的绑定；未知 schema、截断、损坏或身份不符均拒绝，不修复日志。
+
+输出为仅序列化的私有 schema 1 `LegacyRepairSourceSnapshot`：`schema_version, observed_at, install_ref, installation_digest, journal_seq, journal_head, journal_bytes, journal_digest, journal_schema_floor, owner, original_operation_id, original_command_digest, original_release_ref, original_release_digest, stage, pending_stage, config_revision, config_digest, takeover_digest, takeover_deadline, images_claimed, checking_prepared, recovery_baseline_present`。字段全部从原 manifest、原 bytes 和重放投影派生，无路径、nonce、凭据、正文或调用者提供的成功断言。观察可以描述非 Quiescing 状态；生成修复计划及历史裁决的阶段限制保持不变。
+
+该快照只证明本次离线读取及其水位，释放锁后必须重新核查。它不是签名 RepairPlan/Receipt、历史证据 Verified、缺基线裁决或新授权；不能据此启动原升级或写任何新事实。缺文件、空文件、占用、别名和因果破坏必须以原文件零写入的反例验收。候选分发仍绑定它本身已验证的源码和程序摘要，不因增加这一独立预检工具而反复封存同一候选。
