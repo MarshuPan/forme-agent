@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-05 缺基线历史升级：正式 HTTP/Web 接线与原生只读预检
+
+`ad05bc7` 接通 Configuration 域的五个 Host 路由、真实 owner/session/CSRF/操作摘要重新认证的 Web API 和独立历史恢复面板。Intent 刷新只取原签名报告、结果未知只查原号，JSON 属性重排不改变 Rust/TypeScript 共同 domain digest。统一源码门 1174 Rust passed / 0 failed / 15 默认 ignored、前端 105/105、永久宿主门 272/272 和 closure A/B/C 均 PASS。获准清理无占用旧 dev 缓存并校验保留摘要后，D runtime-only 完整复跑 PASS（exit 0）；不证明新的 C24 live 或 D/Final。当前 M5 尚未重验，不沿用上批 receipt。详见[HTTP/Web 组件报告](installed-legacy-release-http-web-20261105.md)。
+
+本机只读管理员预检也已完成：四服务状态/PID/绑定前后保持，实际固定 Host/updater 摘要匹配此前获批的 `694b6bb` 诊断替换，四服务账户、参数和有限恢复策略与 2026-11-02 档案一致；无产品写入、启停或模型调用。原生 collector、档案本源/连续性、独占数据检查、独立管理 reader 修复和实际迁移仍未闭合；IP14–15/IP24 及整体目标保持开放。精确报告/摘要与边界见[原生预检记录](installed-legacy-release-native-preflight-20261105.md)。下节及更早段落为对应组件时期的历史状态。
+
 ## 2026-11-05 缺基线历史升级：Host 隔离审查
 
 此前独立历史恢复只完成私有 journal 及其命名门，本轮补上 Host 的严格验签、持久 owner/config/active release 绑定、真实 worker 静止锁、提交前重查和只读原号/列表查询，同时修正原 takeover 到期、核实不得超出报告期限及 reader/updater 3/3 探测。实现提交为 `8991875`，统一源码门 PASS（1168 Rust passed / 0 failed / 15 默认 ignored）、永久宿主门 266/266 PASS；协议 6 项、相关 legacy 30 项与真实离线能力子进程 1 项另有定向证据，重复执行不相加。适用核心回归与 M5 的确切状态见[本轮组件报告](installed-legacy-release-review-20261105.md)。
