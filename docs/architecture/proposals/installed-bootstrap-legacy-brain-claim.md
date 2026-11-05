@@ -133,3 +133,15 @@ Observed -> Selected -> DataPrepared -> Committed -> Activated
 隔离测试必须覆盖：新脑旧路径兼容、三类候选发现、错误 owner/key、历史明文、损坏 manifest/schema、数据库占用、candidate digest TOCTOU、并发 setup、断电于每个 journal 阶段、响应丢失后的原号恢复、旧 reader 对 v2 拒绝、已认领拒绝和“零空脑替代”。测试 fixture 自建，不包含真实账号、key、用户正文或私人路径。
 
 本提案实现完成只表示协议、DTO、journal 和隔离测试闭合；不表示当前本机旧安装已被接管，不授权迁移本机旧 journal/脑数据、替换程序、启停服务或把 IP13/IP24 标为通过。真实 IP13 仍须从正式安装包、真实权限、真实锁、真实 key resolver、原生服务和浏览器联合验收。
+
+## 8. 固定候选布局与只读检查的实施细化
+
+本节细化已批准的固定路径发现，不改变第 3 节的 DTO、认领状态或数据切换授权。Host 只启动当前安装派生的固定 `forme-hostctl`，通过受监管、有期限的私有 pipe 检查；实际数据验证继续由 Gateway → Harness → Store 的既有离线边界负责。Host 与 Web 均不打开脑数据库。
+
+`historical_brain_directory` 与 `verified_backup_directory` 分别是安装器指定的源根。每个根最多四个直接子目录，不递归发现候选、不接受文件名过滤或浏览器路径。每个子目录使用固定布局：`core.json` 是已有 managed core config 的只读 storage projection，`forme.db`、`forme.content-keys`、`artifacts` 分别是库、key resolver 和产物根；备份候选另固定使用 `backup.db` 及其既有 backup manifest。storage projection 中的路径必须逐项等于这些固定路径；不根据 config 跳出候选目录。未知条目、链接、硬链接、过多候选、错误 owner/key/schema、缺件或占用不能被静默跳过并报告为空新脑。
+
+候选引用由 installation、kind 和直接子目录名产生不可反推路径的摘要引用。只读 worker 接收既有 `BootstrapCandidateCatalogRequestV2`；Host 从原 claim journal 分配单调 verification epoch，以固定命令参数传入，浏览器不能选择 epoch。结果仍是既有 `BootstrapCandidateCatalogV2`。检查期间保留源数据库独占 guard 和源配置/keys 的原生文件 custody；成功结果必须通过实际解密、完整性、连续性及 projection replay。源配置只提供待验证 owner，只有其与库 authority/密文认证一致后才输出 `VerifiedFromCandidate`。
+
+目录缺失/为空可表示没有该类候选；发现但无法验证的源必须返回独立的 rejected/unverifiable 候选，且不附带未核实的 owner。schema 1 的新脑通路保持兼容，不据此解释为旧脑迁移成功。读取候选、记录 inventory 或选择候选都不复制数据、不创建账号、不切换配置、不启动 Brain，也不产生 `ClaimDataPrepared`/`ClaimActivatedV2`。
+
+只读发现使用 `OfflineBrainSource::open_existing`，不在源上创建缺失的 access-lock 文件；已存在的 fence 仍需核对无别名并由 Store 持有原锁。只有 owner digest、却没有任何可实际认证的受保护内容时，无法证明旧身份，返回 unverifiable；不能把“没有密文可解”当作解密验证成功。
