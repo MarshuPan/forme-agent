@@ -1,6 +1,6 @@
 # 历史数据档案来源与身份比较组件（2026-11-05）
 
-状态（2026-11-06）：测试专用的来源与身份比较组件完成，代码提交 `0471750`。本记录不是历史恢复 Verified、生产 collector 接通、原生安装恢复或 IP14–15/IP24 的通过证据。对应已批准协议的私有细节见[历史审查 §9.7](../architecture/proposals/installed-legacy-release-recovery-review.md#97-历史数据档案的来源与比较)。
+状态（2026-11-06）：测试专用的来源与身份比较组件完成，代码提交 `0471750`；当前源码完整 M5/S1–S99 终验已通过。本记录不是历史恢复 Verified、生产 collector 接通、原生安装恢复或 IP14–15/IP24 的通过证据。对应已批准协议的私有细节见[历史审查 §9.7](../architecture/proposals/installed-legacy-release-recovery-review.md#97-历史数据档案的来源与比较)。
 
 ## 1. 实现与边界
 
@@ -19,7 +19,9 @@
 - 定向：`cargo test -p forme-execution --lib legacy_data_archive`，17 passed / 0 failed。
 - 当前提交质量门：`cargo fmt --all -- --check`、`py -3 tools/code-quality.py`（859 files，63 项既有规模债务未增长）、`cargo check --workspace --all-targets`、`cargo test --workspace --all-targets`、`cargo clippy --workspace --all-targets -- -D warnings`、`bash tools/compliance-doctor.sh` 均 PASS；测试构建收口后重跑的全 workspace suite exit 0。
 - 永久 Host 命名门：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-installed-host.ps1` exit 0，348 个命名检查 PASS，包含本组件 17 项。完整输出留在本机 `target/legacy-release-review/legacy-data-archive-installed-host-gate-20261106.log`，SHA-256 `1a2b0446fe53ef641cc500a705ce2035746cee542403e0f0d80af918bd36c8ef`。末尾明确 `IP01-IP24: NOT_RUN`。
-- 首次 workspace strict Clippy 曾因组件在生产构建未接线而报 19 项 dead-code；已将模块限定为 `cfg(test)`，然后重新执行格式、quality、check、全量 tests、strict Clippy、compliance 和永久 Host 门。后续仍须按当前源码刷新/验证 M5 与对应闭合证据；本记录不把历史 M5 回执说成覆盖该提交。
+- 首次 workspace strict Clippy 曾因组件在生产构建未接线而报 19 项 dead-code；已将模块限定为 `cfg(test)`，然后重新执行格式、quality、check、全量 tests、strict Clippy、compliance 和永久 Host 门。
+- 最终整门：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-m5.ps1` exit 0，实际终线 `M5 FINAL ACCEPTANCE: PASS`。包含 S1–S99、C1–C24、M4/M5 多进程 golden、全工作区、95 项 Python（1 项环境跳过）、strict Clippy、完整合规以及当前树发布回执独立验证和比较。workspace 阶段为 182 targets、1252 passed / 0 failed / 15 默认 ignored；新增档案组件相对前一统计增加 17 项。
+- 完整终验输出留在本机 `target/legacy-release-review/legacy-data-archive-final-m5-20261106.log`，SHA-256 `06b2f74c2892fb81bb3b7cc6a5ce1942ca1c0cd7eec93b79f078ccc2f4ee02c2`。最终 release receipt 已由完整门生成、独立验证，并与仓库 current receipt 比较 PASS；最新摘要见 M5 acceptance report。
 
 ## 3. 本机与后续闭合
 
