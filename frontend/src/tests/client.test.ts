@@ -73,20 +73,22 @@ test('project and charter mutations keep one server command key and use allowlis
   const calls: { path: string; request: RequestInit }[] = [];
   const transport: typeof fetch = async (input, request) => {
     calls.push({ path: String(input), request: request! });
+    const body = JSON.parse(String(request?.body));
+    if (request?.method === 'POST' && String(input).endsWith('/charter')) return Response.json({
+      charter: { ...body.record, version: 2, digest: `sha256:${'b'.repeat(64)}` }, expected_version: 1, committed_version: 2,
+    });
+    if (body.request?.operation === 'cancel') return Response.json({ cancelled: true });
     return Response.json({ schema_version: 1, event: 'event:fixture' });
   };
   const api = new WorkbenchClient(transport);
   const key = 'command:project-register';
-  await api.project({ operation: 'execute', route: { route: 'route:fixture' } }, key);
+  assert.equal((await api.project({ operation: 'cancel', command: key, route: 'route:fixture' }, key)).cancelled, true);
   const charterKey = 'command:charter';
-  await api.prepareCharter('workspace:demo', {
+  const prepared = await api.prepareCharter('workspace:demo', {
     schema_version: 1, workspace: 'workspace:demo', version: 1, goals: [], constraints: [], prohibitions: [], done_contract: null, review_cadence: null, actor: 'Owner', digest: 'sha256:fixture',
   }, 1, charterKey);
-  await api.updateCharter('workspace:demo', {
-    charter: { schema_version: 1, workspace: 'workspace:demo', version: 2, goals: [], constraints: [], prohibitions: [], done_contract: null, review_cadence: null, actor: 'Owner', digest: 'sha256:fixture' },
-    expected_version: 1,
-    committed_version: 2,
-  }, charterKey);
+  assert.equal(prepared.charter.version, 2);
+  await api.updateCharter('workspace:demo', prepared, charterKey);
   assert.equal(calls[0].path, '/api/v1/brain/projects');
   assert.equal(calls[1].path, '/api/v1/brain/workspaces/workspace%3Ademo/charter');
   assert.equal(calls[2].path, '/api/v1/brain/workspaces/workspace%3Ademo/charter');
@@ -95,7 +97,8 @@ test('project and charter mutations keep one server command key and use allowlis
     assert.equal(new Headers(calls[index].request.headers).get('Idempotency-Key'), expected);
     assert.equal(calls[index].request.credentials, 'same-origin');
   }
-  assert.deepEqual(JSON.parse(String(calls[0].request.body)), { schema_version: 1, request: { operation: 'execute', route: { route: 'route:fixture' } } });
+  assert.deepEqual(JSON.parse(String(calls[0].request.body)), { schema_version: 1, request: { operation: 'cancel', command: key, route: 'route:fixture' } });
+  assert.deepEqual(JSON.parse(String(calls[2].request.body)).change, prepared);
 });
 
 test('project status is read-only and supervision binds one exact owner command', async () => {

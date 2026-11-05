@@ -9,6 +9,7 @@ import { ProjectControls } from './ProjectControls.tsx';
 import { WorkspaceIntentions } from './WorkspaceIntentions.tsx';
 import { useProjectCommand } from './project-command.ts';
 import type { PendingChange } from './project-command.ts';
+import { charterRulesError } from '../workspace-charter.ts';
 
 const defaultSignature: TaskSignature = {
   schema_version: 1,
@@ -124,7 +125,8 @@ function ProjectForm({ api, runtime, onChanged, onPending }: { api: WorkbenchCli
 function CharterEditor({ api, runtime, charter, onChanged, onPending }: { api: WorkbenchClient; runtime: RuntimeView; charter: WorkspaceCharterRecord | null; onChanged: () => void; onPending: PendingChange }) {
   const mutation = useProjectCommand<WorkspaceCharterChangedPayload>(`charter:${runtime.workspace}`, onPending);
   const { busy, pending, conflict } = mutation.operation;
-  const error = mutation.error;
+  const [inputError, setInputError] = useState('');
+  const error = inputError || mutation.error;
   const base = charter ?? { schema_version: 1 as const, workspace: runtime.workspace, version: 0, goals: [], constraints: [], prohibitions: [], done_contract: null, review_cadence: null, actor: 'Owner', digest: 'sha256:pending' };
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (busy) return;
@@ -137,6 +139,11 @@ function CharterEditor({ api, runtime, charter, onChanged, onPending }: { api: W
       done_contract: String(form.get('done_contract') ?? '').trim() || null,
       review_cadence: Math.max(1, Number(form.get('cadence_minutes') ?? 60)) * 60_000,
     };
+    if (!pending) {
+      const problem = charterRulesError(runtime.workspace, record.constraints, record.prohibitions);
+      setInputError(problem);
+      if (problem) return;
+    }
     const confirmed = await mutation.run(async () => {
       const key = newKey('charter');
       return { key, payload: await api.prepareCharter(runtime.workspace, record, base.version, key) };
@@ -145,11 +152,14 @@ function CharterEditor({ api, runtime, charter, onChanged, onPending }: { api: W
   }
   return <details className="surface" open={!charter}><summary>主脑对这个工作空间的约束</summary>
     <p className="muted small">编辑会生成新的版本和 canonical digest；进行中的路线不会被热修改，只影响后续协调。</p>
-    <form onSubmit={(event) => void submit(event)}><fieldset key={base.digest} disabled={busy || pending}>
-      <label>目标（每行一项）<textarea name="goals" defaultValue={displayLines(base.goals)} maxLength={8192} /></label>
-      <label>约束（每行一项）<textarea name="constraints" defaultValue={displayLines(base.constraints)} maxLength={8192} /></label>
-      <label>禁止事项（每行一项）<textarea name="prohibitions" defaultValue={displayLines(base.prohibitions)} maxLength={8192} /></label>
-      <label>完成标准引用<input name="done_contract" defaultValue={base.done_contract ?? ''} maxLength={512} /></label>
+    <form onSubmit={(event) => void submit(event)} onChange={() => setInputError('')}><fieldset key={base.digest} disabled={busy || pending}>
+      <p className="muted small" id="charter-reference-help">目标与完成标准填写当前工作空间已登记的引用，可先留空。项目的自然语言目标与说明在下方“登记一个长期项目”中填写。</p>
+      <label>目标引用（每行一项，可留空）<textarea name="goals" defaultValue={displayLines(base.goals)} maxLength={8192} aria-describedby="charter-reference-help" placeholder="例如 goal:已登记项目" /></label>
+      <p className="muted small" id="charter-rules-help">至少一项可执行规则，每行一项：read-only（只读）、require-review（路线需复核）、deny-capability:能力引用、allow-capability:能力引用、scope:当前工作空间内的范围、max-nodes:1至32。最终仍受主脑权限检查约束。</p>
+      <label>约束（每行一项）<textarea name="constraints" defaultValue={displayLines(base.constraints)} maxLength={8192} aria-describedby="charter-rules-help" placeholder={'read-only\nrequire-review'} /></label>
+      <p className="muted small" id="charter-prohibitions-help">禁止规则仅支持 read-only 或 deny-capability:能力引用；自然语言不会被当作已执行的限制。</p>
+      <label>禁止规则（每行一项，可留空）<textarea name="prohibitions" defaultValue={displayLines(base.prohibitions)} maxLength={8192} aria-describedby="charter-prohibitions-help" placeholder="deny-capability:能力引用" /></label>
+      <label>完成标准引用（可留空）<input name="done_contract" defaultValue={base.done_contract ?? ''} maxLength={512} aria-describedby="charter-reference-help" /></label>
       <label>复盘周期（分钟）<input name="cadence_minutes" type="number" min="1" defaultValue={Math.max(1, Math.round((base.review_cadence ?? 3_600_000) / 60_000))} required /></label>
       </fieldset>{error && <p className="form-error" role="alert">{error}</p>}
       <button className="primary-button" disabled={busy || conflict}>{busy ? '正在保存…' : pending ? '核实原约束保存命令' : '保存工作空间约束'}</button>

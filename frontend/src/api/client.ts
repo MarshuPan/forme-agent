@@ -20,6 +20,7 @@ import { parseReleaseRecoveryCandidate, parseReleaseRecoveries, parseReleaseReco
 import type { ReleaseRecoveryCommand, ReleaseRecoveryVerification } from '../release-recovery.ts';
 import { parseLegacyReview, parseLegacyRecoveries, parseLegacyRecovery, verifyLegacyRecoveryDigest } from '../legacy-release-recovery.ts';
 import type { LegacyRecoveryCommand, LegacyRecoveryVerification } from '../legacy-release-recovery.ts';
+import { parsePreparedCharter } from '../workspace-charter.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -86,12 +87,17 @@ export class WorkbenchClient {
     }
     return response;
   }
-  private async json<T>(path: string, method = 'GET', body?: unknown, key?: string, schema: 1 | 2 = 1): Promise<T> {
+  private async jsonValue(path: string, method = 'GET', body?: unknown, key?: string): Promise<unknown> {
     const generation = this.generation;
     const response = await this.request(path, method, body, key);
-    if (response.status === 204) return undefined as T;
+    if (response.status === 204) return undefined;
     const value: unknown = await response.json();
     this.current(generation);
+    return value;
+  }
+  private async json<T>(path: string, method = 'GET', body?: unknown, key?: string, schema: 1 | 2 = 1): Promise<T> {
+    const value = await this.jsonValue(path, method, body, key);
+    if (value === undefined) return undefined as T;
     if (schema === 2) {
       if (!isRecord(value) || value.schema_version !== 2) throw new Error('设置协议不兼容，请更新页面或服务。');
     } else if (isRecord(value)) versioned(value);
@@ -329,14 +335,22 @@ export class WorkbenchClient {
   projectSupervision(command: ProjectSupervisionCommand) {
     return this.json<WorkbenchReceipt>('brain/projects/supervision', 'POST', command, command.command);
   }
-  project(command: ProjectCommand, key = newKey('project')) {
-    return this.json<Record<string, unknown>>('brain/projects', 'POST', { schema_version: 1, request: command }, key);
+  async project(command: ProjectCommand, key = newKey('project')) {
+    const value = await this.jsonValue('brain/projects', 'POST', { schema_version: 1, request: command }, key);
+    if (isRecord(value) && 'schema_version' in value) versioned(value);
+    if (command.operation === 'register' || command.operation === 'revise') {
+      if (!isRecord(value) || typeof value.event !== 'string' || !value.event.trim()) throw new Error('项目操作回执不完整，请核实原命令。');
+    } else if (command.operation === 'cancel') {
+      if (!isRecord(value) || value.cancelled !== true) throw new Error('路线取消回执不完整，请核实原命令。');
+    } else versioned(value);
+    return value as Record<string, unknown>;
   }
   charter(workspace: string) { return this.json<WorkspaceCharterRecord | null>(`brain/workspaces/${id(workspace)}/charter`); }
-  prepareCharter(workspace: string, record: WorkspaceCharterRecord, expectedVersion: number, key = newKey('charter-prepare')) {
-    return this.json<WorkspaceCharterChangedPayload>(`brain/workspaces/${id(workspace)}/charter`, 'POST', {
+  async prepareCharter(workspace: string, record: WorkspaceCharterRecord, expectedVersion: number, key = newKey('charter-prepare')) {
+    const value = await this.jsonValue(`brain/workspaces/${id(workspace)}/charter`, 'POST', {
       schema_version: 1, command: key, record, expected_version: expectedVersion,
     }, key);
+    return parsePreparedCharter(value, record, expectedVersion);
   }
   updateCharter(workspace: string, change: WorkspaceCharterChangedPayload, key = newKey('charter')) {
     return this.json<Record<string, unknown>>(`brain/workspaces/${id(workspace)}/charter`, 'PUT', { schema_version: 1, command: key, change }, key);
