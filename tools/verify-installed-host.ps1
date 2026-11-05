@@ -60,6 +60,26 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
 
     foreach ($name in @(
+        "signed_origin_and_current_identity_produce_only_one_bound_evidence_without_writes",
+        "missing_origin_and_unpinned_or_self_replaced_origin_are_rejected",
+        "changed_bytes_are_rejected_even_when_the_file_still_parses",
+        "signature_requires_independent_key_and_correct_domain",
+        "origin_cannot_be_from_another_install_owner_operation_release_or_config",
+        "origin_time_and_archive_watermark_must_precede_original_operation",
+        "explicit_unknown_historical_schema_stays_null_and_current_schema_enters_observation",
+        "missing_and_zero_historical_schema_cannot_be_inferred",
+        "identity_drift_is_rejected_field_by_field",
+        "archived_owner_uses_the_store_raw_utf8_digest_not_canonical_json",
+        "a_signed_archive_still_requires_matching_semantics",
+        "closed_formats_reject_unknown_duplicate_wrong_type_and_missing_fields",
+        "duplicate_inconsistent_or_incomplete_historical_services_are_rejected",
+        "extra_files_missing_files_and_hardlink_aliases_are_rejected",
+        "archive_and_origin_size_limits_are_enforced_before_decoding",
+        "file_changes_are_either_blocked_by_custody_or_detected_on_recheck",
+        "expired_monotonic_deadline_cannot_load_or_compare"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::legacy_data_archive::tests::$name" }
+
+    foreach ($name in @(
         "os_lock_blocks_a_second_writer_and_binding_survives_restart",
         "killed_writer_releases_os_lock_and_restart_never_repeats_the_observed_effect",
         "durable_idempotency_and_cas_reject_conflicts_without_writes",

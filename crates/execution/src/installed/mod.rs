@@ -9,6 +9,8 @@ mod file_worker;
 mod firewall_windows;
 mod host;
 mod journal;
+#[cfg(test)]
+mod legacy_data_archive;
 #[cfg(target_os = "linux")]
 mod linux_worker;
 #[cfg(target_os = "macos")]

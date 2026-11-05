@@ -180,7 +180,7 @@ fn open(path: &Path, directory: bool) -> p::Result<File> {
     Ok(file)
 }
 
-pub(super) fn closed_directory(path: &Path, expected: &[&str]) -> p::Result<()> {
+pub(in crate::installed) fn closed_directory(path: &Path, expected: &[&str]) -> p::Result<()> {
     reject_linked_ancestors(path)?;
     let mut names = BTreeSet::new();
     for (count, entry) in fs::read_dir(path).map_err(|_| invalid())?.enumerate() {
