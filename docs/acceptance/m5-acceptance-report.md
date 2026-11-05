@@ -202,3 +202,31 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 本次没有运行 Inno 原生退出夹具、调用用户配置的真实 provider、执行新的 C24 live 或 D/Final，也没有本机数据接管、程序替换、journal 迁移、服务启停或原 Upgrade 重发。最终只读 SCM 观察仍为 Host/Web Running（PID 37740/75344），Brain/updater Stopped；当前安装并未因此变成新源码。已另备一次原 journal 停服采样方案及固定脚本（`target/legacy-release-review/native-offline-source-window-plan-20261105.md`），PowerShell 5.1/7 各 48 项纯 guard/AST 夹具通过，实际窗口仍待 owner 批准，未执行。
 
 本轮已批准的旧脑离线激活与账号衔接源码及隔离验收闭合；真实原生 collector、历史档案本源/连续性、管理 reader 修复、本机接管与 IP01–IP24 联合验收仍开放，整体产品目标不标记完成。Linux/macOS 继续保持有限恢复与不发布边界。
+
+## 15. 嵌套验收共享检查去重（2026-11-05）
+
+工程契约先以 `064f4ca` 提交，脚本与编排测试实现为 `edf633d`，当前源码发布审计回执提交为 `09d18bc`。本批只修改验收编排，不改 crate、脑协议、产品状态机或已安装程序。M0/M1/M2 的独立入口保留完整检查；M3 默认负责共享检查，仅在 regression 组合下允许交给父门；M5 不接受 defer。委托后的子门保留命名场景、真实 golden 与工件检查，只输出局部结果，不能宣称该里程碑完整验收通过。
+
+在干净 `09d18bc` 上完整执行一次 `tools/verify-m5.ps1`，本地时间 **19:50:30–20:05:41**，exit 0，实际输出 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、历史浏览器/多进程 golden、生成与仓库工件核验、完整共享门和最终 current-tree 回执比较均通过。整门实测 **911.3 秒（15 分 11 秒）**；§14 上一轮为约 43 分 52 秒。
+
+逐项读取两轮真实日志的命令入口，fmt、workspace check、workspace test、strict Clippy、Python discover、完整合规由**每项三次变为每项一次**。没有用旧回执、省略场景或环境变量跳过检查。新增六项可执行编排测试在 PowerShell 5.1/7 下验证独立入口、委托传播、相同定向任务集合、局部结果标识、共享检查次数与失败阻断；它们使用 inert command spy，不作为产品或 golden 的真实证据。
+
+| 验证 | 本轮实际结果 |
+|---|---|
+| 提交前与 M5 内的完整 Rust 工作区 | 各自 182 targets，1230 passed / 0 failed / 15 默认 ignored；重复执行不叠加计数。 |
+| M5 Python discover | 95 项，1 项环境跳过；包含新增六项编排测试。 |
+| fmt/check/strict Clippy、完整默认合规、M4/M5 工件与发布审计 | 全部通过；没有运行新的 C24 live、D/Final 或安装产品验收。 |
+
+原始证据保存在 `target/verification-gate-ownership-evidence/`，摘要与执行范围见 `verification-summary-09d18bc.json`：
+
+| 证据 | SHA-256 / 内容地址 |
+|---|---|
+| `m5.log` | `4de29dfdb21de89fdeaff92f346a0c9109ba525283d5a4674916a8dd98ea8f40` |
+| `source-audit.log` | `30017831f6eb7177f439b6a861d8117680ae533bb3bf441083203609a8f79c9c` |
+| 当前源码发布回执 | `sha256:4a459d254d8c3ae0725619775eb59fb28343d52622b0dfd0a7dcfe24cb4167c9`；预审生成、仓库版本、M5 内重新生成及最终比较一致。 |
+| 当前源码树摘要 | `sha256:689186a94322062cbc8f1b7a5bf03e8cc160b3567d3e18d20dd19940693003bf`。 |
+| `build-resources-final.json` | `1393fb848038c25296e0ef491726c87636e4c6255320f1e0269fb3bf9e69a6b0`；PASS，44,540,384,730 logical / 41,684,460,515 allocated bytes，低于 64 GiB，未清理缓存。 |
+
+上一规范回执保留在 Git 历史及本目录 `prior-canonical-release-audit.json`。本节仍属于审计器明确排除的自指验收说明，不改变当前源码树摘要，不为记录本节重跑整门。
+
+本次未合入 main、推送、替换安装程序、迁移 journal、接管数据或启停服务。结束时只读观察仍为 Host/Web Running、Brain/updater Stopped；原 journal 离线采样的 create-new 结果文件仍不存在，原一次性确认尚待答复。生产 collector、可信历史材料、独立管理修复、本机升级和完整 IP 联合验收继续开放；去重通过不代表这些义务完成。下一步现场动作仍受[已批准恢复方案 §4](../architecture/proposals/installed-legacy-release-recovery-review.md#4-实际本机迁移前的第二道审查)及已备固定采样计划约束。
