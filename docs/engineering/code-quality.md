@@ -97,6 +97,14 @@
 
 统一入口 `pwsh -File tools/verify-code-quality.ps1` 同时执行上述 Rust 门、结构检查器回归、`npm ci --prefix frontend --ignore-scripts`、`npm audit --prefix frontend --audit-level=moderate`、前端 strict TypeScript/行为测试、`tools/build-web.mjs --check` 和 bundle 完整性/保留边界回归。前端构建只在开发/CI 运行 Node；安装后由 `forme-webd` 提供编译嵌入的固定资源，不需要用户安装 Node。修改前端源码后先执行 `node tools/build-web.mjs`，提交生成的精确资源表、manifest、依赖清单与许可证；陈旧/额外资源必须阻断。托管 CI 仅可显式允许缺少本地研究语料，不放宽其他检查。
 
+### 7.1 嵌套验收的共享检查归属
+
+M0–M3 与 M5 的历史场景和 golden 保留；嵌套运行时，fmt、workspace check/test、strict Clippy、Python discover 和完整合规由同一轮的顶层门统一执行，避免同一源码重复跑完整工作区。M3 默认负责其共享检查，M5 负责其自身整门的共享检查；独立运行 M0/M1/M2 继续沿原链取得所需检查。
+
+M0/M1/M2 的内部组合参数 `-DeferSharedChecks` 只将共享检查交给父门，所有命名场景、真实 golden 和独立工件核对继续执行。该模式明确输出共享检查尚未执行，不能输出该里程碑的完整验收 PASS。M3 仅在 `-RegressionOnly -DeferSharedChecks` 组合下接受同样委托；单独传 defer 必须在执行前拒绝。顶层 M5 不提供跳过共享检查的参数，任一共享检查失败均不得输出最终 PASS。
+
+该组合只在一次实际运行中去重，不使用环境变量、旧回执或其他源码的结果跳过验证；不减少 S1–S99、C/IP、默认 workspace 测试或负向断言。门的编排测试须覆盖默认独立路径、委托传播、局部结果标识、实际共享执行次数及失败阻断，不能只检查脚本文字包含了命令。
+
 已有大模块按风险分批拆分：先 gateway transport/控制面，再 harness orchestration/production，再 store 按事务领域拆。每批保持行为不变并独立提交，避免在安装/认证实现中夹带整库重写。规模基线仅表示已知债务，不表示这些文件已通过可维护性验收。
 
 安装代码也纳入结构门：`packaging/` 的 PowerShell module、安装入口与 Inno 脚本按同一规模规则检查。Windows 统一门额外构建当前 hostctl 并运行真实临时 NTFS 权限/继承/替换与拒绝场景；它不注册服务、不使用真实 owner 数据，不能替代管理员安装和服务 token 验收。
