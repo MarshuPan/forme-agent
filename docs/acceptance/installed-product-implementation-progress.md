@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-05 原件诊断与原 Host 恢复失败：当前四服务停止
+
+20:54 获批窗口完成 Web/Host 各一次 stop 后，外层快照校验失败。owner 随后批准只读诊断与恢复；诊断实际证明 Rust inspector exit 0、原 journal/程序/配置/ACL 保持。21:23:42 请求原 Host start 一次后失败，Web 未启动；SCM 的原有限恢复策略再启动三次也失败。四服务均 Stopped，Host/updater ExitCode 1、Web/Brain ExitCode 0，网页不可达。未换程序/配置/ACL，未迁移数据或重发原 Upgrade。
+
+21:36 的后续只读诊断已完成：14 项快照检查和五项身份绑定全通过，原件保持。脚本误把登录名当作系统 owner ID 是采样误拒原因，已按摘要锁定的历史正式回执纠正后续校验。Host 错误文件仍是 10 月旧记录；另已确认已安装旧 Host 的严格 SCM 路径谓词与先前获批的同文件分隔符表示不兼容。[有限路径恢复计划](installed-original-host-path-restore-20261105-plan.md)已准备且两版 PowerShell 各 29 项隔离检查通过。管理员只读预检没有实际结果，不计通过；Apply 尚未执行，不把推导当原生恢复成功。
+
+`48211dc` 补齐原数据 child、传输与截止时间的持有期检查，定向 42 项和完整源码门通过（182 Rust targets、1233 passed / 0 failed / 15 默认 ignored、strict Clippy、完整合规）；旧 M5 不自动覆盖本代码。实际结果、原始日志摘要和纯只读后续边界见[本轮记录](installed-source-window-and-data-custody-20261105.md)。下文 Running 均为历史观察；完整 collector、管理修复、迁移与 IP 仍开放。
+
 ## 2026-11-05 旧脑首次认领：正式数据激活与 Web 账号衔接
 
 owner 已批准离线数据绑定确认与 runtime ack 分界，契约先以 `d8fdeec`、`968f571` 落库。当前源码接通真实固定候选发现、Store backup/restore、Host/worker 双 durable intent、revision 0 owner/data CAS、离线重验确认、持久 activation 与安装器公钥签名、Web auth schema 10 原账号承诺事务及前端选择入口；schema 1 新脑语义保留。重复请求、选择响应丢失、worker EOF、config CAS 后 activation 前 Host 重启均保留原号和失败现场，不盲重试或变成空脑。

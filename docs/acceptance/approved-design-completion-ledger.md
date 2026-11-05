@@ -8,6 +8,8 @@
 
 状态分为：已有基线、实现中、待实现、待验证、环境受阻。整体完成必须同时有实现和要求层级的证据；模拟、组件、真实进程、浏览器、真实 provider/backend、原生平台和发布证据分别登记。环境受阻保留缺项，不折算为 PASS。
 
+最新现场（2026-11-05 21:36 +08）：已批准的一次原 Host 恢复请求及 Windows 三次自动恢复均失败，现四服务 Stopped，网页不可达。后续只读诊断完成：原件快照的 14 项检查和五项身份绑定全通过，采样误拒确因为脚本把系统 owner ID 错写成登录名；原 journal、程序、配置、ACL 和服务保持。Host 错误文件是 10 月旧记录；另已确认旧 Host 的严格路径匹配与 11 月获批的 SCM 路径表示不兼容，当前源码修复尚未安装。已备[一次有限路径恢复与启动计划](installed-original-host-path-restore-20261105-plan.md)，未执行 Apply，不重发原 Upgrade。普通恢复的数据 child/传输/期限检查已在 `48211dc` 实现，定向 42 项及完整源码门（1233 Rust passed / 0 failed / 15 ignored、strict Clippy、完整合规）通过；旧 M5 不覆盖该提交。详见[本轮证据](installed-source-window-and-data-custody-20261105.md)，下文 Running 均为历史时点。
+
 产品增量最初在 `shu/installed-product` 施工，现已合入本地 `main`；本地 `main` 尚未推送远端或发布，提交与工作树状态以当前 Git 状态为准。核心验收与历史回执见 `core-brain-closure-acceptance-report.md`，产品状态见 `installed-product-implementation-progress.md` 及组件报告。会话产物历史、运行未知结果 owner 裁决恢复、会话 workspace 到后续正式 run 的上下文绑定均已有实现/组件证据；真实浏览器、多进程和整机联合验收仍未完成。
 
 2026-11-03 最新安装状态：owner 认领、模型配置 revision 1、首次正式 StartCore/StopCore 与原脑创建均已完成；配置 ack=1，签名候选 `20261102-db96ec2` 的 StageSignedRelease 已 Committed。随后独立 Upgrade 中断，原 operation 保留为 `Validated / pending Quiescing`，product revision 28；认证维护 Web 已恢复可达，Host/Web Running，Brain/updater Stopped，active release 仍为 `forme-windows-x86_64-20261027-7cb5b8b`。不是“尚未登录/未生成 store/未暂存”的早期状态，也不能把 Upgrade 接纳写成完成。
