@@ -179,3 +179,5 @@ plan/receipt 的签名消息分别为 `canonical_digest(("forme-management-reade
 固定维护子进程返回 `Inspected` 后，缓存的 identity 本身不能证明该进程仍然存活、仍持有原 store fence。可信组件内部须在最终观察和决定提交前，再检查同一个 child handle、未关闭的传输及原截止时间；已退出（包括 exit 0）、传输终止、已 Release、已经 Backup 或期限耗尽均不能作为只读独占观察继续提交。检查不发送 Backup/Release、不启动另一个 worker、不重新取得锁，也不延长期限。异常只终止/回收本次受管 child，保留已写 Intent；同 key 查询和重放仍不派发，显式 verify 才可取得新的观察。
 
 普通有基线恢复同样必须在最终文件/服务重查后、Committed 前检查原数据 guard；初始观察也检查一次。没有存活检查实现的可信测试 adapter 不得默认成功。此项沿用已批准的持锁至提交要求，不改变产品 DTO、线协议或 PRD 冻结接口，也不把 child 存活等同于八类材料本源、历史连续性或数据再次完整核验。真实历史 collector 的后续实现仍须独立核实这些材料。
+
+历史通道也不能仅凭 `recheck` 返回完整材料就认为观察持续有效：其后对真实服务的查询可能耗时。Host 在原服务查询和观察摘要计算后、写 Intent/Committed 前必须再核对同一 guard 与原截止时间；内部 inspection 接缝必须显式实现该检查，不提供默认成功。首次检查前失锁为零新事实，Intent 后失锁保留原 Intent/原升级阶段；重放与同号查询不收集或提交，独立重新认证的原号 verify 才能取得新 guard。该内部接缝细化不改变对外冻结协议或本机操作授权。
