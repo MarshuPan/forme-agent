@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 工作空间与项目命令的真实浏览器修正
+
+`088254d` 修正约束准备结果的 nested schema 解析和项目登记/修订/取消成功回执的形状误判，明确目标引用与可执行规则的填写边界。进程测试现经真正的前端客户端消费 Host/Web/core 实际响应，覆盖提交、陈旧版本拒绝及重启保留；最终嵌入资源经浏览器核对约束保存、项目登记/暂停/修订/取消和刷新保留。
+
+统一源码门通过：182 Rust targets、1252 passed / 0 failed / 15 默认 ignored，strict Clippy/完整合规/结构门；前端 115/115。最终资源另经 Gateway all-target 回归 135 passed，数字不重复累加。本轮未修改原安装，四服务仍停止，路径恢复 Apply 精确确认待答复；生产历史 collector、原生恢复与完整 IP 仍开放。细节及工件摘要见[工作空间前端协议验收](installed-product-workspace-wire-acceptance.md)。
+
 ## 2026-11-05 原件诊断与原 Host 恢复失败：当前四服务停止
 
 20:54 获批窗口完成 Web/Host 各一次 stop 后，外层快照校验失败。owner 随后批准只读诊断与恢复；诊断实际证明 Rust inspector exit 0、原 journal/程序/配置/ACL 保持。21:23:42 请求原 Host start 一次后失败，Web 未启动；SCM 的原有限恢复策略再启动三次也失败。四服务均 Stopped，Host/updater ExitCode 1、Web/Brain ExitCode 0，网页不可达。未换程序/配置/ACL，未迁移数据或重发原 Upgrade。
