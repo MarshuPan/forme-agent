@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 worker 回执只能确认真实 Host 观察
+
+契约 `2e99841`、实现 `eb99013` 修复 `record_receipt` 接受调用者自报终态的问题：现在只读确认原 journal 已持久化的完整同一回执，重读原件并核对内存水位，不隐式观察进程、不封存新结果、不追加事实。真实 Windows Job 活进程反例、逐字段替换、重启 Unknown、清理失败和并发确认均通过；原 Unknown 不被洗成完成。当前 HTTP 未暴露该库入口，不将其描述为既有网络攻击接口。
+
+完整源码门与永久宿主门均 exit 0：182 Rust targets、1269 passed / 0 failed / 15 默认 ignored，strict Clippy、完整合规、前端 115/115、规模棘轮和最终空间报告 PASS。永久宿主门明确 IP01–IP24 NOT_RUN，缺 Inno toolchain 的安装器 exit fixture 也为 NOT_RUN；M5/发布回执未刷新。完整日志摘要见[本批验收记录](installed-worker-receipt-origin-acceptance-20261106.md)。
+
+原安装仍为四服务 Stopped/PID 0，18765 无监听，本轮没有原生变更；路径恢复 Apply 的精确答复仍待取得。实际进程/lease 资源守卫已有[待确认接口提案](../architecture/proposals/installed-worker-native-quiescence.md)，尚未修改 trait 或实施。历史来源、生产 collector、签名管理修复与原生迁移继续开放，整体目标未完成；这批已授权修复与验证已经收口，不重复跑同一整仓门。
+
 ## 2026-11-06 原安装恢复依赖与旧 updater 源码核对
 
 八类历史恢复材料的实现/真实观察/缺项已汇总于[当前证据状态](installed-legacy-recovery-evidence-status-20261106.md)。精确 `694b6bb` 源码证明备份和切换先有持久 intent，但 pending Quiescing 期间可能已经 Stop 服务，不能从 journal 水位推出“没有任何副作用”。原候选、旧诊断脚本/回执与管理员历史预检的 Host 摘要对应；原 Inno receipt 没有绑定 Rust 编译来源，不能借此将 `UpdaterCodeAudit` 记为 Verified。

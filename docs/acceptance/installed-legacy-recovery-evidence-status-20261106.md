@@ -19,7 +19,7 @@
 | `UpdaterCodeAudit` | 本节下方已审查精确历史 Git 源码，重算原候选和有关档案摘要，确定备份/切换的 intent 顺序。 | 审查权威可接纳的原二进制到被审计源码/构建来源的绑定；现存包装 receipt 不能独立证明该绑定。 |
 | `SourceImagesAndServices` | 11 月 5 日管理员预检记录六程序摘要、四服务身份/参数/有限恢复策略；本轮原候选文件摘要与该历史 Host 观察一致。 | 收集器中的独立原来源核实、当前受保护原文件 custody 与执行前真实 SCM 重查。不能用旧输出代替当前文件。 |
 | `ConfigurationContinuity` | 历史预检记录六配置原字节/ACL 摘要；同文件路径表示修正有独立记录。 | 完整连续性核实与当前重查；拟执行的 Host 路径恢复也必须保留独立记录，不能规范化后隐藏变更。 |
-| `WorkerContinuity` | `f83b63e` 已修复当前原 worker journal 与内存水位一致性，10 个永久反例及完整质量/宿主门通过。 | 历史独立来源、进程/lease 连续性和原生 collector。当前静止/空日志不证明历史从未执行。 |
+| `WorkerContinuity` | `f83b63e` 已修复当前原 worker journal 与内存水位一致性；`eb99013` 进一步要求调用者只能确认原件已保存的完整 Host 回执，真实 Windows Job 自报终态反例及本批完整质量/宿主门通过，见[回执来源验收](installed-worker-receipt-origin-acceptance-20261106.md)。 | 历史独立来源、实际进程/lease 守卫与连续性、原生 collector。资源守卫的新增平台接口尚待确认，当前静止/空日志不证明历史从未执行。 |
 | `ManagementReaderRepair` | 签名分发/plan/receipt 读取、实际六程序/配置/服务/准确 3/3 能力检查及持有期 custody 已实现。 | 精确签名修复材料、原生 Apply 的单独方案与授权，以及实际新 reader/updater 安装回执；本轮未替换任何程序。 |
 | `CurrentExclusiveInspection` | 固定数据 child 的独占检查与提交前存活/传输/期限检查已有实现和实际临时数据子进程场景。 | 覆盖实际本机裁决窗口的原数据检查与持锁证据，及收集器中的完整组合。临时数据测试不证明原脑通过。 |
 
