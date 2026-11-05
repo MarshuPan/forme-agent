@@ -3,6 +3,13 @@
 pub(super) fn verify(
     installation: &forme_protocol::InstallationManifest,
 ) -> forme_protocol::Result<()> {
+    probe(installation).map(|_| ())
+}
+
+#[cfg(windows)]
+pub(in crate::installed) fn probe(
+    installation: &forme_protocol::InstallationManifest,
+) -> forme_protocol::Result<forme_protocol::ProductReleaseRecoveryCapabilities> {
     use crate::installed::{
         file_digest, maintenance_pipe::MaintenancePipe, reject_linked_ancestors,
     };
@@ -34,5 +41,5 @@ pub(super) fn verify(
     if file_digest(&program)? != before {
         return Err(super::invalid());
     }
-    Ok(())
+    Ok(capabilities)
 }

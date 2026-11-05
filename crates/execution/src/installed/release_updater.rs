@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-mod capabilities;
+pub(super) mod capabilities;
 mod checking;
 mod diagnostics;
 mod platform;

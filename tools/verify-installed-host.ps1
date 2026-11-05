@@ -443,6 +443,24 @@ try {
         "hash_valid_v1_fact_cannot_downgrade_a_v2_journal"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::bootstrap::tests::legacy_journal::$name" }
 
+    foreach ($name in @(
+        "signed_repair_binds_full_distribution_and_preserves_business_images_and_state",
+        "durable_receipt_survives_authorization_expiry_but_requires_commit_inside_window",
+        "correctly_resigned_foreign_installation_owner_operation_release_and_checkpoint_are_rejected",
+        "only_three_management_images_may_change_even_with_valid_independent_signatures",
+        "every_receipt_binding_is_checked_even_when_resigned_by_the_trusted_authority",
+        "independent_signature_domains_trust_roots_and_package_binding_cannot_be_substituted",
+        "valid_signatures_cannot_claim_a_different_management_target",
+        "closed_layout_closed_json_and_fixed_hashed_reference_reject_extra_inputs",
+        "actual_images_configuration_services_and_exact_capabilities_are_required",
+        "expired_inspection_and_unproved_real_platform_never_become_verified",
+        "inspection_rechecks_actual_services_and_closed_artifact_layout_before_commit",
+        "linked_distribution_or_installed_image_is_rejected_under_real_file_custody"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::management_repair::tests::$name" }
+    if ($isWindowsHost) {
+        Invoke-NamedTest "forme-execution" @("--lib") "installed::management_repair::tests::windows_inspection_denies_writing_or_replacing_original_files_until_guard_release"
+    }
+
     Write-Host "installed-host-foundation and core-shutdown-components: PASS"
     Write-Host "IP01-IP24: NOT_RUN (this gate does not install services or certify a native package)"
 }

@@ -57,6 +57,22 @@ impl ReleaseKeyring {
             digest,
         })
     }
+
+    /// Verify an independent management domain with an already pinned release
+    /// identity. A signed record never contributes another verification key.
+    pub(super) fn verify_digest(
+        &self,
+        signature_ref: &str,
+        digest: &p::SchemaDigest,
+        signature: &[u8],
+    ) -> p::Result<()> {
+        p::validate_product_id(signature_ref)?;
+        p::validate_product_digest(digest)?;
+        let key = self.keys.get(signature_ref).ok_or_else(signature_error)?;
+        let signature = Signature::from_slice(signature).map_err(|_| signature_error())?;
+        key.verify_strict(digest.0.as_bytes(), &signature)
+            .map_err(|_| signature_error())
+    }
 }
 
 pub struct VerifiedRelease {

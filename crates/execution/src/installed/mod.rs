@@ -17,6 +17,7 @@ mod mac_worker;
 mod mac_worker_sandbox;
 mod maintenance_pipe;
 mod managed_worker;
+mod management_repair;
 mod paths;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod posix_worker_fs;
@@ -82,6 +83,7 @@ pub use linux_worker::*;
 #[cfg(target_os = "macos")]
 pub use mac_worker::*;
 pub use managed_worker::*;
+pub use management_repair::{ManagementReaderRepairEvidence, ManagementReaderRepairInspection};
 pub use paths::*;
 pub use process::*;
 pub use product_config::*;
