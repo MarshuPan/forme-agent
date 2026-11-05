@@ -29,9 +29,16 @@ fn hash(text: &str) -> p::SchemaDigest {
 struct Services {
     brain_running: Arc<AtomicBool>,
     changes: Arc<AtomicUsize>,
+    data_held: Arc<AtomicBool>,
+    material_checks: Arc<AtomicUsize>,
+    lose_custody_after_checks: Arc<AtomicUsize>,
 }
 impl NativeServiceManager for Services {
     fn inspect(&self, service: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus> {
+        let fail_after = self.lose_custody_after_checks.load(Ordering::SeqCst);
+        if fail_after > 0 && self.material_checks.load(Ordering::SeqCst) >= fail_after {
+            self.data_held.store(false, Ordering::SeqCst);
+        }
         Ok(p::NativeServiceStatus {
             schema_version: p::SchemaVersion(1),
             service,
@@ -54,6 +61,7 @@ struct Collector {
     report: Mutex<p::SignedLegacyReleaseReview>,
     paths: Vec<PathBuf>,
     held: Arc<AtomicBool>,
+    data_held: Arc<AtomicBool>,
     releases: Arc<AtomicUsize>,
     checks: Arc<AtomicUsize>,
     fail_second_check: Arc<AtomicBool>,
@@ -67,6 +75,7 @@ struct Inspection {
     paths: Vec<PathBuf>,
     worker: p::SchemaDigest,
     held: Arc<AtomicBool>,
+    data_held: Arc<AtomicBool>,
     releases: Arc<AtomicUsize>,
     checks: Arc<AtomicUsize>,
     fail_second_check: Arc<AtomicBool>,
@@ -92,11 +101,13 @@ impl LegacyReviewCollector for Collector {
         if self.held.swap(true, Ordering::SeqCst) {
             return Err(invalid());
         }
+        self.data_held.store(true, Ordering::SeqCst);
         Ok(Box::new(Inspection {
             evidence: review.evidence.clone(),
             paths: self.paths.clone(),
             worker: worker.clone(),
             held: self.held.clone(),
+            data_held: self.data_held.clone(),
             releases: self.releases.clone(),
             checks: self.checks.clone(),
             fail_second_check: self.fail_second_check.clone(),
@@ -136,8 +147,18 @@ impl LegacyReviewInspection for Inspection {
             },
         })
     }
+    fn ensure_held(&mut self, deadline: Instant) -> p::Result<()> {
+        if !self.held.load(Ordering::SeqCst)
+            || !self.data_held.load(Ordering::SeqCst)
+            || Instant::now() >= deadline
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    }
     fn release(self: Box<Self>) -> p::Result<()> {
         assert!(self.held.swap(false, Ordering::SeqCst));
+        self.data_held.store(false, Ordering::SeqCst);
         self.releases.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
@@ -172,6 +193,9 @@ impl Fixture {
         let services = Services {
             brain_running: Arc::new(AtomicBool::new(false)),
             changes: Arc::new(AtomicUsize::new(0)),
+            data_held: Arc::new(AtomicBool::new(false)),
+            material_checks: Arc::new(AtomicUsize::new(0)),
+            lose_custody_after_checks: Arc::new(AtomicUsize::new(0)),
         };
         let credentials = HostCredentials::new(ADMIN.into(), Some(AGENT.into()))
             .unwrap()
@@ -343,8 +367,9 @@ impl Fixture {
             report: Mutex::new(signed),
             paths,
             held: Arc::new(AtomicBool::new(false)),
+            data_held: services.data_held.clone(),
             releases: Arc::new(AtomicUsize::new(0)),
-            checks: Arc::new(AtomicUsize::new(0)),
+            checks: services.material_checks.clone(),
             fail_second_check: Arc::new(AtomicBool::new(false)),
             unknown_updater: Arc::new(AtomicBool::new(false)),
             wrong_worker: Arc::new(AtomicBool::new(false)),
@@ -622,4 +647,86 @@ fn legacy_host_interrupted_intent_is_query_only_until_original_verification() {
         .unwrap();
     assert_eq!(committed.stage, p::LegacyReleaseRecoveryStage::Committed);
     assert_eq!(f.services.changes.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn legacy_host_lost_custody_during_service_recheck_has_no_new_intent() {
+    let f = Fixture::new();
+    let before = f.host.journal.checkpoint().unwrap();
+    f.services
+        .lose_custody_after_checks
+        .store(1, Ordering::SeqCst);
+    assert!(f.apply().is_err());
+    assert_eq!(f.collector.checks.load(Ordering::SeqCst), 1);
+    assert_eq!(f.host.journal.checkpoint().unwrap(), before);
+    assert_eq!(
+        f.host.journal.operation(ORIGINAL).unwrap().stage,
+        p::MaintenanceStage::Validated
+    );
+    assert!(!f.collector.held.load(Ordering::SeqCst));
+    assert_eq!(f.collector.releases.load(Ordering::SeqCst), 1);
+    assert_eq!(f.services.changes.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn legacy_host_lost_custody_after_intent_requires_explicit_original_verification() {
+    let mut f = Fixture::new();
+    let before = f.host.journal.checkpoint().unwrap();
+    f.services
+        .lose_custody_after_checks
+        .store(2, Ordering::SeqCst);
+    assert!(f.apply().is_err());
+    let intent = f
+        .host
+        .owner_legacy_release_recovery_operation(&f.auth, &f.request.operation_id)
+        .unwrap();
+    assert_eq!(intent.stage, p::LegacyReleaseRecoveryStage::Intent);
+    assert_eq!(intent.revision, before.0 + 1);
+    assert_eq!(
+        f.host.journal.operation(ORIGINAL).unwrap().stage,
+        p::MaintenanceStage::Validated
+    );
+    let checks = f.collector.checks.load(Ordering::SeqCst);
+    assert_eq!(checks, 2);
+    let checkpoint = f.host.journal.checkpoint().unwrap();
+    assert_eq!(f.apply().unwrap(), intent);
+    assert_eq!(f.collector.checks.load(Ordering::SeqCst), checks);
+    assert_eq!(f.host.journal.checkpoint().unwrap(), checkpoint);
+    let path = f._root.path().join("product.jsonl");
+    let replacement = crate::installed::ProductJournal::open(
+        &f._root.path().join("unused.jsonl"),
+        "install:config-test",
+    )
+    .unwrap();
+    drop(std::mem::replace(&mut f.host.journal, replacement));
+    f.host.journal = crate::installed::ProductJournal::open(&path, "install:config-test").unwrap();
+    assert_eq!(f.apply().unwrap(), intent);
+    assert_eq!(f.collector.checks.load(Ordering::SeqCst), checks);
+    f.services
+        .lose_custody_after_checks
+        .store(0, Ordering::SeqCst);
+    let verification = p::LegacyReleaseRecoveryVerification {
+        schema_version: p::SchemaVersion(1),
+        operation_id: f.request.operation_id.clone(),
+        request_digest: f.request.digest().unwrap(),
+        expected_revision: intent.revision,
+        owner: f.request.owner.clone(),
+        requested_deadline: timestamp().unwrap() + 30_000,
+    };
+    let committed = f
+        .host
+        .verify_owner_legacy_release_recovery(
+            &f.auth,
+            verification,
+            &f.workers,
+            timestamp().unwrap(),
+        )
+        .unwrap();
+    assert_eq!(committed.stage, p::LegacyReleaseRecoveryStage::Committed);
+    assert_eq!(
+        f.host.journal.operation(ORIGINAL).unwrap().stage,
+        p::MaintenanceStage::Aborted
+    );
+    assert_eq!(f.services.changes.load(Ordering::SeqCst), 0);
+    assert!(!f.collector.held.load(Ordering::SeqCst));
 }

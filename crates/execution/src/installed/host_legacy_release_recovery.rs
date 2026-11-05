@@ -30,6 +30,9 @@ pub(super) trait LegacyReviewInspection {
     /// Artifact authenticity and semantics belong to the trusted collector;
     /// the broker independently checks signature, bindings, services and CAS.
     fn recheck(&self, deadline: Instant) -> p::Result<LegacyReviewObservations>;
+    /// Check the original data guard after potentially slow service queries.
+    /// No reacquisition, replacement worker, deadline extension or default OK.
+    fn ensure_held(&mut self, deadline: Instant) -> p::Result<()>;
     fn release(self: Box<Self>) -> p::Result<()>;
 }
 
@@ -101,13 +104,13 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             )?;
             workers.with_quiescent_workers(&mut |worker_digest| {
                 self.check_legacy_services()?;
-                let inspection =
+                let mut inspection =
                     reviewer
                         .collector
                         .inspect(&signed.review, &worker_digest, deadline)?;
                 let result = self.check_legacy_observation(
                     &signed,
-                    inspection.as_ref(),
+                    inspection.as_mut(),
                     &worker_digest,
                     deadline,
                 );
@@ -157,14 +160,14 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         }
         workers.with_quiescent_workers(&mut |worker_digest| {
             self.check_legacy_services()?;
-            let inspection =
+            let mut inspection =
                 reviewer
                     .collector
                     .inspect(&signed.review, &worker_digest, deadline)?;
             let result = (|| {
                 self.check_legacy_observation(
                     &signed,
-                    inspection.as_ref(),
+                    inspection.as_mut(),
                     &worker_digest,
                     deadline,
                 )?;
@@ -183,7 +186,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                         owner: request.owner.clone(),
                         requested_deadline: request.requested_deadline,
                     },
-                    inspection.as_ref(),
+                    inspection.as_mut(),
                     &worker_digest,
                     deadline,
                 )
@@ -240,14 +243,14 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         self.check_legacy_configuration(&mut config, &signed.review.binding)?;
         workers.with_quiescent_workers(&mut |worker_digest| {
             self.check_legacy_services()?;
-            let inspection =
+            let mut inspection =
                 reviewer
                     .collector
                     .inspect(&signed.review, &worker_digest, deadline)?;
             let result = self.finish_legacy_recovery(
                 &signed,
                 verification.clone(),
-                inspection.as_ref(),
+                inspection.as_mut(),
                 &worker_digest,
                 deadline,
             );
@@ -341,7 +344,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
     fn check_legacy_observation(
         &self,
         signed: &p::SignedLegacyReleaseReview,
-        inspection: &dyn LegacyReviewInspection,
+        inspection: &mut dyn LegacyReviewInspection,
         worker_digest: &p::SchemaDigest,
         deadline: Instant,
     ) -> p::Result<()> {
@@ -366,14 +369,15 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         {
             return Err(invalid());
         }
-        self.check_legacy_services()
+        self.check_legacy_services()?;
+        inspection.ensure_held(deadline)
     }
 
     fn finish_legacy_recovery(
         &self,
         signed: &p::SignedLegacyReleaseReview,
         verification: p::LegacyReleaseRecoveryVerification,
-        inspection: &dyn LegacyReviewInspection,
+        inspection: &mut dyn LegacyReviewInspection,
         worker_digest: &p::SchemaDigest,
         deadline: Instant,
     ) -> p::Result<()> {
@@ -384,6 +388,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             &signed.review.evidence,
             worker_digest,
         ))?;
+        inspection.ensure_held(deadline)?;
         self.journal
             .commit_legacy_recovery(verification, final_digest, timestamp()?)
     }

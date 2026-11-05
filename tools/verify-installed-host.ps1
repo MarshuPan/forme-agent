@@ -54,7 +54,9 @@ try {
         "legacy_host_rejects_each_missing_or_changed_artifact_despite_valid_signature",
         "legacy_host_rejects_signed_journal_self_attestation_before_append",
         "legacy_host_rejects_service_worker_configuration_and_review_drift",
-        "legacy_host_interrupted_intent_is_query_only_until_original_verification"
+        "legacy_host_interrupted_intent_is_query_only_until_original_verification",
+        "legacy_host_lost_custody_during_service_recheck_has_no_new_intent",
+        "legacy_host_lost_custody_after_intent_requires_explicit_original_verification"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
 
     foreach ($name in @(
