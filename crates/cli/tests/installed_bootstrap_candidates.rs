@@ -13,7 +13,10 @@ use std::{
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Output, Stdio},
-    sync::mpsc,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+    },
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -27,13 +30,16 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        // Concurrent Windows clock reads can share a timestamp.
+        static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
         let root = std::env::temp_dir().join(format!(
-            "forme-bootstrap-candidates-{}-{nonce}",
-            std::process::id()
+            "forme-bootstrap-candidates-{}-{nonce}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&root).unwrap();
         let report = prepare(PrepareRequest {
