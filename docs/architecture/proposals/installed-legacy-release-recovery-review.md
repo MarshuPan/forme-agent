@@ -173,3 +173,9 @@ plan/receipt 的签名消息分别为 `canonical_digest(("forme-management-reade
 输出为仅序列化的私有 schema 1 `LegacyRepairSourceSnapshot`：`schema_version, observed_at, install_ref, installation_digest, journal_seq, journal_head, journal_bytes, journal_digest, journal_schema_floor, owner, original_operation_id, original_command_digest, original_release_ref, original_release_digest, stage, pending_stage, config_revision, config_digest, takeover_digest, takeover_deadline, images_claimed, checking_prepared, recovery_baseline_present`。字段全部从原 manifest、原 bytes 和重放投影派生，无路径、nonce、凭据、正文或调用者提供的成功断言。观察可以描述非 Quiescing 状态；生成修复计划及历史裁决的阶段限制保持不变。
 
 该快照只证明本次离线读取及其水位，释放锁后必须重新核查。它不是签名 RepairPlan/Receipt、历史证据 Verified、缺基线裁决或新授权；不能据此启动原升级或写任何新事实。缺文件、空文件、占用、别名和因果破坏必须以原文件零写入的反例验收。候选分发仍绑定它本身已验证的源码和程序摘要，不因增加这一独立预检工具而反复封存同一候选。
+
+### 9.6 独占数据 worker 的持有期检查
+
+固定维护子进程返回 `Inspected` 后，缓存的 identity 本身不能证明该进程仍然存活、仍持有原 store fence。可信组件内部须在最终观察和决定提交前，再检查同一个 child handle、未关闭的传输及原截止时间；已退出（包括 exit 0）、传输终止、已 Release、已经 Backup 或期限耗尽均不能作为只读独占观察继续提交。检查不发送 Backup/Release、不启动另一个 worker、不重新取得锁，也不延长期限。异常只终止/回收本次受管 child，保留已写 Intent；同 key 查询和重放仍不派发，显式 verify 才可取得新的观察。
+
+普通有基线恢复同样必须在最终文件/服务重查后、Committed 前检查原数据 guard；初始观察也检查一次。没有存活检查实现的可信测试 adapter 不得默认成功。此项沿用已批准的持锁至提交要求，不改变产品 DTO、线协议或 PRD 冻结接口，也不把 child 存活等同于八类材料本源、历史连续性或数据再次完整核验。真实历史 collector 的后续实现仍须独立核实这些材料。
