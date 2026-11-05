@@ -99,6 +99,8 @@ setup session 只允许检查本机已识别的安装数据、准备受限备份
 
 发现历史数据时先只读检查 owner/store/schema/key resolver/明文保护状态与独占锁；可验证备份后才显式选择接管/迁移。不匹配、无法解密、明文未迁移或库正被使用时停在可修复状态。不能为绕过错误新建另一个空 store 并宣称迁移成功。首次认领的三类候选、candidate digest/verification epoch、setup 绑定、claim journal v2 和 `Committed`/`Activated` 分界以 [首次认领旧脑与备份候选协议](proposals/installed-bootstrap-legacy-brain-claim.md) 为准；浏览器不能提交路径或 owner，历史候选失败不得降级为空新脑。
 
+旧脑首次初始化按[已批准的数据激活与运行确认分界](proposals/installed-bootstrap-data-activation-composition.md)分开两种确认：Host 在 revision 0 config/data CAS 后，以固定离线 verifier 实际重验目标、owner/store/manifest、恢复授权水位和配置快照，持久化 `BootstrapDataBindingConfirmationV2` 后才追加 `ClaimActivatedV2`。保持未配置，不提前启动 Brain 或伪造 runtime ack。Web 仅在安装器预置公钥核验 `SignedBootstrapClaimActivationV2`、原 receipt 与 activation 及原暂存账号承诺后提交账号。后续模型配置触发原有自动启动，真实 runtime ack 才决定 BrainReady。各中断点只核实原 operation，不能重派数据操作或换账号。
+
 ## 4. 三种持久状态的界限
 
 | 状态域 | 写者与恢复方式 | 不允许包含/完成的事 |
@@ -252,6 +254,8 @@ IP11 的正向证据必须同时证明真实 OS 用户/session、真实 peer、e
 Windows 原生实现只允许拆成两个独立的受审计边界：`windows_desktop_session_native.rs` 负责由 LocalSystem Host 查询 WTS session、用户 SID、AuthenticationId/logon generation、连接/锁屏状态，并以真实用户 token 启动固定活动发布的 helper；`windows_desktop_helper_peer_native.rs` 负责 helper 私有 named pipe 的受保护 peer 身份核验和有界 IPC。两文件都只能返回 safe Rust 的 typed session/observation/receipt，不向上层暴露裸句柄或任意路径、命令、环境。当前生产装配代码已接入该 adapter；缺少固定 SCM/活动发布/真实用户会话/peer 证据时，运行能力继续 blocked/Unavailable，不能回退到 LocalSystem 直接操作桌面。
 
 ## 8. 数据、密钥与已有数据接管
+
+首次认领已有加密脑/备份时，数据复制到安装派生的新空目标，先保留绑定原 operation/候选/账号承诺的 durable intent，再取得独立复验的准备回执。revision 0 配置 CAS 后，固定离线 verifier 重读实际目标、配置快照和恢复授权水位；Host 持久化 `BootstrapDataBindingConfirmationV2` 后才追加 activation 并签发 `SignedBootstrapClaimActivationV2`。Web 的原暂存账号事务只接受该签名结果。具体字段、签名域、过期后的原号只读重取及中断拒绝规则按[已批准的衔接协议](proposals/installed-bootstrap-data-activation-composition.md)；此离线数据激活不宣称 ProductionRuntime 已启动或 BrainReady。
 
 数据保护复用 architecture/09 §11 与 canonical §28.7：成熟 AEAD、内容引用、安全 resolver、真实删除和一致性备份。Windows 使用适于服务身份的 OS 密钥保护与 ACL；macOS 使用服务可访问的系统级 key protection；Linux 基线为 root/brain 限定的 key storage，可选 TPM/硬件密封。单纯文件权限不应宣传成抵御 root 或整机磁盘被盗，相关风险与全盘加密建议必须如实显示。
 

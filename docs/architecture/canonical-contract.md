@@ -745,9 +745,10 @@ owner 已批准有限的 `AbortBeforeSwitch` 恢复协议：只有存在原升�
 - `BootstrapCandidateCatalogV2` 只返回 opaque candidate ref、候选类型、状态、verification epoch、candidate digest、Host 验证产生的 `owner_ref`、owner source/binding digest 和安全 issue ref；不返回绝对路径、原文、密钥、私钥或可利用的文件名。历史候选不能只返回 owner digest 而省略安全 owner ref。candidate digest 由 Host 对当前源观察、owner ref/binding 和其他固定字段重新计算，浏览器提交的 digest 仅是 expected value。
 - setup session 必须持久化候选 ref/kind/digest、verification epoch、owner source/ref 与 owner binding digest。选择和 claim 都要重新核对同一观察；任何 digest、schema、owner/store、安装身份或独占锁漂移都必须 conflict/recovery required，零账号、数据或 active binding 写入。
 - 候选接管使用 additive schema 2 DTO 和产品 claim journal v2；v1 DTO/reader 继续支持新脑旧路径，但不能选择历史候选。v2 reader 保留 v1 journal 字节/hash 作为前缀；首个 v2 fact 后旧 reader/writer 必须 fail closed。
-- 产品事实至少区分 `CandidateInventoryObserved`、`CandidateSelectedV2`、`ClaimDataPrepared`、`ClaimCommittedV2`、`ClaimActivatedV2` 与 `ClaimAbortedV2`。`ClaimDataPrepared` 是 Host 受信的准备结果，不是激活证明；`Committed` 不等于数据已切换。只有同一 Host product transaction 完成新目标校验、active data/config CAS、旧 authority fence 和 ack/post-switch probe，并以 receipt digest 与 active data binding digest 追加独立 activation 事实后才是 `Activated`。这些事实不属于脑 EventKind。
+- 产品事实至少区分 `CandidateInventoryObserved`、`CandidateSelectedV2`、`ClaimDataPrepared`、`ClaimCommittedV2`、`ClaimActivatedV2` 与 `ClaimAbortedV2`。`ClaimDataPrepared` 是 Host 受信的准备结果，不是激活证明；`Committed` 不等于数据已切换。只有同一 Host product transaction 完成新目标校验、active data/config CAS、旧 authority fence 和离线数据绑定确认，并以 receipt digest 与 active data binding digest 追加独立 activation 事实后才是 `Activated`。首次初始化的离线确认与模型配置后的真实 runtime ack 严格分开，见下文。这些事实不属于脑 EventKind。
 - `ExistingBrain`/`VerifiedBackup` 必须恢复到新的空目标并保留原件；数据准备后副作用不明、响应丢失或进程重启只能核实原 operation/receipt，不能换候选、换 OwnerId、重派 worker、删除目标或启动 Brain。已认领 installation 不得由 bootstrap 暗换 owner，后续接管必须走独立恢复流程。
 - 首次认领完成只表示协议事实和 active data binding 均可验证；真实 IP13/IP24 仍需正式安装包、原生权限、真实 key resolver、锁和浏览器联合证据。该协议不授权本机旧脑/备份迁移、服务启停、程序替换或旧 journal 修复。
+- 旧脑首次初始化的激活前置确认是 Host 在 revision 0 config/data CAS 后取得的 `BootstrapDataBindingConfirmationV2`，保持 configured=false；它不是运行中的 core ack。Web 只在预置信任根核验原 receipt/activation 的 `SignedBootstrapClaimActivationV2` 并匹配原暂存账号承诺后提交账号。配置模型后沿原有自动启动路径取得非零 revision 的真实 runtime ack，才可 BrainReady。字段、签名域和各中断点按[已批准的衔接协议](proposals/installed-bootstrap-data-activation-composition.md)；已激活原号重取不延长 setup 写权限或允许换账号。
 
 ### 29.13 缺基线历史升级的独立审查
 

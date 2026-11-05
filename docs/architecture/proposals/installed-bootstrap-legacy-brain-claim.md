@@ -56,6 +56,8 @@ Owner 来源必须显式标记为 `GeneratedForNewBrain` 或 `VerifiedFromCandid
 - `BootstrapCandidateSelectionV2`：`session, candidate_ref, expected_candidate_digest`。
 - `BootstrapClaimRequestV2`：`session, candidate_ref, expected_candidate_digest, account_commitment`。
 - `BootstrapClaimCommitV2`：claim receipt、其中的 owner/candidate binding 和迁移结果的安全摘要；不包含 active data binding。
+- `BootstrapDataBindingConfirmationV2`：同一原 operation 的 revision 0 config CAS 与目标离线重验结果，不是 runtime ack。
+- `SignedBootstrapClaimActivationV2`：既有 bootstrap signer 对原 receipt 与 activation 的 domain digest 签名；Web 必须匹配原暂存账号承诺。
 
 setup session 持久化 `candidate_ref, candidate_kind, candidate_digest, verification_epoch, owner_source, owner_ref, owner_binding_digest`。选择后必须重新取得同一候选的只读验证；候选 digest、owner/store/schema、安装身份或锁状态有任何变化，返回 conflict/recovery required，零账号、数据或 active binding 写入。
 
@@ -108,7 +110,7 @@ Observed -> Selected -> DataPrepared -> Committed -> Activated
 - `ExistingBrain` 与 `VerifiedBackup` 均恢复到新的、空的、安装派生目标；不在原源上原地改写，不覆盖 active brain，不删除原件。
 - 数据 worker 先建立受保护 intent，再执行有界复制/恢复，完成后重新计算目标 manifest、store identity、owner、schema、key/projection/replay 摘要；worker 自报或退出码不能单独形成 `ClaimDataPrepared`。
 - 目标已经存在、源摘要漂移、源重新被占用、错误 key/owner、明文保护状态、磁盘空间或 schema 不兼容，均为拒绝或恢复状态，不降级为 `NewBrainTarget`。
-- `ClaimActivatedV2` 需要同一 Host product transaction 完成 active data/config CAS、旧 authority fence 和配置/ack 核对，并绑定已提交 claim receipt digest 与 active data binding digest。只读验证、`ClaimDataPrepared` 或 `ClaimCommittedV2` 不能声称已完成接管。
+- `ClaimActivatedV2` 需要同一 Host product transaction 完成 active data/config CAS、旧 authority fence 与 `BootstrapDataBindingConfirmationV2` 离线重验，并绑定已提交 claim receipt digest 与 active data binding digest。首次绑定固定 revision 0、保持 configured=false，不启动 Brain、不生成 runtime ack；Web 只在原承诺匹配且签名 activation 核验后提交账号。模型配置后沿既有自动启动路径取得非零 revision 的真实 `ProductConfigAcknowledgement`，此后才是 BrainReady。完整 additive 字段、签名域与原号恢复见[数据激活与运行确认分界](installed-bootstrap-data-activation-composition.md)。只读验证、`ClaimDataPrepared` 或 `ClaimCommittedV2` 不能声称已完成接管。
 - 首次 claim 完成后，普通 bootstrap 端点失效；已认领 installation 不能用另一候选暗换 owner。后续接管必须走显式、独立的 owner-approved restore/re-adoption 流程。
 
 ## 6. 失败、未知与重启恢复
@@ -145,3 +147,7 @@ Observed -> Selected -> DataPrepared -> Committed -> Activated
 目录缺失/为空可表示没有该类候选；发现但无法验证的源必须返回独立的 rejected/unverifiable 候选，且不附带未核实的 owner。schema 1 的新脑通路保持兼容，不据此解释为旧脑迁移成功。读取候选、记录 inventory 或选择候选都不复制数据、不创建账号、不切换配置、不启动 Brain，也不产生 `ClaimDataPrepared`/`ClaimActivatedV2`。
 
 只读发现使用 `OfflineBrainSource::open_existing`，不在源上创建缺失的 access-lock 文件；已存在的 fence 仍需核对无别名并由 Store 持有原锁。只有 owner digest、却没有任何可实际认证的受保护内容时，无法证明旧身份，返回 unverifiable；不能把“没有密文可解”当作解密验证成功。
+
+## 9. 初始化确认与账号提交的衔接
+
+owner 已批准[数据激活与运行确认分界](installed-bootstrap-data-activation-composition.md)的完整字段与事务顺序。本文 §4 的配置/ack 核对在首次初始化中指 Host 的离线 `BootstrapDataBindingConfirmationV2`，不是必须先启动 Brain 才能生成的 runtime ack。claim receipt 历史字节/期限不改；已激活后的原号重取只能完成原暂存账号事务，不延长发现、选择、数据写入或另一账号的权限。prepared/commit/config CAS/离线确认/activation/账号提交各阶段中断均保留原 operation，不能自动重派副作用。
