@@ -345,6 +345,15 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         worker_digest: &p::SchemaDigest,
         deadline: Instant,
     ) -> p::Result<()> {
+        if signed.review.evidence.first()
+            != Some(
+                &self
+                    .journal
+                    .legacy_journal_evidence(&signed.review.binding, timestamp()?)?,
+            )
+        {
+            return Err(invalid());
+        }
         let observed = inspection.recheck(deadline)?;
         observed.updater_capabilities.validate()?;
         if Instant::now() >= deadline

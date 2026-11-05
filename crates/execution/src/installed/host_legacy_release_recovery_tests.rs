@@ -299,6 +299,10 @@ impl Fixture {
                 let path = root.path().join(format!("artifact-{index}.json"));
                 fs::write(&path, format!("original, controlled evidence {index}")).unwrap();
                 paths.push(path.clone());
+                if kind == p::LegacyReleaseEvidenceKind::OriginalJournal {
+                    fs::write(&path, host.journal.legacy_source_bytes_for_test().unwrap()).unwrap();
+                    return host.journal.legacy_journal_evidence(&binding, at).unwrap();
+                }
                 p::LegacyReleaseEvidence {
                     schema_version: p::SchemaVersion(1),
                     kind,
@@ -479,6 +483,26 @@ fn legacy_host_rejects_each_missing_or_changed_artifact_despite_valid_signature(
         assert_eq!(f.collector.releases.load(Ordering::SeqCst), 1);
         assert!(!f.collector.held.load(Ordering::SeqCst));
     }
+}
+
+#[test]
+fn legacy_host_rejects_signed_journal_self_attestation_before_append() {
+    let mut f = Fixture::new();
+    let before = f.host.journal.checkpoint().unwrap();
+    let path = &f.collector.paths[0];
+    fs::write(path, b"independently signed but unrelated journal copy").unwrap();
+    {
+        let mut signed = f.collector.report.lock().unwrap();
+        signed.review.evidence[0].artifact_digest = file_digest(path).unwrap();
+        signed.review.evidence[0].observation_digest = hash("self-attested journal semantics");
+    }
+    f.resign();
+    assert!(f.apply().is_err());
+    assert_eq!(f.host.journal.checkpoint().unwrap(), before);
+    assert_eq!(f.collector.checks.load(Ordering::SeqCst), 0);
+    assert_eq!(f.collector.releases.load(Ordering::SeqCst), 1);
+    assert!(!f.collector.held.load(Ordering::SeqCst));
+    assert_eq!(f.services.changes.load(Ordering::SeqCst), 0);
 }
 
 #[test]

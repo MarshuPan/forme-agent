@@ -7,6 +7,9 @@ const INSTALL: &str = "install:legacy-review";
 const ORIGINAL: &str = "upgrade:legacy";
 const OWNER: &str = "owner:legacy";
 
+#[path = "source_tests.rs"]
+mod source_tests;
+
 fn hash(value: &str) -> p::SchemaDigest {
     p::sha256_content_digest(value.as_bytes())
 }

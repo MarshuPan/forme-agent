@@ -52,6 +52,7 @@ try {
         "legacy_host_verifies_signed_files_and_commits_once_with_no_service_effects",
         "legacy_host_rejects_foreign_identity_missing_collector_and_forged_signatures_before_append",
         "legacy_host_rejects_each_missing_or_changed_artifact_despite_valid_signature",
+        "legacy_host_rejects_signed_journal_self_attestation_before_append",
         "legacy_host_rejects_service_worker_configuration_and_review_drift",
         "legacy_host_interrupted_intent_is_query_only_until_original_verification"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
@@ -167,6 +168,14 @@ try {
         "legacy_authorization_waits_for_expired_takeover_and_cannot_outlive_review",
         "legacy_source_binding_is_checked_even_when_changed_report_digests_are_consistent"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::legacy_recovery_review::tests::$name" }
+    foreach ($name in @(
+        "original_journal_evidence_reads_real_bytes_without_appending_or_moving_the_cursor",
+        "original_journal_prefix_survives_its_own_intent_but_not_a_committed_decision",
+        "original_journal_foreign_binding_and_expiry_reject_without_poisoning_valid_bytes",
+        "original_journal_corruption_poisoning_prevents_any_further_decision_append",
+        "original_journal_valid_truncation_is_detected_against_the_live_projection",
+        "original_journal_rejects_an_intent_for_another_report_without_poisoning_the_writer"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::legacy_recovery_review::tests::source_tests::$name" }
 
     foreach ($name in @(
         "release_recovery_host_commits_once_then_old_release_replay_and_queries_are_effect_free",

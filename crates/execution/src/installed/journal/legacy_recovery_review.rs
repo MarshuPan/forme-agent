@@ -291,7 +291,7 @@ fn validate_review_binding(
     )
 }
 
-fn validate_review_source(
+pub(super) fn validate_review_source(
     projection: &Projection,
     binding: &p::LegacyReleaseReviewBinding,
     recovery_id: Option<&str>,

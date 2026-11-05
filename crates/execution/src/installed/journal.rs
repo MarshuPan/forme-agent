@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use super::reject_linked_ancestors;
 mod legacy_recovery_review;
+mod legacy_source;
 #[path = "network_journal.rs"]
 mod network_journal;
 mod projection;
