@@ -202,4 +202,6 @@ load 还绑定原 installation digest、owner、原 operation/command/release、
 
 重读不打开第二 writer、不解除 OS 锁、不追加/修复日志、不重启或重派 job，并恢复原句柄位置。完整且与内存相符的在途状态只拒绝静止观察；原件损坏、有效前缀截断、额外合法记录、同水位异链、读取/位置恢复失败则使该 writer 拒绝后续变更，不能继续引用旧内存水位裁决。总量和单行上限沿用原 worker journal，不增加公开 DTO、冻结 trait 或摘要域。
 
+当前 Host 的 terminal receipt 还必须来自实际隔离器/桌面执行的观察与结果交接链；AgentExecution 身份本身不把请求 body 变成 OS 终态证据。既有 `record_receipt` 签名保留，只读确认原 journal 中完整相同的 Host 回执，不追加事实、不产生结果工件或隐式 probe。缺回执、错误 job/nonce/epoch/plan/outcome/evidence/时间字段均拒绝，不能用自报 Completed 将活进程变成恢复所需的静止。该修正不清洗旧历史；历史连续性和实际资源检查仍属完整 collector 的独立义务。
+
 这证明本次原 writer 与原件的当前一致性；新建空 journal 仍不能证明历史从未执行，当前完整因果链也不能替代独立的历史来源、进程/lease 连续性和其余七项材料。完整原生 collector 与本机恢复仍按前述条件单独验收。

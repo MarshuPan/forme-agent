@@ -167,6 +167,8 @@ AgentExecution 仅暴露 `GET /v1/agent/workers/{job_id}/result` 和 `POST /v1/a
 
 隔离器观察到进程树终态后必须保留该 job 的结果源，Host 完成加密封存及 manifest 落 journal 后，才通过内部 `WorkerIsolation::result_sealed(job, now)` 交接清理，随后追加原 worker receipt。回调缺省无动作，仅为已有隔离 adapter 的生命周期接缝，不产生新执行权限。封存或清理失败时不追加成功 receipt，不清掉未知现场；重启仍按原 job Unknown 恢复。AppContainer 输出只能写入本 job 的私有低完整性结果目录，不能写原 workspace、授权输入、Host 工件或 key 目录；结果不是 workspace 回写的一部分。
 
+`WorkerExecutorHost::record_receipt(auth, receipt, now)` 沿用原签名，仅对 Host 已经通过上述平台观察/封存链落盘的**完整同一回执**进行只读幂等确认。先核对真实 AgentExecution 身份、authority epoch 与原 job binding，再逐字段比较原持久回执；没有原回执或任何字段不同均拒绝，不能依据调用者 body 封存一个新结果、追加 terminal receipt 或使运行中的 job 成为静止。该入口不隐式 probe/终止进程/清理资源；正常进度由原 `probe`/取消/桌面观察链取得。重启后的同一已保存回执仍可确认，不重写历史或重复结果封存；原 Unknown 和历史事实保留。
+
 取消已产生结果的 job 时，Host 为现有源分配与原 job/取消回执绑定的 opaque result ref，manifest 的真实 outcome 仍为 Cancelled/Unknown，不改成 Completed。进程终止与结果交接分别确认；封存、清理或取消收尾失败均进入原 job Unknown。AppContainer 用 Host 独占的 pending/sealed 交接标记保护源；Drop/启动恢复先终止原进程树、撤销 ACL/profile，未封存或标记不完整时保留目录并阻断新准入，不删除或重新执行原 job。
 
 恢复未完成是 worker 执行准入阻断，不得升级成整个已认证维护面的永久启动阻断。配置、安装身份、路径与 journal 本身仍须正常校验；通过这些前置条件后，AppContainer adapter 可保留 recovery-required 状态供同一 Host 查询原 job Unknown，所有新 worker admission 拒绝。恢复错误不能启用其他 adapter、进程内 fallback 或自动重放。
