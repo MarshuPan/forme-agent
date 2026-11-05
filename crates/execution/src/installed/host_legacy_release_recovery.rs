@@ -79,6 +79,11 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .lock()
             .map_err(|_| invalid())?;
         let reviewer = self.legacy_release_reviewer.as_ref().ok_or_else(invalid)?;
+        if let Some(saved) = self.journal.pending_legacy_review(original_id, now)? {
+            reviewer.verify(&saved)?;
+            self.check_legacy_configuration(&mut config, &saved.review.binding)?;
+            return Ok(saved.review);
+        }
         let signed = reviewer.load(original_id)?;
         if signed.review.binding.original_operation_id != original_id {
             return Err(invalid());

@@ -44,6 +44,7 @@ try {
         "legacy_binding_digest_covers_every_source_identity_and_checkpoint",
         "legacy_commands_are_closed_and_verification_has_independent_authorization_digest",
         "legacy_views_and_lists_preserve_owner_revision_order_and_receipt_boundaries",
+        "legacy_wire_digest_golden_matches_the_browser_report_and_request_binding",
         "recovery_capabilities_accept_only_exact_supported_reader_updater_pairs"
     )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_legacy_release_recovery_contract") $name }
 
@@ -184,6 +185,13 @@ try {
         "release_recovery_verification_is_separate_closed_owner_action_and_plain_maintenance_cannot_adjudicate"
     )) { Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::release_recovery::$name" }
     Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::release_recovery::transport::release_recovery_http_forwards_only_session_owner_and_bound_request_after_password_then_reads_original"
+    Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::release_recovery::legacy::legacy_http_requires_owner_csrf_closed_input_and_bound_password_before_host_io"
+    foreach ($name in @(
+        "legacy_http_transports_only_bound_owner_commands_and_keeps_refresh_read_only",
+        "legacy_http_rejects_cross_owner_rebound_or_unclosed_host_responses"
+    )) { Invoke-NamedTest "forme-gateway" @("--lib") "web::http::tests::release_recovery::legacy::transport::$name" }
+    Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::http::paths::tests::legacy_recovery_paths_are_configuration_only_without_a_management_wildcard"
+    Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "host::legacy_recovery_routes::tests::legacy_host_http_domains_reject_cross_credentials_and_unavailable_dependencies_without_facts"
 
     foreach ($name in @(
         "release_data_observes_real_schema_holds_store_and_creates_verified_backup_once",

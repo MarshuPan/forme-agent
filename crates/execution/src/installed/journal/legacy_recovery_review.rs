@@ -35,6 +35,31 @@ impl ProductJournal {
             .ok_or_else(invalid_journal)
     }
 
+    /// Read the exact report already bound to an interrupted decision. This
+    /// cannot authorize a new decision or advance the existing one.
+    pub(crate) fn pending_legacy_review(
+        &self,
+        original_id: &str,
+        now: p::Timestamp,
+    ) -> p::Result<Option<p::SignedLegacyReleaseReview>> {
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        let projection = &writer.projection;
+        let Some(state) = projection.legacy_reviews.values().find(|state| {
+            state.view.stage == p::LegacyReleaseRecoveryStage::Intent
+                && state.review.review.binding.original_operation_id == original_id
+        }) else {
+            return Ok(None);
+        };
+        if projection.sequence != state.intent_revision || now < state.intent_at {
+            return Err(invalid_journal());
+        }
+        validate_review_binding(projection, &state.view.request, &state.review, now, false)?;
+        Ok(Some(state.review.clone()))
+    }
+
     pub(crate) fn legacy_recoveries(
         &self,
         owner: &p::OwnerPrincipalRef,

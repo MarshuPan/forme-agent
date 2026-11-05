@@ -200,6 +200,11 @@ fn route(
     domain: EndpointDomain,
 ) -> p::Result<(u16, Vec<u8>)> {
     if matches!(domain, EndpointDomain::Configuration) {
+        if let Some(result) =
+            super::legacy_recovery_routes::route(request, broker, worker, auth, now_ms())
+        {
+            return result.map(|body| (200, body));
+        }
         if let Some(result) = super::recovery_routes::route(request, broker, worker, auth, now_ms())
         {
             return result.map(|body| (200, body));

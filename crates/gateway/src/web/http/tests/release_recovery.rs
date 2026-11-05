@@ -1,5 +1,6 @@
 //! Real public HTTP/authentication boundaries without installed service claims.
 use super::*;
+mod legacy;
 mod transport;
 
 fn recovery() -> Value {

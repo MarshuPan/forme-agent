@@ -4,6 +4,7 @@ import { WorkbenchClient, newKey } from '../api/client.ts';
 import { activationRejectedBeforeDispatch } from '../configuration.ts';
 import { maintenanceTerminal, releaseMaintenanceCommand } from '../maintenance.ts';
 import { ReleaseRecovery } from './ReleaseRecovery.tsx';
+import { LegacyReleaseRecovery } from './LegacyReleaseRecovery.tsx';
 import type { MaintenanceAction, MaintenanceCommand, MaintenanceSnapshot } from '../maintenance.ts';
 import type { ProductOperation } from '../types.ts';
 
@@ -96,6 +97,8 @@ export function Maintenance({ api, refresh }: { api: WorkbenchClient; refresh: (
     <button className="secondary-button" disabled={busy} onClick={() => { setError(''); void load(); }}>刷新维护状态</button>
     {uncertain && <div className="notice"><p>保留原操作以核实结果，不会自动再次执行。</p><code>{pending.current?.operation_id ?? recovered}</code><button className="secondary-button" disabled={busy} onClick={() => void probe()}>核实原操作</button></div>}
     {view && <ReleaseRecovery api={api} snapshot={view} original={pending.current?.operation_id ?? recovered}
+      changed={() => { pending.current = null; void load(); refresh(); }} />}
+    {view && <LegacyReleaseRecovery key={view.owner} api={api} snapshot={view} original={pending.current?.operation_id ?? recovered}
       changed={() => { pending.current = null; void load(); refresh(); }} />}
     {operation && <p role="status">操作 {operation.operation_id}：{operation.stage}{operation.pending_stage ? ' · 待核实' : ''}</p>}
     {view && <details><summary>近期维护记录</summary><ul className="service-list">{view.operations.map((item) => <li key={item.operation_id}><span>{item.operation_id}</span><span>{item.stage}</span><button type="button" className="text-button" disabled={busy} onClick={() => void inspectHistory(item.operation_id)}>核实此记录</button></li>)}</ul></details>}

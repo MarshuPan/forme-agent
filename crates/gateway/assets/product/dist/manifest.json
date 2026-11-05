@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "284a979dca1b97d90a506ffa7294e28d0966eb8ac6c2e34086b201935ca013f0",
+  "source_digest": "0564d56f7ab1f3442b4964ac505cf59848d4fad57151d0c361a8235b88c733b5",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "33e1d203a1be2bc855f0ed74ddb165bbf3958b7edb632c182a4e3f94d6cae90f"
+      "sha256": "076fa39ea41369c731056320c982322cfd75031215302a467def49b3da2cd58a"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -71,8 +71,12 @@
       "sha256": "ded57d529c4612346209c40cd614fbcdff853eb8d3506f400fe136d2817c0887"
     },
     {
+      "path": "frontend/src/components/LegacyReleaseRecovery.tsx",
+      "sha256": "cc8b07ad4f12fd4647d86a6c7eb4c058422e41eabcf8417ee726220b9bdf9afc"
+    },
+    {
       "path": "frontend/src/components/Maintenance.tsx",
-      "sha256": "ff7429ed7b9bef0703de24e7dc51142facf839b90bafffe95638cdf9fc9b5cc4"
+      "sha256": "86a937f1a656a5b99226c812c474d3f84b33db10d01fcd6f20d56358e5ce41f0"
     },
     {
       "path": "frontend/src/components/MemoryMaterial.tsx",
@@ -157,6 +161,10 @@
     {
       "path": "frontend/src/exact-operation.ts",
       "sha256": "9f4c4759f46ebf4ead9d21a354d2fa73c8337c29831ee2177570b0520f08dca6"
+    },
+    {
+      "path": "frontend/src/legacy-release-recovery.ts",
+      "sha256": "bdbbd4d2cdaa389cc355b9fa8d2c985a17085fc2c6b7fba4705727a744318987"
     },
     {
       "path": "frontend/src/main.tsx",
@@ -251,6 +259,10 @@
       "sha256": "0f86dec1017aa8cb5b3d0899e1154111c62ae4f98ae041588aaac7e95cc10671"
     },
     {
+      "path": "frontend/src/tests/legacy-release-recovery.test.ts",
+      "sha256": "5e318f2e1f9ba070904914db8667c59efd9cdbb769be4b1f5300d95cc165c3a2"
+    },
+    {
       "path": "frontend/src/tests/maintenance.test.ts",
       "sha256": "5253d2677a8fb89de7b908c6ff62f8578752fe32570715c1b3c6e1f1df2f91a2"
     },
@@ -314,9 +326,9 @@
       "bytes": 14769
     },
     {
-      "path": "assets/index-fTIydv6n.js",
-      "sha256": "efa4598a85b65ca1eb826a39689ec101dffa91da8423dd86287e16425af5fe7e",
-      "bytes": 382732
+      "path": "assets/index-DMtCYaxf.js",
+      "sha256": "c206131b847e4bcf44a4d38d76bdc1ba57f76300f5bc82ae248d4fe2f66cd230",
+      "bytes": 394864
     },
     {
       "path": "dependencies.json",
@@ -330,7 +342,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "5d28e3acdf6f08880c8baf49c7b1767ac630c9eb53b9b1bd790e8c12cf4c7373",
+      "sha256": "9c679068e7e5107b1443149291a397cff3a57fdd2b69322a974689581f921bc1",
       "bytes": 595
     },
     {

@@ -16,6 +16,8 @@ import { parseProductSettings } from '../settings-schema.ts';
 import { parseOfflineBackupVerification } from '../offline-backup.ts';
 import { parseReleaseRecoveryCandidate, parseReleaseRecoveries, parseReleaseRecovery } from '../release-recovery.ts';
 import type { ReleaseRecoveryCommand, ReleaseRecoveryVerification } from '../release-recovery.ts';
+import { parseLegacyReview, parseLegacyRecoveries, parseLegacyRecovery, verifyLegacyRecoveryDigest } from '../legacy-release-recovery.ts';
+import type { LegacyRecoveryCommand, LegacyRecoveryVerification } from '../legacy-release-recovery.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -180,6 +182,27 @@ export class WorkbenchClient {
     const view = parseReleaseRecovery(await this.json<unknown>('product/release-recovery/verify', 'POST', { ...command, password }, command.operation_id), command.operation_id);
     if (view.request_digest !== command.request_digest) throw new Error('恢复回执与原裁决不符。');
     return view;
+  }
+  async legacyReleaseReview(original: string) {
+    return parseLegacyReview(await this.json<unknown>(`product/legacy-release-recovery/review/${id(original)}`), original);
+  }
+  async legacyReleaseRecoveries() {
+    const list = parseLegacyRecoveries(await this.json<unknown>('product/legacy-release-recovery/operations'));
+    await Promise.all(list.operations.map(verifyLegacyRecoveryDigest));
+    return list;
+  }
+  async legacyReleaseRecoveryOperation(operation: string) {
+    return verifyLegacyRecoveryDigest(parseLegacyRecovery(await this.json<unknown>(`product/legacy-release-recovery/operations/${id(operation)}`), operation));
+  }
+  async recoverLegacyRelease(command: LegacyRecoveryCommand, password: string) {
+    const view = parseLegacyRecovery(await this.json<unknown>('product/legacy-release-recovery', 'POST', { ...command, password }, command.operation_id), command.operation_id);
+    if ((Object.keys(command) as (keyof LegacyRecoveryCommand)[]).some((key) => view.request[key] !== command[key])) throw new Error('历史恢复回执与原请求不符。');
+    return verifyLegacyRecoveryDigest(view);
+  }
+  async verifyLegacyReleaseRecovery(command: LegacyRecoveryVerification, password: string) {
+    const view = parseLegacyRecovery(await this.json<unknown>('product/legacy-release-recovery/verify', 'POST', { ...command, password }, command.operation_id), command.operation_id);
+    if (view.request_digest !== command.request_digest) throw new Error('历史恢复回执与原决定不符。');
+    return verifyLegacyRecoveryDigest(view);
   }
   profile() { return this.json<ControlProfile>('brain/profile'); }
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }

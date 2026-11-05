@@ -554,6 +554,25 @@ fn legacy_host_interrupted_intent_is_query_only_until_original_verification() {
         intent
     );
     assert_eq!(f.collector.checks.load(Ordering::SeqCst), checks);
+    let checkpoint = f.host.journal.checkpoint().unwrap();
+    // Reload may happen after the first request expired. Read its saved report
+    // without a collector call; only a separately authorized verify can commit.
+    let saved = f
+        .host
+        .legacy_release_review(
+            &f.auth,
+            ORIGINAL,
+            &f.workers,
+            f.request.requested_deadline + 1,
+        )
+        .unwrap();
+    assert_eq!(saved.digest().unwrap(), f.request.review_digest);
+    assert_eq!(f.host.journal.checkpoint().unwrap(), checkpoint);
+    assert_eq!(f.collector.checks.load(Ordering::SeqCst), checks);
+    assert!(f
+        .host
+        .legacy_release_review(&f.auth, ORIGINAL, &f.workers, saved.binding.expires_at)
+        .is_err());
     let mut verify = p::LegacyReleaseRecoveryVerification {
         schema_version: p::SchemaVersion(1),
         operation_id: f.request.operation_id.clone(),

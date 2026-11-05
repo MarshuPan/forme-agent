@@ -53,6 +53,25 @@ fn request(review: &p::LegacyReleaseReview) -> p::LegacyReleaseRecoveryRequest {
     }
 }
 
+/// Shared wire golden with frontend/src/tests/legacy-release-recovery.test.ts.
+/// Both languages must match Rust's declared struct order, not sorted JSON.
+#[test]
+fn legacy_wire_digest_golden_matches_the_browser_report_and_request_binding() {
+    let review = report();
+    assert_eq!(
+        review.binding.digest().unwrap().0,
+        "sha256:5330285943e7ea4964a0848cdf8a1dd805efa4e0767c92db0422abd0259af665"
+    );
+    assert_eq!(
+        review.digest().unwrap().0,
+        "sha256:9be2f960600222cad01a2387f83bc643d12f31e1ae184526b90ed5d514f3a4bc"
+    );
+    assert_eq!(
+        request(&review).digest().unwrap().0,
+        "sha256:caf04d5763c2ccc8aad79a17ed39ca3bedf2cb5754937e4dbb495da32a456b1d"
+    );
+}
+
 #[test]
 fn legacy_report_requires_complete_ordered_same_binding_evidence() {
     let valid = report();

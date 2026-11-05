@@ -2,6 +2,7 @@
 mod bootstrap;
 pub(super) mod config;
 pub(super) mod http;
+mod legacy_recovery_routes;
 mod lifecycle;
 mod recovery_capabilities;
 mod recovery_routes;

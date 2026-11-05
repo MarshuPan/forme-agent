@@ -166,6 +166,53 @@ impl LocalConfigurationClient {
         )
     }
 
+    pub(super) fn legacy_release_review(&self, id: &str) -> p::Result<p::LegacyReleaseReview> {
+        p::validate_product_id(id)?;
+        self.request(
+            "GET",
+            &format!("/v1/host/configuration/legacy-release-recovery/review/{id}"),
+            None::<&()>,
+        )
+    }
+    pub(super) fn legacy_release_recoveries(&self) -> p::Result<p::LegacyReleaseRecoveryList> {
+        self.request(
+            "GET",
+            "/v1/host/configuration/legacy-release-recovery/operations",
+            None::<&()>,
+        )
+    }
+    pub(super) fn recover_legacy_release(
+        &self,
+        request: p::LegacyReleaseRecoveryRequest,
+    ) -> p::Result<p::LegacyReleaseRecoveryView> {
+        self.request(
+            "POST",
+            "/v1/host/configuration/legacy-release-recovery",
+            Some(&request),
+        )
+    }
+    pub(super) fn verify_legacy_release_recovery(
+        &self,
+        request: p::LegacyReleaseRecoveryVerification,
+    ) -> p::Result<p::LegacyReleaseRecoveryView> {
+        self.request(
+            "POST",
+            "/v1/host/configuration/legacy-release-recovery/verify",
+            Some(&request),
+        )
+    }
+    pub(super) fn legacy_release_recovery_operation(
+        &self,
+        id: &str,
+    ) -> p::Result<p::LegacyReleaseRecoveryView> {
+        p::validate_product_id(id)?;
+        self.request(
+            "GET",
+            &format!("/v1/host/configuration/legacy-release-recovery/operations/{id}"),
+            None::<&()>,
+        )
+    }
+
     pub(super) fn verify_backup(
         &self,
         request: p::ProductBackupVerificationRequest,
@@ -214,6 +261,15 @@ impl LocalConfigurationClient {
                 | ("POST", "/v1/host/configuration/release-recovery")
                 | ("POST", "/v1/host/configuration/release-recovery/verify")
                 | ("GET", "/v1/host/configuration/release-recovery/operations")
+                | ("POST", "/v1/host/configuration/legacy-release-recovery")
+                | (
+                    "POST",
+                    "/v1/host/configuration/legacy-release-recovery/verify"
+                )
+                | (
+                    "GET",
+                    "/v1/host/configuration/legacy-release-recovery/operations"
+                )
         ) && !(method == "GET"
             && path
                 .strip_prefix("/v1/host/configuration/operations/")
@@ -223,6 +279,12 @@ impl LocalConfigurationClient {
                 })
                 .or_else(|| {
                     path.strip_prefix("/v1/host/configuration/release-recovery/candidates/")
+                })
+                .or_else(|| {
+                    path.strip_prefix("/v1/host/configuration/legacy-release-recovery/review/")
+                })
+                .or_else(|| {
+                    path.strip_prefix("/v1/host/configuration/legacy-release-recovery/operations/")
                 })
                 .is_some_and(|id| p::validate_product_id(id).is_ok()))
         {

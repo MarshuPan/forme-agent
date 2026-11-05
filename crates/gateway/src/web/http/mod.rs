@@ -9,6 +9,7 @@ mod connections;
 mod core_routes;
 mod data;
 mod error;
+mod legacy_release_recovery;
 mod maintenance;
 mod network;
 mod proposal_controls;
@@ -273,6 +274,26 @@ fn router(state: Arc<WebState>) -> Router {
         .route(
             "/api/v1/product/release-recovery/verify",
             post(release_recovery::verify),
+        )
+        .route(
+            "/api/v1/product/legacy-release-recovery/review/{id}",
+            get(legacy_release_recovery::review),
+        )
+        .route(
+            "/api/v1/product/legacy-release-recovery",
+            post(legacy_release_recovery::apply),
+        )
+        .route(
+            "/api/v1/product/legacy-release-recovery/operations/{id}",
+            get(legacy_release_recovery::operation),
+        )
+        .route(
+            "/api/v1/product/legacy-release-recovery/operations",
+            get(legacy_release_recovery::operations),
+        )
+        .route(
+            "/api/v1/product/legacy-release-recovery/verify",
+            post(legacy_release_recovery::verify),
         )
         .route(
             "/api/v1/brain/artifacts/upload",
