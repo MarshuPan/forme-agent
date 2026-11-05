@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 worker 原件与内存恢复水位一致性
+
+`bca17da` 先细化原件检查，`f83b63e` 修复恢复观察只信 worker 内存投影的问题：在既有 operations 互斥与原文件锁内有界重读完整 journal，重放真实 hash chain 后核对水位；原件损坏或合法截断使 writer 拒绝后续变更，完整在途 job 只拒绝静止观察。十个原创正反场景已加入永久宿主门。
+
+最终统一源码门 exit 0（182 Rust targets、1262 passed / 0 failed / 15 默认 ignored、strict Clippy、完整合规、前端 115/115），永久宿主门也 exit 0。M5/发布回执和 IP01–IP24 没有由此升级；四个原安装服务仍 Stopped，路径恢复 Apply 的精确确认待答复，原生历史 collector、独立来源与实际恢复继续开放。工件摘要、最终空间报告及 stdout/stderr 日志边界见[本批验收记录](installed-worker-original-journal-acceptance-20261106.md)。
+
 ## 2026-11-06 工作空间与项目命令的真实浏览器修正
 
 `088254d` 修正约束准备结果的 nested schema 解析和项目登记/修订/取消成功回执的形状误判，明确目标引用与可执行规则的填写边界。进程测试现经真正的前端客户端消费 Host/Web/core 实际响应，覆盖提交、陈旧版本拒绝及重启保留；最终嵌入资源经浏览器核对约束保存、项目登记/暂停/修订/取消和刷新保留。
