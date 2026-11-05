@@ -1,3 +1,8 @@
+param(
+    # Composition only; this mode cannot support a complete M1 acceptance claim.
+    [switch]$DeferSharedChecks
+)
+
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -54,14 +59,18 @@ try {
         Write-Host "[$($scenario.Id)] PASS"
     }
 
-    Invoke-Checked -Label "M0 permanent regression gate" -Program "powershell" -Arguments @(
+    $m0Arguments = @(
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
         (Join-Path $PSScriptRoot "verify-m0.ps1")
     )
-    Write-Host "M1 SCENARIO GATE: PASS (S23-S37 + S1-S22 + compliance)"
+    if ($DeferSharedChecks) { $m0Arguments += "-DeferSharedChecks" }
+    Invoke-Checked -Label "M0 permanent regression gate" -Program "powershell" -Arguments $m0Arguments
+    if (-not $DeferSharedChecks) {
+        Write-Host "M1 SCENARIO GATE: PASS (S23-S37 + S1-S22 + compliance)"
+    }
     Invoke-Checked -Label "M1 final artifact gate" -Program "powershell" -Arguments @(
         "-NoProfile",
         "-ExecutionPolicy",
@@ -69,7 +78,12 @@ try {
         "-File",
         (Join-Path $PSScriptRoot "verify-m1-final-artifacts.ps1")
     )
-    Write-Host "M1 FINAL ACCEPTANCE: PASS (artifacts + S1-S37 + compliance)"
+    if ($DeferSharedChecks) {
+        Write-Host "M1 SCENARIOS AND ARTIFACTS: PASS (shared checks deferred to parent; not M1 final acceptance)"
+    }
+    else {
+        Write-Host "M1 FINAL ACCEPTANCE: PASS (artifacts + S1-S37 + compliance)"
+    }
 }
 finally {
     Pop-Location

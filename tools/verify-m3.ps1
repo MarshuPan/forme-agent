@@ -1,9 +1,15 @@
 param(
-    [switch]$RegressionOnly
+    [switch]$RegressionOnly,
+    # Only the enclosing M5 regression may own these checks instead of M3.
+    [switch]$DeferSharedChecks
 )
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+if ($DeferSharedChecks -and -not $RegressionOnly) {
+    throw "-DeferSharedChecks requires -RegressionOnly; it cannot produce M3 final acceptance"
+}
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $artifactRoot = Join-Path $repoRoot "docs\acceptance\m3-a-artifacts"
@@ -60,7 +66,8 @@ try {
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        (Join-Path $PSScriptRoot "verify-m2.ps1")
+        (Join-Path $PSScriptRoot "verify-m2.ps1"),
+        "-DeferSharedChecks"
     )
 
     $scenarios = @(
@@ -242,48 +249,53 @@ try {
         $m3CArtifactRoot
     )
 
-    Invoke-Checked -Label "M3 workspace formatting" -Program "cargo" -Arguments @(
-        "fmt",
-        "--all",
-        "--",
-        "--check"
-    )
-    Invoke-Checked -Label "M3 workspace check" -Program "cargo" -Arguments @(
-        "check",
-        "--workspace",
-        "--all-targets"
-    )
-    Invoke-Checked -Label "M3 strict Clippy" -Program "cargo" -Arguments @(
-        "clippy",
-        "--workspace",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-    )
-    Invoke-Checked -Label "M3 complete workspace tests" -Program "cargo" -Arguments @(
-        "test",
-        "--workspace",
-        "--all-targets"
-    )
-    Invoke-Checked -Label "Compliance doctor fixture tests" -Program "py" -Arguments @(
-        "-3",
-        "-m",
-        "unittest",
-        "discover",
-        "-s",
-        "tools/tests",
-        "-v"
-    )
-    Invoke-Checked -Label "Originality and release compliance doctor" -Program "bash" -Arguments @(
-        "tools/compliance-doctor.sh"
-    )
+    if (-not $DeferSharedChecks) {
+        Invoke-Checked -Label "M3 workspace formatting" -Program "cargo" -Arguments @(
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+        )
+        Invoke-Checked -Label "M3 workspace check" -Program "cargo" -Arguments @(
+            "check",
+            "--workspace",
+            "--all-targets"
+        )
+        Invoke-Checked -Label "M3 strict Clippy" -Program "cargo" -Arguments @(
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+        )
+        Invoke-Checked -Label "M3 complete workspace tests" -Program "cargo" -Arguments @(
+            "test",
+            "--workspace",
+            "--all-targets"
+        )
+        Invoke-Checked -Label "Compliance doctor fixture tests" -Program "py" -Arguments @(
+            "-3",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools/tests",
+            "-v"
+        )
+        Invoke-Checked -Label "Originality and release compliance doctor" -Program "bash" -Arguments @(
+            "tools/compliance-doctor.sh"
+        )
+    }
     Invoke-Checked -Label "Git whitespace gate" -Program "git" -Arguments @(
         "diff",
         "--check"
     )
 
-    if ($RegressionOnly) {
+    if ($DeferSharedChecks) {
+        Write-Host "M3 SCENARIOS AND ARTIFACTS: PASS (shared checks deferred to parent; not M3 permanent or final acceptance)"
+    }
+    elseif ($RegressionOnly) {
         Write-Host "M3 PERMANENT REGRESSION: PASS (S1-S69 + historical artifacts; current-tree receipt deferred to the active milestone)"
     }
     else {

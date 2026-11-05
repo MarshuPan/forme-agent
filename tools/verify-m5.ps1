@@ -1,3 +1,6 @@
+[CmdletBinding()]
+param()
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -58,7 +61,8 @@ try {
         "Bypass",
         "-File",
         (Join-Path $PSScriptRoot "verify-m3.ps1"),
-        "-RegressionOnly"
+        "-RegressionOnly",
+        "-DeferSharedChecks"
     )
 
     $m4Targets = @(

@@ -1,3 +1,8 @@
+param(
+    # Composition only; this mode cannot support a complete M2 acceptance claim.
+    [switch]$DeferSharedChecks
+)
+
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
@@ -20,13 +25,15 @@ try {
         }
     }
 
-    Invoke-Checked -Label "M1 permanent regression gate (S1-S37)" -Program "powershell" -Arguments @(
+    $m1Arguments = @(
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
         (Join-Path $PSScriptRoot "verify-m1.ps1")
     )
+    if ($DeferSharedChecks) { $m1Arguments += "-DeferSharedChecks" }
+    Invoke-Checked -Label "M1 permanent regression gate (S1-S37)" -Program "powershell" -Arguments $m1Arguments
 
     $scenarios = @(
         @{ Id = "M2-A-protocol"; Package = "forme-protocol"; Target = @("--test", "m2_a_contract"); Test = $null },
@@ -106,15 +113,20 @@ try {
         "-File",
         (Join-Path $PSScriptRoot "verify-m2-a-artifacts.ps1")
     )
-    Invoke-Checked -Label "M2 strict Clippy" -Program "cargo" -Arguments @(
-        "clippy",
-        "--workspace",
-        "--all-targets",
-        "--",
-        "-D",
-        "warnings"
-    )
-    Write-Host "M2 FINAL ACCEPTANCE: PASS (S1-S52 + real browser/API golden + artifacts + strict clippy)"
+    if ($DeferSharedChecks) {
+        Write-Host "M2 SCENARIOS AND ARTIFACTS: PASS (shared checks deferred to parent; not M2 final acceptance)"
+    }
+    else {
+        Invoke-Checked -Label "M2 strict Clippy" -Program "cargo" -Arguments @(
+            "clippy",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+        )
+        Write-Host "M2 FINAL ACCEPTANCE: PASS (S1-S52 + real browser/API golden + artifacts + strict clippy)"
+    }
 }
 finally {
     Pop-Location

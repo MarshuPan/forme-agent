@@ -1,6 +1,8 @@
 param(
     # Hosted CI has no local reference corpus; copy detection is reported as SKIP instead of PASS.
-    [switch]$AllowMissingCorpus
+    [switch]$AllowMissingCorpus,
+    # Composition only: the parent must run all shared checks before final PASS.
+    [switch]$DeferSharedChecks
 )
 
 $ErrorActionPreference = "Stop"
@@ -54,18 +56,23 @@ try {
         Write-Host "[$($scenario.Id)] PASS"
     }
 
-    Invoke-Checked -Label "S22 compliance fixtures" -Program "py" -Arguments @("-3", "-m", "unittest", "discover", "-s", "tools/tests", "-v")
-    $doctorArguments = @("tools/compliance-doctor.sh")
-    if ($AllowMissingCorpus) {
-        $doctorArguments += "--allow-missing-corpus"
+    if ($DeferSharedChecks) {
+        Write-Host "M0 SCENARIOS: PASS (S1-S21 only; S22 and shared workspace checks deferred to parent; not M0 acceptance)"
     }
-    Invoke-Checked -Label "S22 real-tree compliance doctor" -Program "bash" -Arguments $doctorArguments
-    Write-Host "[S22] PASS"
+    else {
+        Invoke-Checked -Label "S22 compliance fixtures" -Program "py" -Arguments @("-3", "-m", "unittest", "discover", "-s", "tools/tests", "-v")
+        $doctorArguments = @("tools/compliance-doctor.sh")
+        if ($AllowMissingCorpus) {
+            $doctorArguments += "--allow-missing-corpus"
+        }
+        Invoke-Checked -Label "S22 real-tree compliance doctor" -Program "bash" -Arguments $doctorArguments
+        Write-Host "[S22] PASS"
 
-    Invoke-Checked -Label "format gate" -Program "cargo" -Arguments @("fmt", "--all", "--", "--check")
-    Invoke-Checked -Label "workspace check" -Program "cargo" -Arguments @("check", "--workspace")
-    Invoke-Checked -Label "workspace tests" -Program "cargo" -Arguments @("test", "--workspace", "--all-targets")
-    Write-Host "M0 ACCEPTANCE: PASS (S1-S22 + compliance)"
+        Invoke-Checked -Label "format gate" -Program "cargo" -Arguments @("fmt", "--all", "--", "--check")
+        Invoke-Checked -Label "workspace check" -Program "cargo" -Arguments @("check", "--workspace")
+        Invoke-Checked -Label "workspace tests" -Program "cargo" -Arguments @("test", "--workspace", "--all-targets")
+        Write-Host "M0 ACCEPTANCE: PASS (S1-S22 + compliance)"
+    }
 }
 finally {
     Pop-Location
