@@ -60,6 +60,19 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
 
     foreach ($name in @(
+        "quiescent_digest_rejects_valid_truncation_against_live_writer",
+        "original_worker_recheck_preserves_bytes_cursor_digest_and_os_lock",
+        "original_worker_recheck_rejects_same_sequence_with_another_valid_chain",
+        "original_worker_recheck_rejects_an_untracked_valid_terminal_suffix",
+        "original_worker_recheck_rejects_truncation_to_empty_after_real_history",
+        "original_worker_recheck_rejects_corruption_closed_schema_and_torn_records",
+        "original_worker_recheck_enforces_record_and_total_bounds_without_repair",
+        "original_worker_recheck_does_not_poison_valid_unsettled_outcomes",
+        "original_worker_recheck_accepts_only_known_terminal_receipts",
+        "original_worker_recheck_failure_cannot_be_cleared_by_replacing_old_bytes"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::worker::recovery::tests::$name" }
+
+    foreach ($name in @(
         "signed_origin_and_current_identity_produce_only_one_bound_evidence_without_writes",
         "missing_origin_and_unpinned_or_self_replaced_origin_are_rejected",
         "changed_bytes_are_rejected_even_when_the_file_still_parses",
