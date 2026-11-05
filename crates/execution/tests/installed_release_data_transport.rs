@@ -129,8 +129,55 @@ fn release_recovery_inspection_uses_fixed_child_and_releases_without_backup() {
     assert_eq!(inspection.identity().database_schema_version, 13);
     assert!(f.marker("data-worker-started").exists());
     assert!(!f.marker("data-worker-backup").exists());
+    inspection
+        .ensure_held(Instant::now() + Duration::from_secs(5))
+        .unwrap();
     inspection.release().unwrap();
+    assert!(inspection
+        .ensure_held(Instant::now() + Duration::from_secs(5))
+        .is_err());
     assert!(inspection.release().is_err());
+    assert!(!f.marker("data-worker-backup").exists());
+}
+
+#[test]
+fn release_data_hold_rejects_a_cleanly_exited_child_without_respawn_or_backup() {
+    let f = Fixture::new();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut process = f
+        .worker()
+        .start(f.request("exit-after-inspect"), deadline)
+        .unwrap();
+    loop {
+        if process.ensure_read_only_hold(deadline).is_err() {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "clean exit must invalidate the hold"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(process.ensure_read_only_hold(deadline).is_err());
+    assert!(process.step(p::ProductReleaseDataStep::Backup).is_err());
+    assert!(process.step(p::ProductReleaseDataStep::Release).is_err());
+    assert!(!f.marker("data-worker-backup").exists());
+}
+
+#[test]
+fn release_data_hold_rechecks_the_existing_child_and_cannot_survive_its_deadline() {
+    let f = Fixture::new();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut process = f.worker().start(f.request("0.2.0"), deadline).unwrap();
+    let identity = process.identity().clone();
+    for _ in 0..3 {
+        process.ensure_read_only_hold(deadline).unwrap();
+        assert_eq!(process.identity(), &identity);
+    }
+    assert!(!f.marker("data-worker-backup").exists());
+    assert!(process.ensure_read_only_hold(Instant::now()).is_err());
+    assert!(process.ensure_read_only_hold(deadline).is_err());
+    assert!(process.step(p::ProductReleaseDataStep::Backup).is_err());
     assert!(!f.marker("data-worker-backup").exists());
 }
 

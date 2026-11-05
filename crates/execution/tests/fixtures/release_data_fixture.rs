@@ -46,6 +46,9 @@ pub fn run() {
             identity: identity.clone(),
         },
     );
+    if mode == "exit-after-inspect" {
+        return;
+    }
     loop {
         let step: p::ProductReleaseDataStepRequest = read(&mut input);
         let result = match step.step {

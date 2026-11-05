@@ -67,6 +67,21 @@ impl ReleaseDataWorkerProcess {
         &self.identity
     }
 
+    /// The verified, fixed worker retains its store fence until Release or
+    /// exit. A cached identity is insufficient once that process has ended.
+    /// This checks the same child without sending a request or acquiring a new
+    /// fence. It is not a fresh database inspection or historical evidence.
+    pub fn ensure_read_only_hold(&mut self, deadline: Instant) -> p::Result<()> {
+        if self.released || self.backup_attempted {
+            return Err(invalid());
+        }
+        let result = self.pipe.ensure_running(deadline);
+        if result.is_err() {
+            self.released = true;
+        }
+        result
+    }
+
     /// Backup is consumed before dispatch, including uncertain/failed results.
     /// The owning updater must have persisted its matching stage intent first.
     pub fn step(

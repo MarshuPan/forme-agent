@@ -139,6 +139,8 @@ try {
     foreach ($name in @(
         "release_data_child_preserves_binding_and_consumes_backup_once",
         "release_recovery_inspection_uses_fixed_child_and_releases_without_backup",
+        "release_data_hold_rejects_a_cleanly_exited_child_without_respawn_or_backup",
+        "release_data_hold_rechecks_the_existing_child_and_cannot_survive_its_deadline",
         "release_data_child_deadline_kills_waiting_process_and_does_not_retry_unknown_backup",
         "release_data_child_rejects_bad_owner_oversize_nonzero_exit_and_replaced_installation"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_data_transport") $name }
@@ -189,6 +191,7 @@ try {
 
     foreach ($name in @(
         "release_recovery_host_commits_once_then_old_release_replay_and_queries_are_effect_free",
+        "release_recovery_rechecks_original_data_custody_before_committing_and_keeps_intent",
         "release_recovery_host_intent_fault_requires_explicit_verification_and_never_retries_on_replay",
         "release_recovery_host_rejects_missing_baseline_and_service_data_file_worker_drift"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_release_staging") "updater_cases::recovery_cases::$name" }

@@ -88,7 +88,8 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 return Err(invalid());
             }
             self.verify_recovery_configuration(&mut config, &candidate)?;
-            let observation = self.observe_recovery(&candidate, worker_digest, now, deadline)?;
+            let mut observation =
+                self.observe_recovery(&candidate, worker_digest, now, deadline)?;
             self.journal
                 .begin_release_recovery(request.clone(), actual_now()?)?;
             // The store remains exclusively held until the durable decision.
@@ -97,6 +98,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 self.journal.revision()?,
                 request.requested_deadline,
                 deadline,
+                &mut observation,
             )?;
             observation.release()
         })?;
@@ -147,12 +149,14 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 return Err(invalid());
             }
             self.verify_recovery_configuration(&mut config, &candidate)?;
-            let observation = self.observe_recovery(&candidate, worker_digest, now, deadline)?;
+            let mut observation =
+                self.observe_recovery(&candidate, worker_digest, now, deadline)?;
             self.commit_recovery(
                 &view.request,
                 verification.expected_revision,
                 verification.requested_deadline,
                 deadline,
+                &mut observation,
             )?;
             observation.release()
         })?;
@@ -247,6 +251,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         expected: u64,
         authorization_deadline: p::Timestamp,
         deadline: Instant,
+        observation: &mut super::super::release_updater::RecoveryObservation,
     ) -> p::Result<()> {
         let takeover = self
             .journal
@@ -259,6 +264,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             .as_ref()
             .ok_or_else(invalid)?
             .recheck_recovery_files(&self.journal, &takeover, &baseline, deadline)?;
+        observation.ensure_held(deadline)?;
         self.journal.commit_release_recovery(
             &request.operation_id,
             expected,

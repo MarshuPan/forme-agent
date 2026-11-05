@@ -307,6 +307,27 @@ impl<T: DeserializeOwned + Send + 'static> MaintenancePipe<T> {
 }
 
 impl<T> MaintenancePipe<T> {
+    /// Check the existing child only. Never exchanges a frame, respawns a
+    /// process or extends the deadline originally assigned to this pipe.
+    pub(super) fn ensure_running(&mut self, deadline: Instant) -> p::Result<()> {
+        let result = (|| {
+            if self.finished
+                || Instant::now() >= deadline.min(self.deadline)
+                || self.requests.is_none()
+                || self.replies.is_none()
+                || self.io.as_ref().is_none_or(|io| io.is_finished())
+                || self.child.try_wait().map_err(|_| unavailable())?.is_some()
+            {
+                return Err(unavailable());
+            }
+            Ok(())
+        })();
+        if result.is_err() {
+            self.abort();
+        }
+        result
+    }
+
     pub(super) fn abort(&mut self) {
         if !self.finished {
             let _ = self.child.kill();

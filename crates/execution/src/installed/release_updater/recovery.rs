@@ -3,12 +3,18 @@ use super::*;
 
 pub trait ReleaseRecoveryDataInspection {
     fn identity(&self) -> &p::ProductReleaseDataIdentity;
+    /// Confirm the original exclusive guard, without reacquiring or extending
+    /// it. Trusted test adapters must implement the same failure boundary.
+    fn ensure_held(&mut self, deadline: Instant) -> p::Result<()>;
     fn release(&mut self) -> p::Result<()>;
 }
 
 impl ReleaseRecoveryDataInspection for super::super::ReleaseDataWorkerProcess {
     fn identity(&self) -> &p::ProductReleaseDataIdentity {
         self.identity()
+    }
+    fn ensure_held(&mut self, deadline: Instant) -> p::Result<()> {
+        self.ensure_read_only_hold(deadline)
     }
     fn release(&mut self) -> p::Result<()> {
         self.step(p::ProductReleaseDataStep::Release).map(|_| ())
@@ -20,6 +26,13 @@ pub(crate) struct RecoveryObservation {
     data: Box<dyn ReleaseRecoveryDataInspection>,
 }
 impl RecoveryObservation {
+    pub fn ensure_held(&mut self, deadline: Instant) -> p::Result<()> {
+        self.data.ensure_held(deadline)?;
+        if Instant::now() >= deadline || self.data.identity() != &self.baseline.data_identity {
+            return Err(invalid());
+        }
+        Ok(())
+    }
     pub fn release(mut self) -> p::Result<()> {
         self.data.release()
     }
@@ -70,7 +83,7 @@ impl InstalledReleaseUpdater {
         {
             return Err(invalid());
         }
-        let observation = RecoveryObservation {
+        let mut observation = RecoveryObservation {
             baseline: p::ProductReleaseRecoveryBaseline {
                 schema_version: p::SchemaVersion(1),
                 operation_id: takeover.release.operation_id.clone(),
@@ -86,6 +99,7 @@ impl InstalledReleaseUpdater {
             data,
         };
         self.recheck_recovery_files(journal, takeover, &observation.baseline, deadline)?;
+        observation.ensure_held(deadline)?;
         Ok(observation)
     }
     pub(crate) fn recheck_recovery_files(

@@ -12,6 +12,8 @@ struct Boundary {
     data: Mutex<p::SchemaDigest>,
     held: Arc<AtomicUsize>,
     inspections: AtomicUsize,
+    hold_checks: Arc<AtomicUsize>,
+    fail_hold: Arc<AtomicUsize>,
 }
 impl Default for Boundary {
     fn default() -> Self {
@@ -23,12 +25,16 @@ impl Default for Boundary {
             data: Mutex::new(p::canonical_digest(&"database").unwrap()),
             held: Arc::new(AtomicUsize::new(0)),
             inspections: AtomicUsize::new(0),
+            hold_checks: Arc::new(AtomicUsize::new(0)),
+            fail_hold: Arc::new(AtomicUsize::new(0)),
         }
     }
 }
 struct DataGuard {
     identity: p::ProductReleaseDataIdentity,
     held: Arc<AtomicUsize>,
+    hold_checks: Arc<AtomicUsize>,
+    fail_hold: Arc<AtomicUsize>,
 }
 impl Drop for DataGuard {
     fn drop(&mut self) {
@@ -38,6 +44,16 @@ impl Drop for DataGuard {
 impl ReleaseRecoveryDataInspection for DataGuard {
     fn identity(&self) -> &p::ProductReleaseDataIdentity {
         &self.identity
+    }
+    fn ensure_held(&mut self, deadline: Instant) -> p::Result<()> {
+        let call = self.hold_checks.fetch_add(1, Ordering::SeqCst) + 1;
+        if self.held.load(Ordering::SeqCst) != 1
+            || Instant::now() >= deadline
+            || self.fail_hold.load(Ordering::SeqCst) == call
+        {
+            return Err(p::Error("controlled lost data custody".into()));
+        }
+        Ok(())
     }
     fn release(&mut self) -> p::Result<()> {
         Ok(())
@@ -67,6 +83,8 @@ impl ReleaseUpdaterPlatform for Boundary {
         self.inspections.fetch_add(1, Ordering::SeqCst);
         Ok(Box::new(DataGuard {
             held: self.held.clone(),
+            hold_checks: self.hold_checks.clone(),
+            fail_hold: self.fail_hold.clone(),
             identity: p::ProductReleaseDataIdentity {
                 schema_version: p::SchemaVersion(1),
                 config_schema_version: 1,
@@ -340,6 +358,65 @@ fn release_recovery_host_rejects_missing_baseline_and_service_data_file_worker_d
             .unwrap()
             .operations
             .is_empty());
+        assert_eq!(f.platform.held.load(Ordering::SeqCst), 0);
+    }
+}
+
+#[test]
+fn release_recovery_rechecks_original_data_custody_before_committing_and_keeps_intent() {
+    for fail_before_intent in [true, false] {
+        let f = RecoveryFixture::new(true);
+        let request = f.recovery();
+        let auth = f.broker.authenticate_web_configuration(WEB_TOKEN).unwrap();
+        f.platform.fail_hold.store(
+            f.platform.hold_checks.load(Ordering::SeqCst) + if fail_before_intent { 1 } else { 2 },
+            Ordering::SeqCst,
+        );
+        assert!(f
+            .broker
+            .owner_release_recovery(&auth, request.clone(), &f.workers, now_millis())
+            .is_err());
+        assert_eq!(f.platform.held.load(Ordering::SeqCst), 0);
+        let operations = f.broker.owner_release_recoveries(&auth).unwrap();
+        if fail_before_intent {
+            assert!(operations.operations.is_empty());
+            assert_eq!(operations.product_revision, request.expected_revision);
+            continue;
+        }
+        let intent = f
+            .broker
+            .owner_release_recovery_operation(&auth, &request.operation_id)
+            .unwrap();
+        assert_eq!(intent.stage, p::ProductReleaseRecoveryStage::Intent);
+        let checks = f.platform.hold_checks.load(Ordering::SeqCst);
+        let inspections = f.platform.inspections.load(Ordering::SeqCst);
+        assert_eq!(
+            f.broker
+                .owner_release_recovery(&auth, request.clone(), &f.workers, now_millis())
+                .unwrap(),
+            intent
+        );
+        assert_eq!(f.platform.hold_checks.load(Ordering::SeqCst), checks);
+        assert_eq!(f.platform.inspections.load(Ordering::SeqCst), inspections);
+        let verification = p::ProductReleaseRecoveryVerification {
+            schema_version: p::SchemaVersion(1),
+            operation_id: request.operation_id,
+            request_digest: intent.request_digest.clone(),
+            expected_revision: intent.revision,
+            owner: request.owner,
+            requested_deadline: now_millis() + 60_000,
+        };
+        assert_eq!(
+            f.broker
+                .verify_owner_release_recovery(&auth, verification, &f.workers, now_millis())
+                .unwrap()
+                .stage,
+            p::ProductReleaseRecoveryStage::Committed
+        );
+        assert_eq!(
+            f.platform.inspections.load(Ordering::SeqCst),
+            inspections + 1
+        );
         assert_eq!(f.platform.held.load(Ordering::SeqCst), 0);
     }
 }
