@@ -195,3 +195,11 @@ load 还绑定原 installation digest、owner、原 operation/command/release、
 `archive.json` 保留原离线入库报告的字段和大小写，全部 closed/schema 1。只接受 `inbox_prepared_only`、完整三步入库 changes、无 failure、无模型/密钥读取、零服务/维护命令和未更换程序的报告。目标 release 与原升级请求一致；四服务描述是历史观察，不当作当前 SCM 或完整恢复策略的证明。`database_schema_version` 必须显式出现：旧 null 保持 null，已记录的非零版本才可与当前版本比较；缺字段、未知字段、重复字段和错误类型均拒绝。
 
 比较在 collector 已持有原数据 worker 的临界区内调用，逐项核对 owner/store/schema/database digest、事件数、最后 stream sequence 与实际 config schema。当前实际 database schema 必须有效，即使历史值为空也纳入本次 observation digest；不得回填原报告。历史 `authenticated_content_rows` 原样进入摘要，不声称当前 DTO 已测量该数量。`ArchivedDataIdentity` 的 artifact digest 为原档案原字节摘要；observation digest 覆盖域 `forme-legacy-data-archive-observation-v1`、原来源记录原字节摘要、来源 domain digest、完整 review binding digest、历史身份、历史可空数据库版本及当前实际数据身份。每次比较前后重查同一 custody 与原 deadline；返回一项 evidence 不代表其余七项或数据 guard 已完成验证。
+
+### 9.8 worker 原件与当前静止水位
+
+生产 worker 静止观察不能仅从启动时重放的内存投影计算。它在既有 worker operations 互斥内，从原持锁 writer 文件句柄有界重读完整 journal，按既有 closed envelope/schema、序号、hash chain 和状态迁移重新 fold，再核对实际 sequence/head 与当前 writer 投影一致。仅 Completed/Failed/Cancelled 可返回原 `forme-worker-quiescent-v1` 水位；Pending/Running/CancelRequested/Unknown 继续拒绝。
+
+重读不打开第二 writer、不解除 OS 锁、不追加/修复日志、不重启或重派 job，并恢复原句柄位置。完整且与内存相符的在途状态只拒绝静止观察；原件损坏、有效前缀截断、额外合法记录、同水位异链、读取/位置恢复失败则使该 writer 拒绝后续变更，不能继续引用旧内存水位裁决。总量和单行上限沿用原 worker journal，不增加公开 DTO、冻结 trait 或摘要域。
+
+这证明本次原 writer 与原件的当前一致性；新建空 journal 仍不能证明历史从未执行，当前完整因果链也不能替代独立的历史来源、进程/lease 连续性和其余七项材料。完整原生 collector 与本机恢复仍按前述条件单独验收。

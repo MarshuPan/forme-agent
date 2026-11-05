@@ -451,6 +451,8 @@ Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed�
 
 管理修复私有记录、独立签名域、固定受保护布局、有限替换范围与真实文件/SCM/能力重查按历史审查协议 §9.3。结构/签名 load 与原生 inspection 分开，不能把 receipt 可解析计为已安装修复；原版本和原 journal checkpoint 连续性仍由完整 collector 核实。
 
+worker 当前静止水位须按历史审查协议 §9.8，从原持锁文件有界重放并核对 writer 投影；原件损坏或水位漂移不得继续使用内存结果，也不得通过重建空日志补出历史连续性。普通恢复和源基线沿用同一生产检查。
+
 隔离验收必须覆盖成功/重复/并发 CAS、同 key 改参数、intent 后中断并明确核实、旧 hash 保留/v1–v2 reader 拒绝 v3、正常入口缺源基线以及历史入口的 owner/config/file 漂移/Unknown worker/实际服务不符/迟阶段拒绝、原号不重派、零 stop/start/backup/switch/模型/脑事件。真实安装仍独立按 IP14–15/IP24，组件门不提升该状态。
 
 ### 4.11 交互桌面会话 helper
