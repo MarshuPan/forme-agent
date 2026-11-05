@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 原安装恢复依赖与旧 updater 源码核对
+
+八类历史恢复材料的实现/真实观察/缺项已汇总于[当前证据状态](installed-legacy-recovery-evidence-status-20261106.md)。精确 `694b6bb` 源码证明备份和切换先有持久 intent，但 pending Quiescing 期间可能已经 Stop 服务，不能从 journal 水位推出“没有任何副作用”。原候选、旧诊断脚本/回执与管理员历史预检的 Host 摘要对应；原 Inno receipt 没有绑定 Rust 编译来源，不能借此将 `UpdaterCodeAudit` 记为 Verified。
+
+当前四服务 Stopped，进程未提权，本轮没有原生修改；路径恢复 Apply 精确问题待答复。生产 collector、独立历史来源、签名管理修复/实际迁移和联合 IP 仍开放。缺来源不能靠补签或反复源码回归弥补，本记录也不改变既有冻结协议或授权。
+
 ## 2026-11-06 worker 原件与内存恢复水位一致性
 
 `bca17da` 先细化原件检查，`f83b63e` 修复恢复观察只信 worker 内存投影的问题：在既有 operations 互斥与原文件锁内有界重读完整 journal，重放真实 hash chain 后核对水位；原件损坏或合法截断使 writer 拒绝后续变更，完整在途 job 只拒绝静止观察。十个原创正反场景已加入永久宿主门。
