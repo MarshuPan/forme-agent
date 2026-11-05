@@ -182,4 +182,23 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 
 本节承接[旧脑数据激活与账号衔接](installed-bootstrap-data-activation-20261105.md)。该批正式源码及隔离验证不代表本机接管、原生历史恢复或 IP01–IP24；它没有替换安装程序、启停服务或调用用户配置的 provider。完整 M5/S1–S99 与当前干净源码发布回执在本节单独收取，不沿用 §13 的旧源码/外部审计观察。
 
-本轮全量源码门和对应核心门正在执行；在取得最终日志、干净提交与独立 current-tree 回执之前，本节不声明 `M5 FINAL ACCEPTANCE: PASS`。
+本轮最终驱动的九个门全部 exit 0，`tools/verify-m5.ps1` 于本地时间 **2026-11-05 19:08:14** 完成，实际输出 `M5 FINAL ACCEPTANCE: PASS`。完整 S1–S99、M4/M5 真实多进程 golden、生成/仓库产物独立核验、fmt/check/strict Clippy、全工作区 Rust、Python 89 项（1 项环境跳过）、完整合规和 current-tree 回执比较均通过；不是把旧回执或单独审计脚本的结果当作整门成功。M5 本次耗时约 43 分 52 秒，其内置 M0–M3 历史门包含多次工作区回归；本轮只启动这一次最终 M5 驱动，没有因报告更新重跑整门。
+
+实施源码提交 `67a6bf6`，分层验收报告提交 `007a0d5`，当前源码审计回执提交 `83c7ec6`。完整质量门实际收取 **182 Rust targets、1230 passed / 0 failed / 15 默认 ignored**，前端 **110/110**；永久宿主 **326/326**、身份 **27/27**，配置门 **82** 项及 **4** 项真实临时 Web/Host/Core 进程用例通过。closure A/B/C 与 D `-RuntimeOnly` 分别 **47/47、50/50、36/36、71/71**。重复运行的同一测试不叠加计数；默认忽略与环境跳过不计为通过。当前仍为 **18 crates、99 EventKinds（前 97 个严格前缀不变）及五个已审计 unsafe 边界**；M5 历史终态文案中的 97 指其原冻结前缀，不把当前 taxonomy 总数回退为 97。
+
+原始证据在本工作树 `target/installed-bootstrap-activation-evidence/complete/`：
+
+| 证据 | SHA-256 / 内容地址 |
+|---|---|
+| `m5.log` | `518ac7fb159cece15d5ac8eac1de8a48e3f7b811d4e4563f26a969a26d19ff67` |
+| `verification-summary.json` | `562d198d628578f02c8136e3c7f8821bec806998ef89a51b6f7c6675a9ac07a2`；九个门的退出码与原日志摘要已经逐项重读核对。 |
+| 当前源码发布回执 | `sha256:91118926198b5bff17d78a72ab470b114ce687066edfde6d023376fb2dcf797d`；独立预审、M5 内重新生成、仓库版本及最终比较完全一致。 |
+| 当前源码树摘要 | `sha256:8dfea3b04b2a71fef0f629175470ec3b96e4e93f30890f34e133cabbfb8dc41a`。 |
+
+规范回执为 `docs/acceptance/m5-release-audit-artifacts/release-audit-91118926198b5bff17d78a72ab470b114ce687066edfde6d023376fb2dcf797d.json`。此前 `86cad502…` 回执保留在 Git 历史和 `complete/prior-canonical-release-audit.json`，没有改写旧内容。漏洞审计的非目标平台观察完整保留，包含本轮仍出现的 `async-executor` yanked 提示；没有隐藏观察以制造同摘要。本节属于审计器明确排除的自指验收说明，其提交不改变上述源码树摘要。
+
+整轮构建资源报告为 `complete/build-resources-final.json`，状态 PASS：当前 checkout target 缓存 **44,540,384,730 logical bytes / 41,684,460,515 allocated bytes**，低于 64 GiB 报告阈值，`over_budget=[]`、`errors=[]`。本轮收尾没有清理当前缓存、安装包、运行数据或验收证据。
+
+本次没有运行 Inno 原生退出夹具、调用用户配置的真实 provider、执行新的 C24 live 或 D/Final，也没有本机数据接管、程序替换、journal 迁移、服务启停或原 Upgrade 重发。最终只读 SCM 观察仍为 Host/Web Running（PID 37740/75344），Brain/updater Stopped；当前安装并未因此变成新源码。已另备一次原 journal 停服采样方案及固定脚本（`target/legacy-release-review/native-offline-source-window-plan-20261105.md`），PowerShell 5.1/7 各 48 项纯 guard/AST 夹具通过，实际窗口仍待 owner 批准，未执行。
+
+本轮已批准的旧脑离线激活与账号衔接源码及隔离验收闭合；真实原生 collector、历史档案本源/连续性、管理 reader 修复、本机接管与 IP01–IP24 联合验收仍开放，整体产品目标不标记完成。Linux/macOS 继续保持有限恢复与不发布边界。
