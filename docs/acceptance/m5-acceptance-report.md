@@ -255,3 +255,13 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 任务末资源报告 PASS：固定 target 缓存 **44,542,010,685 logical / 41,685,985,618 allocated bytes**，低于 64 GiB 阈值，`over_budget=[]`、`errors=[]`。本轮未清理缓存、安装包、数据、密钥或验收原件。
 
 本次没有合入 main、推送、替换已安装程序、修改 SCM、迁移 journal、接管数据或启停服务。末次只读 SCM 核实为四服务均 Stopped/PID 0；§14–15 的 Running 是当时的历史观察。生产历史 collector 与独立信任装配、可信历史材料、实际签名管理修复/迁移、真实 provider 和 IP01–IP24 联合验收仍开放；Linux/macOS 保持已批准的有限恢复与不发布边界。已备[原 Host 路径表示修正与限定启动方案](installed-original-host-path-restore-20261105-plan.md)，其精确 Apply 尚待已有确认，未执行。本次只闭合当前源码 M5，不把整体产品目标标记完成。
+
+## 17. 历史档案来源组件后的完整当前源码终验（2026-11-06）
+
+在干净源码提交 `441d765` 上完整执行一次 `tools/verify-m5.ps1`，exit 0，终线为 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、M4/M5 多进程 golden、格式、workspace check、strict Clippy、全工作区 Rust、Python、完整合规、历史 M4 receipt 以及 M5 current-tree receipt 的生成、独立验证和比较均通过。workspace 阶段为 **182 targets、1252 passed / 0 failed / 15 默认 ignored**；Python discover **95 项、1 项环境跳过**。完整日志留在 `target/legacy-release-review/legacy-data-archive-final-m5-20261106.log`，SHA-256 `06b2f74c2892fb81bb3b7cc6a5ce1942ca1c0cd7eec93b79f078ccc2f4ee02c2`。该次运行时 receipt 为 `sha256:095c4c3ccd18d88aae716b69a935ded089440d893a655cdd4804184922cd4a59`。
+
+随后只更新了本验收说明与档案组件验收说明，没有改代码。按完整审计规则重新生成的最终 current-tree receipt 为 `sha256:933cbcb632fa88f1389a8c1f64ca3b20172795d20e32a5f5e89a655b2defd79c`，源码树摘要为 `sha256:18a9880f91bd5925dd5574891106f0eda7fc5d2688f990982f3eab2d5b0d9d17`；8 项审计检查全部 PASS，仓库工件独立验证与 compare 均 PASS。规范工件为 `m5-release-audit-artifacts/release-audit-933cbcb632fa88f1389a8c1f64ca3b20172795d20e32a5f5e89a655b2defd79c.json`。此前 `095c4c...` 与 `d0dcbf...` 回执分别留存在本地 `target/legacy-release-review/`，并保留于 Git 历史。
+
+本轮永久 Host 门 exit 0：348 个命名检查 PASS，其中 17 项覆盖历史档案来源与数据身份比较。该门明确 `IP01-IP24: NOT_RUN`；M5 和 Host 源码门不证明真实安装、IP14–IP15/IP24 或完整历史恢复。`legacy_data_archive` 仍只在 `cfg(test)` 构建，生产 `LegacyReviewCollector` 与可信来源配置尚未接通；整个产品目标保持 active。
+
+终验后 build-resource report 为 PASS：当前 target **44,543,036,463 logical / 41,687,011,396 allocated bytes**，低于 64 GiB，`over_budget=[]`、`errors=[]`；未清理 Cargo 缓存或其他数据。M5 report 属于发布审计自指排除项，此节回填不改变上述最终 current-tree receipt。
