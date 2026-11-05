@@ -119,4 +119,14 @@ Host 的独立接口为 `legacy_release_review`、`owner_legacy_release_recovery
 
 首次请求必须在原 takeover 授权已过期后发起，新的请求/核实各自最多 120 秒，且都不得超过报告期限。核实可以晚于首次请求期限，但必须仍在报告有效期内，绑定同一 request digest 和 intent revision；提交时间不得早于 intent。query/idempotent lookup 不延长期限、不重查后提交。原 takeover 的 deadline 永不修改。
 
-生产装配在真实原生 collector、独立信任配置和管理 reader 修复尚未闭合时不挂载该接缝，Host 返回 unavailable；不得提供默认 Verified collector 或借测试注入开启生产。隔离 collector 只验证编排、验签与拒绝语义。正式 HTTP/Web 接线和本机迁移仍分别记为未完成，不把私有 journal 场景称为 Host/HTTP 验收。
+生产装配在真实原生 collector、独立信任配置和管理 reader 修复尚未闭合时不挂载该接缝，Host 返回 unavailable；不得提供默认 Verified collector 或借测试注入开启生产。隔离 collector 只验证编排、验签与拒绝语义。正式 HTTP/Web 接线与本机迁移分别记录证据，不把私有 journal 场景称为 Host/HTTP 验收。
+
+### 9.2 正式 HTTP/Web 接线与中断后只读恢复
+
+本节细化已批准的五个接口与原号核实语义，不新增 DTO、trait 或授权来源。Host 路由仅在 Configuration listener 认证后分派；Maintenance 和 AgentExecution 域不能使用这组路径。Web 的两个 POST 先核对实际 owner session、Origin/CSRF、`Idempotency-Key=operation_id`、closed body 和独立 request/verification digest 的口令重新认证，再转发不含密码的产品对象；请求不能指定 owner、报告正文、证据、文件路径、公钥或 Verified。
+
+页面刷新只 GET 最近列表和原报告。对已记录的 Intent，Host 读取 journal 中与该原升级绑定的**同一份已签报告**，仍核对签名、owner/config/active release、原 request、期限与 intent 水位；不得重新出具报告、替换 digest、追加事实或调用 collector 来完成决定。原请求已过期但报告仍有效时，查询仍可取得该报告的原期限；报告过期或水位/绑定漂移则拒绝。首次新请求仍要求报告的原 head/sequence 为当前 checkpoint，普通缺基线入口继续拒绝。
+
+显式 verify 使用查询取得的报告原期限及当前 intent revision，重新认证且最多授权 120 秒；不能猜测期限、重发初始 apply 或延长原升级。Host 在 verify 中重新取得真实材料/worker/服务观察并执行 CAS。断线只保留原号查询；已 Committed 的结果不能再次执行。owner/API/维护水位变化后，页面丢弃旧报告并屏蔽迟到响应。
+
+浏览器重建 report binding/report/request digest 时，沿用 protocol 的 domain 与 Rust struct 声明字段顺序；不使用 sorted-key JSON 或 HTTP 属性到达顺序。Rust/TypeScript 使用共同 golden 验证，浏览器检查只用于发现传输/绑定错误，不能替代 Host 的签名、材料来源和执行前重查。组件与正式 HTTP 的证据见[接线验收](../../acceptance/installed-legacy-release-http-web-20261105.md)，原生材料和实际迁移继续单列。
