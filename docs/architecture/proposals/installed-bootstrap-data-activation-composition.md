@@ -66,6 +66,12 @@
 
 ## 6. 回填与验收
 
+内部数据执行使用固定 `forme-hostctl maintenance-bootstrap-data` 有限管道，不接受浏览器路径。`Prepare` 绑定原 request 与完整 selected candidate；Host 在派发前持久化 `ClaimDataIntentV2`，worker 在 `host-state/bootstrap-data/<installation+operation digest>/intent.json` 以 create-new+sync 持久化相同绑定。目标固定为 `brain/bootstrap-data/<同一摘要>/forme.db` 与 `forme.content-keys`；产物复制到安装模板的空 artifact_root，源与目标树均限制深度、条目数和总字节并拒绝链接/别名。候选观察包含产物树摘要。已有非空目标或 intent 均不得再次 Prepare。
+
+worker 通过既有 Store backup/restore 在新副本封存执行授权水位；独立重读新副本、复制后的 keys 和产物后，持久化 `prepared.json`，返回 `BootstrapDataPreparedResultV2`（原 prepared、真实 `ProductDataBinding`、产物树摘要与验证摘要）。目标 binding 摘要使用 `canonical_digest(("forme-bootstrap-active-data-v2", binding, artifact_digest))`。worker 保持源/目标锁与文件 custody，直到受控释放或进程退出。
+
+Host 的 config→claim 互斥顺序覆盖完整操作，revision 0 的 owner/data CAS 使用原 receipt digest 作为幂等绑定。`Confirm` 只带原 receipt、受保护 config snapshot 的 opaque revision ref 与摘要；固定 verifier 从模板派生快照路径，重新核对实际 owner/revision/models/active_data、未发布 core 配置、新目标/keys/manifest/replay/执行水位及产物。返回前持久化独立 `confirmation.json`；Host 对原 commit/快照/目标再次匹配，追加 `ClaimDataBindingConfirmedV2` 后才允许 activation。`Release` 仅释放该管道，不进行清理或启动服务。所有内部帧带 schema 2，使用既有有界帧、截止时间和子进程回收；stdout 不含 keys、口令或模型凭据。
+
 确认后先回填 legacy-claim 提案 §3–6、prd/25 §3/§5.1、architecture/10 §3/§8 及必要的 canonical §29.5，再实现 additive 对象和正式装配。schema 1 新脑流程与既有 runtime ack 不改语义。
 
 隔离验收须覆盖完整成功链及第 5 节每一中断点、错误签名、公钥替换、candidate/receipt/account/config TOCTOU、revision 0 CAS 并发、原号重取、跨 owner/已认领拒绝、零空脑替代、激活前零 Brain 启动、激活后仍未配置且无假 runtime ack、模型配置后真实自动启动与 ack。通过隔离验收不代表本机接管或 IP13/IP24 原生验收。
