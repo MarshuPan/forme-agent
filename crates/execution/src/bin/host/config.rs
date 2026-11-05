@@ -238,6 +238,10 @@ pub(crate) struct HostRuntimeConfig {
 
 pub(crate) enum Launch {
     RecoveryCapabilities,
+    InspectLegacyRepairSource {
+        installation: PathBuf,
+        operation: String,
+    },
     Development {
         process_workers: bool,
     },
@@ -259,6 +263,23 @@ pub(crate) fn launch_from_args(
     let args: Vec<_> = args.into_iter().collect();
     match args.as_slice() {
         [flag] if flag == "--release-recovery-capabilities" => Ok(Launch::RecoveryCapabilities),
+        [inspect, installation_flag, path, operation_flag, operation]
+            if inspect == "--inspect-legacy-repair-source"
+                && installation_flag == "--installation"
+                && operation_flag == "--operation" =>
+        {
+            let installation = PathBuf::from(path);
+            reject_path(&installation)?;
+            let operation = operation
+                .to_str()
+                .ok_or_else(|| p::Error("inspection operation is invalid".into()))?
+                .to_owned();
+            p::validate_product_id(&operation)?;
+            Ok(Launch::InspectLegacyRepairSource {
+                installation,
+                operation,
+            })
+        }
         [] => Ok(Launch::Development {
             process_workers: false,
         }),

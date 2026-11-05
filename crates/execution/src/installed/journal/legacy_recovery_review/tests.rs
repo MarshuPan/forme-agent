@@ -7,6 +7,8 @@ const INSTALL: &str = "install:legacy-review";
 const ORIGINAL: &str = "upgrade:legacy";
 const OWNER: &str = "owner:legacy";
 
+#[path = "offline_source_tests.rs"]
+mod offline_source_tests;
 #[path = "source_tests.rs"]
 mod source_tests;
 

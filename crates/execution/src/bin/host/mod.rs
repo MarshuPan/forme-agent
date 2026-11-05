@@ -31,6 +31,25 @@ pub(super) fn run() -> p::Result<()> {
     let launch = launch_from_args(std::env::args_os().skip(1))?;
     let launch = match launch {
         Launch::RecoveryCapabilities => return recovery_capabilities::run(),
+        Launch::InspectLegacyRepairSource {
+            installation,
+            operation,
+        } => {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .and_then(|elapsed| i64::try_from(elapsed.as_millis()).ok())
+                .ok_or_else(|| p::Error("inspection clock is unavailable".into()))?;
+            let source = forme_execution::installed::inspect_existing_legacy_source(
+                &installation,
+                &operation,
+                now,
+            )?;
+            serde_json::to_writer(std::io::stdout().lock(), &source)
+                .map_err(|_| p::Error("inspection output is unavailable".into()))?;
+            println!();
+            return Ok(());
+        }
         Launch::VerifyRelease {
             root,
             trust,
@@ -69,7 +88,9 @@ pub(super) fn run() -> p::Result<()> {
                     "Windows service dispatcher failed: {error}"
                 ))),
             },
-            Launch::VerifyRelease { .. } | Launch::RecoveryCapabilities => Err(p::Error(
+            Launch::VerifyRelease { .. }
+            | Launch::RecoveryCapabilities
+            | Launch::InspectLegacyRepairSource { .. } => Err(p::Error(
                 "offline verification cannot start a service".into(),
             )),
         }
@@ -85,7 +106,9 @@ pub(super) fn run() -> p::Result<()> {
         Launch::ReleaseUpdater(_) => Err(p::Error(
             "native independent release updater is unavailable on this platform".into(),
         )),
-        Launch::VerifyRelease { .. } | Launch::RecoveryCapabilities => Err(p::Error(
+        Launch::VerifyRelease { .. }
+        | Launch::RecoveryCapabilities
+        | Launch::InspectLegacyRepairSource { .. } => Err(p::Error(
             "offline verification cannot start a service".into(),
         )),
     }

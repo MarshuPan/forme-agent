@@ -2,7 +2,7 @@
 use std::{
     collections::BTreeSet,
     fs::{self, File, OpenOptions},
-    io::Read,
+    io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
 
@@ -13,10 +13,11 @@ use super::invalid;
 use crate::installed::reject_linked_ancestors;
 
 #[derive(Default)]
-pub(super) struct ReadCustody {
+pub(crate) struct ReadCustody {
     directories: BTreeSet<PathBuf>,
     files: Vec<File>,
     records: Vec<(PathBuf, p::SchemaDigest)>,
+    exclusive_records: Vec<(PathBuf, usize, u64, p::SchemaDigest)>,
 }
 
 impl ReadCustody {
@@ -45,6 +46,28 @@ impl ReadCustody {
 
     pub fn read(&mut self, path: &Path, limit: u64) -> p::Result<Vec<u8>> {
         let length = self.pin(path, limit)?;
+        self.read_pinned(path, length, limit, false)
+    }
+
+    /// Inspect an existing original while retaining its OS lock until custody
+    /// drops. A live writer is an error, never a reason to read a loose copy.
+    pub fn read_exclusive(&mut self, path: &Path, limit: u64) -> p::Result<Vec<u8>> {
+        let length = self.pin(path, limit)?;
+        self.files
+            .last()
+            .ok_or_else(invalid)?
+            .try_lock()
+            .map_err(|_| invalid())?;
+        self.read_pinned(path, length, limit, true)
+    }
+
+    fn read_pinned(
+        &mut self,
+        path: &Path,
+        length: u64,
+        limit: u64,
+        exclusive: bool,
+    ) -> p::Result<Vec<u8>> {
         let file = self.files.last().ok_or_else(invalid)?;
         let mut bytes = Vec::new();
         file.take(limit.checked_add(1).ok_or_else(invalid)?)
@@ -53,8 +76,13 @@ impl ReadCustody {
         if bytes.len() as u64 != length {
             return Err(invalid());
         }
-        self.records
-            .push((path.to_path_buf(), p::sha256_content_digest(&bytes)));
+        let digest = p::sha256_content_digest(&bytes);
+        if exclusive {
+            self.exclusive_records
+                .push((path.to_path_buf(), self.files.len() - 1, length, digest));
+        } else {
+            self.records.push((path.to_path_buf(), digest));
+        }
         Ok(bytes)
     }
 
@@ -67,6 +95,48 @@ impl ReadCustody {
             if crate::installed::file_digest(path)? != *digest {
                 return Err(invalid());
             }
+        }
+        for (path, index, length, digest) in &self.exclusive_records {
+            let mut file = self.files.get(*index).ok_or_else(invalid)?;
+            reject_linked_ancestors(path)?;
+            let current = fs::symlink_metadata(path).map_err(|_| invalid())?;
+            let pinned = file.metadata().map_err(|_| invalid())?;
+            if !current.is_file() || current.len() != *length || pinned.len() != *length {
+                return Err(invalid());
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                if current.dev() != pinned.dev()
+                    || current.ino() != pinned.ino()
+                    || pinned.nlink() != 1
+                {
+                    return Err(invalid());
+                }
+            }
+            #[cfg(windows)]
+            if crate::installed::windows_appcontainer_acl::inspect_file(file)?.1 != 1 {
+                return Err(invalid());
+            }
+            let position = file.stream_position().map_err(|_| invalid())?;
+            let result = (|| {
+                if file.metadata().map_err(|_| invalid())?.len() != *length {
+                    return Err(invalid());
+                }
+                file.seek(SeekFrom::Start(0)).map_err(|_| invalid())?;
+                let mut bytes = Vec::new();
+                (&mut file)
+                    .take(length.checked_add(1).ok_or_else(invalid)?)
+                    .read_to_end(&mut bytes)
+                    .map_err(|_| invalid())?;
+                if bytes.len() as u64 != *length || p::sha256_content_digest(&bytes) != *digest {
+                    return Err(invalid());
+                }
+                Ok(())
+            })();
+            file.seek(SeekFrom::Start(position))
+                .map_err(|_| invalid())?;
+            result?;
         }
         Ok(())
     }

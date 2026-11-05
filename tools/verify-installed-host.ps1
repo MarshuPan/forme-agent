@@ -178,6 +178,16 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::legacy_recovery_review::tests::source_tests::$name" }
 
     foreach ($name in @(
+        "offline_original_reports_actual_checkpoint_without_writing_or_exposing_tokens",
+        "offline_original_refuses_live_writer_and_holds_its_own_lock_until_drop",
+        "offline_original_custody_blocks_replacement_or_detects_changed_path_identity",
+        "offline_original_never_creates_missing_or_initializes_empty_files",
+        "offline_original_refuses_hardlink_aliases_and_foreign_identity_without_changes",
+        "offline_original_replays_historical_absent_defaults_using_original_fact_bytes",
+        "offline_original_rejects_corruption_unknown_schema_and_invalid_causality_without_repair"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::journal::legacy_recovery_review::tests::offline_source_tests::$name" }
+
+    foreach ($name in @(
         "release_recovery_host_commits_once_then_old_release_replay_and_queries_are_effect_free",
         "release_recovery_host_intent_fault_requires_explicit_verification_and_never_retries_on_replay",
         "release_recovery_host_rejects_missing_baseline_and_service_data_file_worker_drift"
@@ -189,6 +199,8 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "recovery_cases::$name" }
 
     Invoke-NamedTest "forme-execution" @("--test", "installed_release_recovery_capabilities") "release_recovery_capability_mode_is_closed_and_never_loads_host_configuration"
+    Invoke-NamedTest "forme-execution" @("--test", "installed_release_recovery_capabilities") "offline_source_inspection_never_falls_through_to_runtime_or_creates_missing_files"
+    Invoke-NamedTest "forme-execution" @("--test", "installed_legacy_source_inspection") "offline_source_child_uses_fixed_original_and_rejects_writer_alias_or_manifest_drift"
     foreach ($name in @(
         "release_recovery_http_owner_csrf_reauthentication_and_closed_input_precede_host_io",
         "release_recovery_verification_is_separate_closed_owner_action_and_plain_maintenance_cannot_adjudicate"

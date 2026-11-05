@@ -57,3 +57,30 @@ fn release_recovery_capability_mode_is_closed_and_never_loads_host_configuration
     };
     assert!(incompatible.validate().is_err());
 }
+
+#[test]
+fn offline_source_inspection_never_falls_through_to_runtime_or_creates_missing_files() {
+    let root = tempfile::tempdir().unwrap();
+    let manifest = root.path().join("installation.json");
+    let journal = root.path().join("must-not-create.journal");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_forme-hostd"));
+    command
+        .args(["--inspect-legacy-repair-source", "--installation"])
+        .arg(&manifest)
+        .args(["--operation", "upgrade:original"])
+        .env_clear()
+        .env("FORME_HOST_JOURNAL_PATH", &journal)
+        .current_dir(root.path())
+        .stdin(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+    let output = command.output().unwrap();
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert!(!journal.exists());
+    assert!(!manifest.exists());
+    assert_eq!(std::fs::read_dir(root.path()).unwrap().count(), 0);
+}

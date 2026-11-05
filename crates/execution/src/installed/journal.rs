@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use super::reject_linked_ancestors;
 mod legacy_recovery_review;
 mod legacy_source;
+mod offline_source;
+pub use offline_source::{inspect_existing_legacy_source, LegacyRepairSourceSnapshot};
 #[path = "network_journal.rs"]
 mod network_journal;
 mod projection;

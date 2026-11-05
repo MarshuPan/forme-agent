@@ -2,7 +2,7 @@
 //! Loading verifies artifacts. Only an actual native inspection proves the
 //! current images, configuration, SCM registration and fixed updater capability.
 mod objects;
-mod storage;
+pub(crate) mod storage;
 
 use std::{path::PathBuf, time::Instant};
 
