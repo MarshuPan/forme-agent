@@ -153,3 +153,13 @@ plan/receipt 的签名消息分别为 `canonical_digest(("forme-management-reade
 实现明确分为两层：`ManagementReaderRepairEvidence::load` 仅验证独立信任、完整分发、签名及原安装/owner/operation/release/journal checkpoint 的绑定；它不返回历史审查 Verified。`inspect_current` 才读取固定六个实际 image、六配置、真实四服务的身份/参数/恢复策略和固定 updater 的实际 3/3 离线能力，核对与签名 receipt 一致。Windows 保持实际文件与祖先目录的只读 handle custody，拒绝多硬链接，直到 inspection 释放；提交前 `recheck` 重查记录、闭合文件集合、程序、配置、SCM 与准确能力。非 Windows 没有原生适配时拒绝，受控观察只用于隔离测试。
 
 这些动作不写 product/brain journal、不备份或切换业务数据、不启停服务；离线 capabilities 子进程只读固定协议。原 updater 源码/构建来源、历史材料本源、worker 因果链和数据独占检查仍属于其余七类材料，不能由一个可验签管理回执代替。真实 collector、精确本机修复与 IP14–15/IP24 的整体状态仍独立登记。
+
+### 9.4 原持锁 writer 的真实 journal 检查
+
+`OriginalJournal` 不由 collector 的报告或另一个文件副本自证。Host 从产品 journal 的原持锁文件句柄读取有界原字节，沿用既有 closed envelope、原始 JSON fact 摘要、schema floor 与纯 projection fold，重新验证完整因果链；实际末尾的 sequence/head 必须仍与该 writer 的内存投影一致。检查结束恢复句柄位置，不追加事实、不打开第二 writer、不解除 OS 锁。实际读取、重放或位置恢复失败后，该 writer 拒绝继续变更。
+
+报告的原 checkpoint 必须在实际链中存在且 head 一致。首次观察要求它就是当前末尾；原号 verify 只容许其后恰好存在同一份已保存报告绑定的历史恢复 Intent，仍以既有全局互斥、原 operation 阶段、配置及 CAS 规则校验。任意其他后缀、提前阶段、晚阶段、已完成决定、缺基线条件不符或不同 owner/command/release 均拒绝。
+
+该项 `artifact_digest` 为直到原 checkpoint（含各行换行）的真实原字节 SHA-256；`binding_digest` 沿用同一 report binding digest；`observation_digest` 为 `canonical_digest(("forme-legacy-original-journal-v1", binding_digest, prefix_byte_length, original_takeover_digest))`。摘要不含原文或路径。Host 在真实 inspection 之内、决定追加之前重新计算并与已签报告的第一项逐字段比较，不因 collector 回传相同报告而省略原句柄检查。
+
+这只闭合原 journal 的本源与因果核查，不代替历史数据、原 updater 审计、worker 连续性、管理修复、独占数据检查或完整原生 collector；未实现的材料仍保持 unavailable。
