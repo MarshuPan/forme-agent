@@ -230,3 +230,28 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 上一规范回执保留在 Git 历史及本目录 `prior-canonical-release-audit.json`。本节仍属于审计器明确排除的自指验收说明，不改变当前源码树摘要，不为记录本节重跑整门。
 
 本次未合入 main、推送、替换安装程序、迁移 journal、接管数据或启停服务。结束时只读观察仍为 Host/Web Running、Brain/updater Stopped；原 journal 离线采样的 create-new 结果文件仍不存在，原一次性确认尚待答复。生产 collector、可信历史材料、独立管理修复、本机升级和完整 IP 联合验收继续开放；去重通过不代表这些义务完成。下一步现场动作仍受[已批准恢复方案 §4](../architecture/proposals/installed-legacy-release-recovery-review.md#4-实际本机迁移前的第二道审查)及已备固定采样计划约束。
+
+## 16. 历史恢复持锁修复与当前源码 M5 闭合（2026-11-05）
+
+`3d491d6` 在原服务查询之后、写 Intent 之前，以及最终观察摘要计算之后、Committed 之前，重新检查同一个 inspection guard 与原截止时间。Intent 前失锁拒绝且零新事实；Intent 后失锁保留原操作，只有显式原号 verify 才可重新核实。该修复后的 closure A/B/C 与 D `-RuntimeOnly` 分别为 **47/47、50/50、36/36、71/71**，原封存回执继续保留其真实来源 `3d491d6`。这些是该源码时点的运行场景证据，不包含新的 C24 live、D/Final 或原生 IP 验收。
+
+首次在干净 `19fe88d` 运行的完整 M5 于 **22:51:52** 失败：`installed_bootstrap_candidates` 的备份恢复用例在创建夹具根目录时收到 Windows `AlreadyExists`（183），尚未进入产品安装准备。夹具原先仅用进程号和系统时间命名，不能保证同进程并发隔离。`9dbd4a6` 增加进程内原子序号；没有降低测试并发、修改产品接口或放宽断言。原八项初始化/旧脑/备份场景定向通过，随后提交前的完整质量门为 **182 Rust targets、1235 passed / 0 failed / 15 默认 ignored**，fmt/check/strict Clippy、质量棘轮、完整默认合规与 diff check 全部通过。原失败日志完整保留，不改写为成功。
+
+发布审计回执以 `e59637f` 单独提交后，在该干净提交完整运行一次 `tools/verify-m5.ps1`，本地时间 **23:10:20–23:28:23**，耗时 **1083.45 秒（18 分 03 秒）**，exit 0，实际输出 `M5 FINAL ACCEPTANCE: PASS`。S1–S99、M4/M5 多进程 golden、生成及仓库工件独立核验、fmt/check/strict Clippy、全工作区、Python、完整合规与最终 current-tree 回执比对均通过。按本次日志中唯一的 workspace 阶段统计，仍为 **182 targets、1235 passed / 0 failed / 15 默认 ignored**；Python discover **95 项、1 项环境跳过**。定向、提交前与 M5 内的重复执行不叠加计数。历史终态文案的 97 指 M5 冻结前缀，当前仍保持 18 crates、99 EventKinds 与五个已审计 unsafe 边界。
+
+原始材料保存在本工作树 `target/legacy-release-review/`：
+
+| 证据 | SHA-256 / 内容地址 |
+|---|---|
+| 首次失败的 `legacy-custody-m5-final-19fe88d.log` | `dda7a86dbab63940362f341d4cb0f61bd47d755857d9714a8d9cfcc49ac1ba91` |
+| 提交前完整质量门 `bootstrap-fixture-isolation-verification-20261105.log` | `0d6d5c25f11f7bdeb3da9cab80524ca05d2f73de151f8430c6854a896868b879` |
+| 最终 M5 `legacy-custody-m5-final-after-fixture-isolation-20261105.log` | `2e8da959ce0e6128dfe946f800e98befdca4299ae7626a296499bfd96c788206` |
+| 当前源码发布回执 | `sha256:d0dcbf0cd138997fa91acd0cd33fe76f665727bcc780f1362c4dc907b7d0823c`；预审、M5 内重新生成、仓库版本及最终比较一致。 |
+| 当前源码树摘要 | `sha256:52ec30f6e42e45754d80b6a3e60da878d1d2fdfa18d484ec3499c03fed3d8fca` |
+| `legacy-custody-final-build-resources-20261105.json` | `cd69092e9afc529c39c8bbe6d5d220e850b2bbdb427326a95646087ea724ec54` |
+
+规范回执为 `docs/acceptance/m5-release-audit-artifacts/release-audit-d0dcbf0cd138997fa91acd0cd33fe76f665727bcc780f1362c4dc907b7d0823c.json`。上一 `654beab0…` 回执保留在 Git 历史及 `prior-m5-before-fixture-isolation-19fe88d.json`；审计的非目标平台 advisory、unmaintained 与 yanked 观察均完整保留。本节属于既有自指验收说明排除集，其提交不改变上述源码树摘要，不因此重跑无变化的整门。
+
+任务末资源报告 PASS：固定 target 缓存 **44,542,010,685 logical / 41,685,985,618 allocated bytes**，低于 64 GiB 阈值，`over_budget=[]`、`errors=[]`。本轮未清理缓存、安装包、数据、密钥或验收原件。
+
+本次没有合入 main、推送、替换已安装程序、修改 SCM、迁移 journal、接管数据或启停服务。末次只读 SCM 核实为四服务均 Stopped/PID 0；§14–15 的 Running 是当时的历史观察。生产历史 collector 与独立信任装配、可信历史材料、实际签名管理修复/迁移、真实 provider 和 IP01–IP24 联合验收仍开放；Linux/macOS 保持已批准的有限恢复与不发布边界。已备[原 Host 路径表示修正与限定启动方案](installed-original-host-path-restore-20261105-plan.md)，其精确 Apply 尚待已有确认，未执行。本次只闭合当前源码 M5，不把整体产品目标标记完成。
