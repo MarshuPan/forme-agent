@@ -117,3 +117,23 @@ owner 回复重新唤起后，20:05 独立诊断实际完成：SCM 无 ForMe 服
 实现提交 `de28e02`。定向检查已通过：NTFS/权限 9/9、原生 Inno 成功/失败退出及诊断脱敏 2/2、bundle/native-package 19/19、规模棘轮；未刷新 baseline。完整源码门 exit 0：182 Rust targets、1301 passed / 0 failed / 16 默认 ignored，strict Clippy、前端 115/115、签名验证、原生夹具与完整合规均通过。`installer-diagnostic-source-gate.log` 的 SHA-256 为 `c0536d58b067afcf0112d851f58ceafa3b4b7c25ddc8d9a32eb60e728669f941`。新候选必须从干净提交生成，后续以独立文件记录安装结果；不得覆盖前述两次安装失败。
 
 下一步以包含诊断的新候选确定实际失败阶段，再推进安装、文件、停启备份与升级。整体目标未完成，源码测试通过不证明目前本机有可用 ForMe 服务。
+
+## 9. 新诊断候选的实际失败与比较边界
+
+干净源码 `07d0bdc5cbac64286dbe6c2ec5d2b9f480a43cf9` 已构建为 `forme-windows-x86_64-20261106-07d0bdc`，安装器 SHA-256 为 `548280d49f70c3116c9522fd913a8a7679e128fe84d1f399ef1145ec61153707`，构建观察 SHA-256 为 `da264bb93a421c342b9ef4fdcba20cad162a494557a4b5a90703b560de59e04d`。同批程序另有独立验证的 `-ip14` 签名候选，digest 为 `sha256:b87b05f61a245565e9179895fec8d311f7920bb1f8cf9185983764fd718f0240`；尚未 Stage/Upgrade。开发 Authenticode 链仍不被系统信任，`release_ready=false`，没有安装系统信任或改变防火墙。
+
+21:02 固定管理员窗口实际启动（PID 46464），不需要逐子步骤再次提权。新安装器只调用一次；helper child exit 1，诊断为 `stage=5 source=2 line=101 hresult=-2146233087 category=13`，随后 Inno exit 7。该位置为原 ProgramRoot 的 `Get-Acl -LiteralPath`，不是第 106 行的 DACL/owner 不匹配断言。分类 13 为 ObjectNotFound；现有有界诊断尚不能区分 cmdlet 查找、provider/path 或其他具体来源，不能直接认定权限错误、位数错误或根因已修复。
+
+没有复制 payload、创建 installation identity 或登记服务；所有下游步骤均未执行，也没有再次重置两个根。最新失败回执优先，不能因其失败退回旧成功回执。历史原件与本次独立输出都保留：
+
+| 工件（`target/native-legacy-review-20261106/`） | SHA-256 |
+|---|---|
+| `installer-diagnostic-installation.json` | `054b7c638bfd170c94d234be8373f2ac7f7042c0e738302fcfffcf84fb723c3f` |
+| `installer-diagnostic-install.log` | `c780f28ca3f9b7d500d6039d31febca724cca929ef2e82360cab9663e0ba61c3` |
+| `installer-diagnostic-window.json` | `7392aa027eeee67bfb872fc58745d21ce0330620c41beda8e672826afb3ddc28` |
+
+21:04 的原生 cold ACL 只读比较和 21:06 未预载 `Get-Acl` 的原 helper 比较均以 64-bit、固定参数完成，child exit 0，零根/服务写入；这些比较没有复现真实包失败。21:10 的完整源模板 Prepare-only 夹具也得到 helper child exit 0，但该夹具未压缩/未签名，且强制在任何 payload 前终止，所以仍不能证明真实签名安装成功或确定环境根因。首版生成器因 JavaScript replacement string 的特殊替换序列生成无效 PowerShell，未取得有效诊断；其工件保留，V2 改用 replacement callback 并通过 PowerShell 5.1/7 解析后才执行，不以首版结果充数。
+
+21:11 发起的独立父进程环境比较只允许复现权限预检和 Prepare-only 夹具，不含实际安装、服务变更或 ACL 修复；launcher session 45067 随后由 Windows 返回“操作已被用户取消”，没有有效管理员 PID，也无 `nested-result.json`。包装命令仍打印了 `process_id=null`，不是启动证据；不得把本次取消视为比较已执行或继续叠加提权请求。最近一次原生观察中两个根为空且受保护，SCM 零 ForMe 服务，Product URL 不可用，IP01/IP24 未通过。
+
+构建空间报告已保存为 `installer-diagnostic-build-resources.json`：统计完成、无扫描错误；当前工作树缓存约 42.12 GiB logical / 39.30 GiB allocated，低于 64 GiB 约定。另一个 `C:\code\forme` 工作树仍超预算；本轮未清理任何缓存、安装工件或验收证据。后续统一从管理员维护进程执行已获授权的固定批次；Codex 完全访问不授予当前 Windows 进程管理员令牌。

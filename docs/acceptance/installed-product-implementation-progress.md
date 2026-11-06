@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 21:02 新诊断候选仍未安装，失败已定位至 ACL 读取
+
+实现 `de28e02` 与文档 `07d0bdc` 已提交，完整源码质量门 exit 0（1301 Rust passed / 0 failed / 16 默认 ignored、前端 115/115、strict Clippy、完整合规及原生夹具）。干净 `07d0bdc5cbac64286dbe6c2ec5d2b9f480a43cf9` 的新开发签名候选于 21:02 实际执行一次：权限 helper child exit 1，阶段 5、`service-access.psm1` 第 101 行的 `Get-Acl`、HRESULT -2146233087、分类 13；Inno exit 7。新诊断证明失败发生在原 ProgramRoot 的 ACL 读取，不能据此认定 DACL 不匹配或直接放宽权限。
+
+没有复制 payload、创建新 identity 或登记服务；后续正式信任、认领、模型、文件、停启及升级全部未执行。独立只读 ACL/原 helper 比较和 Prepare-only 完整包夹具又能通过，没有重现真实签名包的错误；完整包夹具强制在 payload 前终止，不是安装或 IP 通过。另有一份生成错误的夹具结果无效，保留其失败。21:11 发起的父进程环境比较随后被 Windows 返回 UAC 取消，没有有效管理员 PID 或实际结果；当前没有运行中的完整安装，零 ForMe 服务，整体目标未完成。精确回执与待验证边界见[本轮验收 §9](installed-product-service-settle-acceptance-20261106.md#9-新诊断候选的实际失败与比较边界)。下文为各批次历史。
+
 ## 2026-11-06 19:54 测试重置已执行，重新安装在目录准备阶段失败
 
 服务观察修正 `4c7062f`、离线备份摘要修正 `46c0168` 已分别提交；完整源码门 1301 Rust passed / 0 failed / 16 默认 ignored、前端 115/115、strict Clippy/合规/原生安装器退出夹具及宿主 387/387 均通过。干净 `fac72eb` 已生成安装候选及独立验证的 `-ip14` 签名候选，仅限本地开发验收，`release_ready=false`。
