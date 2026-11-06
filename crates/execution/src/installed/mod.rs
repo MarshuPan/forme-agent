@@ -40,6 +40,8 @@ mod sandbox_lease;
 mod service;
 mod web_health;
 #[cfg(windows)]
+mod windows_agent_execution_identity;
+#[cfg(windows)]
 mod windows_agent_execution_native;
 #[cfg(windows)]
 mod windows_appcontainer;

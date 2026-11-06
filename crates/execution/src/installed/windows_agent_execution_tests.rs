@@ -5,6 +5,132 @@ use std::{
     time::{Duration, Instant},
 };
 
+// These use the current-user namespace, not the installed service identities.
+fn fixture_listener() -> (OwnedHandle, String) {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let name = format!(
+        r"\\.\pipe\forme-agent-execution-v1-io-fixture-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    );
+    (create_pipe_instance(&name, true, None).unwrap(), name)
+}
+
+fn fixture_server(owned: OwnedHandle) -> File {
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while matches!(poll_connection(&owned).unwrap(), PipeConnection::Listening) {
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    File::from(owned)
+}
+
+fn pipe_pair() -> (File, File) {
+    let (owned, name) = fixture_listener();
+    let client = open_nonblocking_pipe(&name).unwrap();
+    (fixture_server(owned), client)
+}
+
+struct IdentityChild(std::process::Child);
+impl Drop for IdentityChild {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+fn identity_child() -> IdentityChild {
+    use std::os::windows::process::CommandExt;
+    IdentityChild(
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "installed::windows_agent_execution_native::tests::identity_query_child_fixture",
+                "--ignored",
+            ])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(0x08000000)
+            .spawn()
+            .unwrap(),
+    )
+}
+
+#[test]
+#[ignore = "child-only fixture for kernel object ACL tests"]
+fn identity_query_child_fixture() {
+    let _ = std::io::stdin().read_exact(&mut [0]);
+}
+
+fn local_service_sid() -> SidBuffer {
+    SidBuffer {
+        bytes: vec![1, 1, 0, 0, 0, 0, 0, 5, 19, 0, 0, 0],
+    }
+}
+
+fn acl_entries(bytes: &[u8]) -> Vec<Vec<u8>> {
+    let count = u16::from_le_bytes([bytes[4], bytes[5]]) as usize;
+    let mut offset = 8;
+    (0..count)
+        .map(|_| {
+            let size = u16::from_le_bytes([bytes[offset + 2], bytes[offset + 3]]) as usize;
+            let entry = bytes[offset..offset + size].to_vec();
+            offset += size;
+            entry
+        })
+        .collect()
+}
+
+fn assert_exact_grant_preserving_other_aces(object: &OwnedHandle, rights: u32) {
+    let sid = local_service_sid();
+    assert_eq!(object_rights(object, &sid).unwrap(), 0);
+    let before = acl_entries(&fixture_acl_bytes(object).unwrap());
+    grant_object_access(object, &sid, rights).unwrap();
+    assert_eq!(object_rights(object, &sid).unwrap(), rights);
+    let once = fixture_acl_bytes(object).unwrap();
+    let after = acl_entries(&once);
+    let added: Vec<_> = after
+        .iter()
+        .filter(|entry| !before.contains(entry))
+        .collect();
+    assert_eq!(added.len(), 1);
+    assert_eq!(&added[0][8..], sid.bytes);
+    assert_eq!(
+        after
+            .iter()
+            .filter(|entry| before.contains(entry))
+            .cloned()
+            .collect::<Vec<_>>(),
+        before
+    );
+    grant_object_access(object, &sid, rights).unwrap();
+    assert_eq!(fixture_acl_bytes(object).unwrap(), once);
+}
+
+#[test]
+fn peer_process_query_acl_is_minimal_preserves_others_and_is_idempotent() {
+    let child = identity_child();
+    let process = fixture_process(child.0.id()).unwrap();
+    assert_exact_grant_preserving_other_aces(&process, PROCESS_QUERY_LIMITED_INFORMATION);
+}
+
+#[test]
+fn peer_token_query_acl_is_minimal_preserves_others_and_is_idempotent() {
+    let child = identity_child();
+    let process = fixture_process(child.0.id()).unwrap();
+    let token = identity_query_token(&process).unwrap();
+    assert_exact_grant_preserving_other_aces(&token, TOKEN_QUERY | TOKEN_DUPLICATE);
+}
+
+#[test]
+fn non_brain_cannot_prepare_identity_query_or_mutate_own_acl() {
+    let process = current_process().unwrap();
+    let before = fixture_acl_bytes(&process).unwrap();
+    assert!(prepare_brain_identity_query().is_err());
+    assert_eq!(fixture_acl_bytes(&process).unwrap(), before);
+}
+
 #[test]
 fn pipe_name_is_install_bound_and_closed() {
     let first = windows_agent_execution_pipe_name("managed-process-test").unwrap();
@@ -91,12 +217,12 @@ fn disconnected_unverified_peer_does_not_end_listener_namespace() {
     let (first, name) = fixture_listener();
     let client = open_nonblocking_pipe(&name).unwrap();
     drop(client);
-    let mut listener = WindowsAgentExecutionListener {
-        name: name.clone(),
-        expected_image: std::env::current_exe().unwrap(),
-        pending: Some(first),
-    };
+    let mut listener = WindowsAgentExecutionListener::fixture(
+        name.clone(),
+        std::env::current_exe().unwrap(),
+        first,
+    );
     assert!(listener.try_accept().unwrap().is_none());
-    assert!(listener.pending.is_some());
+    assert!(listener.has_pending());
     assert!(create_pipe_instance(&name, true, None).is_err());
 }

@@ -281,10 +281,6 @@ try {
         "installed::release_probe::tests::non_loopback_or_expired_probe_has_no_connection_attempt"
     )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
 
-    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-        Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::release::tests::image_change_preserves_identity_startup_dependency_group_and_display"
-    }
-
     Invoke-NamedTest "forme-execution" @("--bin", "forme-hostd") "tests::ordinary_http11_is_parsed_and_ambiguous_or_browser_requests_are_rejected"
     Invoke-NamedTest "forme-execution" @("--test", "installed_host_transport") "http_broker_authenticates_and_reuses_the_original_read_only_operation"
 
@@ -321,6 +317,7 @@ try {
             "registration_recheck_cannot_hide_a_changed_or_unqueryable_running_process"
         )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::process::tests::$name" }
         foreach ($name in @(
+            "installed::registration::release::tests::image_change_preserves_identity_startup_dependency_group_and_display",
             "installed::windows_appcontainer::tests::appcontainer_quiescence_requires_recovery_clear_and_retains_actual_registry_lock",
             "installed::windows_appcontainer::tests::profile_identity_is_deterministic_and_plan_bound",
             "installed::windows_appcontainer::tests::job_object_name_is_closed_and_bound_to_the_appcontainer_identity",
@@ -328,6 +325,7 @@ try {
             "installed::windows_appcontainer::tests::an_unowned_lease_blocks_new_admission_without_sandbox_side_effects",
             "installed::windows_appcontainer::tests::startup_recovery_revokes_an_unacknowledged_grant_and_is_idempotent",
             "installed::windows_appcontainer::tests::startup_recovery_preserves_unknown_overlay_after_revoking_access",
+            "installed::windows_appcontainer::results::tests::unsealed_or_changed_handoff_preserves_source_and_blocks_cleanup",
             "installed::windows_appcontainer_acl::tests::failed_file_opens_never_become_owned_handles",
             "installed::windows_appcontainer_acl::tests::real_acl_grant_and_revoke_match_the_lease_readback_contract",
             "installed::windows_appcontainer_acl::tests::low_labels_are_only_applied_to_a_private_test_copy",
@@ -335,10 +333,14 @@ try {
             "installed::windows_appcontainer_native::tests::worker_integrity_requires_the_exact_low_mandatory_sid",
             "installed::windows_appcontainer_native::tests::empty_job_recovery_uses_accounting_without_synchronize_access",
             "installed::windows_agent_execution_native::tests::pipe_name_is_install_bound_and_closed",
+            "installed::windows_agent_execution_native::tests::peer_process_query_acl_is_minimal_preserves_others_and_is_idempotent",
+            "installed::windows_agent_execution_native::tests::peer_token_query_acl_is_minimal_preserves_others_and_is_idempotent",
+            "installed::windows_agent_execution_native::tests::non_brain_cannot_prepare_identity_query_or_mutate_own_acl",
             "installed::windows_agent_execution_native::tests::idle_native_pipe_client_expires_without_a_blocked_io_thread",
             "installed::windows_agent_execution_native::tests::native_pipe_client_reads_delayed_bytes_and_observes_disconnect",
             "installed::windows_agent_execution_native::tests::next_pipe_instance_coexists_with_inflight_peer_and_keeps_namespace_owned",
-            "installed::windows_agent_execution_native::tests::disconnected_unverified_peer_does_not_end_listener_namespace"
+            "installed::windows_agent_execution_native::tests::disconnected_unverified_peer_does_not_end_listener_namespace",
+            "installed::windows_agent_execution_native::tests::occupied_host_pipe_rejects_before_any_credential_or_job_byte"
         )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
         foreach ($name in @(
             "copy_is_private_and_verified_writeback_handles_creates_edits_and_deletes",
@@ -448,11 +450,6 @@ try {
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "result_handoff_orders_manifest_cleanup_receipt_and_never_retries_failed_cleanup"
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "cancel_result_cleanup_failure_stays_unknown_without_repeating_cleanup"
     Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "cancellation_seals_existing_source_without_fabricating_completion"
-    if ($isWindowsHost) {
-        Invoke-NamedTest "forme-execution" @("--lib") "installed::windows_appcontainer::results::tests::unsealed_or_changed_handoff_preserves_source_and_blocks_cleanup"
-        Invoke-NamedTest "forme-execution" @("--lib") "installed::windows_agent_execution_native::tests::occupied_host_pipe_rejects_before_any_credential_or_job_byte"
-    }
-
     foreach ($name in @(
         "managed_missing_or_invalid_worker_stays_blocked_without_local_fallback",
         "managed_worker_placement_is_composition_bound_stable_and_secret_free",

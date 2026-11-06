@@ -86,6 +86,7 @@ impl ManagedWorkerBinding {
             ManagedWorkerEndpoint::WindowsNamedPipe { name } => {
                 #[cfg(windows)]
                 {
+                    super::windows_agent_execution_native::prepare_brain_identity_query()?;
                     Ok(Arc::new(WorkerBrokerClient::connect_named_pipe(
                         name,
                         &self.credential_path,

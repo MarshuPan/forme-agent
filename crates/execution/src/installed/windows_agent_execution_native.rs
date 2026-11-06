@@ -12,18 +12,23 @@ use std::ptr::{null, null_mut};
 use forme_protocol as p;
 use windows_sys::Win32::Foundation::{
     GetLastError, LocalFree, SetLastError, ERROR_BROKEN_PIPE, ERROR_INSUFFICIENT_BUFFER,
-    ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, ERROR_PIPE_NOT_CONNECTED, HANDLE,
-    HLOCAL, INVALID_HANDLE_VALUE,
+    ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, ERROR_PIPE_NOT_CONNECTED,
+    ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Security::Authorization::{
-    ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
+    BuildTrusteeWithSidW, ConvertSidToStringSidW,
+    ConvertStringSecurityDescriptorToSecurityDescriptorW, GetEffectiveRightsFromAclW,
+    GetSecurityInfo, SetEntriesInAclW, SetSecurityInfo, EXPLICIT_ACCESS_W, GRANT_ACCESS,
+    SE_KERNEL_OBJECT, TRUSTEE_W,
 };
 use windows_sys::Win32::Security::{
-    CheckTokenMembership, DuplicateToken, IsValidSid, LookupAccountNameW, SecurityIdentification,
-    PSID, SECURITY_ATTRIBUTES, SID_NAME_USE, TOKEN_DUPLICATE, TOKEN_QUERY,
+    CheckTokenMembership, DuplicateToken, EqualSid, GetTokenInformation, IsValidSid,
+    LookupAccountNameW, SecurityIdentification, TokenUser, ACL, DACL_SECURITY_INFORMATION, PSID,
+    SECURITY_ATTRIBUTES, SID_NAME_USE, TOKEN_DUPLICATE, TOKEN_QUERY, TOKEN_USER,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX, SECURITY_IDENTIFICATION,
+    FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX, READ_CONTROL, SECURITY_IDENTIFICATION,
+    WRITE_DAC,
 };
 use windows_sys::Win32::System::Pipes::{
     ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, GetNamedPipeServerProcessId,
@@ -35,117 +40,214 @@ use windows_sys::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
+pub use super::windows_agent_execution_identity::{
+    open_agent_execution_pipe, windows_agent_execution_pipe_name, WindowsAgentExecutionListener,
+};
 use super::windows_appcontainer_support::wide;
 
 const BRAIN_SERVICE_ACCOUNT: &str = "NT SERVICE\\forme-brain";
+const HOST_SERVICE_ACCOUNT: &str = "NT SERVICE\\forme-host";
 // Sixteen handler slots plus the accepted and replacement listener instances.
 const MAX_PIPE_INSTANCES: u32 = 18;
 const PIPE_BUFFER_BYTES: u32 = 64 * 1024;
 
-/// Derives the installed, non-user-selectable AgentExecution pipe name.
-pub fn windows_agent_execution_pipe_name(install_id: &str) -> p::Result<String> {
-    p::validate_product_id(install_id)?;
-    let digest = p::canonical_digest(&("forme-agent-execution-pipe-v1", install_id))?.0;
-    let digest = digest
-        .strip_prefix("sha256:")
-        .ok_or_else(|| p::Error("agent execution pipe digest is malformed".into()))?;
-    Ok(format!(r"\\.\pipe\forme-agent-execution-v1-{digest}"))
+pub(super) fn prepare_host_identity_query() -> p::Result<()> {
+    grant_object_access(
+        &current_process()?,
+        &lookup_account_sid(BRAIN_SERVICE_ACCOUNT)?,
+        PROCESS_QUERY_LIMITED_INFORMATION,
+    )
 }
 
-/// The native AgentExecution server used by a managed Windows Host.
-///
-/// It polls a synchronous `PIPE_NOWAIT` instance so the Host supervisor keeps
-/// ownership of shutdown and connection admission. Every accepted instance is
-/// verified before it is handed to the HTTP framing layer.
-pub struct WindowsAgentExecutionListener {
-    name: String,
-    expected_image: PathBuf,
-    pending: Option<OwnedHandle>,
-}
-
-impl WindowsAgentExecutionListener {
-    pub fn bind(install_id: &str, expected_image: &Path) -> p::Result<Self> {
-        let name = windows_agent_execution_pipe_name(install_id)?;
-        if !expected_image.is_absolute() || !expected_image.is_file() {
-            return Err(p::Error(
-                "installed Brain image is unavailable for AgentExecution peer binding".into(),
-            ));
-        }
-        let _ = lookup_account_sid(BRAIN_SERVICE_ACCOUNT)?;
-        let pending = Some(create_agent_execution_pipe(&name, true)?);
-        Ok(Self {
-            name,
-            expected_image: fs::canonicalize(expected_image).map_err(|_| {
-                p::Error("installed Brain image cannot be canonicalized for peer binding".into())
-            })?,
-            pending,
-        })
+/// Prepares only the current Brain's kernel objects for the fixed Host peer.
+/// This never changes files, service configuration, or action authorization.
+pub(super) fn prepare_brain_identity_query() -> p::Result<()> {
+    let process = current_process()?;
+    let token = identity_query_token(&process)?;
+    let brain = lookup_account_sid(BRAIN_SERVICE_ACCOUNT)?;
+    let mut length = 0;
+    // SAFETY: the null buffer requests only the required, bounded byte count.
+    unsafe { GetTokenInformation(raw(&token), TokenUser, null_mut(), 0, &mut length) };
+    if length < size_of::<TOKEN_USER>() as u32 || length > 1024 * 1024 {
+        return Err(native_error("Brain token user cannot be inspected"));
     }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    /// Returns one verified Brain connection, or `None` when no client is
-    /// waiting. A rejected peer is dropped without exposing the HTTP layer.
-    pub fn try_accept(&mut self) -> p::Result<Option<File>> {
-        let handle = self
-            .pending
-            .take()
-            .ok_or_else(|| p::Error("AgentExecution pipe state is unavailable".into()))?;
-        unsafe { SetLastError(0) };
-        let connected = unsafe { ConnectNamedPipe(raw(&handle), null_mut()) } != 0;
-        let error = unsafe { GetLastError() };
-        if !connected && error == ERROR_PIPE_LISTENING {
-            self.pending = Some(handle);
-            return Ok(None);
-        }
-        if !connected && error == ERROR_NO_DATA {
-            // Keep the namespace claimed while replacing a disconnected peer.
-            self.pending = Some(create_agent_execution_pipe(&self.name, false)?);
-            return Ok(None);
-        }
-        if !connected && error != ERROR_PIPE_CONNECTED {
-            return Err(native_error(
-                "AgentExecution named pipe connection state is unknown",
-            ));
-        }
-        // Claim the next instance before handing off or rejecting this one.
-        // FIRST_PIPE_INSTANCE is only valid for initial namespace ownership.
-        self.pending = Some(create_agent_execution_pipe(&self.name, false)?);
-        if !matches!(
-            verify_agent_execution_peer(raw(&handle), &self.expected_image),
-            Ok(true)
-        ) {
-            return Ok(None);
-        }
-        let mode = PIPE_WAIT;
-        if unsafe { SetNamedPipeHandleState(raw(&handle), &mode, null(), null()) } == 0 {
-            return Err(native_error(
-                "AgentExecution named pipe could not enter blocking mode",
-            ));
-        }
-        let raw_handle = handle.into_raw_handle();
-        // SAFETY: ownership is transferred exactly once from OwnedHandle to File.
-        Ok(Some(unsafe { File::from_raw_handle(raw_handle) }))
-    }
-}
-
-/// Opens a mutually authenticated stream. No caller can write credentials
-/// before the fixed Host service PID, identity and release image are verified.
-pub fn open_agent_execution_pipe(name: &str) -> p::Result<File> {
-    if !name.starts_with(r"\\.\pipe\forme-agent-execution-v1-")
-        || name.len() > 256
-        || name.chars().any(char::is_control)
+    let mut user = vec![0usize; (length as usize).div_ceil(size_of::<usize>())];
+    // SAFETY: usize storage supplies TOKEN_USER alignment and the full required buffer.
+    if unsafe {
+        GetTokenInformation(
+            raw(&token),
+            TokenUser,
+            user.as_mut_ptr().cast(),
+            length,
+            &mut length,
+        )
+    } == 0
+        || unsafe {
+            EqualSid(
+                (*(user.as_ptr().cast::<TOKEN_USER>())).User.Sid,
+                brain.raw(),
+            )
+        } == 0
     {
-        return Err(p::Error("AgentExecution pipe name is invalid".into()));
+        return Err(native_error(
+            "managed worker caller is not the Brain service account",
+        ));
     }
-    let file = open_nonblocking_pipe(name)?;
-    verify_agent_execution_server(&file)?;
-    Ok(file)
+    let host = lookup_account_sid(HOST_SERVICE_ACCOUNT)?;
+    grant_object_access(&process, &host, PROCESS_QUERY_LIMITED_INFORMATION)?;
+    grant_object_access(&token, &host, TOKEN_QUERY | TOKEN_DUPLICATE)
 }
 
-fn open_nonblocking_pipe(name: &str) -> p::Result<File> {
+fn identity_query_token(process: &OwnedHandle) -> p::Result<OwnedHandle> {
+    let mut token = null_mut();
+    // SAFETY: process is owned; the output receives a new, uniquely owned token.
+    if unsafe {
+        OpenProcessToken(
+            raw(process),
+            TOKEN_QUERY | READ_CONTROL | WRITE_DAC,
+            &mut token,
+        )
+    } == 0
+    {
+        return Err(native_error("Brain identity query token is unavailable"));
+    }
+    owned_handle(token, "Brain identity query token is invalid")
+}
+
+fn current_process() -> p::Result<OwnedHandle> {
+    // SAFETY: only this process is opened, without inheritance or execution rights.
+    let handle = unsafe {
+        OpenProcess(
+            READ_CONTROL | WRITE_DAC | PROCESS_QUERY_LIMITED_INFORMATION,
+            0,
+            std::process::id(),
+        )
+    };
+    owned_handle(handle, "current peer process security is unavailable")
+}
+
+struct LocalSecurity(*mut c_void);
+impl Drop for LocalSecurity {
+    fn drop(&mut self) {
+        // SAFETY: this uniquely owns memory returned by a LocalAlloc Win32 API.
+        if !self.0.is_null() {
+            unsafe { LocalFree(self.0 as HLOCAL) };
+        }
+    }
+}
+
+fn object_dacl(object: &OwnedHandle) -> p::Result<(LocalSecurity, *mut ACL)> {
+    let mut acl = null_mut();
+    let mut descriptor = null_mut();
+    // SAFETY: object is live and all requested outputs are writable pointers.
+    let status = unsafe {
+        GetSecurityInfo(
+            raw(object),
+            SE_KERNEL_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            null_mut(),
+            null_mut(),
+            &mut acl,
+            null_mut(),
+            &mut descriptor,
+        )
+    };
+    let descriptor = LocalSecurity(descriptor);
+    if status != ERROR_SUCCESS || acl.is_null() || descriptor.0.is_null() {
+        return Err(native_error(
+            "peer kernel object DACL is unavailable or unrestricted",
+        ));
+    }
+    Ok((descriptor, acl))
+}
+
+fn object_rights(object: &OwnedHandle, sid: &SidBuffer) -> p::Result<u32> {
+    let (_descriptor, acl) = object_dacl(object)?;
+    let mut trustee = TRUSTEE_W::default();
+    let mut rights = 0;
+    // SAFETY: SID and descriptor remain live throughout the read-only query.
+    unsafe { BuildTrusteeWithSidW(&mut trustee, sid.raw()) };
+    if unsafe { GetEffectiveRightsFromAclW(acl, &trustee, &mut rights) } != ERROR_SUCCESS {
+        return Err(native_error("peer kernel object access cannot be verified"));
+    }
+    Ok(rights)
+}
+
+fn grant_object_access(object: &OwnedHandle, sid: &SidBuffer, rights: u32) -> p::Result<()> {
+    let (_descriptor, old_acl) = object_dacl(object)?;
+    let mut trustee = TRUSTEE_W::default();
+    // SAFETY: the owned SID outlives the synchronous ACL merge.
+    unsafe { BuildTrusteeWithSidW(&mut trustee, sid.raw()) };
+    let entry = EXPLICIT_ACCESS_W {
+        grfAccessPermissions: rights,
+        grfAccessMode: GRANT_ACCESS,
+        grfInheritance: 0,
+        Trustee: trustee,
+    };
+    let mut new_acl = null_mut();
+    // SAFETY: one initialized entry is merged with the still-owned original DACL.
+    let status = unsafe { SetEntriesInAclW(1, &entry, old_acl, &mut new_acl) };
+    let new_acl_owner = LocalSecurity(new_acl.cast());
+    if status != ERROR_SUCCESS || new_acl_owner.0.is_null() {
+        return Err(native_error(
+            "peer kernel object query ACL cannot be merged",
+        ));
+    }
+    // SAFETY: changes only this already-owned object's DACL, preserving other ACEs.
+    if unsafe {
+        SetSecurityInfo(
+            raw(object),
+            SE_KERNEL_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            null_mut(),
+            null_mut(),
+            new_acl,
+            null_mut(),
+        )
+    } != ERROR_SUCCESS
+        || object_rights(object, sid)? & rights != rights
+    {
+        return Err(native_error(
+            "peer kernel object query ACL could not be verified",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) enum PipeConnection {
+    Listening,
+    Disconnected,
+    Connected,
+}
+
+pub(super) fn poll_connection(handle: &OwnedHandle) -> p::Result<PipeConnection> {
+    // SAFETY: the owned polling handle is live; no overlapped operation is used.
+    unsafe { SetLastError(0) };
+    let connected = unsafe { ConnectNamedPipe(raw(handle), null_mut()) } != 0;
+    let error = unsafe { GetLastError() };
+    match (connected, error) {
+        (true, _) | (false, ERROR_PIPE_CONNECTED) => Ok(PipeConnection::Connected),
+        (false, ERROR_PIPE_LISTENING) => Ok(PipeConnection::Listening),
+        (false, ERROR_NO_DATA) => Ok(PipeConnection::Disconnected),
+        _ => Err(native_error(
+            "AgentExecution named pipe connection state is unknown",
+        )),
+    }
+}
+
+pub(super) fn finish_connection(handle: OwnedHandle) -> p::Result<File> {
+    let mode = PIPE_WAIT;
+    // SAFETY: the uniquely owned pipe is connected and mode is a live u32.
+    if unsafe { SetNamedPipeHandleState(raw(&handle), &mode, null(), null()) } == 0 {
+        return Err(native_error(
+            "AgentExecution named pipe could not enter blocking mode",
+        ));
+    }
+    // SAFETY: transfer this uniquely owned handle exactly once into File.
+    Ok(unsafe { File::from_raw_handle(handle.into_raw_handle()) })
+}
+
+pub(super) fn open_nonblocking_pipe(name: &str) -> p::Result<File> {
     let name_w = wide(name);
     if unsafe { WaitNamedPipeW(name_w.as_ptr(), 30_000) } == 0 {
         return Err(native_error("AgentExecution named pipe is unavailable"));
@@ -170,10 +272,7 @@ fn open_nonblocking_pipe(name: &str) -> p::Result<File> {
     Ok(file)
 }
 
-fn verify_agent_execution_server(file: &File) -> p::Result<()> {
-    use windows_service::service::{ServiceAccess, ServiceState, ServiceType};
-    use windows_service::service_manager::{ServiceManager, ServiceManagerAccess};
-
+pub(super) fn verify_agent_execution_server(file: &File) -> p::Result<()> {
     let invalid = || p::Error("AgentExecution Host service identity is unverifiable".into());
     let mut pid = 0;
     // SAFETY: file owns the connected pipe and pid is a valid output buffer.
@@ -185,41 +284,10 @@ fn verify_agent_execution_server(file: &File) -> p::Result<()> {
     // SAFETY: PID comes from the live pipe; only limited read access is requested.
     let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
     let process = owned_handle(process, "AgentExecution Host process cannot be opened")?;
-    let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
-        .map_err(|_| invalid())?;
-    let service = manager
-        .open_service(
-            p::BuiltinServiceId::Host.service_name(),
-            ServiceAccess::QUERY_STATUS | ServiceAccess::QUERY_CONFIG,
-        )
-        .map_err(|_| invalid())?;
-    let status = service.query_status().map_err(|_| invalid())?;
-    let config = service.query_config().map_err(|_| invalid())?;
-    let account = config.account_name.as_deref().ok_or_else(invalid)?;
-    if status.current_state != ServiceState::Running
-        || status.process_id != Some(pid)
-        || status.service_type != ServiceType::OWN_PROCESS
-        || config.service_type != ServiceType::OWN_PROCESS
-        || !matches!(account.to_str(), Some(name) if name.eq_ignore_ascii_case("LocalSystem") || name.eq_ignore_ascii_case(r"NT AUTHORITY\SYSTEM"))
-    {
-        return Err(invalid());
-    }
-    let core_image = std::env::current_exe().map_err(|_| invalid())?;
-    let expected_image = core_image
-        .parent()
-        .ok_or_else(invalid)?
-        .join("forme-hostd.exe");
-    super::reject_linked_ancestors(&expected_image)?;
-    let expected_image = fs::canonicalize(expected_image).map_err(|_| invalid())?;
-    let observed_image =
-        fs::canonicalize(process_image_path(raw(&process))?).map_err(|_| invalid())?;
-    if !observed_image
-        .to_string_lossy()
-        .eq_ignore_ascii_case(&expected_image.to_string_lossy())
-    {
-        return Err(invalid());
-    }
-    Ok(())
+    super::windows_agent_execution_identity::verify_host_image(
+        pid,
+        process_image_path(raw(&process))?,
+    )
 }
 
 /// Distinguishes a connected-but-empty byte pipe from a closed peer. Rust's
@@ -250,7 +318,7 @@ pub(super) fn agent_execution_pipe_available(file: &File) -> std::io::Result<Opt
     }
 }
 
-fn create_agent_execution_pipe(name: &str, first: bool) -> p::Result<OwnedHandle> {
+pub(super) fn create_agent_execution_pipe(name: &str, first: bool) -> p::Result<OwnedHandle> {
     let security = PipeSecurity::new(BRAIN_SERVICE_ACCOUNT)?;
     create_pipe_instance(name, first, Some(&security))
 }
@@ -281,7 +349,11 @@ fn create_pipe_instance(
     owned_handle(handle, "AgentExecution named pipe could not be created")
 }
 
-fn verify_agent_execution_peer(pipe: HANDLE, expected_image: &Path) -> p::Result<bool> {
+pub(super) fn verify_agent_execution_peer(
+    handle: &OwnedHandle,
+    expected_image: &Path,
+) -> p::Result<bool> {
+    let pipe = raw(handle);
     let mut pid = 0u32;
     if unsafe { GetNamedPipeClientProcessId(pipe, &mut pid) } == 0 || pid == 0 {
         return Err(native_error(
@@ -473,41 +545,30 @@ fn native_error(message: &str) -> p::Error {
     p::Error(message.into())
 }
 
-// Current-user byte-stream helpers do not assert installed peer/SID identity.
 #[cfg(test)]
-fn fixture_listener() -> (OwnedHandle, String) {
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let name = format!(
-        r"\\.\pipe\forme-agent-execution-v1-io-fixture-{}-{}",
-        std::process::id(),
-        NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-    );
-    (create_pipe_instance(&name, true, None).unwrap(), name)
+fn fixture_process(pid: u32) -> p::Result<OwnedHandle> {
+    // SAFETY: the caller owns the fixture child; no execution rights are requested.
+    owned_handle(
+        unsafe {
+            OpenProcess(
+                READ_CONTROL | WRITE_DAC | PROCESS_QUERY_LIMITED_INFORMATION,
+                0,
+                pid,
+            )
+        },
+        "fixture process unavailable",
+    )
 }
 
 #[cfg(test)]
-fn fixture_server(owned: OwnedHandle) -> File {
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-    loop {
-        // SAFETY: the unique nonblocking handle is live; no OVERLAPPED is used.
-        let connected = unsafe { ConnectNamedPipe(raw(&owned), null_mut()) } != 0;
-        let error = unsafe { GetLastError() };
-        if connected || matches!(error, ERROR_PIPE_CONNECTED | ERROR_NO_DATA) {
-            break;
-        }
-        assert_eq!(error, ERROR_PIPE_LISTENING);
-        assert!(std::time::Instant::now() < deadline);
-        std::thread::sleep(std::time::Duration::from_millis(1));
+fn fixture_acl_bytes(object: &OwnedHandle) -> p::Result<Vec<u8>> {
+    let (_descriptor, acl) = object_dacl(object)?;
+    // SAFETY: the descriptor owns this valid ACL and its complete size.
+    let length = unsafe { (*acl).AclSize as usize };
+    if length < size_of::<ACL>() {
+        return Err(native_error("fixture ACL is malformed"));
     }
-    // SAFETY: unique ownership transfers exactly once from OwnedHandle to File.
-    unsafe { File::from_raw_handle(owned.into_raw_handle()) }
-}
-
-#[cfg(test)]
-fn pipe_pair() -> (File, File) {
-    let (owned, name) = fixture_listener();
-    let client = open_nonblocking_pipe(&name).unwrap();
-    (fixture_server(owned), client)
+    Ok(unsafe { std::slice::from_raw_parts(acl.cast::<u8>(), length) }.to_vec())
 }
 
 #[cfg(test)]
