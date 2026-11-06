@@ -187,6 +187,8 @@ Host 创建 pipe 时使用受保护 DACL，只允许 `LocalSystem` 与安装清�
 
 验证必须双向进行。Brain 打开管道时只授予 `SECURITY_IDENTIFICATION`，防止对端模拟 Brain 身份；在发送任何 HTTP/bearer/job 字节前，用 `GetNamedPipeServerProcessId` 绑定服务端 PID，并通过只读 SCM 查询确认它正是 Running、own-process、LocalSystem 的固定 `forme-host` 服务。实际进程 image 必须与当前 core 可执行文件同一 release 目录下的 `forme-hostd.exe` 规范化路径一致。SCM 缺失、PID/账户/服务类型/image 不符或查询失败均关闭连接且零凭据发送；不能仅凭同名 pipe、可连接或 bearer 作为服务端证明。该查询不启动、注册或修改服务，也不增加 binding 中的程序路径字段。
 
+双向查询所需的进程对象权限必须实际建立，不能假设系统服务的默认 DACL 允许互读。Host 在创建 managed listener 前，只对**自己的当前进程对象**向固定 Brain Service SID 增加 `PROCESS_QUERY_LIMITED_INFORMATION`。Brain 在建立 managed binding 时，先以自身 token user 核对固定 Brain Service SID，再只对自己的当前进程向固定 Host Service SID 增加同一查询位，对自己的主 token 增加 `TOKEN_QUERY | TOKEN_DUPLICATE`，以满足上述 Host identification-token 核验。每次合并保留其余 ACE，拒绝空/不可读 DACL，回读所需权限；失败则 listener/binding 不可用，不删除身份检查或启用 fallback。不得向 Everyone、Authenticated Users、Web、worker 或任意请求 SID 授权，也不增加 VM 读写、终止、线程创建、token assign-primary/adjust/impersonate 权限或生产 SeDebugPrivilege。变更仅作用于当前进程及 token 的内核对象生命周期，不修改程序文件、服务配置、安装目录或脑数据 ACL；原有冻结 DTO/trait 不变。组件测试须证明精确权限位、其他 ACE 保持和重复初始化幂等；真实 SCM 的双向身份与文件全链路另验。
+
 Windows 的 `WindowsJobWorkerIsolation` 已提供 Job Object 平台 adapter：进程在首次执行前加入启用 kill-on-close 的 Job Object；取消和宿主退出会终止受管进程树，observe 只读取受管 process handle 的退出码。该 adapter 的真实 Windows 合同测试覆盖成功/失败退出、后代进程树终止和取消幂等。它只证明进程树生命周期 custody，不证明低权限 token、文件 ACL、网络/credential scope、桌面会话或完整 sandbox。
 
 #### 4.1.2 Windows 每 job AppContainer 隔离契约

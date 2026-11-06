@@ -38,6 +38,8 @@ flowchart LR
 
 OS 服务管理器分别监管三个长期服务。broker 可以要求 OS 开始/停止 core，但不另设抢跑的崩溃重启 loop；每个长期进程只有一个 supervisor。短期 worker 由 broker 管理截止、取消与清理，不做自动副作用重试。Web 崩溃不影响核心；核心崩溃不影响登录与诊断。
 
+Windows AgentExecution 的双向进程身份核验依赖实际 kernel-object DACL：Host/Brain 仅为固定对端 Service SID 建立自身进程的 limited-query 权限，Brain 另为 Host 建立自身主 token 的 query/duplicate 权限，精确按 prd/24 §4.1.1b。其他 ACE 与文件/服务 ACL 保持，失败拒绝对应 listener/binding；不以管理员安装、同名 pipe 或凭据代替实际 PID/token/image 查询，也不为该查询启用生产 SeDebugPrivilege。
+
 core 的前台信号与未来原生服务控制共用 Gateway 的可信停止接缝（prd/24 §4.2）：先线性化关闭 HTTP 工作与 scheduler 准入，再有界排空在途操作和运行队列。HTTP 请求已取消不代表其阻塞动作停止；Waiting/Unknown 不因停服被改写为终态。此接缝不新增管理 HTTP 路由，也不独自证明 SCM/launchd/systemd 已完成安装。
 
 Host 启动入口分为两个不可混淆的模式：正式受管服务使用 `forme-hostd --config <absolute-path>`，由固定 OS service identity/peer 约束并在绑定失败时退出；仓库自有测试和前台开发使用显式的 `forme-hostd --development-config <absolute-path>`，只复用 closed HostServiceConfig 校验并走 loopback 前台 transport。只有正式受管服务拥有 OS Brain 生命周期：它在 Host 已报告 Running 后执行一次有界的自动协调；开发配置不触碰系统 Brain 服务、不为配置保存生成服务生命周期 operation，由夹具或开发者显式启动临时 core。后者不声明 SCM、Service SID、AgentExecution peer、生产 worker 隔离或安装产品可用，任何组件/fixture 证据都不能提升为 IP01–IP24。
