@@ -12,8 +12,8 @@ use std::ptr::{null, null_mut};
 use forme_protocol as p;
 use windows_sys::Win32::Foundation::{
     GetLastError, LocalFree, SetLastError, ERROR_BROKEN_PIPE, ERROR_INSUFFICIENT_BUFFER,
-    ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, ERROR_PIPE_NOT_CONNECTED, HANDLE, HLOCAL,
-    INVALID_HANDLE_VALUE,
+    ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, ERROR_PIPE_NOT_CONNECTED, HANDLE,
+    HLOCAL, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
@@ -38,7 +38,8 @@ use windows_sys::Win32::System::Threading::{
 use super::windows_appcontainer_support::wide;
 
 const BRAIN_SERVICE_ACCOUNT: &str = "NT SERVICE\\forme-brain";
-const MAX_PIPE_INSTANCES: u32 = 16;
+// Sixteen handler slots plus the accepted and replacement listener instances.
+const MAX_PIPE_INSTANCES: u32 = 18;
 const PIPE_BUFFER_BYTES: u32 = 64 * 1024;
 
 /// Derives the installed, non-user-selectable AgentExecution pipe name.
@@ -71,12 +72,13 @@ impl WindowsAgentExecutionListener {
             ));
         }
         let _ = lookup_account_sid(BRAIN_SERVICE_ACCOUNT)?;
+        let pending = Some(create_agent_execution_pipe(&name, true)?);
         Ok(Self {
             name,
             expected_image: fs::canonicalize(expected_image).map_err(|_| {
                 p::Error("installed Brain image cannot be canonicalized for peer binding".into())
             })?,
-            pending: None,
+            pending,
         })
     }
 
@@ -87,9 +89,6 @@ impl WindowsAgentExecutionListener {
     /// Returns one verified Brain connection, or `None` when no client is
     /// waiting. A rejected peer is dropped without exposing the HTTP layer.
     pub fn try_accept(&mut self) -> p::Result<Option<File>> {
-        if self.pending.is_none() {
-            self.pending = Some(create_agent_execution_pipe(&self.name)?);
-        }
         let handle = self
             .pending
             .take()
@@ -101,12 +100,23 @@ impl WindowsAgentExecutionListener {
             self.pending = Some(handle);
             return Ok(None);
         }
+        if !connected && error == ERROR_NO_DATA {
+            // Keep the namespace claimed while replacing a disconnected peer.
+            self.pending = Some(create_agent_execution_pipe(&self.name, false)?);
+            return Ok(None);
+        }
         if !connected && error != ERROR_PIPE_CONNECTED {
             return Err(native_error(
                 "AgentExecution named pipe connection state is unknown",
             ));
         }
-        if !verify_agent_execution_peer(raw(&handle), &self.expected_image)? {
+        // Claim the next instance before handing off or rejecting this one.
+        // FIRST_PIPE_INSTANCE is only valid for initial namespace ownership.
+        self.pending = Some(create_agent_execution_pipe(&self.name, false)?);
+        if !matches!(
+            verify_agent_execution_peer(raw(&handle), &self.expected_image),
+            Ok(true)
+        ) {
             return Ok(None);
         }
         let mode = PIPE_WAIT;
@@ -240,19 +250,32 @@ pub(super) fn agent_execution_pipe_available(file: &File) -> std::io::Result<Opt
     }
 }
 
-fn create_agent_execution_pipe(name: &str) -> p::Result<OwnedHandle> {
+fn create_agent_execution_pipe(name: &str, first: bool) -> p::Result<OwnedHandle> {
     let security = PipeSecurity::new(BRAIN_SERVICE_ACCOUNT)?;
+    create_pipe_instance(name, first, Some(&security))
+}
+
+fn create_pipe_instance(
+    name: &str,
+    first: bool,
+    security: Option<&PipeSecurity>,
+) -> p::Result<OwnedHandle> {
     let name_w = wide(name);
     let handle = unsafe {
         CreateNamedPipeW(
             name_w.as_ptr(),
-            PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
+            PIPE_ACCESS_DUPLEX
+                | if first {
+                    FILE_FLAG_FIRST_PIPE_INSTANCE
+                } else {
+                    0
+                },
             PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT | PIPE_REJECT_REMOTE_CLIENTS,
             MAX_PIPE_INSTANCES,
             PIPE_BUFFER_BYTES,
             PIPE_BUFFER_BYTES,
             30_000,
-            &security.attributes,
+            security.map_or(null(), |security| &security.attributes),
         )
     };
     owned_handle(handle, "AgentExecution named pipe could not be created")
@@ -450,125 +473,43 @@ fn native_error(message: &str) -> p::Error {
     p::Error(message.into())
 }
 
+// Current-user byte-stream helpers do not assert installed peer/SID identity.
 #[cfg(test)]
-mod tests {
-    use super::windows_agent_execution_pipe_name;
-
-    #[test]
-    fn pipe_name_is_install_bound_and_closed() {
-        let first = windows_agent_execution_pipe_name("managed-process-test").unwrap();
-        let second = windows_agent_execution_pipe_name("another-installation").unwrap();
-        assert_ne!(first, second);
-        assert!(first.starts_with(r"\\.\pipe\forme-agent-execution-v1-"));
-        assert!(windows_agent_execution_pipe_name("not a valid install").is_err());
-    }
-
-    // This is a current-user byte-stream fixture, not installed peer/SID proof.
-    fn fixture_listener() -> (super::OwnedHandle, String) {
-        use super::*;
-        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let name = format!(
-            r"\\.\pipe\forme-agent-execution-v1-io-fixture-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-        );
-        let wide_name = wide(&name);
-        // SAFETY: the terminated name is live, optional security is null (the
-        // fixture uses the current user's default DACL), and the return is owned.
-        let handle = unsafe {
-            CreateNamedPipeW(
-                wide_name.as_ptr(),
-                PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE,
-                PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-                1,
-                PIPE_BUFFER_BYTES,
-                PIPE_BUFFER_BYTES,
-                0,
-                null(),
-            )
-        };
-        let owned = owned_handle(handle, "fixture pipe could not be created").unwrap();
-        (owned, name)
-    }
-
-    fn pipe_pair() -> (super::File, super::File) {
-        use super::*;
-        let (owned, name) = fixture_listener();
-        // This fixture verifies bounded I/O only; the public connection path
-        // always requires the real SCM Host identity before returning a file.
-        let client = open_nonblocking_pipe(&name).unwrap();
-        // SAFETY: the pipe handle is owned and valid, synchronous connect uses
-        // no OVERLAPPED structure, and ERROR_PIPE_CONNECTED is a normal race.
-        let connected = unsafe { ConnectNamedPipe(raw(&owned), null_mut()) } != 0;
-        assert!(connected || unsafe { GetLastError() } == ERROR_PIPE_CONNECTED);
-        // SAFETY: ownership moves once from the unique owned handle to File.
-        let server = unsafe { File::from_raw_handle(owned.into_raw_handle()) };
-        (server, client)
-    }
-
-    #[test]
-    fn occupied_host_pipe_rejects_before_any_credential_or_job_byte() {
-        use super::*;
-        use std::io::Read;
-        let (owned, name) = fixture_listener();
-        let reader = std::thread::spawn(move || {
-            // SAFETY: the unique listener handle is live; no OVERLAPPED is used.
-            let connected = unsafe { ConnectNamedPipe(raw(&owned), null_mut()) } != 0;
-            let error = unsafe { GetLastError() };
-            assert!(connected || matches!(error, ERROR_PIPE_CONNECTED | 232));
-            // SAFETY: unique ownership transfers once to File and then DeadlinePipe.
-            let server = unsafe { File::from_raw_handle(owned.into_raw_handle()) };
-            let mut server = super::super::worker_pipe::DeadlinePipe::new(
-                server,
-                std::time::Duration::from_secs(2),
-            );
-            assert_eq!(server.read(&mut [0; 1]).unwrap(), 0);
-        });
-        let temporary = tempfile::tempdir().unwrap();
-        let credential = temporary.path().join("agent.token");
-        fs::write(&credential, "fixture-agent-credential-never-sent").unwrap();
-        let client =
-            super::super::WorkerBrokerClient::connect_named_pipe(&name, &credential).unwrap();
-        use super::super::WorkerBrokerTransport;
-        assert!(client.probe("fixture-original-job").is_err());
-        reader.join().unwrap();
-    }
-
-    #[test]
-    fn idle_native_pipe_client_expires_without_a_blocked_io_thread() {
-        use std::{
-            io::Read,
-            time::{Duration, Instant},
-        };
-        let (_server, client) = pipe_pair();
-        let mut client =
-            super::super::worker_pipe::DeadlinePipe::new(client, Duration::from_millis(25));
-        let started = Instant::now();
-        let error = client.read(&mut [0; 1]).unwrap_err();
-        assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
-        assert!(started.elapsed() < Duration::from_secs(2));
-    }
-
-    #[test]
-    fn native_pipe_client_reads_delayed_bytes_and_observes_disconnect() {
-        use std::{
-            io::{Read, Write},
-            time::Duration,
-        };
-        let (mut server, client) = pipe_pair();
-        let (acknowledge, consumed) = std::sync::mpsc::channel();
-        let writer = std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(15));
-            server.write_all(b"bounded fixture result").unwrap();
-            consumed.recv_timeout(Duration::from_secs(2)).unwrap();
-        });
-        let mut client =
-            super::super::worker_pipe::DeadlinePipe::new(client, Duration::from_secs(2));
-        let mut bytes = vec![0; b"bounded fixture result".len()];
-        client.read_exact(&mut bytes).unwrap();
-        assert_eq!(bytes, b"bounded fixture result");
-        acknowledge.send(()).unwrap();
-        writer.join().unwrap();
-        assert_eq!(client.read(&mut [0; 1]).unwrap(), 0);
-    }
+fn fixture_listener() -> (OwnedHandle, String) {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let name = format!(
+        r"\\.\pipe\forme-agent-execution-v1-io-fixture-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    );
+    (create_pipe_instance(&name, true, None).unwrap(), name)
 }
+
+#[cfg(test)]
+fn fixture_server(owned: OwnedHandle) -> File {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        // SAFETY: the unique nonblocking handle is live; no OVERLAPPED is used.
+        let connected = unsafe { ConnectNamedPipe(raw(&owned), null_mut()) } != 0;
+        let error = unsafe { GetLastError() };
+        if connected || matches!(error, ERROR_PIPE_CONNECTED | ERROR_NO_DATA) {
+            break;
+        }
+        assert_eq!(error, ERROR_PIPE_LISTENING);
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    // SAFETY: unique ownership transfers exactly once from OwnedHandle to File.
+    unsafe { File::from_raw_handle(owned.into_raw_handle()) }
+}
+
+#[cfg(test)]
+fn pipe_pair() -> (File, File) {
+    let (owned, name) = fixture_listener();
+    let client = open_nonblocking_pipe(&name).unwrap();
+    (fixture_server(owned), client)
+}
+
+#[cfg(test)]
+#[path = "windows_agent_execution_tests.rs"]
+mod tests;

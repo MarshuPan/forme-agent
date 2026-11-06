@@ -1,5 +1,4 @@
 param()
-
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -37,7 +36,6 @@ try {
         "owner_maintenance_exposes_only_bound_release_lifecycle_actions",
         "release_lifecycle_action_rejects_unbound_backup_or_release_values"
     )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_product_contract") $name }
-
     foreach ($name in @(
         "legacy_report_requires_complete_ordered_same_binding_evidence",
         "legacy_rejected_and_unverifiable_reports_cannot_omit_or_repeat_issues",
@@ -47,7 +45,6 @@ try {
         "legacy_wire_digest_golden_matches_the_browser_report_and_request_binding",
         "recovery_capabilities_accept_only_exact_supported_reader_updater_pairs"
     )) { Invoke-NamedTest "forme-protocol" @("--test", "installed_legacy_release_recovery_contract") $name }
-
     foreach ($name in @(
         "legacy_host_verifies_signed_files_and_commits_once_with_no_service_effects",
         "legacy_host_rejects_foreign_identity_missing_collector_and_forged_signatures_before_append",
@@ -339,7 +336,9 @@ try {
             "installed::windows_appcontainer_native::tests::empty_job_recovery_uses_accounting_without_synchronize_access",
             "installed::windows_agent_execution_native::tests::pipe_name_is_install_bound_and_closed",
             "installed::windows_agent_execution_native::tests::idle_native_pipe_client_expires_without_a_blocked_io_thread",
-            "installed::windows_agent_execution_native::tests::native_pipe_client_reads_delayed_bytes_and_observes_disconnect"
+            "installed::windows_agent_execution_native::tests::native_pipe_client_reads_delayed_bytes_and_observes_disconnect",
+            "installed::windows_agent_execution_native::tests::next_pipe_instance_coexists_with_inflight_peer_and_keeps_namespace_owned",
+            "installed::windows_agent_execution_native::tests::disconnected_unverified_peer_does_not_end_listener_namespace"
         )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
         foreach ($name in @(
             "copy_is_private_and_verified_writeback_handles_creates_edits_and_deletes",
