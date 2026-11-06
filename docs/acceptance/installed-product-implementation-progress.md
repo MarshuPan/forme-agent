@@ -8,7 +8,9 @@
 
 owner 已有测试重置授权及本次 UAC 放行后，固定窗口于 19:54 清除了旧测试实例的四服务、两个固定 ForMe 根和唯一卸载登记；旧账号、keys、脑、配置、workspace、备份和未决 Stop 不备份、不迁移，也没有被伪造为恢复成功。仓库、外部项目及源码验收工件保持。固定新安装器只运行一次，在 `PrepareToInstall / protect empty installation roots` 返回 exit 7，发生于 payload 复制/hostctl prepare/新服务登记之前；后续认领、模型配置、文件、停启备份和升级步骤均未执行。
 
-随后首次目录诊断 UAC 被 Windows 取消，没有执行；20:05 的独立诊断已实际完成：零 ForMe 服务，ProgramRoot 为空且 owner/DACL 逐条符合原策略，DataRoot 不存在，PowerShell 5.1/7 的隔离创建各自验证通过。首次安装失败尚未复现，不能据此声称根因已修好。已准备独立恢复窗口，只创建缺少的受保护空根后使用固定安装器，并依次进行正式认领、文件、停启备份及签名升级；该窗口两次启动均被 Windows 返回 UAC 取消，均未取得管理员进程或产生安装回执，当前没有未决 consent。恢复安装明确不计 clean IP01 通过。完整失败范围、包和日志摘要见[本轮验收 §7](installed-product-service-settle-acceptance-20261106.md#7-实际窗口安装准备失败与当前现场)。下文 Running/ready/尚未执行均是更早批次的历史观察，不代表当前实例可用。
+随后首次目录诊断 UAC 被 Windows 取消，没有执行；20:05 的独立诊断已实际完成：零 ForMe 服务，ProgramRoot 为空且 owner/DACL 逐条符合原策略，DataRoot 不存在，PowerShell 5.1/7 的隔离创建各自验证通过。独立恢复窗口的前两次启动被 Windows 返回 UAC 取消；20:24 的第三次已实际执行，补齐原策略的空 DataRoot 后，安装器仍在同一准备阶段 exit 7，未复制 payload、登记服务或激活任何下游步骤。两个固定根现均为空且受保护，零 ForMe 服务，Product URL 不可用。
+
+20:35 原生 Inno Prepare-only 比较夹具实际启动 64-bit 原 helper，固定根参数匹配、child exit 0，根和服务保持；它没有复现真实包的失败，不能据此断言位数或 ACL 根因。另一份诊断 wrapper 自身失败，保留其无效结果。源码现增加只读数字阶段诊断与 launch/child exit 区分，保持原权限与失败即停语义；新候选尚未安装，完整 IP24 仍未通过。恢复安装不计 clean IP01。完整范围、验证和回执摘要见[本轮验收 §7–8](installed-product-service-settle-acceptance-20261106.md#7-实际窗口安装准备失败与当前现场)。下文 Running/ready/尚未执行均是更早批次的历史观察，不代表当前实例可用。
 
 ## 2026-11-06 双向 peer 修复已回归，真实停服/离线验收又发现两处实现缺陷
 

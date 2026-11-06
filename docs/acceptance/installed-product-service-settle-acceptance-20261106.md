@@ -91,7 +91,9 @@ Brain 实际停止时，`/api/v1/product/data/verify` 已返回 verified=true、
 
 owner 回复重新唤起后，20:05 独立诊断实际完成：SCM 无 ForMe 服务；ProgramRoot 无子项、无 reparse，owner 为 Administrators，protected DACL 仅 SYSTEM/Administrators FullControl 且逐条匹配原策略；DataRoot 不存在。PowerShell 5.1 和 7 分别在新的隔离目录运行原 `New-ForMeProtectedDirectory`，均取得 verified 回执。首次安装失败没有复现，尚不能认定根因或声称修正了 ACL；两个空 probe 目录保留。
 
-已准备独立的 `complete-service-settle-recovery-window.ps1`，入口 SHA-256 为 `01a9a1ef0ca5cbdf4310529965b798f683313f5a02f1147424ddd70908dec9dd`。它重查原 exit 7/源码/包/诊断、零登记及根为空的前提，只用原 ACL 模块创建缺少的空根后明确恢复安装；使用独立回执保留原失败，并设置 `clean_install_acceptance=false`。后续正式信任/认领/模型、文件、停启备份及升级沿既定顺序，任何失败或 Unknown 即停止。该入口两次管理员启动均由 Windows 返回“操作已被用户取消”（launcher sessions 84405、3673），均未取得有效管理员进程 ID；`service-settle-recovered-installation.json` 和 `service-settle-recovery-window.json` 均未产生。再次独立查询 SCM 仍无 ForMe 服务，当前没有未决 consent。没有执行恢复安装或任何后续步骤，也没有重跑原 reset。
+已准备独立的 `complete-service-settle-recovery-window.ps1`，入口 SHA-256 为 `01a9a1ef0ca5cbdf4310529965b798f683313f5a02f1147424ddd70908dec9dd`。它重查原 exit 7/源码/包/诊断、零登记及根为空的前提，只用原 ACL 模块创建缺少的空根后明确恢复安装；使用独立回执保留原失败，并设置 `clean_install_acceptance=false`。后续正式信任/认领/模型、文件、停启备份及升级沿既定顺序，任何失败或 Unknown 即停止。该入口前两次管理员启动均由 Windows 返回“操作已被用户取消”（launcher sessions 84405、3673），均未取得有效管理员进程 ID；该时点尚无恢复回执。
+
+20:24 第三次启动实际取得管理员进程 PID 30788。原生安装器于 20:24:44–20:24:48 再次在 `PrepareToInstall / protect empty installation roots` exit 7。窗口只按原 ACL 策略创建了缺少的空 DataRoot；没有复制 payload、创建 installation identity 或登记服务，所有信任/认领/配置/文件/生命周期/升级步骤均未执行，原 reset 没有重跑。两个固定根现均为空且 protected，SCM 零 ForMe 服务，Product URL 不可用。该已结束窗口不能再次执行或覆盖其回执。
 
 | 本地工件（同 §6 目录） | SHA-256 / 结果 |
 |---|---|
@@ -100,5 +102,18 @@ owner 回复重新唤起后，20:05 独立诊断实际完成：SCM 无 ForMe 服
 | `service-settle-native-window.json` | `8387ce81f6b00830c0f10955715a2561736c2a188fda86be613fd1f386d7c62d`；仅 reset 步骤执行并失败，后续步骤未激活。 |
 | `service-settle-root-preparation-inspection.json` | 20:05 实际完成，`d75f0d8a3dc6e587eb2548a4dfa24fcdbad43933337387e04cac5066e9a3f9af`。 |
 | `service-settle-root-probe-desktop.json` / `service-settle-root-probe-core.json` | 原生创建均 verified；仅是隔离目录检查。 |
+| `service-settle-recovery-window.json` | 实际执行、停止于 installation；`c110f57d90ad0c0b7d19461408284bc348fc5d63b573326e160f3b4fbe8b741a`。 |
+| `service-settle-recovered-installation.json` | 安装器 exit 7、零服务；`506edcece887f77bcebe84db4a0334f0d0d149761b69abc1f331967079555e54`。 |
+| `service-settle-recovery-install.log` | `c85195815b57ccdcc5cdfb8ec560ccc76aaf2ed56a3d7e848277f57e9cf2a8ae`。 |
 
-下一步取得独立恢复窗口的实际结果，再核对安装、文件、停启备份与升级；不重跑已结束的整批脚本，不改写原回执或旧 Stop。整体目标未完成，源码测试通过不证明目前本机有可用 ForMe 服务。
+## 8. 安装器比较诊断与错误定位补强
+
+直接检查发现 32-bit PowerShell 的默认 ProgramFiles 与正式 x64 固定根不同，但这只是待验假设。一次独立管理员诊断 wrapper 因自身的子进程退出/断点处理错误停止；其 x64 子脚本完成并不等于 wrapper 整体通过，x86 比较也没有形成有效回执。该失败保留，不能作为产品根因或权限修复证据。
+
+20:35 的独立原生 Inno Prepare-only 夹具保留正式 app-directory 语义，调用包中原权限脚本和模块：实际 child 为 64-bit、两个固定根参数匹配、child exit 0，根字节/ACL 与服务清单保持。它在任何 payload 安装前故意终止，既不是完整安装，也没有复现真实候选的失败。因此不能认定位数解释了原失败，亦未放宽权限。回执 `target/installer-entry-probe/native-entry-observed.json` 的 SHA-256 为 `7eb61fed2882f216e7863e091823b3ba522413be9bb45519e8dfda2f5a799970`。
+
+在取得更多真实证据前，仅补齐私有可观测性：Inno 区分 launch failure 与 child exit；权限 helper 只在固定解包 sibling 新建数字阶段/来源/行号/HRESULT/分类诊断，原始错误、路径、参数和环境不出日志，已有诊断不可覆盖。成功条件、ACL、服务操作和失败即停边界不变，不新增冻结 DTO/trait/脑事件。
+
+实现提交 `de28e02`。定向检查已通过：NTFS/权限 9/9、原生 Inno 成功/失败退出及诊断脱敏 2/2、bundle/native-package 19/19、规模棘轮；未刷新 baseline。完整源码门 exit 0：182 Rust targets、1301 passed / 0 failed / 16 默认 ignored，strict Clippy、前端 115/115、签名验证、原生夹具与完整合规均通过。`installer-diagnostic-source-gate.log` 的 SHA-256 为 `c0536d58b067afcf0112d851f58ceafa3b4b7c25ddc8d9a32eb60e728669f941`。新候选必须从干净提交生成，后续以独立文件记录安装结果；不得覆盖前述两次安装失败。
+
+下一步以包含诊断的新候选确定实际失败阶段，再推进安装、文件、停启备份与升级。整体目标未完成，源码测试通过不证明目前本机有可用 ForMe 服务。
