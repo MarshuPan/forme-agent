@@ -9,6 +9,8 @@ use std::{
 
 use forme_protocol as p;
 
+mod settle;
+
 pub trait NativeServiceManager: Send + Sync {
     fn inspect(&self, id: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus>;
     fn apply(&self, change: p::ValidatedServiceChange) -> p::Result<p::NativeReceipt>;
@@ -187,28 +189,12 @@ impl NativeServiceManager for SystemServiceManager {
                 ));
             }
         }
-        let expected = match change.action {
-            p::NativeServiceAction::Start => p::NativeServiceState::Running,
-            p::NativeServiceAction::Stop => p::NativeServiceState::Stopped,
-        };
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        let observed = loop {
-            let observed = self.inspect(change.service)?.state;
-            if observed == expected {
-                break observed;
-            }
-            if !matches!(
-                observed,
-                p::NativeServiceState::Starting | p::NativeServiceState::Stopping
-            ) || std::time::Instant::now() >= deadline
-            {
-                return Err(p::Error(
-                    "native service did not settle; probe the original operation before any retry"
-                        .into(),
-                ));
-            }
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        };
+        let observed = settle::wait(
+            change.action,
+            std::time::Instant::now() + std::time::Duration::from_secs(10),
+            || self.inspect(change.service).map(|status| status.state),
+            std::thread::sleep,
+        )?;
         Ok(p::NativeReceipt {
             schema_version: p::SchemaVersion(1),
             service: change.service,

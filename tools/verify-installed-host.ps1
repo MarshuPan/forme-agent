@@ -285,6 +285,10 @@ try {
     Invoke-NamedTest "forme-execution" @("--test", "installed_host_transport") "http_broker_authenticates_and_reuses_the_original_read_only_operation"
 
     Invoke-NamedTest "forme-execution" @("--lib") "installed::service::tests::service_commands_have_only_builtin_targets_and_no_shell"
+    foreach ($name in @("accepted_service_changes_wait_through_stale_status_without_resubmission",
+        "service_observation_rejects_regression_opposite_transition_and_unknown",
+        "stale_service_status_expires_without_sleeping_or_fabricating_success"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::service::settle::tests::$name" }
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Invoke-NamedTest "forme-execution" @("--lib") "installed::service::tests::service_observation_never_turns_ambiguous_output_into_running"
     }
