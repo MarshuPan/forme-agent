@@ -2,6 +2,8 @@
 
 本记录承接 PRD24 §4.1 的结果封存/清理链与[历史审查协议 §9.8](../architecture/proposals/installed-legacy-release-recovery-review.md#98-worker-原件与当前静止水位)。契约细化提交为 `2e99841`，实现提交为 `eb99013`；本批不修改冻结 trait 签名、产品 DTO、摘要域、EventKind、crate 依赖或 unsafe 边界。
 
+后续状态：本记录 §5 保留本批结束时的现场。此后 owner 指示“继续下一步”，[原 Host/Web 已实际恢复](installed-original-host-path-restore-20261106-result.md)，平台资源守卫也已另批实施，见[后续验收](installed-worker-resource-guard-acceptance-20261106.md)。不能将下文当时的“仍停止/待确认”用于当前状态。
+
 ## 1. 问题与复现
 
 原 `WorkerExecutorHost::record_receipt` 验证 AgentExecution 身份后，会依照调用者提交的回执封存一个结果并追加 terminal receipt，没有要求平台实际观察终态及完成资源交接。这是受认证库接口的事实来源漏洞；当前 Host HTTP 不暴露该入口，本记录不将它表述为已经存在的网络攻击路径。

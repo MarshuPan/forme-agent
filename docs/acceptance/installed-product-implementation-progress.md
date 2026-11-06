@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 原 Host/Web 恢复与 worker 资源守卫
+
+owner 的“继续下一步”覆盖此前列明的两项工作，契约已先以 `0ba3f3e` 落库。原机于 11:38（Asia/Shanghai）成功完成固定 Host SCM 路径表示修正，Host/Web 各限定启动一次；11:59 独立只读复查两者仍 Running（PID 75976/32464），18765 为 Web listener，页面入口 HTTP 200。程序/config 字节保持，Brain/updater 仍 Stopped，原 Upgrade 没有重派。精确脚本、回执摘要及保全边界见[原机恢复结果](installed-original-host-path-restore-20261106-result.md)；不再等待此前这项批准或重复 Apply。
+
+资源守卫实现 `e649b84` 已接上实际 adapter 的 children 排他，AppContainer 同时核验并持有原 sandbox lease writer，整个守卫保持到恢复 callback 返回。缺观察能力、活资源、未 cleanup lease、poisoned 或原件水位不符均拒绝，不以空日志或调用者回执取得恢复资格。完整源码门 exit 0（182 Rust targets、1281 passed / 0 failed / 15 默认 ignored、strict Clippy、前端 115/115 与完整合规），永久宿主门 379/379、最终空间报告 PASS。Linux 交叉检查缺 C 工具链，macOS 未验证；Inno exit fixture 和 IP01–IP24 NOT_RUN。精确日志摘要及限度见[本批验收](installed-worker-resource-guard-acceptance-20261106.md)；该补丁尚未部署到原安装，M5/发布回执未刷新。
+
+完整生产 collector、独立历史来源/构建绑定、worker/lease 历史连续性、精确签名管理修复和原 Upgrade 显式裁决仍开放，见[当前八项材料状态](installed-legacy-recovery-evidence-status-20261106.md)。网页入口恢复不是 BrainReady 或完整 IP PASS。下列段落保留各批次当时的观察；其中“四服务停止”“等待路径批准”等不代表本段之后的现场。
+
 ## 2026-11-06 worker 回执只能确认真实 Host 观察
 
 契约 `2e99841`、实现 `eb99013` 修复 `record_receipt` 接受调用者自报终态的问题：现在只读确认原 journal 已持久化的完整同一回执，重读原件并核对内存水位，不隐式观察进程、不封存新结果、不追加事实。真实 Windows Job 活进程反例、逐字段替换、重启 Unknown、清理失败和并发确认均通过；原 Unknown 不被洗成完成。当前 HTTP 未暴露该库入口，不将其描述为既有网络攻击接口。

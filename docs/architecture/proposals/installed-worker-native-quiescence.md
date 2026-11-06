@@ -32,8 +32,12 @@ sandbox lease 的原件检查保留原句柄、OS 锁、字节和位置，不开
 
 先回填 PRD24 与 architecture/10 的以上接口/顺序，再实施。测试至少覆盖：缺省 adapter 零 callback；日志已终态但实际 registry 非空仍拒绝；原 lease 损坏/截断/poisoned/未清理拒绝；有效静止成功；callback 期间并发 admission 不进入平台；callback 错误保持；真实 Windows Job 在运行/取消前后的拒绝/成功；原件字节/位置/锁保持。可信测试 adapter 必须显式实现受控观察，不能沿用默认成功。
 
-按仓库规则执行定向、完整源码质量和永久宿主门，代码与文档分开提交。真实 AppContainer/SCM、完整历史 collector 和 IP01–IP24 另取证；不从默认 ignored 或非 Windows 交叉编译宣称原生通过。本次确认只涵盖契约细化与代码/隔离测试，不授权原安装的 SCM 修改、启停、程序替换、数据迁移、旧 Upgrade 重派或卸载。
+按仓库规则执行定向、完整源码质量和永久宿主门，代码与文档分开提交。真实 AppContainer/SCM、完整历史 collector 和 IP01–IP24 另取证；不从默认 ignored 或非 Windows 交叉编译宣称原生通过。本资源守卫项的批准范围为契约细化与代码/隔离测试；同条“继续下一步”中原 Host 的 SCM 路径修正和限定启动按独立[固定恢复计划](../../acceptance/installed-original-host-path-restore-20261105-plan.md)执行，已取得[实际结果](../../acceptance/installed-original-host-path-restore-20261106-result.md)。两项均不扩展为程序替换、数据迁移、旧 Upgrade 重派或卸载。
 
 ## 4. 确认依据与后续边界
 
 AGENTS.md 硬规则 3：**“PRD 里的 trait 签名与协议对象是冻结契约……要改先提文档变更，经确认后代码跟进。”** 本项新增平台 trait 方法，已先提出完整协议再取得上述继续指示，不夹带于 `eb99013` 的回执修复。批准覆盖本文契约细化与代码/隔离测试，未完成的实现/真实平台证据继续如实记录；不扩展为其他本机操作授权。
+
+## 5. 本批实施与证据
+
+正式契约提交 `0ba3f3e`，实现提交 `e649b84`。十二个新增命名场景已进入永久宿主门；完整源码门（1281 Rust passed / 0 failed / 15 默认 ignored、strict Clippy、前端 115/115 与完整合规）及永久宿主门 379/379 均通过。原件、并发和平台证据的具体范围、失败日志、Linux 工具链限制与未部署边界见[本批验收](../../acceptance/installed-worker-resource-guard-acceptance-20261106.md)。原安装的完整历史 collector、管理程序迁移与 IP 不由此完成。

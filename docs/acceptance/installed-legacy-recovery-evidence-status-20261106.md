@@ -4,9 +4,9 @@
 
 ## 1. 当前现场和执行范围
 
-本轮只读 SCM 复核：Host、Web、Brain、release-updater 均 Stopped/PID 0；Host/updater ExitCode 1，Web/Brain ExitCode 0。Codex 当前进程没有 Windows 管理员令牌。本轮没有发起 UAC、修改 SCM、启动服务、替换已安装文件、迁移数据或重新派发原 Upgrade。网页没有由本批恢复。
+本记录已更新到 2026-11-06 的限定恢复之后。11:38（Asia/Shanghai）原 Host 路径恢复已成功；11:59 独立只读复查为 Host Running/PID 75976、Web Running/PID 32464，Brain/updater Stopped/PID 0。18765 listener 对应 Web PID，页面入口返回 HTTP 200、HTML 595 字节。这只证明原 Host/Web 与页面入口恢复，不证明登录、BrainReady、真实模型或完整 IP 通过。
 
-[原 Host 路径恢复计划](installed-original-host-path-restore-20261105-plan.md)已准备，固定脚本 SHA-256 本轮复算仍为 `93defb96100806aac062a3298cadee9d098144b563f9ae657e38a7fd2a9d43bf`。一次 Apply 的精确问题已发出但尚未取得答复；此前“继续”对应只读 UAC，不代指这个新增 SCM 变更。只读预检也没有新的管理员结果，不能记作通过或反复发起无新价值的系统弹窗。
+[原 Host 路径恢复计划](installed-original-host-path-restore-20261105-plan.md)的同一固定脚本（SHA-256 `93defb96100806aac062a3298cadee9d098144b563f9ae657e38a7fd2a9d43bf`）已获本轮“继续下一步”授权并执行一次 Apply。它只修正同一 image 的 SCM 路径分隔符，原程序、配置、策略及保护备份终检通过；Host/Web 各限定启动一次，未替换程序、迁移数据或重派原 Upgrade。实际回执和边界见[恢复结果](installed-original-host-path-restore-20261106-result.md)。不再重复 Apply；当前原 Host 已重新持有 journal 锁。
 
 原 operation 仍为 `maintenance:acceptance-upgrade-after-path-20261102-db96ec2`；原 installation、业务 active release、缺 baseline 的状态和真实产品水位以重新取得的原件检查为准。下文 11 月 5 日文件指历史采样，不能代替未来执行前的重查。
 
@@ -18,8 +18,8 @@
 | `ArchivedDataIdentity` | 私有来源验签、原档案 closed reader、身份比较与 custody 场景已实现，模块目前仅在测试编译。 | 独立核实并预置的原来源记录、公钥与摘要，以及生产 collector 装配。本机尚无可接纳来源，原报告存在/摘要相同不足以取得 Verified。 |
 | `UpdaterCodeAudit` | 本节下方已审查精确历史 Git 源码，重算原候选和有关档案摘要，确定备份/切换的 intent 顺序。 | 审查权威可接纳的原二进制到被审计源码/构建来源的绑定；现存包装 receipt 不能独立证明该绑定。 |
 | `SourceImagesAndServices` | 11 月 5 日管理员预检记录六程序摘要、四服务身份/参数/有限恢复策略；本轮原候选文件摘要与该历史 Host 观察一致。 | 收集器中的独立原来源核实、当前受保护原文件 custody 与执行前真实 SCM 重查。不能用旧输出代替当前文件。 |
-| `ConfigurationContinuity` | 历史预检记录六配置原字节/ACL 摘要；同文件路径表示修正有独立记录。 | 完整连续性核实与当前重查；拟执行的 Host 路径恢复也必须保留独立记录，不能规范化后隐藏变更。 |
-| `WorkerContinuity` | `f83b63e` 已修复当前原 worker journal 与内存水位一致性；`eb99013` 进一步要求调用者只能确认原件已保存的完整 Host 回执，真实 Windows Job 自报终态反例及本批完整质量/宿主门通过，见[回执来源验收](installed-worker-receipt-origin-acceptance-20261106.md)。 | 历史独立来源、实际进程/lease 守卫与连续性、原生 collector。资源守卫的新增平台接口尚待确认，当前静止/空日志不证明历史从未执行。 |
+| `ConfigurationContinuity` | 历史预检记录六配置原字节/ACL 摘要；本轮同文件 SCM 路径表示恢复有独立回执，程序/config 字节保持。 | 完整历史连续性核实与裁决前当前重查；路径表示变更保留独立记录，不能规范化后隐藏。 |
+| `WorkerContinuity` | `f83b63e` 修复原 worker journal 与内存水位一致性，`eb99013` 要求仅确认已保存的完整 Host 回执。本轮 `e649b84` 实现实际 children 排他与 AppContainer 原 lease 核验，守卫保持至恢复 callback 返回；完整源码门与永久宿主门均通过，见[资源守卫验收](installed-worker-resource-guard-acceptance-20261106.md)。 | 独立历史来源、worker/lease 历史连续性、真实安装部署与原生 collector。当前静止/空日志不证明历史从未执行，临时 Windows Job 和受控 lease 测试不能替代原机历史。 |
 | `ManagementReaderRepair` | 签名分发/plan/receipt 读取、实际六程序/配置/服务/准确 3/3 能力检查及持有期 custody 已实现。 | 精确签名修复材料、原生 Apply 的单独方案与授权，以及实际新 reader/updater 安装回执；本轮未替换任何程序。 |
 | `CurrentExclusiveInspection` | 固定数据 child 的独占检查与提交前存活/传输/期限检查已有实现和实际临时数据子进程场景。 | 覆盖实际本机裁决窗口的原数据检查与持锁证据，及收集器中的完整组合。临时数据测试不证明原脑通过。 |
 
@@ -65,8 +65,8 @@
 
 ## 5. 后续执行顺序与本次结束边界
 
-1. 取得此前已发出的一次路径恢复 Apply 的精确答复后，按该固定计划核对原件、只修正 Host SCM image 的路径分隔符，并限定启动原 Host/Web。没有答复时不执行；失败保留现场，不重试。
+1. 原 Host 路径修正与限定 Host/Web 启动已完成并留存回执；不再等待这项批准，也不重跑固定脚本。当前活动 journal 只经原持锁 writer 核查，不从外部绕锁取样。
 2. 在原文件与 Unknown 历史完整保留的前提下，补齐生产 collector、可独立接纳的历史来源、签名管理修复和准确 native 迁移方案。缺原来源时明确保持 Unverifiable；修复程序与裁决原事务是两个有各自证据的动作。
 3. 原安装修复和原操作显式裁决之后，才以新的授权事务继续升级、实际模型/worker/helper 与 IP01–IP24；不重发已过期的原 Upgrade，也不把恢复网页称为整个目标完成。
 
-本轮实现仅为 [worker 原件核验 `f83b63e`](installed-worker-original-journal-acceptance-20261106.md)，其源码质量门与宿主门已实际通过。此处新增的是只读源码/档案审查，不新增测试通过数，不刷新 M5/发布回执，不合入 main 或推送。整体目标保持未完成。
+本记录的历史源码/档案审查不新增测试通过数。worker 原件、回执来源与本轮资源守卫各自以其验收记录为准；本机恢复也有独立真实回执，不能相互替代。M5/发布回执未因本记录刷新，本分支尚未合入 main 或推送，整体目标仍未完成。
