@@ -60,7 +60,7 @@ pub fn verify_installed_backup(
         verification: p::DataBackupView {
             schema_version: p::SchemaVersion(1),
             object: request.source.clone(),
-            digest: p::canonical_digest(&verification.manifest)?,
+            digest: verification.manifest.database_digest.clone(),
             events: verification.manifest.event_count,
             created_at: verification.manifest.created_at,
             verified: true,

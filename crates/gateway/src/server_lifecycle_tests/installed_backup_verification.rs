@@ -40,6 +40,12 @@ fn offline_backup_verification_checks_real_encrypted_snapshot_without_loading_ru
     let response = verify_installed_backup(&f.manifest, request.clone()).unwrap();
     response.validate_for(&request).unwrap();
     assert!(response.verification.verified);
+    // DataBackupView uses the snapshot bytes' digest in the online workbench
+    // too. A manifest digest here would change identity just by stopping core.
+    assert_eq!(
+        response.verification.digest,
+        p::sha256_content_digest(&original_backup)
+    );
     assert!(response.verification.restoration.is_none());
     assert_eq!(fs::read(&f.f.config.store_path).unwrap(), original);
     assert_eq!(fs::read(&source).unwrap(), original_backup);
