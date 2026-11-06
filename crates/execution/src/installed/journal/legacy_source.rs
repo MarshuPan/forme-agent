@@ -1,7 +1,34 @@
 //! Re-read the sole writer's actual journal; never trust a report's own copy.
 use super::*;
 
+/// Derived from the sole writer's original facts, never from a signed report.
+#[derive(Clone)]
+pub(crate) struct LegacySourceContext {
+    pub takeover: p::ProductReleaseTakeover,
+    pub planned_at: p::Timestamp,
+}
+
 impl ProductJournal {
+    pub(crate) fn legacy_source_context(&self, id: &str) -> p::Result<LegacySourceContext> {
+        p::validate_product_id(id)?;
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        let state = writer
+            .projection
+            .operations
+            .get(id)
+            .ok_or_else(invalid_journal)?;
+        // Source identity is immutable even after adjudication. Eligibility
+        // remains check_legacy_review's responsibility on each owner action;
+        // keeping old material must not prevent the next Host startup.
+        Ok(LegacySourceContext {
+            takeover: state.release_takeover.clone().ok_or_else(invalid_journal)?,
+            planned_at: state.planned_at,
+        })
+    }
+
     pub(crate) fn legacy_journal_evidence(
         &self,
         binding: &p::LegacyReleaseReviewBinding,

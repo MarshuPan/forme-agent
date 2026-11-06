@@ -137,6 +137,7 @@ impl Projection {
                     command.operation_id.clone(),
                     OperationState {
                         command: command.as_ref().clone(),
+                        planned_at: *at,
                         view: p::MaintenanceOperation {
                             schema_version: p::SchemaVersion(1),
                             operation_id: command.operation_id.clone(),

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::reject_linked_ancestors;
 mod legacy_recovery_review;
 mod legacy_source;
+pub(crate) use legacy_source::LegacySourceContext;
 mod offline_source;
 pub use offline_source::{inspect_existing_legacy_source, LegacyRepairSourceSnapshot};
 #[path = "network_journal.rs"]
@@ -161,6 +162,7 @@ impl JournalEnvelope {
 #[derive(Clone)]
 struct OperationState {
     command: p::MaintenanceCommand,
+    planned_at: p::Timestamp,
     view: p::MaintenanceOperation,
     network_contract: bool,
     network_progress: Option<p::ProductNetworkProgress>,

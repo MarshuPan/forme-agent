@@ -16,7 +16,7 @@ use crate::installed::reject_linked_ancestors;
 pub(crate) struct ReadCustody {
     directories: BTreeSet<PathBuf>,
     files: Vec<File>,
-    records: Vec<(PathBuf, p::SchemaDigest)>,
+    records: Vec<(PathBuf, usize, u64, p::SchemaDigest)>,
     exclusive_records: Vec<(PathBuf, usize, u64, p::SchemaDigest)>,
 }
 
@@ -81,7 +81,8 @@ impl ReadCustody {
             self.exclusive_records
                 .push((path.to_path_buf(), self.files.len() - 1, length, digest));
         } else {
-            self.records.push((path.to_path_buf(), digest));
+            self.records
+                .push((path.to_path_buf(), self.files.len() - 1, length, digest));
         }
         Ok(bytes)
     }
@@ -91,10 +92,13 @@ impl ReadCustody {
     }
 
     pub fn recheck_records(&self) -> p::Result<()> {
-        for (path, digest) in &self.records {
+        for (path, index, length, digest) in &self.records {
+            let file = self.files.get(*index).ok_or_else(invalid)?;
+            recheck_identity(path, file, *length)?;
             if crate::installed::file_digest(path)? != *digest {
                 return Err(invalid());
             }
+            recheck_identity(path, file, *length)?;
         }
         for (path, index, length, digest) in &self.exclusive_records {
             let mut file = self.files.get(*index).ok_or_else(invalid)?;
@@ -140,6 +144,27 @@ impl ReadCustody {
         }
         Ok(())
     }
+}
+
+fn recheck_identity(path: &Path, file: &File, length: u64) -> p::Result<()> {
+    reject_linked_ancestors(path)?;
+    let current = fs::symlink_metadata(path).map_err(|_| invalid())?;
+    let pinned = file.metadata().map_err(|_| invalid())?;
+    if !current.is_file() || current.len() != length || pinned.len() != length {
+        return Err(invalid());
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if current.dev() != pinned.dev() || current.ino() != pinned.ino() || pinned.nlink() != 1 {
+            return Err(invalid());
+        }
+    }
+    #[cfg(windows)]
+    if crate::installed::windows_appcontainer_acl::inspect_file(file)?.1 != 1 {
+        return Err(invalid());
+    }
+    Ok(())
 }
 
 fn open(path: &Path, directory: bool) -> p::Result<File> {

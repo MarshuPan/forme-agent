@@ -222,6 +222,7 @@ pub(crate) struct HostRuntimeConfig {
     pub product_config_template_path: Option<PathBuf>,
     pub installed_file: Option<InstalledFileProvisioning>,
     pub release_stager: Option<std::sync::Arc<ReleaseStager>>,
+    pub legacy_review_trust: Option<ReleaseStagingConfig>,
     pub restore_worker: Option<std::sync::Arc<forme_execution::installed::InstalledRestoreWorker>>,
     pub release_updater:
         Option<std::sync::Arc<forme_execution::installed::InstalledReleaseUpdater>>,
@@ -397,6 +398,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         release_stager: None,
         restore_worker: None,
         release_updater: None,
+        legacy_review_trust: None,
         host_bind,
         agent_execution_bind,
         configuration_bind,
@@ -428,10 +430,14 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         }
     )));
     // Validate all trust/layout inputs before opening credentials or any journal.
-    let release_stager = config
+    let legacy_review_trust = config
         .release_staging_config_path
         .as_deref()
-        .map(|path| ReleaseStager::open(manifest.clone(), ReleaseStagingConfig::load(path)?))
+        .map(ReleaseStagingConfig::load)
+        .transpose()?;
+    let release_stager = legacy_review_trust
+        .clone()
+        .map(|trust| ReleaseStager::open(manifest.clone(), trust))
         .transpose()?
         .map(std::sync::Arc::new);
     let release_updater = release_stager
@@ -509,6 +515,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         product_config_template_path: config.product_config_template_path,
         installed_file,
         release_stager,
+        legacy_review_trust,
         release_updater,
         restore_worker,
         host_bind: config.host_bind,

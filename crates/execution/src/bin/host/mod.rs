@@ -230,6 +230,11 @@ fn run_host(
     if let Some(updater) = runtime.release_updater {
         broker = broker.with_release_updater(updater)?;
     }
+    if runtime.managed {
+        if let Some(trust) = runtime.legacy_review_trust {
+            broker = broker.with_native_legacy_review(trust)?;
+        }
+    }
     let broker = Arc::new(broker);
     if runtime.managed {
         on_stage(startup::Stage::InstallationVerification);

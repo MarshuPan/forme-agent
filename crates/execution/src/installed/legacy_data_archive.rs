@@ -15,6 +15,14 @@ use objects::{ArchiveOrigin, DataArchive, SignedArchiveOrigin, SCHEMA};
 const ARCHIVE_LIMIT: u64 = 256 * 1024;
 const ORIGIN_LIMIT: u64 = 16 * 1024;
 
+#[cfg(test)]
+pub(in crate::installed) fn origin_digest_for_test(
+    value: serde_json::Value,
+) -> p::Result<p::SchemaDigest> {
+    let origin: ArchiveOrigin = serde_json::from_value(value).map_err(|_| invalid())?;
+    origin.digest()
+}
+
 /// Provision only from independently verified, protected Host configuration.
 /// Neither a review, a browser nor a newly hashed local file supplies this trust.
 /// No Deserialize: verifying a self-contained signed archive is insufficient.

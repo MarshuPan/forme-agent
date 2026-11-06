@@ -75,11 +75,11 @@ fn receipt(plan: &RepairPlan) -> RepairReceipt {
     }
 }
 
-struct Fixture {
+pub(in crate::installed) struct Fixture {
     _root: tempfile::TempDir,
-    installation: p::InstallationManifest,
-    binding: p::LegacyReleaseReviewBinding,
-    trust: ReleaseStagingConfig,
+    pub(in crate::installed) installation: p::InstallationManifest,
+    pub(in crate::installed) binding: p::LegacyReleaseReviewBinding,
+    pub(in crate::installed) trust: ReleaseStagingConfig,
     key: SigningKey,
     plan: RepairPlan,
     root: PathBuf,
@@ -88,7 +88,7 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn new() -> Self {
+    pub(in crate::installed) fn new() -> Self {
         let root = tempfile::tempdir().unwrap();
         let base = root.path();
         let paths = p::ProductPaths {
@@ -300,9 +300,38 @@ impl Fixture {
         ManagementReaderRepairEvidence::load(&self.installation, &self.trust, &self.binding, 5_000)
     }
 
-    fn inspect(&self) -> p::Result<ManagementReaderRepairInspection> {
+    pub(in crate::installed) fn inspect(&self) -> p::Result<ManagementReaderRepairInspection> {
         self.load()?
             .inspect_with(Instant::now() + Duration::from_secs(30), native_fixture)
+    }
+
+    pub(in crate::installed) fn rebind_legacy(&mut self, binding: p::LegacyReleaseReviewBinding) {
+        self.plan.original_command_digest = binding.original_command_digest.clone();
+        self.plan.journal_seq = binding.journal_seq;
+        self.plan.journal_head = binding.journal_head.clone();
+        self.binding = binding;
+        self.publish(&self.plan);
+    }
+
+    pub(in crate::installed) fn source_images(&self) -> Vec<(String, u64, p::SchemaDigest)> {
+        self.plan
+            .images
+            .iter()
+            .map(|entry| {
+                (
+                    entry.image.binary().to_owned(),
+                    entry.source_size,
+                    entry.source_digest.clone(),
+                )
+            })
+            .collect()
+    }
+
+    pub(in crate::installed) fn source_digests(&self) -> (p::SchemaDigest, p::SchemaDigest) {
+        (
+            self.plan.config_files_digest.clone(),
+            self.plan.service_configuration_digest.clone(),
+        )
     }
 }
 

@@ -135,6 +135,35 @@ impl ManagementReaderRepairEvidence {
         &self.receipt_digest
     }
 
+    /// Compare independently authenticated historical source bindings. Current
+    /// repaired images are verified separately by inspect_current, not here.
+    pub(in crate::installed) fn check_legacy_sources(
+        &self,
+        images: &[(String, u64, p::SchemaDigest)],
+        config: &p::SchemaDigest,
+        services: &p::SchemaDigest,
+    ) -> p::Result<()> {
+        let expected: Vec<_> = self
+            .plan
+            .images
+            .iter()
+            .map(|entry| {
+                (
+                    entry.image.binary().to_owned(),
+                    entry.source_size,
+                    entry.source_digest.clone(),
+                )
+            })
+            .collect();
+        if images != expected
+            || config != &self.plan.config_files_digest
+            || services != &self.plan.service_configuration_digest
+        {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+
     /// Actual platform verification. Keeps the exact images/configuration under
     /// read custody until the caller releases/drops the inspection. It performs
     /// only an offline capabilities probe and read-only OS queries, never
@@ -185,6 +214,19 @@ impl ManagementReaderRepairInspection {
     /// Repeat under the collector's same journal/data/worker critical section
     /// immediately before its independent decision is committed.
     pub fn recheck(&self, deadline: Instant) -> p::Result<p::SchemaDigest> {
+        self.recheck_capabilities(deadline)
+            .map(|(digest, _)| digest)
+    }
+
+    pub(in crate::installed) fn receipt_digest(&self) -> &p::SchemaDigest {
+        self.evidence.receipt_digest()
+    }
+
+    /// SCM verification also establishes that the fixed updater is stopped.
+    pub(in crate::installed) fn recheck_capabilities(
+        &self,
+        deadline: Instant,
+    ) -> p::Result<(p::SchemaDigest, p::ProductReleaseRecoveryCapabilities)> {
         ensure_time(deadline)?;
         let evidence = &self.evidence;
         evidence.custody.recheck_records()?;
@@ -237,14 +279,15 @@ impl ManagementReaderRepairInspection {
         }
         observation.capabilities.validate()?;
         ensure_time(deadline)?;
-        p::canonical_digest(&(
+        let digest = p::canonical_digest(&(
             "forme-management-reader-repair-inspection-v1",
             &evidence.receipt_digest,
             &evidence.receipt.installed_images_digest,
             config_digest,
             observation.services,
-            observation.capabilities,
-        ))
+            &observation.capabilities,
+        ))?;
+        Ok((digest, observation.capabilities))
     }
 }
 
@@ -284,4 +327,4 @@ fn invalid() -> p::Error {
 }
 
 #[cfg(test)]
-mod tests;
+pub(in crate::installed) mod tests;

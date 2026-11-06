@@ -59,6 +59,8 @@ try {
         "legacy_host_lost_custody_after_intent_requires_explicit_original_verification"
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
 
+    & (Join-Path $PSScriptRoot 'verify-native-legacy-review.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Native legacy review composition gate failed' }
     foreach ($name in @(
         "installed::sandbox_lease::journal::quiescence::tests::original_lease_guard_preserves_bytes_position_watermark_and_os_lock",
         "installed::sandbox_lease::journal::quiescence::tests::pending_lease_blocks_recovery_without_poisoning_normal_cleanup",

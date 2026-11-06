@@ -8,13 +8,16 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[path = "host_legacy_release_recovery/native.rs"]
+mod native;
 #[cfg(test)]
 #[path = "host_legacy_release_recovery_tests.rs"]
 mod tests;
 
 /// This is a trusted internal seam, never a browser or package-supplied adapter.
 /// A native implementation must authenticate all eight artifacts and hold the
-/// data inspection lock until release. No production implementation is mounted.
+/// data inspection lock until release. Managed composition alone may mount the
+/// native implementation from independently provisioned, protected material.
 pub(super) trait LegacyReviewCollector: Send + Sync {
     fn load(&self, reference: &str) -> p::Result<p::SignedLegacyReleaseReview>;
     fn inspect(
