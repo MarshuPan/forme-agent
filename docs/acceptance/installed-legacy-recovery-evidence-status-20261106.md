@@ -1,5 +1,7 @@
 # 原安装恢复：证据状态与旧 updater 源码审查（2026-11-06）
 
+**历史状态说明**：owner 随后明确授权全部重置测试数据。原 installation 已于本日 14:06–14:07 清除，并安装独立新实例；下列来源缺口不再阻塞当前本机测试，也不继续索取历史来源。原升级未被裁决为成功或 Aborted。准确销毁范围、新候选和实测见[本机重置记录](installed-product-local-reset-20261106.md)；下文保留重置前实际审查结论。
+
 本记录集中描述原 installation 的恢复依赖，承接[已批准历史恢复协议](../architecture/proposals/installed-legacy-release-recovery-review.md)与[原件采样记录](installed-source-window-and-data-custody-20261105.md)。它不是新的恢复授权、签名历史报告或 IP PASS；不改变冻结接口，不把源码推导升级成真实副作用观察。
 
 最新源码状态：`315960b` 已将真实只读 `LegacyReviewCollector` 接入 managed Host，原档案 reader 也进入生产编译。固定来源目录缺失时保持不可用，存在但无效时拒绝；不生成来源或恢复事实。完整源码门与宿主门通过，见[本轮组合验收](installed-legacy-review-native-composition-acceptance-20261106.md)。新源码没有部署到原安装，没有 provision 历史材料，也没有裁决旧操作。

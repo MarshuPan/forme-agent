@@ -2,6 +2,16 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 Owner 授权测试重置，新版已在本机运行
+
+Owner 明确允许“所有东西都可以重置，不需要留任何东西”后，已停止并删除旧四服务、旧两个固定 ForMe 根和唯一卸载登记；旧账号、keys、脑、配置、备份和未决升级 journal 不备份、不迁移。仓库/外部项目及既有源码验收工件保持。旧升级随测试实例销毁而移除，不补造 Aborted 或恢复成功。
+
+当前候选 `forme-windows-x86_64-20261106-d22b6a3` 的安装器实际 exit 0，六程序摘要逐一匹配 bundle；独立新安装已认领，沿正式 Web API 保存本地既有测试模型后 Brain 自动启动并 ack revision 1，产品状态 ready。真实模型 run Complete，19 个 stream_seq 连续事件包含 SessionBound、context build、ModelCallStarted/Finished、Verification 和 RunComplete；同 key 重提返回原 run 且零新增模型调用。匿名 401、错误 Origin/缺 CSRF 403、零新增 run 的原生反例也已补验；首份 smoke 的 CSRF fixture 头复用错误保留，并以独立补充回执纠正，不重跑模型。
+
+原生服务窗口也已闭合：Brain offline 时 Web 维护可用；Host restart 后 Brain 自动恢复；Web restart 后原 session、owner/store、回答及原 run 的 19 事件保持，三个业务服务 Running。初版脚本遗漏依赖停服后的 Web start，其超时与独立完成回执均保留；未修改产品代码。SCM Running 后首个页面实测 63 ms，不外推 OS 冷启动性能。
+
+源码供应链审计及 artifact verify PASS，receipt `sha256:0865d1aa056b6170a682ae5621b6fbea90a33a78fff56b0245957429c8e8cf03`；不是完整 M5 总门刷新。当前 runtime doctor 仍为 blocking：notification worker 缺绑定，shell/browser/computer/PTY disabled，MCP/App API/plugin 未配置；产品设置受管消费者的既有缺口继续开放。真实隔离 worker、升级恢复、OS 冷启动/注销及完整浏览器/IP 场景继续取证，完整 IP24 与正式发行仍未通过。精确范围、候选和回执见[本机重置与安装记录](installed-product-local-reset-20261106.md)。下列段落为各批次历史。
+
 ## 2026-11-06 生产历史收集器接线与本机收尾路线
 
 `315960b` 已将真实只读 `LegacyReviewCollector` 接入 managed Host：从固定受保护目录读取独立签名来源/报告，核对原 journal Planned 时间，并组合档案、management repair/SCM 与持有期原数据检查。缺材料仍 unavailable，错材料拒绝，不生成 origin 或改写旧历史。完整源码门 exit 0（182 Rust targets，1293 passed / 0 failed / 15 默认 ignored，strict Clippy、前端 115/115、结构门与完整合规）；永久宿主门 379 个逐名场景和新增生产组合 12/12 通过；安装器成功/失败退出另行 2/2 通过。详见[本轮组件验收](installed-legacy-review-native-composition-acceptance-20261106.md)。没有刷新 M5/发布回执或 IP01–IP24，也未部署到原安装。
