@@ -59,4 +59,4 @@
 10. M3 验收后，评审 `11`–`12` 与 canonical §26，冻结 M4 单 Owner 联邦边界与 S70–S84，再进入 `architecture/07` 和 `prd/21`；未通过规格 review 不写实现，每波继续停下 owner review。
 11. M4 封板后，评审 `13`–`14` 与 canonical §27，冻结 M5 受治理能力生态与 S85–S99，再进入 `architecture/08` 和 `prd/22`；catalog、signature、admission 与 permission 必须保持分离。
 12. M5 合入后，不创造 M6；评审 `15`–`16` 与 canonical §28，按 `architecture/09`、`prd/23` 的 A→B→C→D 把已有模块闭合为默认 forme 大脑，C1–C24 与 S1–S99 同时通过才算完成。
-13. V1 闭合后，产品化按 `17`–`18`、canonical §29、`architecture/10` 和 `prd/24–26` 形成安装/常驻/Web 实施链；当前为文档阶段，不重命名 M6、不宣称安装器已完成。
+13. V1 闭合后，产品化按 `17`–`18`、canonical §29、`architecture/10` 和 `prd/24–26` 形成安装/常驻/Web 实施链；当前处于分阶段实现与原生验收，准确状态见[产品化实施进度](../acceptance/installed-product-implementation-progress.md)，不重命名 M6，不以组件通过宣称完整安装产品已验收。

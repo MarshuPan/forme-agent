@@ -2,6 +2,8 @@
 
 本记录集中描述原 installation 的恢复依赖，承接[已批准历史恢复协议](../architecture/proposals/installed-legacy-release-recovery-review.md)与[原件采样记录](installed-source-window-and-data-custody-20261105.md)。它不是新的恢复授权、签名历史报告或 IP PASS；不改变冻结接口，不把源码推导升级成真实副作用观察。
 
+最新源码状态：`315960b` 已将真实只读 `LegacyReviewCollector` 接入 managed Host，原档案 reader 也进入生产编译。固定来源目录缺失时保持不可用，存在但无效时拒绝；不生成来源或恢复事实。完整源码门与宿主门通过，见[本轮组合验收](installed-legacy-review-native-composition-acceptance-20261106.md)。新源码没有部署到原安装，没有 provision 历史材料，也没有裁决旧操作。
+
 ## 1. 当前现场和执行范围
 
 本记录已更新到 2026-11-06 的限定恢复之后。11:38（Asia/Shanghai）原 Host 路径恢复已成功；11:59 独立只读复查为 Host Running/PID 75976、Web Running/PID 32464，Brain/updater Stopped/PID 0。18765 listener 对应 Web PID，页面入口返回 HTTP 200、HTML 595 字节。这只证明原 Host/Web 与页面入口恢复，不证明登录、BrainReady、真实模型或完整 IP 通过。
@@ -15,15 +17,15 @@
 | 材料 | 已有实现或实际观察 | 原生恢复仍缺什么 |
 |---|---|---|
 | `OriginalJournal` | 原持锁 writer 的有界重读、hash/schema/因果链和 checkpoint 检查已有生产实现；11 月 5 日离线原件采样实际成功。 | 实际修复/裁决时重新取得同一原件水位，纳入完整原生 collector；旧采样不作为持续锁。 |
-| `ArchivedDataIdentity` | 私有来源验签、原档案 closed reader、身份比较与 custody 场景已实现，模块目前仅在测试编译。 | 独立核实并预置的原来源记录、公钥与摘要，以及生产 collector 装配。本机尚无可接纳来源，原报告存在/摘要相同不足以取得 Verified。 |
+| `ArchivedDataIdentity` | 私有来源验签、原档案 closed reader、身份比较、custody 及生产 collector 装配已实现。 | 本机尚无可接纳的原档案 origin、独立公钥与原字节摘要。现有五份安装/操作/网页观察档案虽匹配文档摘要，但历史核对明确 `provenance_verified=false`、`semantic_review_verified=false`，不能现场补签。 |
 | `UpdaterCodeAudit` | 本节下方已审查精确历史 Git 源码，重算原候选和有关档案摘要，确定备份/切换的 intent 顺序。 | 审查权威可接纳的原二进制到被审计源码/构建来源的绑定；现存包装 receipt 不能独立证明该绑定。 |
 | `SourceImagesAndServices` | 11 月 5 日管理员预检记录六程序摘要、四服务身份/参数/有限恢复策略；本轮原候选文件摘要与该历史 Host 观察一致。 | 收集器中的独立原来源核实、当前受保护原文件 custody 与执行前真实 SCM 重查。不能用旧输出代替当前文件。 |
 | `ConfigurationContinuity` | 历史预检记录六配置原字节/ACL 摘要；本轮同文件 SCM 路径表示恢复有独立回执，程序/config 字节保持。 | 完整历史连续性核实与裁决前当前重查；路径表示变更保留独立记录，不能规范化后隐藏。 |
-| `WorkerContinuity` | `f83b63e` 修复原 worker journal 与内存水位一致性，`eb99013` 要求仅确认已保存的完整 Host 回执。本轮 `e649b84` 实现实际 children 排他与 AppContainer 原 lease 核验，守卫保持至恢复 callback 返回；完整源码门与永久宿主门均通过，见[资源守卫验收](installed-worker-resource-guard-acceptance-20261106.md)。 | 独立历史来源、worker/lease 历史连续性、真实安装部署与原生 collector。当前静止/空日志不证明历史从未执行，临时 Windows Job 和受控 lease 测试不能替代原机历史。 |
+| `WorkerContinuity` | `f83b63e` 修复原 worker journal 与内存水位，`eb99013` 限定真实 Host 回执，`e649b84` 实现实际 children/lease guard；`315960b` 将其与来源重查组合进生产 collector。 | 独立历史来源与 worker/lease 历史连续性仍缺，新 collector 未部署。当前静止/空日志和临时 Windows Job/lease 场景不能证明原机历史从未执行。 |
 | `ManagementReaderRepair` | 签名分发/plan/receipt 读取、实际六程序/配置/服务/准确 3/3 能力检查及持有期 custody 已实现。 | 精确签名修复材料、原生 Apply 的单独方案与授权，以及实际新 reader/updater 安装回执；本轮未替换任何程序。 |
-| `CurrentExclusiveInspection` | 固定数据 child 的独占检查与提交前存活/传输/期限检查已有实现和实际临时数据子进程场景。 | 覆盖实际本机裁决窗口的原数据检查与持锁证据，及收集器中的完整组合。临时数据测试不证明原脑通过。 |
+| `CurrentExclusiveInspection` | 固定数据 child 的独占检查、提交前存活/传输/期限检查以及生产 collector 的材料/archive/repair 组合均已实现，有实际临时数据子进程场景。 | 原机裁决仍须在同一持有窗口重新取得真实原数据与锁；尚未执行，临时数据测试不证明原脑通过。 |
 
-完整生产 `LegacyReviewCollector` 目前仍未挂载；上述任一材料未闭合就不能将原安装报告为 Verified。独立签名只证明出具者，不替代材料语义。不得给现有无来源报告现场生成 origin、倒填时间或补签使其通过；缺历史来源属于证据限制，继续重跑源码测试不能补出它。
+完整生产 `LegacyReviewCollector` 已接入新源码，尚未部署；上述任一材料未闭合就不能将原安装报告为 Verified。独立签名只证明出具者，不替代材料语义。不得给现有无来源报告现场生成 origin、倒填时间或补签使其通过；缺历史来源属于证据限制，继续重跑源码测试不能补出它。
 
 ## 3. 精确历史源码与执行顺序
 
@@ -70,3 +72,11 @@
 3. 原安装修复和原操作显式裁决之后，才以新的授权事务继续升级、实际模型/worker/helper 与 IP01–IP24；不重发已过期的原 Upgrade，也不把恢复网页称为整个目标完成。
 
 本记录的历史源码/档案审查不新增测试通过数。worker 原件、回执来源与本轮资源守卫各自以其验收记录为准；本机恢复也有独立真实回执，不能相互替代。M5/发布回执未因本记录刷新，本分支尚未合入 main 或推送，整体目标仍未完成。
+
+## 6. 本机路线与来源重现尝试
+
+owner 最新要求是先处理原机这笔未完成 Upgrade，再直接在本机测试；此前 VM 路线不再作为默认。当前原机只读复查仍是 Host/Web Running（PID 75976/32464）、Brain/updater Stopped，18765 由 Web 监听。浏览器自动化无法确认当前 URL，已停止，未点击或输入。
+
+本轮从精确 `694b6bba98e9a89119001bf5ce12f717ce9da5eb` 导出原源码，使用其锁定工具链与依赖执行 `cargo build --release --locked -p forme-execution --bin forme-hostd`，固定复用本工作树 target，未改原安装。构建 exit 0，但结果为 39,404,128 bytes、SHA-256 `88e0895a1f8f2bea36109e9cbff67bd85cdfc91c7a7e6f3c4b68f062adf440fe`；历史候选为 39,406,437 bytes、SHA-256 `570549c220f410f585c30b3c0819146a5e99fedb36afc18a4702fe59de08fcf2`。逐字节重现失败，不标 `UpdaterCodeAudit=Verified`，也不反复改变参数追逐摘要。原 target/release Host 另有保留副本，后续候选必须从当前提交重新完整构建。
+
+截至本记录，历史安全取消缺少的来源没有补齐，原 operation 仍未裁决。若采用原测试安装保全后重新部署的路线，应准确保留旧 Unknown/journal，而不是宣称旧升级安全取消；须先准备具体保全、服务和固定目录处置、当前候选及恢复方案。最新请求确定了本机目标，未授权丢弃原 owner/store/配置或伪报历史。

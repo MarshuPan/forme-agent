@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 生产历史收集器接线与本机收尾路线
+
+`315960b` 已将真实只读 `LegacyReviewCollector` 接入 managed Host：从固定受保护目录读取独立签名来源/报告，核对原 journal Planned 时间，并组合档案、management repair/SCM 与持有期原数据检查。缺材料仍 unavailable，错材料拒绝，不生成 origin 或改写旧历史。完整源码门 exit 0（182 Rust targets，1293 passed / 0 failed / 15 默认 ignored，strict Clippy、前端 115/115、结构门与完整合规）；永久宿主门 379 个逐名场景和新增生产组合 12/12 通过；安装器成功/失败退出另行 2/2 通过。详见[本轮组件验收](installed-legacy-review-native-composition-acceptance-20261106.md)。没有刷新 M5/发布回执或 IP01–IP24，也未部署到原安装。
+
+owner 最新要求先处理原机未完成升级，再在本机测试。只读复查为 Host/Web Running（PID 75976/32464），Brain/updater Stopped；未触碰原安装程序、脑、配置、密钥或服务。历史预检仍 Unverifiable，本地五份安装/操作/网页档案虽匹配文档摘要，但没有原数据 origin 或独立历史连续性。精确旧源码的 release 重建成功但与原二进制摘要不一致，未把它当来源证明。下一步准备本机旧测试安装的准确保全/处置方案与当前签名候选；不重发原 Upgrade、不把未知改成成功。具体缺项见[当前证据状态 §6](installed-legacy-recovery-evidence-status-20261106.md#6-本机路线与来源重现尝试)。此前 VM 建议由用户的本机选择取代；下列更早段落保留历史观察，不代表最新施工状态。
+
 ## 2026-11-06 原 Host/Web 恢复与 worker 资源守卫
 
 owner 的“继续下一步”覆盖此前列明的两项工作，契约已先以 `0ba3f3e` 落库。原机于 11:38（Asia/Shanghai）成功完成固定 Host SCM 路径表示修正，Host/Web 各限定启动一次；11:59 独立只读复查两者仍 Running（PID 75976/32464），18765 为 Web listener，页面入口 HTTP 200。程序/config 字节保持，Brain/updater 仍 Stopped，原 Upgrade 没有重派。精确脚本、回执摘要及保全边界见[原机恢复结果](installed-original-host-path-restore-20261106-result.md)；不再等待此前这项批准或重复 Apply。
