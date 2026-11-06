@@ -51,7 +51,7 @@ Brain 实际停止时，`/api/v1/product/data/verify` 已返回 verified=true、
 
 修正后的永久宿主门也已结束，exit 0、387/387 命名场景 PASS，含全部 3 项新增服务观察反例；该门仍明确 IP01–IP24 NOT_RUN。整轮构建空间报告 PASS，无超预算工作树，没有清理缓存或刷新质量 baseline。
 
-新的本机窗口已准备，尚未执行：核对当前 installation、四服务绑定、两个固定根无链接、源码和安装器摘要后，仅清除已授权 ForMe 测试实例；安装修正版；使用既有本地测试凭据经正式认领/配置自动启动主脑；实际验证拒绝/批准/重放、文件读写删，再验证正式 Stop→离线备份核验→Start。只要一个动作结果不明就保留原号并停止，不自动重复。仓库、外部项目和原验收工件不在重置范围。
+本机窗口已在 19:54 实际执行，但在安装器准备阶段停止，结果见 §7。原定顺序为：核对当前 installation、四服务绑定、两个固定根无链接、源码和安装器摘要后，仅清除已授权 ForMe 测试实例；安装修正版；使用既有本地测试凭据经正式认领/配置自动启动主脑；实际验证拒绝/批准/重放、文件读写删，再验证正式 Stop→离线备份核验→Start。只要一个动作结果不明就保留原号并停止，不自动重复。仓库、外部项目和原验收工件不在重置范围。
 
 为减少零散管理员启动，同一固定窗口还准备独立的正常签名升级场景：从同一干净源码和已观察构建程序生成另一个明确带 `-ip14` 的候选，沿用既有本地开发签名，不声称它有新的业务功能。新安装仍未认领且 Brain 停止时，仅把公开发布信任绑定到该 installation，准备 Host 私有 inbox，限定停启 Host/Web；不修改系统证书信任或防火墙。前述文件和停启矩阵全部结束后，才通过正式 owner 重认证提交 StageSignedRelease 和 Upgrade 各一次，断连只查询原操作。最终另核对 SCM 的实际新 image、原 owner/store/workspace、原配置 ack 和已完成文件 run 的事件保持。它不为旧 StopCore 解锁、不迁移旧失败 journal，也不替代回滚/CommitRestore、OS 冷启动或其他 IP。
 
@@ -76,3 +76,29 @@ Brain 实际停止时，`/api/v1/product/data/verify` 已返回 verified=true、
 | `service-settle-build-resources.json` | PASS，`9e4915840a9ac81f2aeec16efe8c639f2119679eff8f67efb093958baf2ed07e`。 |
 
 此前一次合并升级窗口的 UAC 被 Windows 取消，没有启动管理员脚本，没有 Stage/Upgrade；`peer-query-native-window-launch-1.md` 保留该结果。现在没有待确认的旧 UAC，不重复启动那个已过时的升级窗口。
+
+## 7. 实际窗口：安装准备失败与当前现场
+
+代码提交分别为 `4c7062f`（服务观察）和 `46c0168`（离线摘要），验收文档提交后以干净 `fac72eb5265b12f4b6f472dc0ab909f767ad501e` 构建。候选安装器 SHA-256 为 `f212370339bb431f4bb98e443ca60ffa68dbdda17e1ec0b24b92d928466aa34d`；新 `-ip14` 候选复用同一批已观察编译程序，独立签名/验证 digest 为 `sha256:cdc780d80548d881b7a5490fa8574652342b982f9ce26a7105eae8d26066b078`。两个候选均只使用本地开发签名，不构成正式发布。
+
+本次 UAC 实际放行，管理员窗口启动。19:54（Asia/Shanghai），核对原 installation、四服务 image/账户、两个固定根及子项无 reparse 后，已按 owner 授权禁用并停止四服务，删除四服务、唯一 Inno 卸载登记、原 ProgramRoot（18 文件 / 440,312,058 bytes）及 DataRoot（730 文件 / 51,632,480 bytes）。旧测试数据没有备份，不提供恢复副本；没有保留或迁移旧账号、key、脑、配置、workspace、备份与未决 Stop journal。仓库、外部项目、本地测试配置、开发签名材料和验收工件不在删除范围。
+
+唯一固定新安装器于 19:54:05–19:54:09 执行，exit 7。Inno 日志记录 `protect empty installation roots` 后 `PrepareToInstall failed`，发生于 payload 复制、hostctl prepare、服务登记与模型/脑创建之前。父窗口按约定停止；没有执行发布信任准备、认领/配置、文件动作、正式 Stop/Start 或 Stage/Upgrade，没有重跑原号。该结果不计 IP01 或 IP24 PASS。
+
+随后独立 SCM 查询没有 `forme-*` 服务，Product URL 不可用；新 ProgramRoot 存在，普通 token 无法枚举其受保护内容，DataRoot 未创建。当前还不能从通用错误推断是 owner、DACL、目录创建还是另一项检查失败，不能直接放宽权限或把安装误判为成功。
+
+`inspect-service-settle-root-preparation.ps1` 只读检查当前根权限/服务，并在工作树隔离目录比较 PowerShell 5.1/7 的原生创建行为，不安装、启停服务或重派任务。19:57 首次诊断 UAC 被 Windows 返回“操作已被用户取消”；未取得有效管理员进程 ID，脚本未启动。外层启动命令在 Start-Process 非终止错误后继续打印了 `Started=true, ProcessId=null`，该包装输出不是启动证据。后续 launcher 已改为终止错误即停。
+
+owner 回复重新唤起后，20:05 独立诊断实际完成：SCM 无 ForMe 服务；ProgramRoot 无子项、无 reparse，owner 为 Administrators，protected DACL 仅 SYSTEM/Administrators FullControl 且逐条匹配原策略；DataRoot 不存在。PowerShell 5.1 和 7 分别在新的隔离目录运行原 `New-ForMeProtectedDirectory`，均取得 verified 回执。首次安装失败没有复现，尚不能认定根因或声称修正了 ACL；两个空 probe 目录保留。
+
+已准备独立的 `complete-service-settle-recovery-window.ps1`，入口 SHA-256 为 `01a9a1ef0ca5cbdf4310529965b798f683313f5a02f1147424ddd70908dec9dd`。它重查原 exit 7/源码/包/诊断、零登记及根为空的前提，只用原 ACL 模块创建缺少的空根后明确恢复安装；使用独立回执保留原失败，并设置 `clean_install_acceptance=false`。后续正式信任/认领/模型、文件、停启备份及升级沿既定顺序，任何失败或 Unknown 即停止。该入口两次管理员启动均由 Windows 返回“操作已被用户取消”（launcher sessions 84405、3673），均未取得有效管理员进程 ID；`service-settle-recovered-installation.json` 和 `service-settle-recovery-window.json` 均未产生。再次独立查询 SCM 仍无 ForMe 服务，当前没有未决 consent。没有执行恢复安装或任何后续步骤，也没有重跑原 reset。
+
+| 本地工件（同 §6 目录） | SHA-256 / 结果 |
+|---|---|
+| `service-settle-reset-result.json` | `7b24fefaf3c3430cac52140c04ceaf83c344c281e8adcef4b740bb658f99ccc8`；停止于新安装，旧测试实例已销毁。 |
+| `service-settle-fresh-install.log` | `5e98a309b63084ebf55da535d877d4fb3b0e8d91ed3c6992df7caeedd00abe8c`；Inno exit 7、无 OS reboot。 |
+| `service-settle-native-window.json` | `8387ce81f6b00830c0f10955715a2561736c2a188fda86be613fd1f386d7c62d`；仅 reset 步骤执行并失败，后续步骤未激活。 |
+| `service-settle-root-preparation-inspection.json` | 20:05 实际完成，`d75f0d8a3dc6e587eb2548a4dfa24fcdbad43933337387e04cac5066e9a3f9af`。 |
+| `service-settle-root-probe-desktop.json` / `service-settle-root-probe-core.json` | 原生创建均 verified；仅是隔离目录检查。 |
+
+下一步取得独立恢复窗口的实际结果，再核对安装、文件、停启备份与升级；不重跑已结束的整批脚本，不改写原回执或旧 Stop。整体目标未完成，源码测试通过不证明目前本机有可用 ForMe 服务。
