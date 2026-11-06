@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 双向 peer 修复已回归，真实停服/离线验收又发现两处实现缺陷
+
+双向服务进程/token 最小查询权限已按契约 `de830a0`、实现 `8fde42c` 落地；第二个文件 Unknown 也已正式 Cancelled，原事实保留、零重派。干净 `0252270` 的完整 M5、宿主 384/384、closure A 47/47、D RuntimeOnly 71/71 均通过，已生成独立验证的开发签名候选；该候选尚未部署，不能升级为安装版文件链路成功。
+
+当前安装中的真实备份/新路径恢复候选矩阵通过；随后正式 StopCore 留下 RecoveryRequired，而独立 SCM 确认 Brain 已停止。Host/Web 持续运行，旧停止命令不重发，journal 不改写。离线核验实际成功，但同一备份的在线/离线 `DataBackupView.digest` 含义不一致。源码已修正“OS 接受控制后短暂旧状态被过早判失败”和离线摘要错用 manifest 的问题，定向 5+3 项及完整源码质量门通过（182 Rust targets、1301 passed / 0 failed / 16 默认 ignored、strict Clippy、前端 115/115、原生安装器成功/失败夹具与完整合规）。详情与当前证据边界见[服务终态与备份摘要验收](installed-product-service-settle-acceptance-20261106.md)。
+
+普通维护未决事务会占用现有全局互斥，不能通过另起 StartCore 洗掉原失败。本轮沿用 owner 已授权的测试重置方式准备修正版安装、认领/自动启动、审批读写删与正式停服/离线核验/启动窗口；尚未执行该新窗口，不以准备脚本或旧签名包代替原生证据。下列段落保留各批历史观察。
+
 ## 2026-11-06 已安装文件验收发现两层连接问题，首层已修复部署
 
 真实审批前参数摘要替换与拒绝写入均保持零副作用；首次正常批准却使 Host 因后续 named-pipe 实例仍使用 FIRST_PIPE_INSTANCE 而退出，主脑保留 Unknown。实现 `e057141` 修复持续 listener 和提前断开/拒绝 peer 的生命周期，完整源码门 1295 passed / 0 failed / 15 默认 ignored、前端 115/115、strict Clippy/合规、永久宿主门 381/381 通过；显式真实 AppContainer 文件组件也完成 Read/Write/Delete 与加密结果封存。
