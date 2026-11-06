@@ -12,6 +12,8 @@ use forme_protocol as p;
 mod receipt_cases;
 #[path = "installed_worker_contract/recovery_cases.rs"]
 mod recovery_cases;
+#[path = "installed_worker_contract/resource_cases.rs"]
+mod resource_cases;
 
 const HOST_TOKEN: &str = "worker-contract-host-token-abcdefghijklmnopqrstuvwxyz";
 const AGENT_TOKEN: &str = "worker-contract-agent-token-abcdefghijklmnopqrstuvwxyz";
@@ -74,6 +76,11 @@ struct FakeIsolation {
 }
 
 impl WorkerIsolation for FakeIsolation {
+    fn with_quiescent_resources(&self, action: &mut dyn FnMut() -> p::Result<()>) -> p::Result<()> {
+        // This fixture only counts calls and owns no actual child resources.
+        action()
+    }
+
     fn admit(&self, _job: &p::WorkerJob, _permit: &p::WorkerPermit) -> p::Result<()> {
         self.admitted.fetch_add(1, Ordering::SeqCst);
         Ok(())

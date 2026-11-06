@@ -312,6 +312,15 @@ impl WindowsAppContainerWorkerIsolation {
 }
 
 impl WorkerIsolation for WindowsAppContainerWorkerIsolation {
+    fn with_quiescent_resources(&self, action: &mut dyn FnMut() -> p::Result<()>) -> p::Result<()> {
+        super::worker_isolation::with_empty_registry(&self.children, &mut || {
+            if self.recovery_required.load(Ordering::SeqCst) {
+                return Err(p::Error("sandbox resource recovery is required".into()));
+            }
+            self.journal.with_quiescent_leases(action)
+        })
+    }
+
     fn admit(&self, job: &p::WorkerJob, permit: &p::WorkerPermit) -> p::Result<()> {
         self.admit_at(job, permit, permit.issued_at)
     }

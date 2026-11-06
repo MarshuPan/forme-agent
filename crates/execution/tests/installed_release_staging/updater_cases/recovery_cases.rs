@@ -1,6 +1,8 @@
 //! Real filesystem, configuration writer and worker journal, controlled SCM/data.
 use super::*;
-use forme_execution::installed::{ReleaseRecoveryDataInspection, WorkerExecutorHost};
+use forme_execution::installed::{
+    ProcessWorkerIsolation, ReleaseRecoveryDataInspection, WorkerExecutorHost, WorkerLaunchRegistry,
+};
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
@@ -139,7 +141,7 @@ struct RecoveryFixture {
     f: Fixture,
     platform: Arc<Boundary>,
     broker: Arc<ProductHostBroker<NoServices>>,
-    workers: WorkerExecutorHost,
+    workers: WorkerExecutorHost<ProcessWorkerIsolation>,
     request: p::ProductMaintenanceRequest,
 }
 impl RecoveryFixture {
@@ -175,11 +177,21 @@ impl RecoveryFixture {
             .unwrap(),
         );
         let broker = Arc::new(make_broker(&f, config.clone(), updater));
-        let workers = WorkerExecutorHost::open(
+        let resource_root = f.installation.paths.host_state.join("resource-fixture");
+        let workspace = resource_root.join("workspace");
+        fs::create_dir_all(&workspace).unwrap();
+        let isolation = ProcessWorkerIsolation::open(
+            resource_root.join("runtime"),
+            WorkerLaunchRegistry::default(),
+            [("workspace:test".into(), workspace)].into_iter().collect(),
+        )
+        .unwrap();
+        let workers = WorkerExecutorHost::open_with_isolation(
             &f.installation.paths.host_state.join("workers"),
             p::canonical_digest(&"agent-credential").unwrap(),
             p::AuthorityEpoch(1),
             [p::Scope("workspace:test".into())].into_iter().collect(),
+            isolation,
         )
         .unwrap();
         let mut request = request(&f, revision);

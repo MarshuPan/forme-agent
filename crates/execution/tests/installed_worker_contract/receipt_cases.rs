@@ -52,6 +52,10 @@ impl ObservedIsolation {
 }
 
 impl WorkerIsolation for ObservedIsolation {
+    fn with_quiescent_resources(&self, action: &mut dyn FnMut() -> p::Result<()>) -> p::Result<()> {
+        self.platform.with_quiescent_resources(action)
+    }
+
     fn admit(&self, job: &p::WorkerJob, permit: &p::WorkerPermit) -> p::Result<()> {
         self.platform.admit(job, permit)
     }

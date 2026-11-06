@@ -3,7 +3,8 @@ use super::*;
 use crate::installed::{
     file_digest,
     product_config::tests::{fixture, patch},
-    HostCredentials, HostManagement, WorkerExecutorHost,
+    HostCredentials, HostManagement, ProcessWorkerIsolation, WorkerExecutorHost,
+    WorkerLaunchRegistry,
 };
 use ed25519_dalek::{Signer, SigningKey};
 use std::{
@@ -168,7 +169,7 @@ struct Fixture {
     _root: tempfile::TempDir,
     config: Arc<Mutex<ProductConfigStore>>,
     host: Host,
-    workers: WorkerExecutorHost,
+    workers: WorkerExecutorHost<ProcessWorkerIsolation>,
     collector: Arc<Collector>,
     key: SigningKey,
     auth: HostAuth,
@@ -379,11 +380,22 @@ impl Fixture {
             key: key.verifying_key(),
             collector: collector.clone(),
         });
-        let workers = WorkerExecutorHost::open(
+        let workspace = root.path().join("resource-workspace");
+        fs::create_dir(&workspace).unwrap();
+        let isolation = ProcessWorkerIsolation::open(
+            root.path().join("resource-runtime"),
+            WorkerLaunchRegistry::default(),
+            [("workspace:legacy-test".into(), workspace)]
+                .into_iter()
+                .collect(),
+        )
+        .unwrap();
+        let workers = WorkerExecutorHost::open_with_isolation(
             &root.path().join("workers.jsonl"),
             hash("agent"),
             p::AuthorityEpoch(1),
             BTreeSet::from([p::Scope("workspace:legacy-test".into())]),
+            isolation,
         )
         .unwrap();
         let auth = host.authenticate_web_configuration(WEB).unwrap();

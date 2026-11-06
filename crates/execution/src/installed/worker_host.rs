@@ -296,7 +296,8 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         action: &mut dyn FnMut(p::SchemaDigest) -> p::Result<()>,
     ) -> p::Result<()> {
         let _operation = self.operations.lock().map_err(|_| storage_error())?;
-        action(self.journal.quiescent_digest()?)
+        self.isolation
+            .with_quiescent_resources(&mut || action(self.journal.quiescent_digest()?))
     }
     fn dispatch(
         &self,

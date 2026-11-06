@@ -7,6 +7,44 @@ use forme_protocol as p;
 use super::*;
 
 #[test]
+fn appcontainer_quiescence_requires_recovery_clear_and_retains_actual_registry_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    fs::create_dir(&workspace).unwrap();
+    let isolation = WindowsAppContainerWorkerIsolation::open(
+        root.path().join("runtime"),
+        WorkerLaunchRegistry::default(),
+        [("workspace:resource-test".into(), workspace)]
+            .into_iter()
+            .collect(),
+    )
+    .unwrap();
+    isolation.recovery_required.store(true, Ordering::SeqCst);
+    assert!(isolation
+        .with_quiescent_resources(&mut || panic!("recovery is required"))
+        .is_err());
+    isolation.recovery_required.store(false, Ordering::SeqCst);
+    let length = fs::metadata(isolation.runtime_root.join("sandbox-leases.jsonl"))
+        .unwrap()
+        .len();
+    let mut calls = 0;
+    isolation
+        .with_quiescent_resources(&mut || {
+            calls += 1;
+            assert!(isolation.children.try_lock().is_err());
+            Ok(())
+        })
+        .unwrap();
+    assert_eq!(calls, 1);
+    assert_eq!(
+        fs::metadata(isolation.runtime_root.join("sandbox-leases.jsonl"))
+            .unwrap()
+            .len(),
+        length
+    );
+}
+
+#[test]
 fn profile_identity_is_deterministic_and_plan_bound() {
     let plan = p::PlanDigest("sha256:plan-a".into());
     let first = profile_name_for(r"C:\forme\runtime", "job-a", &plan).unwrap();

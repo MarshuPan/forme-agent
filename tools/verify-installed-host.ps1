@@ -60,18 +60,26 @@ try {
     )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::host::host_legacy_release_recovery::tests::$name" }
 
     foreach ($name in @(
-        "receipt_confirmation_rechecks_original_bytes_and_refuses_a_missing_durable_receipt",
-        "quiescent_digest_rejects_valid_truncation_against_live_writer",
-        "original_worker_recheck_preserves_bytes_cursor_digest_and_os_lock",
-        "original_worker_recheck_rejects_same_sequence_with_another_valid_chain",
-        "original_worker_recheck_rejects_an_untracked_valid_terminal_suffix",
-        "original_worker_recheck_rejects_truncation_to_empty_after_real_history",
-        "original_worker_recheck_rejects_corruption_closed_schema_and_torn_records",
-        "original_worker_recheck_enforces_record_and_total_bounds_without_repair",
-        "original_worker_recheck_does_not_poison_valid_unsettled_outcomes",
-        "original_worker_recheck_accepts_only_known_terminal_receipts",
-        "original_worker_recheck_failure_cannot_be_cleared_by_replacing_old_bytes"
-    )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::worker::recovery::tests::$name" }
+        "installed::sandbox_lease::journal::quiescence::tests::original_lease_guard_preserves_bytes_position_watermark_and_os_lock",
+        "installed::sandbox_lease::journal::quiescence::tests::pending_lease_blocks_recovery_without_poisoning_normal_cleanup",
+        "installed::sandbox_lease::journal::quiescence::tests::lease_guard_refuses_poisoned_writer_and_preserves_callback_errors",
+        "installed::sandbox_lease::journal::quiescence::tests::lease_guard_rejects_corruption_unterminated_records_and_unknown_schema",
+        "installed::sandbox_lease::journal::quiescence::tests::lease_guard_rejects_valid_truncation_and_same_watermark_foreign_chain",
+        "installed::sandbox_lease::journal::quiescence::tests::lease_guard_rejects_extra_valid_facts_and_oversized_original",
+        "installed::worker_isolation::tests::registry_guard_holds_actual_exclusion_until_callback_returns",
+        "installed::worker_isolation::tests::nonempty_or_poisoned_resource_registry_never_invokes_recovery",
+        "installed::worker::recovery::tests::receipt_confirmation_rechecks_original_bytes_and_refuses_a_missing_durable_receipt",
+        "installed::worker::recovery::tests::quiescent_digest_rejects_valid_truncation_against_live_writer",
+        "installed::worker::recovery::tests::original_worker_recheck_preserves_bytes_cursor_digest_and_os_lock",
+        "installed::worker::recovery::tests::original_worker_recheck_rejects_same_sequence_with_another_valid_chain",
+        "installed::worker::recovery::tests::original_worker_recheck_rejects_an_untracked_valid_terminal_suffix",
+        "installed::worker::recovery::tests::original_worker_recheck_rejects_truncation_to_empty_after_real_history",
+        "installed::worker::recovery::tests::original_worker_recheck_rejects_corruption_closed_schema_and_torn_records",
+        "installed::worker::recovery::tests::original_worker_recheck_enforces_record_and_total_bounds_without_repair",
+        "installed::worker::recovery::tests::original_worker_recheck_does_not_poison_valid_unsettled_outcomes",
+        "installed::worker::recovery::tests::original_worker_recheck_accepts_only_known_terminal_receipts",
+        "installed::worker::recovery::tests::original_worker_recheck_failure_cannot_be_cleared_by_replacing_old_bytes"
+    )) { Invoke-NamedTest "forme-execution" @("--lib") $name }
 
     foreach ($name in @(
         "signed_origin_and_current_identity_produce_only_one_bound_evidence_without_writes",
@@ -237,6 +245,12 @@ try {
         "release_recovery_worker_observation_holds_admission_exclusion_through_its_callback"
     )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "recovery_cases::$name" }
 
+    foreach ($name in @(
+        "missing_resource_observer_rejects_even_an_empty_worker_journal",
+        "settled_journal_cannot_hide_adapter_resources_or_rewrite_their_state",
+        "recovery_callback_holds_adapter_exclusion_and_returns_the_original_error"
+    )) { Invoke-NamedTest "forme-execution" @("--test", "installed_worker_contract") "resource_cases::$name" }
+
     Invoke-NamedTest "forme-execution" @("--test", "installed_release_recovery_capabilities") "release_recovery_capability_mode_is_closed_and_never_loads_host_configuration"
     Invoke-NamedTest "forme-execution" @("--test", "installed_release_recovery_capabilities") "offline_source_inspection_never_falls_through_to_runtime_or_creates_missing_files"
     Invoke-NamedTest "forme-execution" @("--test", "installed_legacy_source_inspection") "offline_source_child_uses_fixed_original_and_rejects_writer_alias_or_manifest_drift"
@@ -308,6 +322,7 @@ try {
             "registration_recheck_cannot_hide_a_changed_or_unqueryable_running_process"
         )) { Invoke-NamedTest "forme-execution" @("--lib") "installed::registration::process::tests::$name" }
         foreach ($name in @(
+            "installed::windows_appcontainer::tests::appcontainer_quiescence_requires_recovery_clear_and_retains_actual_registry_lock",
             "installed::windows_appcontainer::tests::profile_identity_is_deterministic_and_plan_bound",
             "installed::windows_appcontainer::tests::job_object_name_is_closed_and_bound_to_the_appcontainer_identity",
             "installed::windows_appcontainer::tests::environment_block_is_deterministic_and_scoped",

@@ -19,6 +19,7 @@ use super::posix_worker_overlay::PreparedOverlay;
 use super::process::{
     validate_scope_key, write_private_json, WorkerLaunchRegistry, WorkerLaunchSpec,
 };
+use super::worker_isolation::action_uses_network;
 use super::{reject_linked_ancestors, WorkerIsolation};
 
 const EXEC_USER: &str = "forme-exec";
@@ -214,6 +215,10 @@ impl LinuxSystemdWorkerIsolation {
 }
 
 impl WorkerIsolation for LinuxSystemdWorkerIsolation {
+    fn with_quiescent_resources(&self, action: &mut dyn FnMut() -> p::Result<()>) -> p::Result<()> {
+        super::worker_isolation::with_empty_registry(&self.children, action)
+    }
+
     fn admit(&self, job: &p::WorkerJob, permit: &p::WorkerPermit) -> p::Result<()> {
         self.admit_at(job, permit, permit.issued_at)
     }
@@ -412,13 +417,6 @@ fn systemd_args(
         ));
     }
     args
-}
-
-fn action_uses_network(execution: &p::WorkerExecutionSpec) -> bool {
-    matches!(
-        execution.intent.parameters,
-        p::ActionParameters::Shell { network: true, .. }
-    )
 }
 
 fn unit_name(job: &p::WorkerJob) -> p::Result<String> {

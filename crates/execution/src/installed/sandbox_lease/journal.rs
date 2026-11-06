@@ -16,6 +16,9 @@ use super::{
 };
 use forme_protocol as p;
 
+#[path = "quiescence.rs"]
+mod quiescence;
+
 struct Writer {
     file: File,
     projection: Projection,
@@ -319,18 +322,7 @@ impl SandboxLeaseJournal {
 
     /// Startup admission gate: every lease from the prior process must be cleaned first.
     pub fn verify_startup_recovery_complete(&self) -> p::Result<()> {
-        let writer = self.writer.lock().map_err(|_| storage_error())?;
-        if writer
-            .projection
-            .leases
-            .values()
-            .any(|record| !record.cleanup_complete)
-        {
-            return Err(p::Error(
-                "sandbox lease recovery is required; worker admission is blocked".into(),
-            ));
-        }
-        Ok(())
+        self.with_quiescent_leases(&mut || Ok(()))
     }
 
     fn lease(&self, lease_id: &str) -> p::Result<super::projection::LeaseRecord> {
