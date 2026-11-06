@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-06 已安装文件验收发现两层连接问题，首层已修复部署
+
+真实审批前参数摘要替换与拒绝写入均保持零副作用；首次正常批准却使 Host 因后续 named-pipe 实例仍使用 FIRST_PIPE_INSTANCE 而退出，主脑保留 Unknown。实现 `e057141` 修复持续 listener 和提前断开/拒绝 peer 的生命周期，完整源码门 1295 passed / 0 failed / 15 默认 ignored、前端 115/115、strict Clippy/合规、永久宿主门 381/381 通过；显式真实 AppContainer 文件组件也完成 Read/Write/Delete 与加密结果封存。
+
+原 Unknown 已由独立原件证据支持的 owner 显式取消收口，历史保留且零重派。本机只更新 Host 后，Host/Web/Brain 稳定运行、配置保持；新正式文件请求仍 Waiting/Unknown，目标未生成，当前正在核对剩余服务身份/transport 或 worker 准入失败。没有重发该 job，也未继续其后的读删；不能由组件成功宣称 IP10/IP24。完整干净源码的开发签名候选已生成，但正常完整升级尚未执行，active release 仍是 d22b6a3。结果与工件边界见[本轮管道与文件验收](installed-product-worker-pipe-acceptance-20261106.md)。下列为各批历史。
+
 ## 2026-11-06 Owner 授权测试重置，新版已在本机运行
 
 Owner 明确允许“所有东西都可以重置，不需要留任何东西”后，已停止并删除旧四服务、旧两个固定 ForMe 根和唯一卸载登记；旧账号、keys、脑、配置、备份和未决升级 journal 不备份、不迁移。仓库/外部项目及既有源码验收工件保持。旧升级随测试实例销毁而移除，不补造 Aborted 或恢复成功。
