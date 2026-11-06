@@ -232,6 +232,10 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 
 安装侧装配沿 PRD24 §4.1.1e：新 Windows 安装仅 provision 当前 release 的有限文件 profile 与默认 workspace 映射；Host 核验后通过原配置 revision/journal 持久化私有 state 9，物化现有 worker binding 和独立的只读 policy roots。旧配置/历史物化字节保持，只有新的 owner 配置命令提交投影；未映射 workspace 不启用 File，真实 SCM 连通另验。此路径不新增公开设置、脑事件、依赖边或进程内 fallback。
 
+#### 7.1.4 恢复静止的资源守卫
+
+恢复 callback 只能在 Host operations → `WorkerIsolation::with_quiescent_resources` → 原 worker journal 核验之后执行，实际资源守卫贯穿 callback。新方法缺省拒绝，不能从空日志或调用者回执取得静止证明。AppContainer 保持空 children registry 与原 lease writer 排他，拒绝 recovery-required、poisoned、原件/内存水位不符或未 cleanup lease；其他 adapter 持自身 children 排他且仅接受空 registry。原件重放有界、保留原锁/字节/位置，异常拒绝后续变更；startup lease gate 沿用同一核验。callback 不得重入控制方法。细则与签名按 PRD24 §4.1.4 及[已确认协议](proposals/installed-worker-native-quiescence.md)，不改变历史证明、POSIX 发布或 IP 边界。
+
 ### 7.2 交互会话 helper 协议
 
 交互 helper 是 `AgentExecution` 的一个 placement adapter，不是第四个服务大脑。Host 负责创建、绑定、撤销和回收；helper 不拥有 policy、model、brain store、keys、EventStore 或安装管理能力。协议对象均为产品侧 DTO，带 `schema_version`，由 Host 的 session journal 单写者保存，不新增 brain `EventKind`。

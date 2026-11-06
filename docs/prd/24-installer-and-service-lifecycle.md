@@ -231,6 +231,23 @@ Windows 原生启动必需环境只额外包含 OS 查询得到的 `SystemRoot` 
 
 进程仍挂起时，adapter 用 `AdjustTokenPrivileges(SE_PRIVILEGE_REMOVED)` 移除本 job token 中除 `SeChangeNotifyPrivilege` 外的特权，再重新查询证明剩余集合只有空集或该项；不把“当前 disabled”当作已移除。只允许操作刚创建并已在本 job 内的目标 token，不修改 Host token；查询/移除/回读失败时终止原树，绝不 resume 或放宽 allowlist。
 
+#### 4.1.4 恢复窗口的实际资源静止（owner 已确认）
+
+`WorkerIsolation` 增加一个内部平台生命周期方法，公开产品 DTO、Host HTTP、脑事件、依赖图与摘要域不变：
+
+```rust
+fn with_quiescent_resources(
+    &self,
+    action: &mut dyn FnMut() -> forme_protocol::Result<()>,
+) -> forme_protocol::Result<()>;
+```
+
+缺省返回 unavailable，不能缺省调用 action。`WorkerExecutorHost::with_quiescent_workers` 的锁顺序固定为 operations → 隔离器实际 children 排他 → 原 sandbox lease writer（若有）→ 原 worker journal 核验 → 恢复 callback。实际资源锁保持至 callback 返回；失败时零 callback，成功时恰好一次，callback 错误原样返回。callback 不可重入 worker/lease 控制方法。守卫不主动观察/终止/清理资源，不创造终态或授权。
+
+AppContainer 要求实际 children registry 为空、无 recovery-required，原 lease journal 有界原件重放与内存 sequence/head 一致且全部 cleanup 完成；保持 registry 与原 writer 锁，不释放 OS 文件锁、不修复或改写原件。`verify_startup_recovery_complete` 同样必须核查原件与 poisoned。损坏、截断、同水位异链、额外记录、IO/位置恢复失败保持 writer poisoned；合法未清理状态仅拒绝静止，不 poison 正常在途。Process/Windows Job/Linux systemd/macOS launchd 仅在自身实际 children 排他内检查空 registry 并持锁回调；不能证明的 adapter 保持 unavailable。POSIX 继续不发布，当前资源静止不证明历史无执行。
+
+实现与测试细则见[资源守卫协议](../architecture/proposals/installed-worker-native-quiescence.md)。真实 AppContainer/SCM、历史 collector 与 IP01–IP24 独立取证；此接缝不授权新的本机服务/数据变更。
+
 ### 4.2 Core 停服接缝（24.2 增量）
 
 `gateway` 增加 `GatewayLifecycleConfig`（版本、`drain_timeout`）与可注入可信停止信号的 `serve_environment_until` 外观；原 `serve_environment` 保持签名并委托同一实现。它仍创建唯一 ProductionRuntime，不是另一套运行时，也不新增 Web/Agent 停服路由。默认停止信号为前台 Ctrl+C；Unix 同时响应 SIGTERM。SCM/其他原生 service host 后续通过同一接缝提供 OS 控制信号，不能另设重启监管者。
