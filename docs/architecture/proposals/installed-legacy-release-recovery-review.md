@@ -205,3 +205,23 @@ load 还绑定原 installation digest、owner、原 operation/command/release、
 当前 Host 的 terminal receipt 还必须来自实际隔离器/桌面执行的观察与结果交接链；AgentExecution 身份本身不把请求 body 变成 OS 终态证据。既有 `record_receipt` 签名保留，只读确认原 journal 中完整相同的 Host 回执，不追加事实、不产生结果工件或隐式 probe。缺回执、错误 job/nonce/epoch/plan/outcome/evidence/时间字段均拒绝，不能用自报 Completed 将活进程变成恢复所需的静止。该修正不清洗旧历史；历史连续性和实际资源检查仍属完整 collector 的独立义务。
 
 这证明本次原 writer 与原件的当前一致性；新建空 journal 仍不能证明历史从未执行，当前完整因果链也不能替代独立的历史来源、进程/lease 连续性和其余七项材料。完整原生 collector 与本机恢复仍按前述条件单独验收。
+
+### 9.9 生产 collector 的私有装配与来源审查
+
+本节实现已经批准的八项核验义务，不修改公开 DTO、HostManagement/worker trait、摘要旧域、脑事件或 native 边界。生产装配只在 managed Windows Host 且已有独立 release trust/updater 时检查固定 `host_state/legacy-release-review`；目录不存在则维持 unavailable。目录存在但格式、来源、原操作或 installation 绑定无效时拒绝装配，不能静默回退到 fixture。
+
+固定目录闭合为 `config.json`、`report.json`、`sources.json`、`proofs/`。closed/schema 1 配置只包含 installation、原操作号、报告原字节摘要、独立 review 公钥、来源审查原字节摘要及独立来源审查公钥、历史数据 archive/origin 摘要和 origin 公钥；无任意路径、私钥或通过开关。它由管理员在独立核实后预置，不由安装包、报告或 Web 自授信任。Host 生命周期内保持配置和材料的 read custody，不热换 key/report。未 provision 时不生成目录、报告、origin 或签名。
+
+`sources.json` 是独立来源审查权威签署的 closed 记录，签名域 `forme-legacy-source-review-v1`。它固定 installation/owner/原 operation/command/release、历史 archive origin、历史采样时间、审查时间、六个原 image 的顺序/大小/摘要、原 updater 的 image 与 source tree/lockfile/toolchain/build record、代码审查记录、六配置摘要、真实 SCM 配置摘要、原 worker 完整历史水位，以及固定证明文件的摘要。历史采样必须早于原 journal 的 Planned 时间；该时间只从原 writer 重放的事实取得。审查时间可以晚于故障，因为它是对既有来源的审查，不冒充历史采样时间。
+
+固定证明文件为 `build-record`、`code-audit`、`configuration-history`、`worker-history`、`service-path-repair`，均为有界原字节文件，不执行其内容。它们须来自审查权威独立可接纳的原记录；签名来源审查承担二进制到源码/构建的可信绑定、备份/切换持久 intent 顺序以及配置/worker/lease 历史连续性的人工或外部审计结论。运行时不声称通过 hash 自动证明源码语义，只复核已审查原件的 bytes、独立签名和全部具体绑定。普通 release 签名、当前管理员确认、当前新建文件或自洽 JSON 均不能自动产生这种来源资格。没有既有来源时不得现造证明或倒填采样时间，通道继续不可用。
+
+装配从原 journal 派生唯一原 takeover 和 Planned 时间，不让报告提供替代。每次 inspect 在 Host 已持有 config/worker/resource 守卫之后：
+
+1. 重读配置/报告/来源/证明的原字节，验独立签名、闭合目录、固定六 image、历史时间与原 request/owner/release/config 绑定。
+2. 历史 image 与独立管理修复 plan 的 source 六项逐一相等；source updater image 必须等于其 Host image。当前 target 六项、六配置、真实 SCM 与准确 3/3 probe 由管理修复 inspection 核实并保持 custody。来源审查里的 config/SCM 必须等于该 plan，路径表示修正通过独立原证明保留，禁止字符串规范化吞掉差异。
+3. 启动固定原 Brain 数据只读 child，取得并保留原独占锁；将当前身份逐字段与独立 origin/archive 比较，保留历史 schema 的 null。来源审查的 worker 水位必须与 Host 原 writer/resource 守卫给出的实际水位完全相同，不从空 journal 推断历史。
+4. 八项中 `OriginalJournal` 仍由 Host 在原 writer 中独立核验；collector 只能携带这项等待 Host 比较，不能据报告自证。其余七项由以上实际材料和固定摘要域重新计算，必须与已签报告逐字段相等。
+5. recheck 保持同一份材料 custody、管理修复 inspection 和数据 child；最终 ensure_held 核实原 child/transport/期限，不换 child、不延长锁期。任何错误仅释放观察，不生成替代报告、不停服务、不追加裁决或重发旧 Upgrade。
+
+来源审查签名和最终报告签名分别验签，release trust 仅用于管理修复分发。三种权威不能由材料自行携带、相互代签或通过一次本机开发签名自动合并。组件测试可用原创、独立固定测试 key/material 验证组合与否定路径；它们不产生原机历史来源或 IP PASS。
