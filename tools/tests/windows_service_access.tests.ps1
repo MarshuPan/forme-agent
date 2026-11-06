@@ -172,6 +172,35 @@ try {
         [IO.File]::Delete($hardlink)
         [IO.Directory]::Delete($junction)
     }
+    Test-Access 'installer failure diagnostics are numeric, confined and never overwrite existing files' {
+        $probe = Join-Path $scratch 'diagnostic-entry'
+        $null = [IO.Directory]::CreateDirectory($probe)
+        foreach ($name in @('install-access.ps1', 'service-access.psm1')) {
+            [IO.File]::WriteAllBytes((Join-Path $probe $name),
+                [IO.File]::ReadAllBytes((Join-Path $repo ('packaging\windows\' + $name))))
+        }
+        $shell = (Get-Process -Id $PID).Path
+        $diagnostic = Join-Path $probe 'access-Prepare.ini'
+        $arguments = @('-NoProfile', '-NonInteractive', '-File', (Join-Path $probe 'install-access.ps1'),
+            '-Mode', 'Prepare', '-ProgramRoot', $program, '-DataRoot', $data, '-DiagnosticPath', $diagnostic)
+        $previous = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try { $null = & $shell @arguments 2>&1; $code = $LASTEXITCODE }
+        finally { $ErrorActionPreference = $previous }
+        Assert-That ($code -ne 0) 'Diagnostic request bypassed installation refusal'
+        $text = [IO.File]::ReadAllText($diagnostic)
+        Assert-That ($text -match '^\[access\]\r\nstage=[0-9]+\r\nsource=[0-9]+\r\nline=[0-9]+\r\nhresult=-?[0-9]+\r\ncategory=[0-9]+$') 'Diagnostic contains more than numeric metadata'
+        $before = [IO.File]::ReadAllBytes($diagnostic)
+        $previous = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try { $null = & $shell @arguments 2>&1; $code = $LASTEXITCODE }
+        finally { $ErrorActionPreference = $previous }
+        Assert-That ($code -ne 0 -and [Convert]::ToBase64String($before) -ceq [Convert]::ToBase64String([IO.File]::ReadAllBytes($diagnostic))) 'Original failure diagnostic was replaced'
+        $outside = Join-Path $scratch 'diagnostic-escape.ini'
+        $arguments[-1] = $outside
+        $previous = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+        try { $null = & $shell @arguments 2>&1; $code = $LASTEXITCODE }
+        finally { $ErrorActionPreference = $previous }
+        Assert-That ($code -ne 0 -and -not (Test-Path -LiteralPath $outside)) 'Diagnostic path escaped the fixed sibling'
+    }
     Test-Access 'first-install entry rejects arbitrary roots with zero fixture writes' {
         $parseTokens = $null; $parseErrors = $null
         $null = [Management.Automation.Language.Parser]::ParseFile(
@@ -245,8 +274,8 @@ try {
         Assert-That ((Get-FileHash -LiteralPath $keyPath).Hash -eq $keyHash) 'Key was replaced'
         Assert-That (@(Get-ChildItem -LiteralPath (Join-Path $data 'brain') -Force).Count -eq 0) 'New brain was prematurely initialized'
     }
-    Assert-That ($script:passed -eq 8) 'Component cases did not all run'
-    Write-Host 'Windows access component: 8/8 PASS; native services, service-token denial and IP01-IP24: NOT_RUN'
+    Assert-That ($script:passed -eq 9) 'Component cases did not all run'
+    Write-Host 'Windows access component: 9/9 PASS; native services, service-token denial and IP01-IP24: NOT_RUN'
 } finally {
     # Only this independently created fixture is disposable; validate exact scope.
     Assert-That ([IO.Path]::GetDirectoryName($scratch) -ieq $tempRoot) 'Unsafe fixture cleanup root'

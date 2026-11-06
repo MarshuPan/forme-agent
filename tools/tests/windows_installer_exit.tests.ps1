@@ -13,7 +13,7 @@ if ($compiler.Count -ne 1 -or $compiler[0].sha256 -cne
     throw 'This native regression requires the reviewed Inno 6.6.1 compiler'
 }
 $template = [IO.File]::ReadAllText((Join-Path $repo 'packaging\windows\forme.iss'))
-$helpers = foreach ($name in @('GetCustomSetupExitCode', 'RunChecked', 'RequireStep')) {
+$helpers = foreach ($name in @('LogAccessFailure', 'GetCustomSetupExitCode', 'RunChecked', 'RequireStep')) {
     $match = [regex]::Match($template, '(?ms)^(?:function|procedure) ' + $name + '\([^\r\n]*\).*?^end;')
     if (-not $match.Success) { throw "Installer helper is missing: $name" }
     $match.Value
@@ -43,6 +43,10 @@ $($helpers -join "`r`n")
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep <> ssPostInstall then Exit;
+  SaveStringToFile(ExpandConstant('{tmp}\access-Prepare.ini'),
+    '[access]' + #13#10 + 'stage=17' + #13#10 + 'source=2' + #13#10 +
+    'line=42' + #13#10 + 'hresult=-1' + #13#10 + 'category=not-a-number' + #13#10 +
+    'message=FORME_PRIVATE_DIAGNOSTIC_CANARY', False);
   RequireStep(ExpandConstant('{sys}\cmd.exe'), '/D /C exit $childExit', 'controlled fixture step');
   InstallStagesCompleted := True;
 end;
@@ -67,6 +71,12 @@ end;
         }
         if ($case -eq 'failure' -and -not $log.Contains('forme installation stopped at controlled fixture step')) {
             throw 'Failure did not originate from the real post-install step'
+        }
+        if ($log.Contains('FORME_PRIVATE_DIAGNOSTIC_CANARY') -or $log.Contains('not-a-number')) {
+            throw 'Native error log exposed an untrusted diagnostic value'
+        }
+        if ($case -eq 'failure' -and -not $log.Contains('forme access diagnostic Prepare: stage=17 source=2 line=42 hresult=-1 category=0')) {
+            throw 'Native failure did not preserve bounded numeric diagnostic metadata'
         }
         Write-Host "[PASS] native Inno $case fixture: exit $code"
     }

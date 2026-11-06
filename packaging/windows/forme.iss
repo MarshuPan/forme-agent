@@ -73,7 +73,23 @@ begin
   Result := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
     ExpandConstant('{tmp}\install-access.ps1') + '" -Mode ' + Mode +
     ' -ProgramRoot "' + ExpandConstant('{app}') + '" -DataRoot "' +
-    ExpandConstant('{commonappdata}\ForMe') + '"';
+    ExpandConstant('{commonappdata}\ForMe') + '" -DiagnosticPath "' +
+    ExpandConstant('{tmp}\access-') + Mode + '.ini"';
+end;
+
+procedure LogAccessFailure(Mode: String);
+var
+  DiagnosticPath: String;
+begin
+  DiagnosticPath := ExpandConstant('{tmp}\access-') + Mode + '.ini';
+  if not FileExists(DiagnosticPath) then Exit;
+  { Parse only numeric metadata. Raw messages and extra INI keys never enter logs. }
+  Log('forme access diagnostic ' + Mode +
+    ': stage=' + IntToStr(StrToIntDef(GetIniString('access', 'stage', '0', DiagnosticPath), 0)) +
+    ' source=' + IntToStr(StrToIntDef(GetIniString('access', 'source', '0', DiagnosticPath), 0)) +
+    ' line=' + IntToStr(StrToIntDef(GetIniString('access', 'line', '0', DiagnosticPath), 0)) +
+    ' hresult=' + IntToStr(StrToIntDef(GetIniString('access', 'hresult', '0', DiagnosticPath), 0)) +
+    ' category=' + IntToStr(StrToIntDef(GetIniString('access', 'category', '0', DiagnosticPath), 0)));
 end;
 
 function RunChecked(ProgramPath: String; Arguments: String; Stage: String): Boolean;
@@ -82,7 +98,15 @@ var
 begin
   Log('forme installer stage: ' + Stage);
   Result := Exec(ProgramPath, Arguments, '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+  if Result then Log('forme installer child exit: ' + IntToStr(ExitCode))
+  else Log('forme installer launch error: ' + IntToStr(ExitCode));
   Result := Result and (ExitCode = 0);
+  if not Result then begin
+    LogAccessFailure('Prepare');
+    LogAccessFailure('Grant');
+    LogAccessFailure('Verify');
+    LogAccessFailure('Start');
+  end;
 end;
 
 procedure RequireStep(ProgramPath: String; Arguments: String; Stage: String);
