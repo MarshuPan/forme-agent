@@ -1,6 +1,9 @@
 # Original finite NTFS policy for the three installed services. No shell endpoint.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+# A Windows PowerShell child can inherit PowerShell 7's module search path.
+# Resolve the native security cmdlets from this host, never that inherited path.
+Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
 
 function Assert-ForMePath {
     param([Parameter(Mandatory)][string]$Path)

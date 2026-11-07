@@ -201,6 +201,49 @@ try {
         finally { $ErrorActionPreference = $previous }
         Assert-That ($code -ne 0 -and -not (Test-Path -LiteralPath $outside)) 'Diagnostic path escaped the fixed sibling'
     }
+    Test-Access 'native ACL verification ignores incompatible inherited security module discovery' {
+        $probe = Join-Path $scratch 'foreign-module-path'
+        $foreign = Join-Path $probe 'modules\Microsoft.PowerShell.Security'
+        $null = [IO.Directory]::CreateDirectory($foreign)
+        Set-ForMeSecurity $probe (Test-Security -Directory $true)
+        $manifest = "@{ RootModule='blocked.psm1'; ModuleVersion='99.0.0'; PowerShellVersion='99.0'; FunctionsToExport=@('Get-Acl'); CmdletsToExport=@(); VariablesToExport=@(); AliasesToExport=@() }"
+        [IO.File]::WriteAllText((Join-Path $foreign 'Microsoft.PowerShell.Security.psd1'), $manifest)
+        [IO.File]::WriteAllText((Join-Path $foreign 'blocked.psm1'), "throw 'Unexpected foreign security module load'")
+        $worker = Join-Path $probe 'observe.ps1'
+        $source = @'
+param([string]$AccessModule, [switch]$Control)
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+if($Control){
+    try{$null=Get-Acl -LiteralPath $PSScriptRoot -ErrorAction Stop;exit 1}
+    catch{if($_.FullyQualifiedErrorId -eq 'CouldNotAutoloadMatchingModule'){exit 13};exit 2}
+}
+Import-Module $AccessModule -Force
+$expected=[IO.DirectoryInfo]::new($PSScriptRoot).GetAccessControl()
+Assert-ForMeSecurity $PSScriptRoot $expected
+$resolved=& (Get-Module service-access) {(Get-Command Get-Acl -ErrorAction Stop).Module.Path}
+$native=Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
+if($resolved -ine $native){throw 'ACL cmdlet came from another PowerShell host'}
+Write-Output 'NATIVE_SECURITY_MODULE_VERIFIED'
+'@
+        [IO.File]::WriteAllText($worker, $source)
+        $nativeShell = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell\v1.0\powershell.exe'
+        $oldModulePath = $env:PSModulePath
+        try {
+            $env:PSModulePath = Join-Path $probe 'modules'
+            $control = Start-Process -FilePath $nativeShell -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $worker + '"'), '-Control') -PassThru -WindowStyle Hidden
+            $null = $control.Handle
+            if (-not $control.WaitForExit(15000)) { throw 'Foreign-module control did not finish' }
+            $control.Refresh()
+            Assert-That ($control.ExitCode -eq 13) 'Control did not reproduce incompatible module autoload failure'
+            $stdout = Join-Path $probe 'stdout.txt'; $stderr = Join-Path $probe 'stderr.txt'
+            $child = Start-Process -FilePath $nativeShell -ArgumentList @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $worker + '"'), '-AccessModule', ('"' + (Join-Path $repo 'packaging\windows\service-access.psm1') + '"')) -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -WindowStyle Hidden
+            $null = $child.Handle
+            if (-not $child.WaitForExit(15000)) { throw 'Native security module regression did not finish' }
+            $child.Refresh()
+            Assert-That ($child.ExitCode -eq 0 -and [IO.File]::ReadAllText($stdout).Contains('NATIVE_SECURITY_MODULE_VERIFIED')) 'ACL helper used inherited module discovery'
+        } finally { $env:PSModulePath = $oldModulePath }
+    }
     Test-Access 'first-install entry rejects arbitrary roots with zero fixture writes' {
         $parseTokens = $null; $parseErrors = $null
         $null = [Management.Automation.Language.Parser]::ParseFile(
@@ -274,8 +317,8 @@ try {
         Assert-That ((Get-FileHash -LiteralPath $keyPath).Hash -eq $keyHash) 'Key was replaced'
         Assert-That (@(Get-ChildItem -LiteralPath (Join-Path $data 'brain') -Force).Count -eq 0) 'New brain was prematurely initialized'
     }
-    Assert-That ($script:passed -eq 9) 'Component cases did not all run'
-    Write-Host 'Windows access component: 9/9 PASS; native services, service-token denial and IP01-IP24: NOT_RUN'
+    Assert-That ($script:passed -eq 10) 'Component cases did not all run'
+    Write-Host 'Windows access component: 10/10 PASS; native services, service-token denial and IP01-IP24: NOT_RUN'
 } finally {
     # Only this independently created fixture is disposable; validate exact scope.
     Assert-That ([IO.Path]::GetDirectoryName($scratch) -ieq $tempRoot) 'Unsafe fixture cleanup root'
