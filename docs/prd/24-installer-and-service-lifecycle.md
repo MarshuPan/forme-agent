@@ -276,6 +276,8 @@ Windows 的前台 `--config` 必须在读取凭据、创建 journal 或绑定监
 
 Windows 包使用随包、固定入口的 PowerShell/.NET ACL helper；它不是服务端 shell API，不接受任意账户、服务名或路径。当前首次安装仅允许 Program Files/ForMe 与 ProgramData/ForMe 的精确默认根。SYSTEM/Administrators 为管理写者；Brain/Web 使用注册后的固定虚拟账户 SID。程序目录两者只读执行；Web 只可写 `web-auth` 和自有日志；Brain 只可写 `brain`、`workspaces` 和自有日志；host-state、backups、管理凭据不授予两者。`core-owner.token` 与 `agent-execution.token` 只额外允许 Brain 读取，`core-web.token` 允许 Brain/Web 读取；`model-credentials` 只额外允许 Brain 读取。父目录只给必要的遍历/属性查询，不将权限继承到其他秘密。worker 不从这套规则取得任何权限。
 
+helper 按当前 PowerShell host 的 `$PSHOME` 绝对位置加载其内置 Security 模块；不能依赖从 PowerShell 7 等父进程继承的模块搜索路径解析 Windows PowerShell 的 ACL cmdlet。模块不可用仍拒绝，不自动下载或回退其他 host 的模块；该加载细节不改变权限矩阵和失败边界。
+
 安装顺序为：只读检查目标不存在/为空且无链接、已有服务与安装 → 原子创建受保护根目录（先于任何秘密写入）→ 解包 → hostctl prepare → 顺序注册三个服务但不启动 → 固定 SID 解析与完整 ACL 设置/回读 → 最后才允许启动 Host/Web，Brain 仍等认领/config。每一步检查退出状态；失败停止后续步骤，保留受保护现场，不自动重做未知副作用或宣称安装成功。helper 拒绝 symlink/reparse、非规范路径、意外文件和非预期 ACL；安装器不静默修复或迁移旧安装，也不替代后续升级/恢复事务。
 
 既有 `prepare-installation` 重开必须读取并校验原 `product-template.json`，沿用其中的 core/ack/fence 路径；旧布局不自动搬移。旧布局转为原生服务仍需显式、停服的数据/权限迁移。ACL descriptor、真实临时 NTFS 继承/原子替换、安装控制流与实际服务账户访问拒绝分别取证；前几项通过不能标记 IP01/IP10/IP24 或管理员 SCM 演练通过。

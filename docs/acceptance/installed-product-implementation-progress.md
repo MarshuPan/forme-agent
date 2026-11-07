@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-07 已复现安装失败的模块加载根因，修正全量回归通过
+
+23:25 的实际管理员 Prepare-only 比较复现了原阶段 5、第 101 行失败：固定根存在且参数正确，具体错误为 `CommandNotFoundException / CouldNotAutoloadMatchingModule`。PowerShell 7 父进程的模块发现环境影响 Windows PowerShell 子进程，不是目录 DACL 不匹配。源码改为从当前 `$PSHOME` 显式加载内置 Security 模块，保持原 ACL/owner/治理和失败即停；新增不兼容同名模块的实际子进程反例，Windows PowerShell 5.1/PowerShell 7 各 10/10 PASS。23:42 完整源码门 exit 0：182 个 Rust 测试目标、1301 passed / 0 failed / 16 默认 ignored、strict Clippy、前端 115/115、完整合规与原生安装器退出夹具均通过；仍不是修正后签名包安装或 IP 通过。
+
+修正后的原生比较 UAC 已被 Windows 取消，未取得有效 PID 或回执；没有重发实际安装，当前仍零 ForMe 服务。后续固定批次与证据边界见[本轮模块加载验收](installed-product-native-security-module-acceptance-20261107.md)。下列记录是此前各批历史。
+
 ## 2026-11-06 21:02 新诊断候选仍未安装，失败已定位至 ACL 读取
 
 实现 `de28e02` 与文档 `07d0bdc` 已提交，完整源码质量门 exit 0（1301 Rust passed / 0 failed / 16 默认 ignored、前端 115/115、strict Clippy、完整合规及原生夹具）。干净 `07d0bdc5cbac64286dbe6c2ec5d2b9f480a43cf9` 的新开发签名候选于 21:02 实际执行一次：权限 helper child exit 1，阶段 5、`service-access.psm1` 第 101 行的 `Get-Acl`、HRESULT -2146233087、分类 13；Inno exit 7。新诊断证明失败发生在原 ProgramRoot 的 ACL 读取，不能据此认定 DACL 不匹配或直接放宽权限。
