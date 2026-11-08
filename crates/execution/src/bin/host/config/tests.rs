@@ -165,6 +165,12 @@ fn installed_file_projection_requires_the_exact_manifest_profile_epoch_and_roots
         .unwrap()
         .installed_file
         .is_none());
+    let headless = root.join("releases/bin/forme-file-worker.exe");
+    std::fs::write(&headless, b"headless-program-metadata-fixture").unwrap();
+    let mut current = worker.clone();
+    current["launch_profiles"][0]["program"] = serde_json::to_value(headless).unwrap();
+    std::fs::write(&worker_path, serde_json::to_vec(&current).unwrap()).unwrap();
+    assert!(from_managed_config(&path).unwrap().installed_file.is_some());
     for case in ["epoch", "profile", "args", "program", "root", "scope"] {
         let mut changed = worker.clone();
         match case {

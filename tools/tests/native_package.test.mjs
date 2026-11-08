@@ -10,12 +10,15 @@ import { buildBundle } from '../build-product-bundle.mjs';
 import { assertHost, buildNativePackage, parseArguments } from '../build-native-package.mjs';
 import { binaryMatches, targetDetails, verifyBundle, verifyToolchain, recheckTool } from '../native-package/inputs.mjs';
 import { nativeCommands, prepareLayout } from '../native-package/layout.mjs';
+import { fileWorkerPe } from './fixtures/file_worker_pe.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 function binary(target) {
-  const bytes = Buffer.alloc(256), detail = targetDetails[target];
+  const detail = targetDetails[target];
+  if (detail.platform === 'win32') return fileWorkerPe();
+  const bytes = Buffer.alloc(256);
   if (detail.platform === 'win32') {
     bytes.write('MZ'); bytes.writeUInt32LE(128, 60); bytes.writeUInt32LE(0x4550, 128);
     bytes.writeUInt16LE(0x8664, 132); bytes.writeUInt16LE(2, 150); bytes.writeUInt16LE(0x20b, 152);
@@ -34,7 +37,7 @@ async function fixture(t, target = 'windows-x86_64') {
   const project = join(scratch, 'project'), binaries = join(project, 'target/release');
   const web = join(project, 'crates/gateway/assets/product/dist');
   await mkdir(binaries, { recursive: true }); await mkdir(web, { recursive: true });
-  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord']) await writeFile(join(binaries, name + (target.startsWith('windows') ? '.exe' : '')), binary(target));
+  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord', 'forme-file-worker']) await writeFile(join(binaries, name + (target.startsWith('windows') ? '.exe' : '')), binary(target));
   const files = [];
   for (const path of ['index.html', 'LICENSES.txt', 'dependencies.json']) {
     const bytes = Buffer.from(`original package fixture ${path}`);
@@ -97,8 +100,8 @@ test('actual bundles verify for all six targets without claiming live target beh
   }
 });
 
-test('source tampering, extra metadata and wrong executable headers fail before output', async (t) => {
-  for (const change of ['binary', 'header', 'index', 'extra', 'development']) {
+test('source tampering, GUI file workers, extra metadata and wrong headers fail before output', async (t) => {
+  for (const change of ['binary', 'header', 'gui-worker', 'index', 'extra', 'development']) {
     const f = await fixture(t);
     if (change === 'binary') await writeFile(join(f.bundle, 'bin/forme-hostd.exe'), 'tampered bytes');
     if (change === 'header') {
@@ -106,10 +109,15 @@ test('source tampering, extra metadata and wrong executable headers fail before 
       const value = binary('macos-arm64'); await writeFile(join(f.bundle, entry.path), value);
       entry.sha256 = sha(value); entry.bytes = value.length;
     }
+    if (change === 'gui-worker') {
+      const entry = f.inventory.files.find((file) => file.path === 'bin/forme-file-worker.exe');
+      const value = fileWorkerPe(['user32.dll']); await writeFile(join(f.bundle, entry.path), value);
+      entry.sha256 = sha(value); entry.bytes = value.length;
+    }
     if (change === 'index') await writeFile(join(f.bundle, 'SHA256SUMS'), 'fake index');
     if (change === 'extra') await writeFile(join(f.bundle, 'unlisted'), 'extra');
     if (change === 'development') f.inventory.development = true;
-    if (change === 'header' || change === 'development') {
+    if (['header', 'gui-worker', 'development'].includes(change)) {
       f.inventory.content_digest = sha(JSON.stringify(f.inventory.files));
       await writeFile(join(f.bundle, 'bundle-inventory.json'), JSON.stringify(f.inventory));
       await writeFile(join(f.bundle, 'SHA256SUMS'), `${f.inventory.files.map((file) => `${file.sha256}  ${file.path}`).join('\n')}\n`);

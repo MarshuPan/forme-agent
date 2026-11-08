@@ -70,8 +70,12 @@ impl Fixture {
     }
 
     fn execute(&self) -> Output {
+        self.execute_image(env!("CARGO_BIN_EXE_forme-file-worker"))
+    }
+
+    fn execute_image(&self, program: &str) -> Output {
         self.write_inputs();
-        Command::new(env!("CARGO_BIN_EXE_forme-executord"))
+        Command::new(program)
             .arg("--installed-file-worker")
             .env_clear()
             .env("FORME_WORKER_PROTOCOL_VERSION", "1")
@@ -214,6 +218,32 @@ fn request(
         job,
         permit,
         execution: Some(execution),
+    }
+}
+
+#[test]
+fn legacy_executor_file_mode_remains_compatible_and_new_entry_rejects_other_modes() {
+    let fixture = Fixture::new(p::FileOperation::Read, None);
+    assert!(fixture
+        .execute_image(env!("CARGO_BIN_EXE_forme-executord"))
+        .status
+        .success());
+    assert_eq!(
+        fs::read(fixture.run.join("results/result.bin")).unwrap(),
+        b"original\n"
+    );
+    for arguments in [
+        vec![],
+        vec!["--desktop-session-helper"],
+        vec!["--installed-file-worker", "extra"],
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_forme-file-worker"))
+            .args(arguments)
+            .env_clear()
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
     }
 }
 
@@ -442,7 +472,7 @@ fn native_file_entry_cancel_failure_and_post_execution_replacement_never_write_b
         let runtime = temporary.path().join("runtime");
         let registry = WorkerLaunchRegistry::from_specs([WorkerLaunchSpec::new(
             "sandbox:file-worker",
-            PathBuf::from(env!("CARGO_BIN_EXE_forme-executord")),
+            PathBuf::from(env!("CARGO_BIN_EXE_forme-file-worker")),
             vec!["--installed-file-worker".into()],
         )
         .unwrap()])
@@ -551,7 +581,7 @@ fn native_installed_file_entry_uses_exact_mapping_host_writeback_and_encrypted_r
         request.job.sandbox_profile_ref = "sandbox:file-worker".into();
         let registry = WorkerLaunchRegistry::from_specs([WorkerLaunchSpec::new(
             "sandbox:file-worker",
-            PathBuf::from(env!("CARGO_BIN_EXE_forme-executord")),
+            PathBuf::from(env!("CARGO_BIN_EXE_forme-file-worker")),
             vec!["--installed-file-worker".into()],
         )
         .unwrap()])

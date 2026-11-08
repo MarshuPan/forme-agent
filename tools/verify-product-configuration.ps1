@@ -26,7 +26,7 @@ try {
     & cargo test --locked -p forme-harness --test installed_managed_skills
     if ($LASTEXITCODE -ne 0) { throw 'Managed skill runtime evidence failed' }
     Assert-FormeBuildSpace $repoRoot
-    & cargo build --locked -p forme-execution --bin forme-hostd --bin forme-executord -p forme-cli --bin forme-hostctl -p forme-gateway --bin forme-webd --bin forme-gatewayd
+    & cargo build --locked -p forme-execution --bin forme-hostd --bin forme-executord --bin forme-file-worker -p forme-cli --bin forme-hostctl -p forme-gateway --bin forme-webd --bin forme-gatewayd
     if ($LASTEXITCODE -ne 0) { throw 'Managed product binaries failed to build' }
     # These fixtures deliberately use --development-config and disposable
     # paths. Do not skip real process coverage just because SCM is uninstalled.

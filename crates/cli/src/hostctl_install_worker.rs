@@ -21,7 +21,7 @@ pub(super) fn configuration(
             "launch_profiles": [{
                 "schema_version": 1,
                 "sandbox_profile_ref": "sandbox:installed-file-v1",
-                "program": manifest.paths.releases.join("bin").join("forme-executord.exe"),
+                "program": manifest.paths.releases.join("bin").join("forme-file-worker.exe"),
                 "args": ["--installed-file-worker"]
             }]
         }),

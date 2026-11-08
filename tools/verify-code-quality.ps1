@@ -37,7 +37,7 @@ try {
     Invoke-QualityStep 'frontend dependency vulnerability audit' 'npm' @('audit', '--prefix', 'frontend', '--audit-level=moderate')
     Invoke-QualityStep 'frontend types, regressions and reproducible embedded assets' 'npm' @('--prefix', 'frontend', 'run', 'verify')
     Invoke-QualityStep 'bundle integrity and preservation regressions' 'node' @('--test', 'tools/tests/product_bundle.test.mjs')
-    Invoke-QualityStep 'native package input boundaries and POSIX control flow' 'node' @('--test', 'tools/tests/native_package.test.mjs', 'tools/tests/posix_packaging.test.mjs')
+    Invoke-QualityStep 'native package inputs, headless PE imports and POSIX control flow' 'node' @('--test', 'tools/tests/native_package.test.mjs', 'tools/tests/file_worker_pe.test.mjs', 'tools/tests/posix_packaging.test.mjs')
     Invoke-QualityStep 'current offline release verifier' 'cargo' @('build', '--locked', '-p', 'forme-execution', '--bin', 'forme-hostd')
     $oldReleaseVerifier = $env:FORME_RELEASE_VERIFIER
     try {

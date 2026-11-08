@@ -84,6 +84,10 @@ fn first_run_creates_unclaimed_web_setup_without_core_config() {
     );
     let worker: serde_json::Value =
         serde_json::from_slice(&fs::read(&worker_path).unwrap()).unwrap();
+    assert_eq!(
+        serde_json::from_value::<PathBuf>(worker["launch_profiles"][0]["program"].clone()).unwrap(),
+        manifest.paths.releases.join("bin/forme-file-worker.exe")
+    );
     assert_eq!(worker["authority_epoch"], 1);
     assert_eq!(
         worker["allowed_scopes"],

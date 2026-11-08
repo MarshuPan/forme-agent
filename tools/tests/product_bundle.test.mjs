@@ -17,7 +17,7 @@ async function fixture(t, target = 'windows-x86_64') {
   const output = join(scratch, 'result');
   const assets = join(root, 'crates/gateway/assets/product/dist');
   await mkdir(binaryDir, { recursive: true }); await mkdir(assets, { recursive: true });
-  for (const file of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord']) {
+  for (const file of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord', 'forme-file-worker']) {
     await writeFile(join(binaryDir, file + targets[target].extension), `repository-owned fixture for ${file}`, { mode: 0o755 });
   }
   const files = [];
@@ -72,7 +72,7 @@ test('bundle hashes every reviewed file reproducibly and records unverified rele
     assert.equal(inventory.signature, 'not_signed');
     assert.equal(inventory.native_installation, 'not_performed');
     assert.equal(inventory.binary_target_verification, 'not_performed');
-    assert.equal(inventory.files.filter((f) => f.path.startsWith('bin/')).length, 6);
+    assert.equal(inventory.files.filter((f) => f.path.startsWith('bin/')).length, 7);
     assert.ok(inventory.files.some((f) => f.path === `bin/forme-executord${targets[target].extension}`));
     assert(inventory.files.some((f) => f.path.endsWith('LICENSES.txt')));
     if (targets[target].template === 'macos') {
@@ -119,10 +119,12 @@ test('altered or undeclared Web assets and escaping paths are rejected', async (
 });
 
 test('a new complete bundle refuses a missing one-shot execution image before any output', async (t) => {
-  const { root, config } = await fixture(t);
-  await rm(join(config.binaryDir, 'forme-executord.exe'));
-  await assert.rejects(buildBundle(config, root));
-  await assert.rejects(readFile(join(config.output, 'bundle-inventory.json')), { code: 'ENOENT' });
+  for (const name of ['forme-executord.exe', 'forme-file-worker.exe']) {
+    const { root, config } = await fixture(t);
+    await rm(join(config.binaryDir, name));
+    await assert.rejects(buildBundle(config, root));
+    await assert.rejects(readFile(join(config.output, 'bundle-inventory.json')), { code: 'ENOENT' });
+  }
 });
 
 test('bundle refuses repo roots, input overlap and filesystem indirection', async (t) => {

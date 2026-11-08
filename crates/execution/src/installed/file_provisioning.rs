@@ -44,8 +44,12 @@ impl InstalledFileProvisioning {
             return Err(invalid());
         }
         let profile = &config.launch_profiles[0];
+        let accepted_programs = [
+            manifest.paths.releases.join("bin/forme-executord.exe"),
+            manifest.paths.releases.join("bin/forme-file-worker.exe"),
+        ];
         if profile.sandbox_profile_ref != INSTALLED_FILE_PROFILE
-            || profile.program != manifest.paths.releases.join("bin/forme-executord.exe")
+            || !accepted_programs.contains(&profile.program)
             || profile.args != ["--installed-file-worker"]
         {
             return Err(invalid());
@@ -161,7 +165,28 @@ impl super::WorkerRuntimeConfig {
         if release.manifest().target != p::ProductTarget::WindowsX86_64 {
             return Err(invalid());
         }
-        let program = release.content_root().join("bin/forme-executord.exe");
+        // Historical signed releases retain their six-image layout. A new
+        // image is selected only when covered by the verified manifest; an
+        // unlisted file must never become an executable fallback.
+        let entry = if release
+            .manifest()
+            .files
+            .iter()
+            .any(|file| file.relative_path == "bin/forme-file-worker.exe")
+        {
+            "bin/forme-file-worker.exe"
+        } else {
+            "bin/forme-executord.exe"
+        };
+        if !release
+            .manifest()
+            .files
+            .iter()
+            .any(|file| file.relative_path == entry)
+        {
+            return Err(invalid());
+        }
+        let program = release.content_root().join(entry);
         for profile in &mut configured.launch_profiles {
             if profile.sandbox_profile_ref == INSTALLED_FILE_PROFILE {
                 if profile.args != ["--installed-file-worker"] {

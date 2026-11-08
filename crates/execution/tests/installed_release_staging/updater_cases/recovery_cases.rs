@@ -146,6 +146,10 @@ struct RecoveryFixture {
 }
 impl RecoveryFixture {
     fn new(baseline: bool) -> Self {
+        Self::with_file_worker(baseline, false)
+    }
+
+    fn with_file_worker(baseline: bool, headless: bool) -> Self {
         let f = Fixture::new();
         let journal = f.stage();
         let revision = journal.revision().unwrap();
@@ -158,6 +162,16 @@ impl RecoveryFixture {
                     .releases
                     .join(format!("bin/{name}.exe")),
                 name,
+            )
+            .unwrap();
+        }
+        if headless {
+            fs::write(
+                f.installation
+                    .paths
+                    .releases
+                    .join("bin/forme-file-worker.exe"),
+                b"headless-file-image-fixture",
             )
             .unwrap();
         }
@@ -246,6 +260,43 @@ impl RecoveryFixture {
             candidate,
             requested_deadline: now_millis() + 60_000,
         }
+    }
+}
+
+#[test]
+fn release_recovery_binds_the_headless_image_and_refuses_removal_or_substitution() {
+    for change in ["unchanged", "removed", "replaced"] {
+        let f = RecoveryFixture::with_file_worker(true, true);
+        let auth = f.broker.authenticate_web_configuration(WEB_TOKEN).unwrap();
+        let request = f.recovery();
+        let image =
+            f.f.installation
+                .paths
+                .releases
+                .join("bin/forme-file-worker.exe");
+        match change {
+            "removed" => fs::remove_file(&image).unwrap(),
+            "replaced" => fs::write(&image, b"different-image-fixture").unwrap(),
+            _ => (),
+        }
+        let result = f
+            .broker
+            .owner_release_recovery(&auth, request, &f.workers, now_millis());
+        if change == "unchanged" {
+            assert_eq!(
+                result.unwrap().stage,
+                p::ProductReleaseRecoveryStage::Committed
+            );
+        } else {
+            assert!(result.is_err());
+            assert!(f
+                .broker
+                .owner_release_recoveries(&auth)
+                .unwrap()
+                .operations
+                .is_empty());
+        }
+        assert_eq!(f.platform.held.load(Ordering::SeqCst), 0);
     }
 }
 

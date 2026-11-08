@@ -136,3 +136,30 @@ fn active_file_program_preserves_custom_profiles_and_rejects_replaced_reserved_a
     config.launch_profiles[0].sandbox_profile_ref = "sandbox:custom-entry".into();
     assert_eq!(config.for_active_release(&release).unwrap(), config);
 }
+
+#[test]
+fn signed_headless_image_rebinds_legacy_profile_without_rewriting_history_or_fallback() {
+    let f = Fixture::with_file_worker(true);
+    let config = configuration(&f);
+    let original = serde_json::to_vec(&config).unwrap();
+    let broker = upgrade(&f);
+    let release = broker.verified_active_release().unwrap().unwrap();
+    let before = fs::metadata(f.journal()).unwrap().len();
+    let selected = config.for_active_release(&release).unwrap();
+    assert_eq!(
+        selected.launch_profiles[0].program,
+        f.destination().join("bin/forme-file-worker.exe")
+    );
+    assert_eq!(
+        selected.launch_profiles[0].args,
+        config.launch_profiles[0].args
+    );
+    assert_eq!(selected.workspace_roots, config.workspace_roots);
+    assert_eq!(serde_json::to_vec(&config).unwrap(), original);
+    assert_eq!(fs::metadata(f.journal()).unwrap().len(), before);
+    fs::remove_file(f.destination().join("bin/forme-file-worker.exe")).unwrap();
+    assert!(config.for_active_release(&release).is_err());
+    assert!(broker.verified_active_release().is_err());
+    assert!(f.destination().join("bin/forme-executord.exe").is_file());
+    assert_eq!(fs::metadata(f.journal()).unwrap().len(), before);
+}

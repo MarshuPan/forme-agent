@@ -149,6 +149,15 @@ impl InstalledReleaseUpdater {
             let path = root.join(format!("bin/{name}{suffix}"));
             images.push((name, bounded_digest(&path, 512 * 1024 * 1024)?));
         }
+        // Preserve the digest of historical six-image baselines. New bundles
+        // also bind the headless image; rechecking rejects its later removal.
+        let file_worker = root.join(format!("bin/forme-file-worker{suffix}"));
+        if file_worker.try_exists().map_err(|_| invalid())? {
+            images.push((
+                "forme-file-worker",
+                bounded_digest(&file_worker, 512 * 1024 * 1024)?,
+            ));
+        }
         let mut configs = Vec::new();
         for name in [
             "host.json",

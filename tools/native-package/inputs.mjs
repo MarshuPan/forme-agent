@@ -4,6 +4,7 @@ import { createReadStream } from 'node:fs';
 import { lstat, open, readdir, readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { productBinaries } from '../product-binaries.mjs';
+import { fileWorkerImports } from './file-worker-pe.mjs';
 
 export const invalid = () => new Error('Native package input is invalid or changed; existing files are retained');
 export const sha = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -128,6 +129,11 @@ export async function verifyBundle(root, allowDevelopment = false) {
       const read = await file.read(bytes, 0, bytes.length, 0);
       if (!binaryMatches(bytes.subarray(0, read.bytesRead), inventory.target)) throw invalid();
     } finally { await file.close(); }
+    if (inventory.target === 'windows-x86_64' && name === 'forme-file-worker') {
+      const bytes = await bounded(join(root, path), 512 * 1024 ** 2);
+      if (sha(bytes) !== inventory.files.find((entry) => entry.path === path).sha256) throw invalid();
+      fileWorkerImports(bytes);
+    }
   }
   return inventory;
 }

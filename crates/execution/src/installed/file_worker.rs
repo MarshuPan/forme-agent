@@ -188,7 +188,11 @@ fn checked_file(file: File) -> p::Result<File> {
         return Err(unavailable());
     }
     #[cfg(windows)]
-    if super::windows_appcontainer_acl::inspect_file(&file)?.1 != 1 {
+    if winapi_util::file::information(&file)
+        .map_err(|_| unavailable())?
+        .number_of_links()
+        != 1
+    {
         return Err(unavailable());
     }
     #[cfg(unix)]

@@ -155,6 +155,10 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
+        Self::with_file_worker(false)
+    }
+
+    fn with_file_worker(headless: bool) -> Self {
         let root = tempfile::tempdir().unwrap();
         let base = root.path();
         let paths = p::ProductPaths {
@@ -207,7 +211,10 @@ impl Fixture {
             "bin/forme-hostctl.exe",
             "bin/forme-executord.exe",
             "web/index.html",
-        ] {
+        ]
+        .into_iter()
+        .chain(headless.then_some("bin/forme-file-worker.exe"))
+        {
             let path = source.join("content").join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(

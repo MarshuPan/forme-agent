@@ -2,6 +2,15 @@
   "schema_version": 1,
   "records": [
     {
+      "source": "winapi-util 0.1.11 public crate API",
+      "license": "Unlicense OR MIT",
+      "copy_risk": "low",
+      "implementation_rule": "Use only public safe opened-file information APIs for hard-link rejection in the headless file worker; do not copy source, examples, errors or tests.",
+      "notice_action": "Review the exact locked dependency and transitive licenses; keep the worker PE import and native service checks independent.",
+      "allowed_paths": [],
+      "allowed_sha256": []
+    },
+    {
       "source": "Model Context Protocol public specification",
       "license": "MIT",
       "copy_risk": "none",
