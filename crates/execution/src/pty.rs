@@ -140,6 +140,10 @@ impl PtyBackend {
         program: &Path,
         cwd: &Path,
     ) -> p::Result<ActionResult> {
+        let mut output = BoundedOutput::new(plan.budget.clone());
+        if cancel.is_cancelled() {
+            return cancelled(plan, sink, &output);
+        }
         let system = native_pty_system();
         let pair = system
             .openpty(PtySize {
@@ -198,6 +202,12 @@ impl PtyBackend {
         for (name, secret) in &resolved {
             command.env(name, secret.expose());
         }
+        // The observer persists the start fact. A rejected append must leave
+        // the original program unstarted, including at this cancellation cut.
+        emit_started(plan, sink)?;
+        if cancel.is_cancelled() {
+            return cancelled(plan, sink, &output);
+        }
         let child = pair
             .slave
             .spawn_command(command)
@@ -213,8 +223,6 @@ impl PtyBackend {
             .take_writer()
             .map_err(|_| p::Error("PTY writer could not be obtained".into()))?;
 
-        emit_started(plan, sink)?;
-        let mut output = BoundedOutput::new(plan.budget.clone());
         if cancel.is_cancelled() {
             if !child.terminate() {
                 return Err(p::Error("PTY child could not be terminated".into()));

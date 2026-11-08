@@ -7,6 +7,22 @@ fn main() {
     if std::env::var("FORME_PTY_FIXTURE_CHILD").as_deref() != Ok("1") {
         std::process::exit(2);
     }
+    let mut arguments = std::env::args_os().skip(1);
+    if arguments.next().as_deref() == Some(std::ffi::OsStr::new("--effect-marker")) {
+        let Some(path) = arguments.next() else {
+            std::process::exit(4);
+        };
+        let Ok(mut marker) = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+        else {
+            std::process::exit(4);
+        };
+        if marker.write_all(b"original PTY fixture executed").is_err() {
+            std::process::exit(4);
+        }
+    }
     let mut input = String::new();
     if std::io::stdin().lock().read_line(&mut input).is_err() {
         std::process::exit(3);
