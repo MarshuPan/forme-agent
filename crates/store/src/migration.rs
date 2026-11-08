@@ -725,6 +725,7 @@ fn verify_builtin_replay(c: &Connection, events: &[p::Event]) -> p::Result<()> {
         super::read_all_stored_events(c)?,
         &StoreOptions::default().current_schema,
         &super::UpcasterGraph::default(),
+        &crate::projection_privacy::metadata_watermarks(c, None)?,
     )
     .map_err(|_| failure("source projection replay failed"))?;
     for state in rebuilt {

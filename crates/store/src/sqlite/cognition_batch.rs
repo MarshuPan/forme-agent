@@ -44,7 +44,17 @@ impl SqliteEventStore {
             .collect();
         let prepared = events
             .into_iter()
-            .map(|e| self.prepare_event(e))
+            .map(|event| {
+                let dependent = dependent_events.contains(&event.event_id);
+                let mut prepared = self.prepare_event(event)?;
+                // The bounded feedback-derived facts belong to their source's
+                // workspace, even when the brain aggregate spans workspaces.
+                // Content-free invalidation/receipt facts retain their scope.
+                if dependent {
+                    prepared.content_scope = Some(sources[0].scope.clone());
+                }
+                Ok(prepared)
+            })
             .collect::<p::Result<Vec<_>>>()?;
         let _registration = if self.core.fts_enabled {
             Some(

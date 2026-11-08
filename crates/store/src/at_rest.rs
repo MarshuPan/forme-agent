@@ -434,6 +434,17 @@ pub(crate) fn seal_blob(
                 params![envelope.object.0, envelope.key_digest.0],
             )
             .map_err(|_| p::Error("protected key history could not be recorded".into()))?;
+        if crate::projection_privacy::metadata_only(connection, table, key, bytes)? {
+            connection
+                .execute(
+                    "DELETE FROM protected_dependencies WHERE object_ref=?1",
+                    params![envelope.object.0],
+                )
+                .map_err(|_| {
+                    p::Error("projection metadata lineage could not be recorded".into())
+                })?;
+            return Ok(sealed);
+        }
         let mut references = std::collections::BTreeSet::new();
         if table == "events" {
             // Later facts in one aggregate depend on its preceding history.

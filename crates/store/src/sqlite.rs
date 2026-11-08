@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use forme_protocol as p;
 use rusqlite::{params, Connection, OptionalExtension, Row, Transaction, TransactionBehavior};
 
+mod builtin_rebuild;
 mod cognition_batch;
 #[path = "lifecycle.rs"]
 pub(crate) mod lifecycle;
@@ -19,6 +20,10 @@ pub(crate) mod migration;
 mod projections;
 #[path = "sqlite/protected_companion.rs"]
 mod protected_companion;
+
+use self::builtin_rebuild::{
+    capture_rebuild_events, fold_builtin_projections, BuiltinRebuildSnapshot,
+};
 
 use crate::brain::AuthorityLeaseGuardInner;
 use crate::domain_claim::domain_idempotency_key;
@@ -965,7 +970,11 @@ impl SqliteEventStore {
         let captured_upcaster_token = upcasters.token();
         let captured_upcaster_identity = upcasters.identity_bytes();
         let schema_identity = schema_registry_identity(&self.core.current_schema);
-        let (stored_events, captured_token) = {
+        let BuiltinRebuildSnapshot {
+            events: stored_events,
+            token: captured_token,
+            watermarks,
+        } = {
             let mut connection = self
                 .core
                 .connection
@@ -973,8 +982,12 @@ impl SqliteEventStore {
                 .map_err(|_| p::Error("event database lock is poisoned".into()))?;
             capture_rebuild_events(&mut connection)?
         };
-        let rebuilt =
-            fold_builtin_projections(stored_events, &self.core.current_schema, &upcasters)?;
+        let rebuilt = fold_builtin_projections(
+            stored_events,
+            &self.core.current_schema,
+            &upcasters,
+            &watermarks,
+        )?;
 
         let _registration = self
             .core
@@ -1003,7 +1016,9 @@ impl SqliteEventStore {
             .transaction_with_behavior(TransactionBehavior::Immediate)
             .map_err(|error| store_error("failed to begin projection rebuild", error))?;
         self.require_authority_writer_in_transaction(&transaction)?;
-        if read_event_set_token(&transaction)? != captured_token {
+        if read_event_set_token(&transaction)? != captured_token
+            || crate::projection_privacy::metadata_watermarks(&transaction, None)? != watermarks
+        {
             return Err(p::Error(
                 "authoritative event set changed during projection rebuild; stale caches were not committed"
                     .into(),
@@ -1367,6 +1382,7 @@ impl SqliteEventStore {
         Ok(PreparedEvent {
             event,
             payload,
+            content_scope: None,
             provenance,
             event_semantics,
             domain_key,
@@ -2222,7 +2238,7 @@ impl EventStore for SqliteEventStore {
     }
 
     fn replay(&self, run: p::RunId, at: SchemaSnapshot) -> p::Result<ReplayReport> {
-        let (stored_events, current_session, current_transcript) = {
+        let (stored_events, current_session, current_transcript, metadata_head) = {
             let mut connection = self
                 .core
                 .connection
@@ -2251,10 +2267,19 @@ impl EventStore for SqliteEventStore {
             run_replay_after_events_materialized_hook();
             let current_session = read_session_state(&transaction, &run)?;
             let current_transcript = read_transcript(&transaction, &run)?;
+            let metadata_head =
+                crate::projection_privacy::metadata_watermarks(&transaction, Some(&run.0))?
+                    .get(&run.0)
+                    .copied();
             transaction
                 .commit()
                 .map_err(|error| store_error("failed to finish replay snapshot", error))?;
-            (stored_events, current_session, current_transcript)
+            (
+                stored_events,
+                current_session,
+                current_transcript,
+                metadata_head,
+            )
         };
 
         let upcasters = self.core.upcaster_snapshot()?;
@@ -2264,6 +2289,14 @@ impl EventStore for SqliteEventStore {
             let event = stored_event.decode_at(&at, &upcasters)?;
             SessionStateProjection::apply(&mut replayed_session_state, &event);
             TranscriptProjection::apply(&mut replayed_transcript, &event);
+        }
+        if let Some(head) = metadata_head {
+            crate::projection_privacy::restore_watermark(
+                &run.0,
+                head,
+                &mut replayed_session_state,
+                &mut replayed_transcript,
+            );
         }
         let diff_vs_current = projection_diff(
             current_session.as_ref(),
@@ -4650,6 +4683,7 @@ where
 struct PreparedEvent {
     event: p::Event,
     payload: Vec<u8>,
+    content_scope: Option<p::Scope>,
     provenance: Vec<u8>,
     event_semantics: Vec<u8>,
     domain_key: Option<(&'static str, String)>,
@@ -4819,7 +4853,7 @@ fn append_prepared(
     let payload_to_store = crate::at_rest::seal_blob(
         transaction,
         &prepared.payload,
-        None,
+        prepared.content_scope.as_ref(),
         "events",
         &prepared.event.event_id.0,
         &prepared.event.run_id.0,
@@ -7830,20 +7864,6 @@ impl EventSetToken {
     }
 }
 
-fn capture_rebuild_events(
-    connection: &mut Connection,
-) -> p::Result<(Vec<StoredEvent>, EventSetToken)> {
-    let transaction = connection
-        .transaction_with_behavior(TransactionBehavior::Deferred)
-        .map_err(|error| store_error("failed to begin projection rebuild snapshot", error))?;
-    let events = read_all_stored_events(&transaction)?;
-    let token = EventSetToken::from_stored_events(&events);
-    transaction
-        .commit()
-        .map_err(|error| store_error("failed to finish projection rebuild snapshot", error))?;
-    Ok((events, token))
-}
-
 fn validate_graph_maintenance_in_transaction(
     transaction: &Transaction<'_>,
     event: &p::Event,
@@ -7885,42 +7905,6 @@ fn read_all_stored_events(connection: &Connection) -> p::Result<Vec<StoredEvent>
         .map_err(|error| store_error("failed to query projection rebuild capture", error))?;
     rows.collect::<rusqlite::Result<Vec<_>>>()
         .map_err(|error| store_error("failed to read projection rebuild event", error))
-}
-
-fn fold_builtin_projections(
-    stored_events: Vec<StoredEvent>,
-    current_schema: &BTreeMap<PayloadType, p::SchemaVersion>,
-    upcasters: &UpcasterGraph,
-) -> p::Result<Vec<BuiltinProjectionState>> {
-    let mut streams = BTreeMap::<String, Vec<StoredEvent>>::new();
-    for event in stored_events {
-        streams.entry(event.run_id.clone()).or_default().push(event);
-    }
-
-    let mut rebuilt = Vec::with_capacity(streams.len());
-    for mut stream in streams.into_values() {
-        stream.sort_by_key(|event| event.stream_seq);
-        let mut session = SessionStateProjection::empty();
-        let mut transcript = TranscriptProjection::empty();
-        let mut fts_entries = Vec::new();
-        for stored_event in stream {
-            let event = stored_event.decode(current_schema, upcasters)?;
-            if let Some(text) = searchable_text(&event) {
-                fts_entries.push(FtsEntry {
-                    event_id: event.event_id.0.clone(),
-                    text: text.to_owned(),
-                });
-            }
-            SessionStateProjection::apply(&mut session, &event);
-            TranscriptProjection::apply(&mut transcript, &event);
-        }
-        rebuilt.push(BuiltinProjectionState {
-            session,
-            transcript,
-            fts_entries,
-        });
-    }
-    Ok(rebuilt)
 }
 
 fn read_event_set_token(connection: &Connection) -> p::Result<EventSetToken> {

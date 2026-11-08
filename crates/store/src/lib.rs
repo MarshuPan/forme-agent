@@ -16,6 +16,7 @@ mod offline_backup;
 mod offline_validation;
 mod orchestration;
 mod projection;
+mod projection_privacy;
 mod replay;
 mod replica;
 mod restoration_fence;

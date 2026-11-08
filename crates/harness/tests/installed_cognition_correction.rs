@@ -29,6 +29,14 @@ fn provenance() -> p::Provenance {
     }
 }
 fn seed(runtime: &ProductionRuntime, run: &str, tier: p::StabilityTier) -> p::CandidateId {
+    seed_in_scope(runtime, run, tier, "workspace:core-b")
+}
+fn seed_in_scope(
+    runtime: &ProductionRuntime,
+    run: &str,
+    tier: p::StabilityTier,
+    scope: &str,
+) -> p::CandidateId {
     let candidate = p::CandidateId(format!("candidate:{run}"));
     runtime
         .services()
@@ -39,9 +47,9 @@ fn seed(runtime: &ProductionRuntime, run: &str, tier: p::StabilityTier) -> p::Ca
             None,
             p::EventPayload::CandidateCreated(p::CandidateCreatedPayload {
                 candidate_id: candidate.clone(),
-                target: p::CandidateTargetRef(
-                    "cognitive-map|workspace:core-b|frame|a previous judgment".into(),
-                ),
+                target: p::CandidateTargetRef(format!(
+                    "cognitive-map|{scope}|frame|a previous judgment"
+                )),
                 evidence_refs: vec![p::EvidenceRef("evidence:source".into())],
                 confidence: p::Confidence(0.4),
                 provenance: provenance(),
@@ -338,6 +346,113 @@ fn stable_correction_invalidates_transitive_derivatives_and_erasing_feedback_nev
             .unwrap(),
         receipt
     );
+    assert_eq!(f.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn feedback_deletion_preview_covers_a_nondefault_workspace() {
+    let f = Fixture::new();
+    let runtime = f.build();
+    let untouched = seed(&runtime, "run:untouched-default", p::StabilityTier::Working);
+    let scope = "workspace:another-project";
+    let old = seed_in_scope(
+        &runtime,
+        "run:another-project",
+        p::StabilityTier::Working,
+        scope,
+    );
+    let correction = command(
+        &runtime,
+        &f,
+        &old.0,
+        p::WorkbenchCorrectionKind::Candidate,
+        "correction:another-project",
+    );
+    let corrected = runtime
+        .correct_workbench_cognition(&f.owner(), correction)
+        .unwrap();
+    let memory = runtime
+        .workbench_snapshot(
+            &f.owner(),
+            p::WorkbenchQuery {
+                section: p::WorkbenchSection::Memory,
+                ..query()
+            },
+        )
+        .unwrap();
+    let row = memory
+        .items
+        .iter()
+        .find(|item| item.id.starts_with("owner-correction-memory:"))
+        .unwrap();
+    let target = runtime
+        .workbench_material_lifecycle_target(
+            &f.owner(),
+            p::WorkbenchMaterialQuery {
+                schema_version: p::SchemaVersion(1),
+                node: p::NodeId(row.id.clone()),
+                run: row.run.clone(),
+                event: row.event.clone(),
+                scope: None,
+                snapshot: memory.digest,
+            },
+        )
+        .unwrap();
+    assert_eq!(target.scope.0, scope);
+    let prepared = runtime
+        .execute_data_workbench(
+            &f.owner(),
+            p::DataWorkbenchCommand {
+                schema_version: p::SchemaVersion(1),
+                command: p::IdempotencyKey("data:another-project:prepare".into()),
+                action: p::DataWorkbenchAction::PrepareLifecycle {
+                    scope: target.scope.clone(),
+                    subject: target.subject.clone(),
+                    operation: p::DataLifecycleOperation::Delete,
+                    expected_version: target.lifecycle_version,
+                },
+            },
+        )
+        .unwrap();
+    assert_eq!(prepared.state, p::DataCommandState::Prepared);
+    let plan = prepared.plan.as_ref().unwrap();
+    assert_eq!(plan.scope, Some(target.scope));
+    assert_eq!(plan.subject, Some(target.subject));
+    let apply = p::DataWorkbenchCommand {
+        schema_version: p::SchemaVersion(1),
+        command: p::IdempotencyKey("data:another-project:apply".into()),
+        action: p::DataWorkbenchAction::Apply {
+            prepared_by: prepared.command,
+            plan_digest: plan.digest.clone(),
+        },
+    };
+    let applied = runtime
+        .execute_data_workbench(&f.owner(), apply.clone())
+        .unwrap();
+    assert_eq!(applied.state, p::DataCommandState::Confirmed);
+    assert!(runtime
+        .services()
+        .store
+        .search("owner-feedback-874ac9", 100)
+        .unwrap()
+        .is_empty());
+    let remaining = events(&runtime);
+    assert!(remaining.iter().any(|event| matches!(&event.payload,
+        p::EventPayload::CandidateDowngraded(value) if value.candidate_id == old)));
+    assert!(!remaining.iter().any(|event| matches!(&event.payload,
+        p::EventPayload::CandidateCreated(value) if value.candidate_id == corrected.candidate)));
+    assert!(remaining.iter().any(|event| matches!(&event.payload,
+        p::EventPayload::CandidateCreated(value) if value.candidate_id == untouched)));
+    assert_eq!(receipts(&runtime, &f).receipts, vec![corrected.clone()]);
+    let heads = runtime.services().store.run_heads().unwrap();
+    drop(runtime);
+    let runtime = f.build();
+    assert_eq!(
+        runtime.execute_data_workbench(&f.owner(), apply).unwrap(),
+        applied
+    );
+    assert_eq!(runtime.services().store.run_heads().unwrap(), heads);
+    assert_eq!(receipts(&runtime, &f).receipts, vec![corrected]);
     assert_eq!(f.calls.load(Ordering::SeqCst), 0);
 }
 

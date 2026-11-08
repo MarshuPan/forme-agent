@@ -214,6 +214,57 @@ fn c23_scoped_cleanup_removes_real_content_caches_keys_and_survives_replay() {
 }
 
 #[test]
+fn c23_actual_cross_scope_content_dependency_still_rejects_without_deleting_keys() {
+    let db = TestDatabase::new();
+    let (store, keys, _guard) = protected(&db);
+    let protection = store.content_protection().unwrap().unwrap();
+    let service = store.data_lifecycle_service(keys.clone());
+    let (_, foreign) = protection
+        .seal_record(
+            b"a separate workspace source",
+            &p::Scope("workspace:separate".into()),
+            "separate:material",
+            &p::sha256_content_digest(b"separate subject"),
+        )
+        .unwrap();
+    service
+        .put_protected_content(&owner(), foreign.clone())
+        .unwrap();
+    let mut event = input("event:d:cross-scope", "run:d:cross-scope");
+    event.payload = p::EventPayload::MemoryNodeAppended(p::MemoryNodeAppendedPayload {
+        node_id: p::NodeId("node:cross-scope".into()),
+        kind: p::MemoryNodeType("reflection".into()),
+        content_ref: foreign.content_ref.clone(),
+        tier: p::StabilityTier::Working,
+        confidence: p::Confidence(0.4),
+        scope: p::Scope("workspace:separate".into()),
+        resting_activation: p::RestingActivation(0.0),
+        recency: p::Recency(now()),
+    });
+    event.kind = event.payload.kind();
+    store.append(event).unwrap();
+    assert_eq!(
+        service
+            .plan(&request("run:d:cross-scope", 0))
+            .unwrap_err()
+            .0,
+        "lifecycle key is shared outside approved subject"
+    );
+    assert_eq!(
+        store.read_run(p::RunId("run:d:cross-scope".into())).count(),
+        1
+    );
+    assert!(keys.resolve(&foreign.envelope.key_digest).is_ok());
+    assert_eq!(
+        service
+            .protected_content(&owner(), &foreign.content_ref)
+            .unwrap(),
+        Some(foreign)
+    );
+    assert!(service.tombstone().unwrap().is_none());
+}
+
+#[test]
 fn c23_wrong_owner_scope_stale_and_changed_plan_have_zero_changes() {
     let db = TestDatabase::new();
     let (s, keys, _guard) = protected(&db);
@@ -391,4 +442,88 @@ fn c22_protected_sync_bootstrap_reopens_with_bound_metadata_and_no_plaintext() {
     wrong.sync_peer.as_mut().unwrap().reference = p::SyncPeerRef("peer:changed".into());
     assert!(SqliteEventStore::open_with_content_protection(db.path(), wrong, protection).is_err());
     absent(&std::fs::read(db.path()).unwrap());
+}
+
+#[test]
+fn c23_erased_aggregate_tail_keeps_replay_rebuild_and_subsequent_writes_consistent() {
+    for keep_prefix in [false, true] {
+        let db = TestDatabase::new();
+        let (store, keys, guard) = protected(&db);
+        let root = "run:d:tail-source";
+        let aggregate = p::RunId("aggregate:d:tail-target".into());
+        store.append(input("event:d:tail-source", root)).unwrap();
+        let reflection = |id: &str, inputs: Vec<p::EvidenceRef>| {
+            p::Event::new(
+                p::EventId(id.into()),
+                aggregate.clone(),
+                None,
+                p::EventPayload::ReflectionProduced(p::ReflectionProducedPayload {
+                    inputs,
+                    candidate_refs: vec![],
+                }),
+                p::SchemaVersion(1),
+                now(),
+                p::Provenance {
+                    source: p::Source::Internal,
+                    actor: p::Actor::System,
+                    trust_tier: p::TrustTier::VerifiedProcess,
+                    caused_by: None,
+                },
+            )
+        };
+        if keep_prefix {
+            store
+                .append(reflection("event:d:tail-prefix", vec![]))
+                .unwrap();
+        }
+        for index in 0..3 {
+            let inputs = if index == 0 {
+                vec![p::EvidenceRef("event:event:d:tail-source".into())]
+            } else {
+                vec![]
+            };
+            store
+                .append(reflection(&format!("event:d:tail:{index}"), inputs))
+                .unwrap();
+        }
+        let head = store.run_heads().unwrap().0[&aggregate];
+        store
+            .data_lifecycle_service(keys)
+            .apply(request(root, 0))
+            .unwrap();
+        assert_eq!(
+            store.read_run(aggregate.clone()).count(),
+            usize::from(keep_prefix)
+        );
+        let cache = store.load_transcript(aggregate.clone()).unwrap().unwrap();
+        assert!(cache.entries.is_empty());
+        assert_eq!(cache.last_stream_seq, head);
+        let replay = store.replay(aggregate.clone(), snapshot()).unwrap();
+        assert!(
+            replay.diff_vs_current.is_empty(),
+            "{:?}",
+            replay.diff_vs_current
+        );
+        store.rebuild_builtin_projections().unwrap();
+        assert_eq!(
+            store.load_transcript(aggregate.clone()).unwrap(),
+            Some(cache.clone())
+        );
+        drop(guard);
+        drop(store);
+        let (store, _keys, _guard) = protected(&db);
+        assert_eq!(
+            store.load_transcript(aggregate.clone()).unwrap(),
+            Some(cache)
+        );
+        store
+            .append(reflection("event:d:tail-after-erasure", vec![]))
+            .unwrap();
+        assert_eq!(store.run_heads().unwrap().0[&aggregate], head + 1);
+        assert!(store
+            .replay(aggregate, snapshot())
+            .unwrap()
+            .diff_vs_current
+            .is_empty());
+    }
 }
