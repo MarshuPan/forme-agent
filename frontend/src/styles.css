@@ -87,6 +87,9 @@ textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; line-height:
 .route-subsection ul { margin-bottom: 0; padding-left: 1.25rem; }
 .ledger-details { margin-top: 1.5rem; }
 .button-row { display: flex; gap: .7rem; flex-wrap: wrap; }
+.session-actions { margin-bottom: .75rem; }
+.session-edit { margin-top: .75rem; max-width: 42rem; }
+.session-edit h2, .session-edit p { margin-bottom: 0; }
 .session-context-row { display: flex; align-items: end; gap: .75rem; flex-wrap: wrap; padding: .75rem 0; border-bottom: 1px solid var(--line); }
 .session-context-control { display: grid; gap: .35rem; width: min(100%, 28rem); color: var(--muted); font-size: .82rem; }
 .session-context-control select { min-width: 0; }

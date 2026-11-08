@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "0af185bc96824ec2d114e0b20aaccbbb1997953048d0447bdad5ac6ed19a5fc4",
+  "source_digest": "3c5a3408a9deb4e4b974233f7faf432edae89d741560bb505e5bd5309a0a1284",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -64,7 +64,7 @@
     },
     {
       "path": "frontend/src/components/Conversation.tsx",
-      "sha256": "7db867790948154213977f5f0b436dba50bde1a2a397913c129e109849172ca6"
+      "sha256": "a4697c10d9abea9cf1243e5a2af61fbbbe45baf76abb828b1c4174d4bfe9258d"
     },
     {
       "path": "frontend/src/components/DataManagement.tsx",
@@ -109,6 +109,10 @@
     {
       "path": "frontend/src/components/RuntimeDiagnostics.tsx",
       "sha256": "5be7f3c4d5a6d0dcc9abeedaf4346482d2abf5861d885a43e5d04698b94ddd64"
+    },
+    {
+      "path": "frontend/src/components/SessionActions.tsx",
+      "sha256": "773fa4b0f02eb13e8860d9a0bba71a5ef3260f1625b23b2117b7d8a4cfe1a929"
     },
     {
       "path": "frontend/src/components/SessionArtifacts.tsx",
@@ -216,7 +220,7 @@
     },
     {
       "path": "frontend/src/styles.css",
-      "sha256": "b36d13b64e2511f5c964c3b8963a4accf7f56336cb5389114caa1bd85700c838"
+      "sha256": "ab68bb573cb95c6cc8098c0d2811d67fe6e0b44e9ce8066f2f497f54347e94d9"
     },
     {
       "path": "frontend/src/styles/layout.css",
@@ -337,14 +341,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-BbhQ1fO8.css",
-      "sha256": "4375a8d4833de33a7f9616a54330385a391954c6c0b0366de498b8f47a313aa7",
-      "bytes": 14769
+      "path": "assets/index-B0KMl8ni.js",
+      "sha256": "7ff6a9d3dad2f3ae114672aff10a28d79ba8ae04ae64d564860332dcee52c258",
+      "bytes": 405557
     },
     {
-      "path": "assets/index-XD82LHEN.js",
-      "sha256": "632c382f775b2b278fcb97ec73a06beb06ed9efe6e365a2c432eb008b7eec221",
-      "bytes": 402641
+      "path": "assets/index-kab-1l06.css",
+      "sha256": "e0bf7a6dd285cc682ad275af149a592c35278ab4fa309552b10c89d855a1e4e6",
+      "bytes": 14904
     },
     {
       "path": "dependencies.json",
@@ -358,7 +362,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "30e71b91608e0acfc68602fc99ea0205bce7494c1a228fda18e32aee77b7e853",
+      "sha256": "6ad485a6e9dc30fb2ea168a6b43266775b8898299519c08fb61d8bbee46f264b",
       "bytes": 595
     },
     {

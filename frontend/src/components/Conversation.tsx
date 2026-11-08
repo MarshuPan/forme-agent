@@ -12,6 +12,7 @@ import { SessionArtifacts } from './SessionArtifacts.tsx';
 import { RunPendingControls } from './RunPendingControls.tsx';
 import { runStatusMessage } from '../run-status.ts';
 import { acceptedUserInput } from '../conversation-view.ts';
+import { SessionActions } from './SessionActions.tsx';
 
 interface Props {
   api: WorkbenchClient; runtime: RuntimeView | null; runs: RunSummary[];
@@ -35,7 +36,9 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   const [workspaceOptionsError, setWorkspaceOptionsError] = useState('');
   const [workspaceChange, setWorkspaceChange] = useState<WorkspaceChange | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
-  const locked = pending !== null || busy || workspaceBusy || workspaceChange !== null;
+  const [sessionActionsLocked, setSessionActionsLocked] = useState(false);
+  const commandLocked = pending !== null || busy || workspaceBusy || workspaceChange !== null;
+  const locked = commandLocked || sessionActionsLocked;
   const [artifactRevision, setArtifactRevision] = useState(0);
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const [answer, setAnswer] = useState<string | null>(null);
@@ -49,6 +52,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   const alive = useRef(true);
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; commands.dispose(); }; }, [commands]);
+  useEffect(() => { onPendingChange(pending !== null || sessionActionsLocked); }, [pending, sessionActionsLocked, onPendingChange]);
 
   useEffect(() => {
     // An unsaved draft must survive history refreshes and another tab's writes.
@@ -105,7 +109,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   }, [api, selected, revision, observed]);
 
   async function submit(event: FormEvent) {
-    event.preventDefault(); if (!runtime || currentSession?.archived) return;
+    event.preventDefault(); if (!runtime || currentSession?.archived || sessionActionsLocked || workspaceBusy || workspaceChange !== null) return;
     const request = commands.submit(api, savedSession(), draft, runtime.agent_profile);
     if (!request) return;
     commandState(); setError('');
@@ -118,7 +122,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     finally { if (alive.current) commandState(); }
   }
   function savedSession() { return sessions.some((item) => item.session === session) ? session : null; }
-  function commandState() { redraw((value) => value + 1); onPendingChange(commands.pending !== null); }
+  function commandState() { redraw((value) => value + 1); }
   async function upload(file?: File) {
     const request = commands.uploadFile(api, savedSession(), file);
     if (!request) return;
@@ -134,13 +138,13 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
     const file = event.target.files?.[0]; event.target.value = '';
     if (file) void upload(file);
   }
-  async function renameSession() {
-    const current = sessions.find((item) => item.session === session);
-    if (!current || locked) return;
-    const title = window.prompt('会话名称', current.title)?.trim();
-    if (!title || title === current.title) return;
-    try { const updated = await api.updateWorkbenchSession(current.session, current.updated_at, { operation: 'rename', title }); setSessionTitle(updated.title); await refreshSessions(); }
-    catch (problem) { setError(problem instanceof Error ? problem.message : '会话名称修改尚未确认。'); }
+  async function sessionUpdated(updated: WorkbenchSessionRecord) {
+    if (updated.archived) {
+      setSession(sessions.find((item) => !item.archived && item.session !== updated.session)?.session ?? newKey('session'));
+      select(null);
+    } else setSessionTitle(updated.title);
+    try { await refreshSessions(); }
+    catch { setError('会话更改已确认，但列表刷新失败；重新读取后再进行下一项操作。'); }
   }
   async function persistWorkspaceChange(command: WorkspaceChange) {
     setWorkspaceBusy(true); setError('');
@@ -175,12 +179,6 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   function verifyWorkspaceChange() {
     if (workspaceChange && !workspaceBusy) void persistWorkspaceChange(workspaceChange);
   }
-  async function archiveSession() {
-    const current = sessions.find((item) => item.session === session);
-    if (!current || locked || !window.confirm('归档当前会话？归档不会删除运行记录。')) return;
-    try { await api.updateWorkbenchSession(current.session, current.updated_at, { operation: 'archive', archived: true }); await refreshSessions(); setSession(sessions.find((item) => !item.archived && item.session !== current.session)?.session ?? newKey('session')); select(null); }
-    catch (problem) { setError(problem instanceof Error ? problem.message : '会话归档尚未确认。'); }
-  }
   async function chooseSession(value: string) {
     if (!value || locked) return;
     setSession(value); select(runs.filter((run) => run.session === value).at(-1)?.run ?? null);
@@ -195,9 +193,10 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
   const selectableWorkspaces = [...new Set([...workspaceOptions, ...(currentSession?.workspace ? [currentSession.workspace] : [])])];
   return <section className="conversation" aria-labelledby="conversation-title">
     <header className="view-header"><div><p className="eyebrow">与你一起推进</p><h1 id="conversation-title">对话</h1></div>
-      <div className="button-row"><select aria-label="当前会话" disabled={locked} value={savedSession() ?? ''} onChange={(event) => void chooseSession(event.target.value)}><option value="">新会话（发送时创建）</option>{sessions.filter((item) => !item.archived).map((item) => <option value={item.session} key={item.session}>{item.title}</option>)}</select><button className="secondary-button" disabled={locked} onClick={() => { select(null); setSession(newKey('session')); setSessionTitle('新对话'); setSummary(null); setAnswer(null); setEvents(emptyEvents('')); }}>新对话</button>{savedSession() && <><button className="text-button" disabled={locked} onClick={() => void renameSession()}>重命名</button><button className="text-button" disabled={locked} onClick={() => void archiveSession()}>归档</button></>}
+      <div className="button-row"><select aria-label="当前会话" disabled={locked} value={savedSession() ?? ''} onChange={(event) => void chooseSession(event.target.value)}><option value="">新会话（发送时创建）</option>{sessions.filter((item) => !item.archived).map((item) => <option value={item.session} key={item.session}>{item.title}</option>)}</select><button className="secondary-button" disabled={locked} onClick={() => { select(null); setSession(newKey('session')); setSessionTitle('新对话'); setSummary(null); setAnswer(null); setEvents(emptyEvents('')); }}>新对话</button>
       </div>
     </header>
+    {currentSession && <SessionActions key={currentSession.session} api={api} session={currentSession} locked={commandLocked} lock={setSessionActionsLocked} refresh={refreshSessions} confirmed={sessionUpdated} />}
     {currentSession && <div className="session-context-row"><label className="session-context-control">后续运行工作空间<select aria-label="后续运行工作空间" value={currentSession.workspace ?? ''} disabled={locked || workspaceOptions.length === 0} onChange={(event) => associateWorkspace(event.target.value)}><option value="">默认工作空间{runtime ? `（${runtime.workspace}）` : ''}</option>{selectableWorkspaces.map((workspace) => <option key={workspace} value={workspace}>{workspace === runtime?.workspace ? `${workspace}（默认）` : workspace}</option>)}</select></label>{workspaceChange?.session === session && <button className="secondary-button" disabled={workspaceBusy} onClick={verifyWorkspaceChange}>{workspaceBusy ? '正在核实…' : '核实原关联'}</button>}{workspaceOptionsError && <span className="muted small" role="status">{workspaceOptionsError}</span>}</div>}
     {!runtime && <p className="notice" role="status">主脑暂不可用。可以在设置中查看连接状态。</p>}
     {currentSession?.archived && <p className="notice" role="status">当前会话已归档，可以查看历史记录；请新建对话以继续交流。</p>}
@@ -219,7 +218,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
         <textarea id="message" value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} maxLength={6000} disabled={locked || currentSession?.archived} placeholder="说说你的想法，或交给 forme 一件事…" required />
         <div className="composer-footer"><span className="muted">{pending ? '保留原操作标识，核实后再开始下一项。' : '任务执行与审批始终由主脑管理。'}</span>
           <label className="secondary-button attachment-button">{busy && pending === 'upload' ? '正在上传…' : '添加附件'}<input type="file" onChange={chooseFile} disabled={locked || !runtime || currentSession?.archived} /></label>
-          <button className="primary-button" disabled={busy || pending === 'upload' || !runtime || currentSession?.archived || (!pending && !draft.trim())}>{busy ? '正在提交…' : pending === 'turn' ? '核实原提交' : '发送'}</button></div>
+          <button className="primary-button" disabled={busy || pending === 'upload' || sessionActionsLocked || workspaceBusy || workspaceChange !== null || !runtime || currentSession?.archived || (!pending && !draft.trim())}>{busy ? '正在提交…' : pending === 'turn' ? '核实原提交' : '发送'}</button></div>
       </form>
     </div><aside className="details-panel" aria-label="任务详情">
       <h2>任务详情</h2><p className="status-pill">{summary ? statusLabel(summary.status) : '尚未选择运行'}</p>
