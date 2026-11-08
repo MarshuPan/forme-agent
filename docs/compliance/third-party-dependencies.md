@@ -1,5 +1,20 @@
 # Third-party dependencies
 
+## Headless installed file image (2026-11-08)
+
+The Windows execution target adds exact-pinned `winapi-util = 0.1.11`
+([crates.io](https://crates.io/crates/winapi-util/0.1.11), Unlicense OR MIT;
+registry checksum `c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22`).
+Only its safe public opened-file information API is used to check the actual
+handle's hardlink count before file access. This preserves custody checks
+without importing the desktop/AppContainer adapter into the standalone
+`forme-file-worker` image. The lockfile adds one package; no internal crate
+edge, protocol, new unsafe boundary, copied implementation, example, fixture,
+error text, or third-party naming system is introduced. NOTICE and the
+borrowing record cover this public API use. A bounded PE import gate and
+independent native import inspection check the resulting image; neither
+dependency admission nor compilation proves installed service execution.
+
 ## Installed worker result protection (2026-10-27)
 
 The execution crate reuses the already locked `chacha20poly1305 = 0.11.0`
