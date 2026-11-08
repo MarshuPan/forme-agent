@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 PTY 启动接纳修复通过，原生机制仍待验证
+
+`0e6dccf` 修复普通 PTY driver 先创建程序、后接纳 Started/检查取消的缺口。强化回归用真实 CIM 进程观察复现旧实现三项失败；修复后新四项与原 M2 四项通过。最终 workspace 为 185 targets、1,317 passed / 0 failed / 16 默认 ignored，fmt/check、strict Clippy、结构质量与完整合规通过。原流程在完整测试后因空间门停止的回执保持；93 个闲置主缓存程序逐份摘要保持压缩后，只续跑尚未执行的三项检查，无删除或阈值放宽。细节及原件摘要见[本轮验收](installed-pty-admission-correction-20261109.md)。
+
+原 UAC 仍为同一存活进程，缺少三个窗口回执；本轮没有部署或刷新完整 Final。新增[隔离 PTY 机制设计稿](../architecture/proposals/installed-isolated-pty-mechanism-spike.md)明确只取组件技术证据，未启用生产派生 profile。三份既有冻结提案、引用输入/结果/其他消费者、PTY I/O 故障边界及 IP01–IP24 继续开放，整体目标保持进行。
+
 ## 2026-11-09 worker 文本入口类型修复通过，尚未部署
 
 `cff8a29` 修复 Binary manifest 的正文恰好能按 UTF-8 解码时被误投影为文本并完成的缺口。现有文本消费者在读取正文前要求声明为 Utf8；Binary 保留原动作 Unknown，无输出或成功证据，同号核实不重新 dispatch。修复前新增回归实际失败，修复后专项 12 项、workspace 184 targets / 1,313 passed / 0 failed / 16 默认 ignored，以及 fmt/check/strict Clippy/质量/完整合规通过。原流程的空间门停止及剩余检查续跑均保留独立回执；空间回升后维护脚本实际压缩 0 文件。详见[本次组件验收](installed-worker-encoding-correction-20261109.md)。
