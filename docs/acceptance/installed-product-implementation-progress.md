@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-08 文件 worker 已拆除桌面链接，修正版尚未部署
+
+`ec56b71` 新增独立无桌面依赖文件入口及七程序包、签名 manifest 选择、恢复基线与 PE 导入门；历史六程序布局继续只按原验证结果读取。完整 Rust 回归为 183 个测试目标、1304 passed / 0 failed / 16 默认 ignored，Python 95 tests（1 skipped）、strict Clippy、前端 115/115、合规、NTFS 10/10、Inno 退出夹具 2/2 均通过。真实 Low AppContainer 取消/失败/文件替换反例亦通过，但不是安装服务身份验收。
+
+第二次完整 M5 调用最终被 S99 的依赖表格漏行阻断，本批已补齐同一依赖审查；不能称该完整调用 exit 0。原安装请求的 DLL_INIT_FAILED 已正式裁决为 Aborted，历史保留、零重派。当前 OS 独立观察 Host/Web/Brain Running，updater Stopped；仍是旧安装，新签名候选、升级与新文件矩阵尚未执行。详情及准确证据边界见[本轮文件入口验收](installed-product-headless-file-acceptance-20261108.md)。下文是此前各批历史。
+
 ## 2026-11-07 已复现安装失败的模块加载根因，修正全量回归通过
 
 23:25 的实际管理员 Prepare-only 比较复现了原阶段 5、第 101 行失败：固定根存在且参数正确，具体错误为 `CommandNotFoundException / CouldNotAutoloadMatchingModule`。PowerShell 7 父进程的模块发现环境影响 Windows PowerShell 子进程，不是目录 DACL 不匹配。源码改为从当前 `$PSHOME` 显式加载内置 Security 模块，保持原 ACL/owner/治理和失败即停；新增不兼容同名模块的实际子进程反例，Windows PowerShell 5.1/PowerShell 7 各 10/10 PASS。23:42 完整源码门 exit 0：182 个 Rust 测试目标、1301 passed / 0 failed / 16 默认 ignored、strict Clippy、前端 115/115、完整合规与原生安装器退出夹具均通过；仍不是修正后签名包安装或 IP 通过。
