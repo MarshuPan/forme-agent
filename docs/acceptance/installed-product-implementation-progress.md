@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 当前源码完整 Final 通过，整体安装目标仍开放
+
+干净 `shu/closure-inventory@6899f56` 的原 Final 在本地时间 03:14:03–04:11:07 完成，exit 0，结束时工作树干净。内嵌 M5 真正取得 S1–S99 总门 PASS；A/B/C/D 逐名 **47/50/36/73，共 206 项**，C24 当前源码/真实工件、typed 工件、core/M5 生成与仓库回执的独立验证和 compare 全通过。workspace 两段各为 **183 targets、1310 passed / 0 failed / 16 默认 ignored**，不叠加；Python **94 passed / 1 skipped**。原始终态、摘要和空间报告见[核心终验 §7](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。下文“Final 仍待”等表述保留各先行阶段，后续终态以本节为准。
+
+安装仍为 `cf3fbc9`；原生签名升级仍只等待原 UAC，没有管理员启动/升级回执。受管能力消费者、桌面授权及 helper 输入/二进制工件/PTY 等接线仍有真实缺口，完整 IP01–IP24 未通过。新补的[剩余义务审计](installed-product-remaining-obligations-audit-20261109.md) 逐项保留完成判据、代码前置确认和环境证据；不把源码 Final 或正确的 unavailable 展示当作整个产品完成。本次只记录验收，未改冻结协议、安装程序、服务、UAC 或原 Unknown 请求。文档状态回填后，规范发布回执按原规则独立重新绑定，不重复完整 Final。
+
 ## 2026-11-09 工作空间纠正与删除后的审计水位修复，尚未部署
 
 真实安装的项目纠正已 Confirmed；从该来源准备遗忘返回 HTTP 200，但正式业务回执为原 Unknown/plan=null，没有执行删除或换号重试。隔离复现发现正文派生事件加密 scope 回落默认工作空间、共用无正文缓存的保守血缘，以及删去 aggregate 尾部后 replay/rebuild 水位回退三处组合问题。本批限于受验证纠正批次及可证明无正文的内置缓存修复，不放宽跨 owner/scope 拒绝，不改冻结协议或事件图。

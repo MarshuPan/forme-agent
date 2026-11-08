@@ -77,3 +77,25 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-core-brain-clos
 四波工件与汇总清单已回填；`tools/core_brain_evidence.py --verify --require-pass` 返回 `0`，总清单 digest 为 `sha256:167c669b575333237064321304e8cb90c262bba346df9ad504f3fedc7f761e69`。A/B/C 保持 `ControlledRuntime`，D 为 `LiveConfigured`，不混淆等级。运行日志在本地 `target/installed-file-worker-evidence/closure-da0d686-{a,b,c,d}.log`，秘密未导出。
 
 当前提交已完成 clean-tree core release audit：9 项检查全部 PASS，core receipt 为 `sha256:89294813276b54e6b161f67e8535e6cee35f0e3d8654e1e12670644d55c6de99`，独立 `--verify` 返回 `0`。M5 receipt 与完整 Final 是独立发布门，具体状态以 `m5-acceptance-report.md` 的当前记录为准；core audit 单独不提升为完整 Final。原生开发安装已恢复到 Host/Web 运行与未认领初始化页面，但 Brain/真实 provider/worker 与 IP01–IP24 继续独立验收，不据源码门推断。
+
+## 7. 纠正 scope 与闭合清单后的完整源码终验（2026-11-09）
+
+干净分支 `shu/closure-inventory@6899f5671ab137252e7b9851a58ca8ee869c09d5` 完整执行一次 `tools/verify-core-brain-closure.ps1 -Wave Final`。本地时间 **03:14:03–04:11:07**，实际 exit 0，终线为 `core-brain-closure (Final): PASS`，结束时 tracked/staged/untracked tree 均干净。原进程已经退出，没有另起完整 Final。
+
+Final 的 workspace 阶段与其内嵌 M5 的 workspace 阶段各为 **183 targets、1310 passed / 0 failed / 16 默认 ignored**，分别从对应日志段统计，不叠加为新的测试总量。fmt/check、strict Clippy、Python **94 passed / 1 skipped**、完整合规、S1–S99 与 M4/M5 多进程 golden 均通过；M5 取得真实 `M5 FINAL ACCEPTANCE: PASS`，不是只生成审计回执。18 crates、99 EventKinds 和历史 97 strict prefix 保持。
+
+A/B/C/D 在本次 Final 中逐名执行 **47/50/36/73，共 206 项**；包含两项新增 C23 测试和显式 ignored CLI。B/C typed 工件、四波闭合清单和 C24 当前源码/真实六类工件验证均通过。C24 复用本轮已实际采集的六类各两轮 `LiveConfigured` 原件；本次验证不冒充再次调用真实模型，也不证明长期收益或优于直接模型。
+
+Final 内的生成/仓库回执独立验证与当前干净树 compare 全部 PASS。当次 core 为 `sha256:7bcc6fac780a1c1669f8dd527e4e283cdbbfc11ea140ee7086fb8c676c047069`，M5 为 `sha256:78eb9f2e29a19ddaac0abe638e082bdd1e871953b77b646a18a5acac4dabfb80`。它们对应上述 Final 源码；本节及其他验收说明随后提交时，按既有规则重新绑定规范发布回执，不扩大排除集，不把文档提交称为重新执行完整 Final。
+
+原件位于本工作树 `target/closure-inventory-evidence/`：
+
+| 工件 | SHA-256 |
+| --- | --- |
+| `current-final.log` | `4ab96146e99c5acafe843ea7b1d7a01323c1d74d7a3589812013aef3c4ceb080` |
+| `current-final-process.json` | `db5dd711503a220ee1b6bb635590158c779f0859dd6e1cb9df03a703decd0e18` |
+| `build-resources-after-final.json` | `81b82488e16f183af907bab2c5363c48c7fbf6c3f963e2306b13282e2838b87f` |
+
+末次空间报告 PASS，缓存 **41,276,723,369 logical / 19,758,401,702 allocated bytes**，低于 64 GiB，`over_budget=[]`、`errors=[]`。本轮没有清理缓存、数据或证据。
+
+本分支尚未合入 main，安装仍为 `cf3fbc9`，没有本轮管理员启动或升级回执。**本次关闭该源码快照的核心 Final 义务，不关闭整个安装产品目标。** 受管消费者、桌面授权、截图/引用输入/PTY 与其他执行 placement，以及逐项 IP 和平台证据，见[剩余义务审计](installed-product-remaining-obligations-audit-20261109.md)。该审计保留具体实现缺口和全部 IP01–IP24 的未验证状态。

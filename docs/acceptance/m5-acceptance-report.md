@@ -281,3 +281,11 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 在干净 `62fa2d0` 上独立运行当前树 M5 release audit，8 项检查全部 PASS、`blocking=false`，生成工件的独立 `--verify` 通过。规范回执为 `sha256:df64fd3a91c96b7e6b92704a5e86ec4a4e9cb4a22b6ce4886b18cf5d87d92e65`，源码树摘要为 `sha256:781737c99556b84881e0ede66769cc474d70094be779e6b582b2ea73f7d1b6b1`。生成目录和日志是 `target/native-legacy-review-20261106/session-actions-current-source-audit-20261108/` 与同名 `.log`。上版 `b57b9f…` 原件保留在同目录树的 `headless-current-source-audit-20261108/` 和 Git 历史；仓库规范目录只保留本次回执。审计中的非目标平台 advisory、unmaintained 和 yanked 观察没有删除。
 
 本轮没有重新运行完整 `verify-m5.ps1`，没有新的 `M5 FINAL ACCEPTANCE: PASS` 终线，也未部署修正版或完成完整 IP17/IP24。规范回执和本节属于既有自指排除项，不改变上述源码树摘要；后续打包与原生窗口须绑定最终完整 commit，不能给旧候选改名。
+
+## 20. 当前核心 Final 内的完整 M5 终验（2026-11-09）
+
+§18–19 的失败与独立审计记录保留。干净 `shu/closure-inventory@6899f56` 的完整 core Final 已实际退出 0，其内嵌的 `tools/verify-m5.ps1` 同样取得 `M5 FINAL ACCEPTANCE: PASS`。该子门完整执行 S1–S99、M4/M5 多进程 golden、fmt/check、strict Clippy、workspace、Python、完整合规与发布回执生成/独立验证/当前树 compare，未启用跳过共享检查的参数。
+
+按内嵌 M5 的唯一 workspace 段统计为 **183 targets、1310 passed / 0 failed / 16 默认 ignored**；Python 为 **94 passed / 1 skipped**。不把 Final 外层的同组测试重复加进总数。M5 当次生成与仓库回执均为 `sha256:78eb9f2e29a19ddaac0abe638e082bdd1e871953b77b646a18a5acac4dabfb80`，compare PASS。整体 Final 的时段、原进程回执、日志 SHA-256 与空间报告见[核心终验 §7](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。
+
+本次说明与其他验收状态回填后，规范回执按原规则重新绑定；这里记录的是 `6899f56` 的已完成运行，不宣称文档提交又执行了一次完整 M5/Final。安装版、IP01–IP24、其他原生平台和整体目标继续按[剩余义务审计](installed-product-remaining-obligations-audit-20261109.md) 保留未完成项，没有修改冻结协议、安装现场或 UAC。

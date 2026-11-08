@@ -94,3 +94,9 @@
 | `c24-9881f2f/report.txt` | `f342e0916646eb5f694b06b92dba2e915353f03523d3e762f0e71eb4aae556b7` |
 
 本节关闭先前未执行的严格 Clippy 与新源码四波/C24 便携补证；**不提前关闭 current-tree core/M5 receipt 或完整 Final**，这些门在普通记录提交并恢复 clean tree 后单独运行。原生批次仍只等待原进程，没有新升级回执，不提升 IP20/IP24；受管消费者和桌面授权提案仍待 owner 对具体契约确认。
+
+## 7. 后续完整 Final 已结束（2026-11-09）
+
+§5–6 记录当时的失败和补证阶段。随后干净 `shu/closure-inventory@6899f56` 的原 Final 实际完成：exit 0、clean tree、A/B/C/D **47/50/36/73**、C24 实证核验以及 M5/core 回执生成/独立验证/当前树比较全部 PASS。两段 workspace 各为 **183 targets、1310 passed / 0 failed / 16 默认 ignored**，不叠加计数。时段、原始日志和进程/空间回执摘要详见[核心终验 §7](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。因此 §6 的源码 Final 待办已取得终态证据；其余安装与协议待办不随之关闭。
+
+本轮仍无 `correction-scope-elevation-launch-20261109.json`、`correction-scope-native-window-20261109.json` 或 `correction-scope-product-window-20261109.json`；原提权请求和 consent 进程仍在，未重复发起。SCM 观察仍为 Host/Web/Brain Running、updater Stopped，版本仍是 `cf3fbc9`。原 Unknown 预览没有重做，真实遗忘、备份恢复、完整 IP20/IP24 继续开放。全部剩余实现和原生证据见[剩余义务审计](installed-product-remaining-obligations-audit-20261109.md)。
