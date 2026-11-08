@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 worker 文本入口类型修复通过，尚未部署
+
+`cff8a29` 修复 Binary manifest 的正文恰好能按 UTF-8 解码时被误投影为文本并完成的缺口。现有文本消费者在读取正文前要求声明为 Utf8；Binary 保留原动作 Unknown，无输出或成功证据，同号核实不重新 dispatch。修复前新增回归实际失败，修复后专项 12 项、workspace 184 targets / 1,313 passed / 0 failed / 16 默认 ignored，以及 fmt/check/strict Clippy/质量/完整合规通过。原流程的空间门停止及剩余检查续跑均保留独立回执；空间回升后维护脚本实际压缩 0 文件。详见[本次组件验收](installed-worker-encoding-correction-20261109.md)。
+
+本次未部署、未刷新完整 Final 或原生验收；原升级仍待原提权批次的真实回执。三份冻结提案、截图/引用输入/PTY 及其他受管消费者和 IP01–IP24 的剩余义务继续开放。
+
 ## 2026-11-09 加密工件回执修复通过，安装结果链仍开放
 
 `85afa70` 修复 `ProtectedRuntimeArtifacts` 的返回摘要/长度误用密文文件值：现在与 content_ref 解密得到的原始内容及材料登记一致，历史回执不重写。真实保护存储回归修复前断言失败、修复后通过；完整 workspace 为 183 targets、1,311 passed / 0 failed / 16 默认 ignored，格式/check、strict Clippy、D RuntimeOnly、结构质量与完整合规均 exit 0。原空间停止记录保留，验证只续跑剩余阶段；49 个缓存程序只做字节保持的可逆 NTFS 压缩，无删除或阈值放宽。详见[本次修复验收](installed-artifact-receipt-correction-20261109.md)。
