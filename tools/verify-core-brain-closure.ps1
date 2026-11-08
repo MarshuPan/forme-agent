@@ -313,7 +313,9 @@ try {
             "c23_wrong_owner_scope_stale_and_changed_plan_have_zero_changes",
             "c23_interrupted_key_destruction_has_no_success_and_resumes_its_immutable_plan",
             "c23_retain_keeps_content_and_predeletion_backup_cannot_restore_destroyed_keys",
-            "c23_prefixed_evidence_and_transitive_aggregate_suffix_are_all_invalidated"
+            "c23_prefixed_evidence_and_transitive_aggregate_suffix_are_all_invalidated",
+            "c23_actual_cross_scope_content_dependency_still_rejects_without_deleting_keys",
+            "c23_erased_aggregate_tail_keeps_replay_rebuild_and_subsequent_writes_consistent"
         ) },
         @{ Id = "C22-legacy-migration"; Package = "forme-store"; Target = @("--test", "v1_legacy_migration"); Tests = @(
             "c22_legacy_migration_encrypts_real_store_and_free_pages_and_restarts",
