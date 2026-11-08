@@ -10,6 +10,8 @@
 
 后续完整 Python 回归发现 D 波漏登两项新增数据保护测试，原失败日志保留。独立分支 `shu/closure-inventory` 的 `037a9c8` 仅补齐清单，A/B/C/D 为 47/50/36/73 项；完整 Rust 1,310/0/16、完整 Python 94 passed / 1 skipped、格式/编译/结构与完整合规通过。驱动随后因卷剩约 16.1 GiB，在严格 Clippy 前被空间门阻止，不能记为整门通过。Clippy、M5、新源码四波与 Final 仍开放；原 `7b13529` 签名升级批次继续保持原件、等待同一 UAC，无升级回执。细节见上述验收 §5，不能以独立源码分支推进宣称安装 IP 已通过。
 
+后续补证已完成严格 Clippy 和 A/B/C/D RuntimeOnly **47/50/36/73，共 206 项**；正式 C24 六类各两轮均 `Pass (LiveConfigured)`，独立 typed/源码一致性验证通过。当前四波工件已重新 seal/assemble/verify，汇总 digest 为 `sha256:03563ce08d89ea6b7fb99ce70bea8d72b67984fd1ae1c1b36d96af261b4b590b`。只对闲置构建产物做逐文件摘要保持的可逆 NTFS 压缩，无缓存删除或资源阈值放宽；此前空间失败记录保留。当前 core/M5 发布回执与完整 Final 仍须 clean-tree 独立门，安装未因源码补证而升级，IP20/IP24 继续开放。逐项工件及边界见[纠正 scope 验收 §6](installed-product-correction-scope-acceptance-20261109.md#6-当前四波严格-clippy-与真实-c24-补证2026-11-09)。
+
 ## 2026-11-08 已安装项目监管与工作空间上下文取得真实证据
 
 旧安装 `cf3fbc9` 的正式项目登记、暂停/恢复、同号重放、陈旧版本/异义拒绝及双请求 CAS 已验证；竞争请求只一个成功，最终监管暂停在版本 3。浏览器绑定测试会话的 workspace 后，一次真实 run 的 `SessionBound`、charter context、实际 `compatible:gpt-6.1-sol` 调用、19 个事件及刷新历史均核实，零工具提议/执行，原三个 run 事件保持。这是部分 IP17/IP19；不提升完整 IP24。合并回执和 12 份工件摘要见[本轮项目与上下文报告](installed-product-workspace-context-acceptance-20261108.md)。

@@ -65,3 +65,32 @@
 `build-resources.json` 记录该工作树缓存约 25.3 GiB 逻辑大小、22.6 GiB 去重分配大小，预算未超限；它不代表目标卷仍有足够空间。主工作树缓存清理仅做 dry-run，尚未删除。
 
 原工作树继续固定在干净 `7b13529`，保留已签名候选及原单次管理员批次；当前仍只有原 UAC 等待进程，无管理员启动、升级或产品窗口回执。该独立清单提交未改变它的 HEAD 或密封输入。旧 A/C24 证据不能重标为修复后完整四波证据：便携清单的 source attestation 同时包含 `crates`、`tools` 和 Cargo 输入，后续须按新清单重新采集。当前安装版本和 IP20/IP24 状态仍按 §4 保持。
+
+## 6. 当前四波、严格 Clippy 与真实 C24 补证（2026-11-09）
+
+§5 的空间失败和驱动退出 1 保留。后续未删除缓存或用户材料，仅对本工作树闲置 Cargo 产物执行可逆 NTFS 压缩，逐文件核对压缩前后的长度和 SHA-256：先行 216 个 exe、本批另 59 个 exe 及 1,433 个编译库均保持内容一致。卷剩余空间会受到其他写入影响，不把压缩期间的空间差额当成精确回收量；后续正式空间门实际恢复为 PASS（采样 20.2 GiB），阈值仍为 20 GiB。
+
+严格 Clippy 独立执行 exit 0。A/B/C/D RuntimeOnly 重新逐名执行 **47/50/36/73，共 206 项，全通过**；包括 §5 新补登的两个数据保护测试及显式 ignored CLI 场景。A/B runtime 绑定 `9881f2f`，C/D 绑定 `14780af`；四份回执的源码输入摘要均为 `sha256:715542112d175ba414e7d6988e8f2ccfd610b8ad379948f2ada25785c52228dc`。这些提交间的普通文档变化不冒充运行源码变化，由现有 ancestor/input-digest verifier 核实。
+
+正式 C24 runner 在当前 crates 源码上使用本机既有忽略配置，运行六类任务各两轮，实际返回 `Pass (LiveConfigured)`；独立 typed verifier 和源码一致性验证均 exit 0。每类质量、直接模型质量基线和工作流均为 2/2，不可验证为 0；费用仍 unknown。两侧质量都通过，**不能据此宣称 forme 的答案质量优于直接模型或已经证明长期认知收益**。测试使用新的隔离 owner/store/files，不是安装版 IP 证据。
+
+四波 runtime 与 A/B/C 见证、C24 三工件逐字节回填 `core-brain-{a,b,c,d}-artifacts/`，由现有工具重新生成 manifest、assemble 并 `--verify --require-pass`，实际 exit 0。汇总 digest 为 `sha256:03563ce08d89ea6b7fb99ce70bea8d72b67984fd1ae1c1b36d96af261b4b590b`；旧字节保留 Git 历史及本机 `portable-before-refresh/`。A/B/C 仍为 ControlledRuntime，不因 C24 使用真实模型而升级证据等级。
+
+本批工件继续位于独立工作树 `target/closure-inventory-evidence/`：
+
+| 工件 | SHA-256 |
+| --- | --- |
+| `current-strict-clippy.log` | `a97eb6fec8dac25b5a1523acf8807f78524a3cb6a11eed9cdb7772dd164e1636` |
+| `current-wave-a.log` | `23891e9db0652b88c9c0d309d7d7f0cc2b29a4ab53df71ca02cc25309cc8f3d2` |
+| `current-wave-b.log` | `31a2ffb0a2729afb4794a314ade97b559fa749c1ae4ee8999353527898ef0689` |
+| `current-wave-c.log` | `a38590467ba3189dd1f9843fc6a33780d3d9c97339730c220ffc9dcd4f728c29` |
+| `current-wave-d.log` | `aa17edc44f01dfce5fd59a5fec2958af8eee56c003524976fabea2bbf1405e60` |
+| `portable-refresh.log` | `ebe10883fee40b3ffc47af037f18969a2fb01fa1c1c3356f98c6a0abf76546f3` |
+| `idle-artifact-compression.json` | `0c64cd107c92064ef50108cc72847a92a3f44669baf954e8a6d576539ef4af81` |
+| `new-artifact-compression.json` | `cad01efbc0438a3e4283e28392a8e19b416d1dca4b774b340f7cc9b1a63712bc` |
+| `idle-library-compression.json` | `72edef821a6c946c3f94f036f2752d64d53b807c6523ef46cdb382bbf2b68e73` |
+| `c24-9881f2f/product-golden.json` | `43bad360d7f4b592b06e0ab846a645d54c36b0b955a94b143f9fc5fb42ccb9b0` |
+| `c24-9881f2f/score.json` | `c98f9b243cc2a4bf21feee049e7cf706942b24098a9a4ae733297ba087e6abbf` |
+| `c24-9881f2f/report.txt` | `f342e0916646eb5f694b06b92dba2e915353f03523d3e762f0e71eb4aae556b7` |
+
+本节关闭先前未执行的严格 Clippy 与新源码四波/C24 便携补证；**不提前关闭 current-tree core/M5 receipt 或完整 Final**，这些门在普通记录提交并恢复 clean tree 后单独运行。原生批次仍只等待原进程，没有新升级回执，不提升 IP20/IP24；受管消费者和桌面授权提案仍待 owner 对具体契约确认。
