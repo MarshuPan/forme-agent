@@ -5,7 +5,7 @@ use std::ffi::c_void;
 use std::mem::{size_of, size_of_val};
 use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 use std::ptr::{null, null_mut};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use forme_protocol as p;
 use windows_sys::Win32::Foundation::{
@@ -40,12 +40,18 @@ use windows_sys::Win32::System::Threading::{
 };
 
 use super::windows_appcontainer_acl::Profile;
-use super::windows_appcontainer_support::{
-    environment_block, quote_windows_arg, wide, WorkerEnvironment,
-};
+use super::windows_appcontainer_support::wide;
 
 mod runtime;
+use runtime::wait_for_job_empty;
 pub(crate) use runtime::{CancelState, LaunchRequest, NativeWorker, SetupResources};
+
+#[cfg(test)]
+mod probe_recovery_tests;
+#[cfg(test)]
+mod pty_probe;
+#[cfg(test)]
+mod tests;
 
 const CANCEL_WAIT: Duration = Duration::from_secs(30);
 const STILL_ACTIVE: u32 = 259;
@@ -141,36 +147,7 @@ fn launch_suspended(
     profile: &Profile,
     job: HANDLE,
 ) -> p::Result<(OwnedHandle, OwnedHandle)> {
-    let program = request
-        .spec
-        .program
-        .to_str()
-        .ok_or_else(|| p::Error("worker program path is not valid Unicode".into()))?;
-    let current_dir = request
-        .workspace
-        .to_str()
-        .ok_or_else(|| p::Error("worker workspace path is not valid Unicode".into()))?;
-    let mut command = quote_windows_arg(program);
-    for arg in &request.spec.args {
-        command.push(' ');
-        command.push_str(&quote_windows_arg(arg));
-    }
-    let mut command = wide(&command);
-    let application = wide(program);
-    let directory = wide(current_dir);
-    let environment = environment_block(
-        WorkerEnvironment {
-            job_path: request.job_path,
-            permit_path: request.permit_path,
-            workspace: request.workspace,
-            execution_path: request.execution_path,
-            file_target_path: request.file_target_path,
-            workspace_scope: request.workspace_scope,
-            deadline: request.deadline,
-        },
-        &system_windows_directory()?,
-        &super::windows_appcontainer_acl::local_app_data()?,
-    )?;
+    let mut buffers = runtime::LaunchBuffers::prepare(request)?;
     let mut capabilities = SECURITY_CAPABILITIES {
         AppContainerSid: profile.raw_sid(),
         Capabilities: null_mut::<SID_AND_ATTRIBUTES>(),
@@ -233,6 +210,12 @@ fn launch_suspended(
     // own DACL, so an inheritable execute-deny ACE alone is not an execution
     // boundary for a writable copy. Block child creation in the OS instead.
     let child_policy: u32 = 1;
+    #[cfg(test)]
+    let child_policy = if request.pty_mechanism_probe {
+        0
+    } else {
+        child_policy
+    };
     if unsafe {
         UpdateProcThreadAttribute(
             attributes,
@@ -256,8 +239,8 @@ fn launch_suspended(
     let mut info = PROCESS_INFORMATION::default();
     let created = unsafe {
         CreateProcessW(
-            application.as_ptr(),
-            command.as_mut_ptr(),
+            buffers.application.as_ptr(),
+            buffers.command.as_mut_ptr(),
             null(),
             null(),
             0,
@@ -265,8 +248,8 @@ fn launch_suspended(
                 | EXTENDED_STARTUPINFO_PRESENT
                 | CREATE_UNICODE_ENVIRONMENT
                 | DETACHED_PROCESS,
-            environment.as_ptr() as *const c_void,
-            directory.as_ptr(),
+            buffers.environment.as_ptr() as *const c_void,
+            buffers.directory.as_ptr(),
             &startup.StartupInfo,
             &mut info,
         )
@@ -319,18 +302,26 @@ fn verify_worker_token(
         ));
     }
     let token = owned_handle(token, "worker token handle is invalid")?;
-    let is_app = token_information(&token, TokenIsAppContainer)?;
+    verify_token_identity(&token, expected_sid)?;
+    verify_worker_privileges(&token, true)
+}
+
+fn verify_token_identity(
+    token: &OwnedHandle,
+    expected_sid: windows_sys::Win32::Security::PSID,
+) -> p::Result<()> {
+    let is_app = token_information(token, TokenIsAppContainer)?;
     if read_struct::<i32>(&is_app)? == 0 {
         return Err(p::Error("worker token is not an AppContainer token".into()));
     }
-    let app_sid = token_information(&token, TokenAppContainerSid)?;
+    let app_sid = token_information(token, TokenAppContainerSid)?;
     let actual_sid = read_struct::<windows_sys::Win32::Security::PSID>(&app_sid)?;
     if actual_sid.is_null() || unsafe { EqualSid(actual_sid, expected_sid) } == 0 {
         return Err(p::Error(
             "worker token AppContainer SID does not match the job".into(),
         ));
     }
-    let integrity = token_information(&token, TokenIntegrityLevel)?;
+    let integrity = token_information(token, TokenIntegrityLevel)?;
     let label = read_struct::<TOKEN_MANDATORY_LABEL>(&integrity)?;
     if label.Label.Sid.is_null() {
         return Err(p::Error("worker token integrity SID is missing".into()));
@@ -349,14 +340,13 @@ fn verify_worker_token(
     {
         return Err(p::Error("worker token is not low integrity".into()));
     }
-    let capabilities = token_information(&token, TokenCapabilities)?;
+    let capabilities = token_information(token, TokenCapabilities)?;
     // TOKEN_GROUPS has a variable tail; a zero count does not require Groups[0].
     if read_struct::<u32>(&capabilities)? != 0 {
         return Err(p::Error(
             "worker token contains unexpected capabilities".into(),
         ));
     }
-    verify_worker_privileges(&token)?;
     Ok(())
 }
 
@@ -366,7 +356,7 @@ fn is_low_integrity_sid(authority: [u8; 6], subauthority_count: u8, rid: u32) ->
         && rid == SECURITY_MANDATORY_LOW_RID as u32
 }
 
-fn verify_worker_privileges(token: &OwnedHandle) -> p::Result<()> {
+fn verify_worker_privileges(token: &OwnedHandle, may_remove: bool) -> p::Result<()> {
     let mut change_notify = LUID::default();
     if unsafe { LookupPrivilegeValueW(null(), SE_CHANGE_NOTIFY_NAME, &mut change_notify) } == 0 {
         return Err(native_error(
@@ -375,7 +365,7 @@ fn verify_worker_privileges(token: &OwnedHandle) -> p::Result<()> {
     }
     // The process is still suspended. Remove, then independently re-read;
     // disabled privileges must not be re-enabled by a compromised worker.
-    for remove in [true, false] {
+    for remove in [may_remove, false] {
         let storage = token_information(token, TokenPrivileges)?;
         let count = read_struct::<u32>(&storage)? as usize;
         let bytes = count
@@ -442,24 +432,6 @@ fn wait_for_process(process: HANDLE) -> p::Result<()> {
         _ => Err(p::Error(
             "worker process termination state is invalid".into(),
         )),
-    }
-}
-
-fn wait_for_job_empty(job: HANDLE) -> p::Result<()> {
-    // A Job Object is not signaled whenever its last process exits. Recovery
-    // only needs QUERY access and proves emptiness from actual accounting.
-    let deadline = Instant::now() + CANCEL_WAIT;
-    loop {
-        if active_processes(job)? == 0 {
-            return Ok(());
-        }
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return Err(p::Error(
-                "worker Job Object did not become empty within the bound".into(),
-            ));
-        }
-        std::thread::sleep(remaining.min(Duration::from_millis(20)));
     }
 }
 
@@ -543,58 +515,81 @@ fn native_error(message: &str) -> p::Error {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        create_job, is_low_integrity_sid, owned_handle, raw, read_struct, wait_for_job_empty, wide,
+fn query_only_job(name: &str) -> p::Result<OwnedHandle> {
+    let handle = unsafe { OpenJobObjectW(JOB_OBJECT_QUERY, 0, wide(name).as_ptr()) };
+    owned_handle(handle, "query-only Job handle is unavailable")
+}
+
+#[cfg(test)]
+fn observe_process(
+    pid: u32,
+    job: HANDLE,
+    expected_sid: windows_sys::Win32::Security::PSID,
+) -> p::Result<OwnedHandle> {
+    use windows_sys::Win32::System::{
+        JobObjects::IsProcessInJob,
+        Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION},
     };
-    use windows_sys::Win32::Foundation::INVALID_HANDLE_VALUE;
-    use windows_sys::Win32::Security::SECURITY_MANDATORY_LABEL_AUTHORITY;
-    use windows_sys::Win32::System::JobObjects::OpenJobObjectW;
-    use windows_sys::Win32::System::SystemServices::{
-        JOB_OBJECT_QUERY, SECURITY_MANDATORY_LOW_RID,
+    let process = owned_handle(
+        unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) },
+        "probe process cannot be independently opened",
+    )?;
+    let mut in_job = 0;
+    if unsafe { IsProcessInJob(raw(&process), job, &mut in_job) } == 0 || in_job == 0 {
+        return Err(native_error(
+            "probe process is outside the original Job or cannot be verified",
+        ));
+    }
+    let mut token = null_mut();
+    if unsafe { OpenProcessToken(raw(&process), TOKEN_QUERY, &mut token) } == 0 {
+        return Err(native_error(
+            "probe process token cannot be independently opened",
+        ));
+    }
+    let token = owned_handle(token, "probe token handle is unavailable")?;
+    verify_token_identity(&token, expected_sid)?;
+    verify_worker_privileges(&token, false)?;
+    Ok(process)
+}
+
+#[cfg(test)]
+fn process_identity(process: &OwnedHandle) -> p::Result<(u64, bool, String)> {
+    use windows_sys::Win32::{
+        Foundation::FILETIME,
+        System::Threading::{GetProcessTimes, QueryFullProcessImageNameW},
     };
-
-    #[test]
-    fn empty_job_recovery_uses_accounting_without_synchronize_access() {
-        let identity = tempfile::tempdir().unwrap();
-        let name = format!(
-            "Local\\ForMeJobRecovery-{}",
-            identity.path().file_name().unwrap().to_string_lossy()
-        );
-        let _owner = create_job(&name).unwrap();
-        let query = unsafe { OpenJobObjectW(JOB_OBJECT_QUERY, 0, wide(&name).as_ptr()) };
-        let query = owned_handle(query, "query-only test handle").unwrap();
-        wait_for_job_empty(raw(&query)).unwrap();
-        assert!(wait_for_job_empty(INVALID_HANDLE_VALUE).is_err());
-    }
-
-    #[test]
-    fn worker_integrity_requires_the_exact_low_mandatory_sid() {
-        let authority = SECURITY_MANDATORY_LABEL_AUTHORITY.Value;
-        assert!(is_low_integrity_sid(
-            authority,
-            1,
-            SECURITY_MANDATORY_LOW_RID as u32
-        ));
-        assert!(!is_low_integrity_sid(authority, 1, 0));
-        assert!(!is_low_integrity_sid(authority, 1, 8192));
-        assert!(!is_low_integrity_sid(
-            [0; 6],
-            1,
-            SECURITY_MANDATORY_LOW_RID as u32
-        ));
-        assert!(!is_low_integrity_sid(
-            authority,
-            2,
-            SECURITY_MANDATORY_LOW_RID as u32
+    let mut created = FILETIME::default();
+    let mut exited = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    if unsafe {
+        GetProcessTimes(
+            raw(process),
+            &mut created,
+            &mut exited,
+            &mut kernel,
+            &mut user,
+        )
+    } == 0
+    {
+        return Err(native_error(
+            "probe process times cannot be independently read",
         ));
     }
-
-    #[test]
-    fn native_failure_handles_are_rejected_and_empty_capabilities_need_no_array() {
-        assert!(owned_handle(std::ptr::null_mut(), "invalid").is_err());
-        assert!(owned_handle(INVALID_HANDLE_VALUE, "invalid").is_err());
-        assert!(read_struct::<u32>(&[]).is_err());
-        assert_eq!(read_struct::<u32>(&[0]).unwrap(), 0);
+    let created = ((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64;
+    let exited = exited.dwHighDateTime != 0 || exited.dwLowDateTime != 0;
+    if exited {
+        return Ok((created, true, String::new()));
     }
+    let mut image = vec![0u16; 32_768];
+    let mut length = image.len() as u32;
+    if unsafe { QueryFullProcessImageNameW(raw(process), 0, image.as_mut_ptr(), &mut length) } == 0
+    {
+        return Err(native_error(
+            "probe process image cannot be independently read",
+        ));
+    }
+    let image = String::from_utf16(&image[..length as usize])
+        .map_err(|_| native_error("probe process image is not valid Unicode"))?;
+    Ok((created, false, image))
 }

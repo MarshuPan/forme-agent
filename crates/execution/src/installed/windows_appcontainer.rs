@@ -250,6 +250,8 @@ impl WindowsAppContainerWorkerIsolation {
                 file_target_path: file_target.as_ref().map(|_| file_target_path.as_path()),
                 workspace_scope: &job.workspace_scope.0,
                 deadline: job.deadline,
+                #[cfg(test)]
+                pty_mechanism_probe: false,
             })?;
             results::begin_handoff(&run_dir, job)?;
             resources.verify_resume()?;

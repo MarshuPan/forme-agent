@@ -57,6 +57,12 @@ test = false
 bench = false
 
 [[bin]]
+name = "forme-isolated-pty-fixture"
+path = "tests/fixtures/isolated_pty_fixture.rs"
+test = false
+bench = false
+
+[[bin]]
 name = "forme-executord"
 path = "src/bin/forme-executord.rs"
 

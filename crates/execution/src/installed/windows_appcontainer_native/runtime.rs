@@ -3,15 +3,65 @@
 
 use std::os::windows::io::OwnedHandle;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use forme_protocol as p;
+use windows_sys::Win32::Foundation::HANDLE;
 
 use super::super::process::WorkerLaunchSpec;
 use super::super::windows_appcontainer_acl::{self as acl, Profile};
+use super::super::windows_appcontainer_support::{
+    environment_block, quote_windows_arg, wide, WorkerEnvironment,
+};
 use super::{
     active_processes, create_job, exit_code, launch_suspended, process_exited, raw,
     terminate_job_if_active, terminate_process_if_active, verify_worker_token, wait_for_process,
 };
+
+pub(super) struct LaunchBuffers {
+    pub(super) application: Vec<u16>,
+    pub(super) command: Vec<u16>,
+    pub(super) directory: Vec<u16>,
+    pub(super) environment: Vec<u16>,
+}
+
+impl LaunchBuffers {
+    pub(super) fn prepare(request: &LaunchRequest<'_>) -> p::Result<Self> {
+        let program = request
+            .spec
+            .program
+            .to_str()
+            .ok_or_else(|| p::Error("worker program path is not valid Unicode".into()))?;
+        let current_dir = request
+            .workspace
+            .to_str()
+            .ok_or_else(|| p::Error("worker workspace path is not valid Unicode".into()))?;
+        let mut command = quote_windows_arg(program);
+        for arg in &request.spec.args {
+            command.push(' ');
+            command.push_str(&quote_windows_arg(arg));
+        }
+        let environment = environment_block(
+            WorkerEnvironment {
+                job_path: request.job_path,
+                permit_path: request.permit_path,
+                workspace: request.workspace,
+                execution_path: request.execution_path,
+                file_target_path: request.file_target_path,
+                workspace_scope: request.workspace_scope,
+                deadline: request.deadline,
+            },
+            &super::system_windows_directory()?,
+            &acl::local_app_data()?,
+        )?;
+        Ok(Self {
+            application: wide(program),
+            command: wide(&command),
+            directory: wide(current_dir),
+            environment,
+        })
+    }
+}
 
 pub(crate) struct SetupResources {
     profile: Option<Profile>,
@@ -29,6 +79,8 @@ pub(crate) struct LaunchRequest<'a> {
     pub(crate) file_target_path: Option<&'a Path>,
     pub(crate) workspace_scope: &'a str,
     pub(crate) deadline: p::Timestamp,
+    #[cfg(test)]
+    pub(crate) pty_mechanism_probe: bool,
 }
 
 impl SetupResources {
@@ -197,4 +249,85 @@ impl NativeWorker {
 pub(crate) enum CancelState {
     Terminated,
     AlreadyExited,
+}
+
+pub(super) fn wait_for_job_empty(job: HANDLE) -> p::Result<()> {
+    // Job accounting, rather than a signaled handle, proves quiescence.
+    let deadline = Instant::now() + super::CANCEL_WAIT;
+    loop {
+        if active_processes(job)? == 0 {
+            return Ok(());
+        }
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(p::Error(
+                "worker Job Object did not become empty within the bound".into(),
+            ));
+        }
+        std::thread::sleep(remaining.min(Duration::from_millis(20)));
+    }
+}
+
+#[cfg(test)]
+pub(super) struct ObservedProcess {
+    pub(super) pid: u32,
+    pub(super) created: u64,
+    pub(super) image: String,
+    process: OwnedHandle,
+}
+
+#[cfg(test)]
+impl ObservedProcess {
+    pub(super) fn exited(&self) -> p::Result<bool> {
+        let (created, exited, image) = super::process_identity(&self.process)?;
+        // The owned handle pins the original kernel object. Its exit time
+        // proves termination even when Windows no longer exposes its image.
+        if created != self.created || (!exited && image != self.image) {
+            return Err(p::Error("probe process identity changed".into()));
+        }
+        Ok(exited)
+    }
+}
+
+#[cfg(test)]
+impl SetupResources {
+    pub(super) fn observe_process(&self, pid: u32) -> p::Result<ObservedProcess> {
+        let profile = self
+            .profile
+            .as_ref()
+            .ok_or_else(|| p::Error("probe profile missing".into()))?;
+        let job = self
+            .job
+            .as_ref()
+            .ok_or_else(|| p::Error("probe Job missing".into()))?;
+        let process = super::observe_process(pid, raw(job), profile.raw_sid())?;
+        let (created, exited, image) = super::process_identity(&process)?;
+        if exited {
+            return Err(p::Error(
+                "probe process exited before independent inspection".into(),
+            ));
+        }
+        Ok(ObservedProcess {
+            pid,
+            created,
+            image,
+            process,
+        })
+    }
+
+    pub(super) fn root_identity(&self) -> p::Result<(u64, bool, String)> {
+        let process = self
+            .process
+            .as_ref()
+            .ok_or_else(|| p::Error("probe root missing".into()))?;
+        super::process_identity(process)
+    }
+
+    pub(super) fn exit_code(&self) -> p::Result<u32> {
+        let process = self
+            .process
+            .as_ref()
+            .ok_or_else(|| p::Error("probe root missing".into()))?;
+        super::exit_code(raw(process))
+    }
 }
