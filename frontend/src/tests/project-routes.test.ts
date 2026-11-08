@@ -42,3 +42,60 @@ test('malformed route data is omitted and user-facing labels distinguish unknown
   assert.equal(nodeStatusLabel('OutcomeUnknown'), '结果待核实');
   assert.equal(verificationLabel('Unverifiable: missing_source'), '无法验证（missing_source）');
 });
+
+function pendingRoute() {
+  const pending = structuredClone(route);
+  pending.spent = 0;
+  pending.checkpointed = false;
+  for (const node of Object.values(pending.nodes)) {
+    node.status = 'Pending';
+    node.attempts = 0;
+    node.consumed = 0;
+    node.reserved = 0;
+    node.summary = '';
+    node.evidence = [];
+  }
+  return pending;
+}
+
+test('an open route is not advertised as executing before any node starts', () => {
+  const pending = pendingRoute();
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', pending)), '已规划，待执行');
+  assert.equal(routeStatusLabel('Running'), '路线开放');
+  pending.nodes.research.attempts = 1;
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', pending)), '路线开放');
+  pending.nodes.research.attempts = 0;
+  pending.nodes.research.reserved = 1;
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', pending)), '路线开放');
+  pending.nodes.research.reserved = 0;
+  pending.spent = 1;
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', pending)), '路线开放');
+});
+
+test('node evidence distinguishes active execution, waiting and unresolved outcomes', () => {
+  const active = structuredClone(route);
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', active)), '等待中');
+  active.nodes.draft.status = 'Running';
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', active)), '执行中');
+  active.nodes.research.status = 'OutcomeUnknown';
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', active)), '结果待核实');
+  active.closed = true;
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', active)), '状态待核实');
+});
+
+test('missing node evidence stays unknown and terminal route status remains authoritative', () => {
+  const pending = pendingRoute();
+  const { status: _status, ...withoutStatus } = pending.nodes.research;
+  const malformed = { ...pending, nodes: { ...pending.nodes, research: withoutStatus } };
+  const view = projectRouteView('route:one', malformed);
+  assert.ok(view);
+  assert.equal(view.nodes[0].status, 'Unknown');
+  assert.equal(routeStatusLabel('Running', view), '路线开放');
+  const { attempts: _attempts, ...withoutAttempts } = pending.nodes.research;
+  assert.equal(routeStatusLabel('Running', projectRouteView('route:one', {
+    ...pending, nodes: { ...pending.nodes, research: withoutAttempts },
+  })), '路线开放');
+  assert.equal(routeStatusLabel('Completed', view), '已完成');
+  assert.equal(routeStatusLabel('Failed', view), '失败');
+  assert.equal(routeStatusLabel('Cancelled', view), '已取消');
+});

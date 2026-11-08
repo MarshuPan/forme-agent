@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "3c5a3408a9deb4e4b974233f7faf432edae89d741560bb505e5bd5309a0a1284",
+  "source_digest": "a80f94c40fd18548cc20429a44ae0ce8bb8b4cb0a21075a9f8cbb2b9d00aa806",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -128,7 +128,7 @@
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
-      "sha256": "7bb6bc37b66600e038f14b3cbe8e17e48940ff80fd9577ac22410463409cbc55"
+      "sha256": "fda1cc43d01712f57946361ef41846853e81fa641892a462f6464cb00a7ca711"
     },
     {
       "path": "frontend/src/components/WorkspaceIntentions.tsx",
@@ -192,7 +192,7 @@
     },
     {
       "path": "frontend/src/project-routes.ts",
-      "sha256": "106056a9e2530b3a729610663187dd49def875b92e5a506a82c93cb0406ab41d"
+      "sha256": "4e0c93df30e6d93938a36cb7b43c5355c0986811c02cf6588d97f23148b25f5d"
     },
     {
       "path": "frontend/src/release-recovery.ts",
@@ -288,7 +288,7 @@
     },
     {
       "path": "frontend/src/tests/project-routes.test.ts",
-      "sha256": "5e3f87f4734047cf316d137b1b7fad4be44a40928d182eddf89803e3c69a6d28"
+      "sha256": "f6821364633b9e687924fe8a23284fc481c5c03a9fb14caeecd752b6e3e59395"
     },
     {
       "path": "frontend/src/tests/release-recovery.test.ts",
@@ -341,9 +341,9 @@
   ],
   "files": [
     {
-      "path": "assets/index-B0KMl8ni.js",
-      "sha256": "7ff6a9d3dad2f3ae114672aff10a28d79ba8ae04ae64d564860332dcee52c258",
-      "bytes": 405557
+      "path": "assets/index-D7242FQV.js",
+      "sha256": "2fec43d615e34ffc08bb722572cfbd5209db0977b5e70000eceb8fe5f375145d",
+      "bytes": 405939
     },
     {
       "path": "assets/index-kab-1l06.css",
@@ -362,7 +362,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "6ad485a6e9dc30fb2ea168a6b43266775b8898299519c08fb61d8bbee46f264b",
+      "sha256": "595c311bafa54374ab04f23d539b32bd900afc5ae0bc79a970a2b8c41fca0571",
       "bytes": 595
     },
     {

@@ -82,14 +82,14 @@ export function projectRouteView(reference: string, raw: unknown): ProjectRouteV
     const rawRecord = nodeRecords[id];
     if (!isVersionOne(rawRecord)) return null;
     const record = rawRecord;
-    states.set(id, text(record?.status) ?? 'Pending');
+    states.set(id, text(record?.status) ?? 'Unknown');
   }
 
   const nodes = specs.flatMap((spec): ProjectRouteNodeView[] => {
     const id = text(spec.id);
     if (!id) return [];
     const record = nodeRecords[id] as Record<string, unknown>;
-    const status = text(record?.status) ?? 'Pending';
+    const status = text(record?.status) ?? 'Unknown';
     const blockedBy = status === 'Pending' ? dependencies
       .filter((edge) => edge.to === id)
       .filter((edge) => {
@@ -141,9 +141,19 @@ export function projectRouteView(reference: string, raw: unknown): ProjectRouteV
   };
 }
 
-export function routeStatusLabel(status: string): string {
+export function routeStatusLabel(status: string, detail: ProjectRouteView | null = null): string {
+  if (status === 'Running') {
+    if (!detail) return '路线开放';
+    if (detail.status !== status || detail.closed) return '状态待核实';
+    if (detail.nodes.some((node) => node.status === 'OutcomeUnknown')) return '结果待核实';
+    if (detail.nodes.some((node) => node.status === 'Running')) return '执行中';
+    if (detail.nodes.some((node) => node.status === 'Waiting')) return '等待中';
+    const unstarted = detail.spent === 0 && detail.nodes.length > 0 && detail.nodes.every((node) =>
+      node.status === 'Pending' && node.attempts === 0 && node.consumed === 0 && node.reserved === 0);
+    return unstarted ? '已规划，待执行' : '路线开放';
+  }
   return {
-    Running: '执行中', Completed: '已完成', Failed: '失败', Cancelled: '已取消',
+    Completed: '已完成', Failed: '失败', Cancelled: '已取消',
     ReplanRequested: '需要重新规划', OutcomeUnknown: '结果待核实', Conflict: '存在冲突',
   }[status] ?? '状态未知';
 }
