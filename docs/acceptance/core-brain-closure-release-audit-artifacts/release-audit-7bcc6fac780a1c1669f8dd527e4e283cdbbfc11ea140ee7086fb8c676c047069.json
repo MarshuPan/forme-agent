@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:b7e330c9821bf2fe744c9afc398351384084ecf5780d69d3f956e603cec09614",
+        "input_digest": "sha256:4b1177a689d68308ad017f42c623a5c70b41a2bd2bcec9ff2b86ae8a1b0cd649",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -17,7 +17,7 @@
         "blocking": false,
         "check_id": "license_notice",
         "findings": [],
-        "input_digest": "sha256:5de4850cc3b972308799483cf3726c5a4243db021d51ef4e889a19030036ba25",
+        "input_digest": "sha256:32a0e97fcb0688af2aecc18d9aea1a0ab8f83ab33d7b1f0ef03d41bdc47188f1",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-license-review",
@@ -27,7 +27,7 @@
         "blocking": false,
         "check_id": "direct_dependencies",
         "findings": [],
-        "input_digest": "sha256:cc9d4717f49d6e9f3c45e3a697093c69b7664584a0f2f426e111c1cee7b31201",
+        "input_digest": "sha256:301950443ff8b630f1184ab0486b0b31e7182115e1c366a7262366b5afd51a16",
         "observations": [],
         "outcome": "pass",
         "tool": "cargo-metadata",
@@ -37,7 +37,7 @@
         "blocking": false,
         "check_id": "borrowing_records",
         "findings": [],
-        "input_digest": "sha256:ad1efe1f6603b82675302c8590cb73f1f4981d4a3f1d1945c7ba5a3714c3a710",
+        "input_digest": "sha256:72e0f580907b857d49c2355f44b88436862e677fb4fa58d42448033f62312363",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-borrowing-review",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:a3bb88cacd9dacc82a43139f2a96674d4d6ecc7a9766562d85f0249581ee241a",
+        "input_digest": "sha256:2fb020c2f14b6d275a61e375f3b856888e8647a52b314d05f32d437df00a4ca3",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -57,7 +57,7 @@
         "blocking": false,
         "check_id": "acceptance_artifacts",
         "findings": [],
-        "input_digest": "sha256:9c3e0ba606f199fe28905e052765152ff9ad505b988b11a5567bcf611bb6d04a",
+        "input_digest": "sha256:89b8486b3cb3f618aeb2f645e03901dc453880209fe5ca58dbf0841a3aa0ec01",
         "observations": [],
         "outcome": "pass",
         "tool": "forme-artifact-scan",
@@ -67,7 +67,7 @@
         "blocking": false,
         "check_id": "vulnerability_audit",
         "findings": [],
-        "input_digest": "sha256:ce5dc5ccb02d76eb20db64d1615b65b2c8d981db12fc9804b837a14be7fc65c8",
+        "input_digest": "sha256:a603ed23624b4f54ec41b56f139ae9d46719f7fa386816272019ed872befa48b",
         "observations": [
           {
             "code": "TARGET_UNREACHABLE_ADVISORY",
@@ -103,6 +103,11 @@
             "code": "TARGET_UNREACHABLE_INFORMATIONAL_WARNING",
             "detail": "cargo-audit unmaintained warning affects locked zvariant_derive 5.13.0 only outside x86_64-pc-windows-gnu",
             "path": "Cargo.lock"
+          },
+          {
+            "code": "TARGET_UNREACHABLE_YANKED_PACKAGE",
+            "detail": "cargo-audit yanked warning affects locked async-executor 1.14.0 only outside x86_64-pc-windows-gnu",
+            "path": "Cargo.lock"
           }
         ],
         "outcome": "pass",
@@ -113,7 +118,7 @@
         "blocking": false,
         "check_id": "ecosystem_threat_profile",
         "findings": [],
-        "input_digest": "sha256:2ac097632a11757de3794e7ae25ad642b49fcac521c2e36242901d937ff4e88f",
+        "input_digest": "sha256:b0dae43d48daad12d548de953b24d368e9eada5f52c2e114584b9722e1ff3679",
         "observations": [
           {
             "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
@@ -159,7 +164,7 @@
         "blocking": false,
         "check_id": "core_brain_closure",
         "findings": [],
-        "input_digest": "sha256:de6e8b56192eb88caf3423ac91cdc9d8ba746310a98e5721b7f08514cfe14fcf",
+        "input_digest": "sha256:6bb9263c4a28b38467d76cbe49c5277c926cdbb0125d429bbd24a9d964acf0f9",
         "observations": [
           {
             "code": "CORE_BRAIN_CLOSURE_VERIFIED",
@@ -173,10 +178,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:492fc5e790d7c82dde72363b68d2e6394742eabf3fbe9d22f6b8ae2178ab0918",
+    "root_digest": "sha256:535f141966382d1463dbb09f646e9e78b6408c548e66b23f014dba3e8ecc4448",
     "schema_version": 1,
     "tool_version": "forme-core-brain-release-audit/1"
   },
-  "digest": "sha256:85c1552488da61a38956d828d11b097f839cb879eb1884d3edda01e3ce3f775f",
+  "digest": "sha256:7bcc6fac780a1c1669f8dd527e4e283cdbbfc11ea140ee7086fb8c676c047069",
   "schema_version": 1
 }
