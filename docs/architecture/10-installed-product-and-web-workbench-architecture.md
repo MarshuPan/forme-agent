@@ -230,7 +230,7 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 
 #### 7.1.3 有限文件 worker
 
-`forme-executord --installed-file-worker` 是现有执行 crate 内的一次性、无模型/网络/子进程的文件入口；无参数 M4 模式不变。Host 从 exact plan 的 overlay `WriteScope` 派生 versioned `WorkerFileTarget`，绑定 job、plan/normalized-action digest 和安全相对路径，写入本 job 只读输入并通过固定环境项传递。worker 只对私有副本执行 Read/Write/Delete，不能重规划或用原逻辑绝对路径直接打开 owner workspace。Host 的原变更集核验、回写、结果 AEAD/manifest/receipt 和 Unknown 边界保持不变。完整输入/资源/拒绝与验收细节见 prd/24 §4.1.1d；入口存在不等于安装自动配置或平台/IP 通过。
+`forme-file-worker --installed-file-worker` 是现有执行 crate 内的一次性、无模型/网络/子进程的独立文件镜像，直接编译共有文件模块而不链接整个执行库；桌面/截图等 DLL 不进入该镜像的初始化链。`forme-executord` 的既有 M4、桌面 helper 和历史文件入口兼容保留。Host 从 exact plan 的 overlay `WriteScope` 派生 versioned `WorkerFileTarget`，绑定 job、plan/normalized-action digest 和安全相对路径，写入本 job 只读输入并通过固定环境项传递。worker 只对私有副本执行 Read/Write/Delete，不能重规划或用原逻辑绝对路径直接打开 owner workspace。Host 的原变更集核验、回写、结果 AEAD/manifest/receipt 和 Unknown 边界保持不变。完整输入/资源/拒绝与验收细节见 prd/24 §4.1.1d；入口存在不等于安装自动配置或平台/IP 通过。
 
 安装侧装配沿 PRD24 §4.1.1e：新 Windows 安装仅 provision 当前 release 的有限文件 profile 与默认 workspace 映射；Host 核验后通过原配置 revision/journal 持久化私有 state 9，物化现有 worker binding 和独立的只读 policy roots。旧配置/历史物化字节保持，只有新的 owner 配置命令提交投影；未映射 workspace 不启用 File，真实 SCM 连通另验。此路径不新增公开设置、脑事件、依赖边或进程内 fallback。
 

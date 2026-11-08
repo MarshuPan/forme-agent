@@ -721,6 +721,8 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 
 ### 29.10 交互桌面会话 helper
 
+安装后的有限文件 worker 使用与桌面 helper 分离的 `forme-file-worker` 镜像，两者仍属于同一个 execution crate 和同一受治理执行面。文件镜像只链接文件与协议所需模块，打包核对其 Windows PE 导入，禁止桌面/图形初始化依赖；实际服务身份下的 AppContainer 证据独立取得。历史 executord 文件入口、发布清单和原 job 回执保持可读，不以新镜像重派 Unknown。此为镜像装配修复，不改变既有 trait、DTO、五个 unsafe 边界或治理语义。
+
 交互桌面是执行能力的一个受限 placement，不是新的大脑、Agent、策略面或事实源。`forme-hostd` 是唯一 broker；helper 只是绑定到真实 OS 登录会话的执行单元。Web、浏览器、模型和 helper 都不能直接调用彼此的桌面 API。
 
 - **绑定链不可缩短**：`Web AuthContext -> ProductionRuntime/Harness -> 最终 ExecutionPlan/permit -> WorkerJob -> Host -> session helper`。每一跳都保留 `owner_ref`、`action_ref`、`plan_digest`、`authority_epoch`、一次性 `nonce`、`deadline` 和允许的 desktop capability。浏览器提交的 OS 用户、session id、display、窗口或 helper 地址一律不是可信输入。

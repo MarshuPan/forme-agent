@@ -120,7 +120,9 @@ worker adapter 的最终计划只声明实际提供的回滚边界。当前结�
 
 #### 4.1.1d 真实有限文件执行入口
 
-现有 `forme-executord` 继续保留无参数的 M4 TLS executor 模式；增加固定 `--installed-file-worker` 模式，只执行一个已接纳 job 的 File Read/Write/Delete，之后退出。它不是 listener、shell、插件宿主或第二个 Agent，不启动子进程、不访问模型、brain/Host journal 或 key resolver，不将原计划重新交给本机 FileBackend 规划。
+安装后的文件入口使用同一 execution crate 内的独立 `forme-file-worker --installed-file-worker`，只执行一个已接纳 job 的 File Read/Write/Delete，之后退出。它直接编译共有的文件执行模块，仅链接 protocol/serde 与文件句柄查询所需的安全 API，不能把桌面、截图、浏览器、PTY 或远程执行模块一同链接进该进程。Windows 服务会话中的 Low AppContainer 必须能在无人登录桌面时初始化该镜像；交互账户下运行成功不替代这一证据。既有 `forme-executord` 的 M4 TLS、桌面 helper 和历史 `--installed-file-worker` 入口保留原接口。所有 job、permit、最终计划与结果 DTO 原样复用，不增加 crate、依赖边、脑事件或 unsafe 边界。
+
+文件入口不是 listener、shell、插件宿主或第二个 Agent，不启动子进程、不访问模型、brain/Host journal 或 key resolver，不将原计划重新交给本机 FileBackend 规划。Windows 的硬链接拒绝仍以已打开句柄的信息为准；使用精确锁定的 `winapi-util` 公共安全 API 读取链接数，不能因为拆分镜像而删除该核验或新增业务侧 Win32 FFI。新发布的 Windows 文件镜像在打包前必须核对 PE 导入，拒绝桌面/图形库；实际 SCM/LocalSystem AppContainer 的成功执行仍独立验收。
 
 Windows Host 在既有 `PreparedOverlay` 内按原 workspace 和 exact `WorkerExecutionSpec` 的 `WriteScope` 派生 `WorkerFileTarget { schema_version, job_id, plan_digest, normalized_action_digest, relative_path }`。对象只记录非空、安全的相对文件路径；不允许目录根、`..`、设备名、盘符、ADS、链接或替换后的摘要。Host 将其写入本 job 的只读 `file-target.json`，通过固定 `FORME_WORKER_FILE_TARGET_PATH` 传递路径，与 job/permit/execution 一起授予该 AppContainer 只读访问；原 workspace 不授予 worker。非 File job 不产生该对象。DTO 属于产品执行输入，不新增脑 EventKind，也不修改原 intent 的逻辑路径或 digest。
 
@@ -132,9 +134,9 @@ Host 仍在进程树终态后验证完整变更集、回写原 workspace、加�
 
 #### 4.1.1e 安装侧文件能力装配
 
-Windows 新安装在 manifest 的 workspace 域中建立 `default` 子目录，并生成独立 `worker.json`：初始 `authority_epoch=1`、`workspace:default` 的 exact 目录映射、Host 私有 journal/runtime 与固定 `sandbox:installed-file-v1` profile。profile 只允许本 release `bin/forme-executord.exe --installed-file-worker`；不包含 shell/任意 argv、模型环境或其他 backend。Host 配置显式引用该文件。认领前不创建 brain DB、owner 或 core.json；重开已有安装保留原配置，不静默升级旧布局。POSIX 本批不注入文件执行能力，继续已有不发布边界。
+Windows 新安装在 manifest 的 workspace 域中建立 `default` 子目录，并生成独立 `worker.json`：初始 `authority_epoch=1`、`workspace:default` 的 exact 目录映射、Host 私有 journal/runtime 与固定 `sandbox:installed-file-v1` profile。profile 只允许本 release `bin/forme-file-worker.exe --installed-file-worker`；不包含 shell/任意 argv、模型环境或其他 backend。Host 配置显式引用该文件。认领前不创建 brain DB、owner 或 core.json；重开已有安装保留原配置，不静默升级旧布局。历史精确 executord profile 可按原配置读取；选择已验签且包含独立文件镜像的新 active release 后，仅在内存派生新镜像路径，不重写原配置/journal。POSIX 本批不注入文件执行能力，继续已有不发布边界。
 
-新的完整 bundle 必须同时包含 hostd、webd、gatewayd、cli、hostctl 与 executord 六个本目标程序，全部进入 checksum inventory、签名 ReleaseManifest 和原生包输入校验；Windows 安装必须实际复制 executord。缺失文件入口的候选在写输出或安装前拒绝，不能仅凭配置声明完成。该要求不重写旧发布清单或历史验收，程序存在也不改变 POSIX 的不可发布边界。
+新的完整 bundle 必须同时包含 hostd、webd、gatewayd、cli、hostctl、executord 与 file-worker 七个本目标程序，全部进入 checksum inventory、签名 ReleaseManifest 和原生包输入校验；Windows 安装必须实际复制两个执行镜像。缺失文件入口的候选在写输出或安装前拒绝，不能仅凭配置声明完成。该要求不重写旧发布清单或历史验收，程序存在也不改变 POSIX 的不可发布边界。
 
 Host 根据已验证 installation manifest、worker config、固定程序/参数、路径分域及现有 AgentExecution credential 派生内部 `InstalledFileProvisioning`（`schema_version, binding, workspace_roots`）。binding 沿 §4.1.1c；物理目录映射只作为 Host 所有、core 只读的 policy 输入，不能塞进 binding、skills 或公开设置，也不向 Web 返回。Windows endpoint 仍由 install id 派生，不接受网页传入。
 
@@ -432,7 +434,7 @@ Checking 失败由持有唯一 writer 的新 Host 写 RecoveryRequired；新 Hos
 
 首次 `InstallationManifest` 和受保护的 `worker.json` 保留原字节，不能因升级而把历史安装记录改写为新版本。它们的初始程序目录也不能继续代表已切换的活动程序。Host 在重放原 product journal 后，以其中的唯一 active release 派生程序：仍为首次版本时保留原安装目录；活动版本已改变时，必须通过同一安装的 committed staging record、签名、闭合文件集与实际文件重新取得 `VerifiedStagedRelease`。缺失 staging、摘要不符或文件被替换均拒绝，不能退回初始版本，也不能选择仅暂存但尚未成为 active 的候选。
 
-Windows AgentExecution 的 core image 身份、保留 profile 的 `forme-executord --installed-file-worker`、以及只读离线核验的固定 hostctl 均使用这一活动发布。只派生固定程序名，不接收浏览器、模型、job 或环境传入的程序路径。文件 worker 的 workspace、epoch、scope、profile、参数与权限保持原绑定，仅在内存中派生该已核验发布的执行 image；自定义 profile 不因此被重写或启用。旧配置 revision、worker 配置及原 journal 不被改写，不产生第二个 active pointer。
+Windows AgentExecution 的 core image 身份、保留 profile 的文件入口（新发布为 `forme-file-worker --installed-file-worker`）、以及只读离线核验的固定 hostctl 均使用这一活动发布。只派生固定程序名，不接收浏览器、模型、job 或环境传入的程序路径。文件 worker 的 workspace、epoch、scope、profile、参数与权限保持原绑定，仅在内存中派生该已核验发布的执行 image；自定义 profile 不因此被重写或启用。旧配置 revision、worker 配置及原 journal 不被改写，不产生第二个 active pointer。
 
 Checking 接管仍遵守 §4.10.3：活动发布的程序定位不是 Committed、健康或工作准入证明。原生服务、core peer 和 worker 仍须分别核实；程序定位失败不能启动普通进程或旧 image 作为 fallback。测试需覆盖仅 staging 不选用、升级后重启沿用原 active、被替换文件拒绝、未签名/未提交发布不能取得路径，以及自定义 profile 保留。
 
