@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 工作空间纠正与删除后的审计水位修复，尚未部署
+
+真实安装的项目纠正已 Confirmed；从该来源准备遗忘返回 HTTP 200，但正式业务回执为原 Unknown/plan=null，没有执行删除或换号重试。隔离复现发现正文派生事件加密 scope 回落默认工作空间、共用无正文缓存的保守血缘，以及删去 aggregate 尾部后 replay/rebuild 水位回退三处组合问题。本批限于受验证纠正批次及可证明无正文的内置缓存修复，不放宽跨 owner/scope 拒绝，不改冻结协议或事件图。
+
+边界说明 `84f324d`、实现 `d76b113` 已分开提交；整仓最终质量门实际 exit 0，183 个 Rust 测试目标、1,310 passed / 0 failed / 16 默认 ignored，前端 118/118、strict Clippy、完整合规、原生安装器退出夹具 2/2 与冻结 workspace 门均通过。纠正/真实 core 重启和配置/离线恢复两项原进程测试最终串行 2/2、exit 0。组件正反证据及先前并行 502 的完整记录见[纠正 scope 验收](installed-product-correction-scope-acceptance-20261109.md)。当前安装继续是 `cf3fbc9`；此前 `20261108-5ad46d4` 候选不能覆盖新源码。真实遗忘、备份恢复及完整 IP20/IP24 保持开放，未因组件测试关闭。
+
 ## 2026-11-08 已安装项目监管与工作空间上下文取得真实证据
 
 旧安装 `cf3fbc9` 的正式项目登记、暂停/恢复、同号重放、陈旧版本/异义拒绝及双请求 CAS 已验证；竞争请求只一个成功，最终监管暂停在版本 3。浏览器绑定测试会话的 workspace 后，一次真实 run 的 `SessionBound`、charter context、实际 `compatible:gpt-6.1-sol` 调用、19 个事件及刷新历史均核实，零工具提议/执行，原三个 run 事件保持。这是部分 IP17/IP19；不提升完整 IP24。合并回执和 12 份工件摘要见[本轮项目与上下文报告](installed-product-workspace-context-acceptance-20261108.md)。
