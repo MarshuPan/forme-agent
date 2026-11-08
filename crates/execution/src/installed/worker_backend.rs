@@ -203,7 +203,8 @@ impl WorkerActionBackend {
         if !matches!(
             manifest.status,
             p::WorkerResultStatus::Available | p::WorkerResultStatus::Empty
-        ) {
+        ) || manifest.encoding != p::WorkerResultEncoding::Utf8
+        {
             return unknown_result(plan, sink, &self.budget, &attempt.job.job_id);
         }
         let bytes = match self.read_result(&manifest, result_started) {

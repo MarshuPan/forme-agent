@@ -23,6 +23,8 @@ enum FailureMode {
     SplitUtf8,
     InvalidUtf8,
     BinaryNonUtf8,
+    BinaryUtf8,
+    BinaryEmpty,
     ChunkDigest,
     ChunkManifest,
     ChunkOffset,
@@ -72,7 +74,10 @@ impl WorkerBrokerTransport for FakeTransport {
         }
         request.validate_at(now())?;
         let mut manifest = result_manifest(&request, payload(self.mode))?;
-        if self.mode == FailureMode::BinaryNonUtf8 {
+        if matches!(
+            self.mode,
+            FailureMode::BinaryNonUtf8 | FailureMode::BinaryUtf8 | FailureMode::BinaryEmpty
+        ) {
             manifest.encoding = p::WorkerResultEncoding::Binary;
             manifest.manifest_digest = manifest.expected_digest()?;
         }
@@ -234,7 +239,7 @@ impl FakeTransport {
 
 fn payload(mode: FailureMode) -> &'static [u8] {
     match mode {
-        FailureMode::Empty => b"",
+        FailureMode::Empty | FailureMode::BinaryEmpty => b"",
         FailureMode::SplitUtf8 => "跨块结果\n".as_bytes(),
         FailureMode::InvalidUtf8 | FailureMode::BinaryNonUtf8 => &[0xff, 0xfe],
         FailureMode::TooManyChunks => &[b'x'; 4097],
@@ -479,6 +484,35 @@ fn dispatch_error_becomes_unknown_and_never_creates_a_replacement_job() {
     assert_eq!(dispatches, 1);
     assert_eq!(probes, 1);
     assert_unknown(&sink);
+}
+
+#[test]
+fn binary_manifests_cannot_become_text_output_or_a_completed_action() {
+    for mode in [
+        FailureMode::BinaryUtf8,
+        FailureMode::BinaryEmpty,
+        FailureMode::BinaryNonUtf8,
+    ] {
+        let (backend, transport) = backend(mode);
+        let plan = plan(&backend, &format!("worker-backend-encoding-{mode:?}"));
+        for _ in 0..2 {
+            let sink = EventSink::default();
+            let result = backend
+                .execute(plan.clone(), &sink, CancelToken::default())
+                .unwrap();
+            assert_eq!(result.status, ActionStatus::Unknown, "{mode:?}");
+            assert!(result.output.is_empty());
+            assert_unknown(&sink);
+        }
+        let state = transport.state.lock().unwrap();
+        let manifest = state.manifest.as_ref().unwrap();
+        manifest.validate().unwrap();
+        assert_eq!(manifest.encoding, p::WorkerResultEncoding::Binary);
+        assert_eq!(state.dispatches, 1);
+        assert_eq!(state.probes, 1);
+        assert_eq!(state.reads, 0);
+        assert!(state.cancelled_jobs.is_empty());
+    }
 }
 
 #[test]
