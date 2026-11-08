@@ -265,3 +265,11 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 本轮永久 Host 门 exit 0：348 个命名检查 PASS，其中 17 项覆盖历史档案来源与数据身份比较。该门明确 `IP01-IP24: NOT_RUN`；M5 和 Host 源码门不证明真实安装、IP14–IP15/IP24 或完整历史恢复。`legacy_data_archive` 仍只在 `cfg(test)` 构建，生产 `LegacyReviewCollector` 与可信来源配置尚未接通；整个产品目标保持 active。
 
 终验后 build-resource report 为 PASS：当前 target **44,543,036,463 logical / 41,687,011,396 allocated bytes**，低于 64 GiB，`over_budget=[]`、`errors=[]`；未清理 Cargo 缓存或其他数据。M5 report 属于发布审计自指排除项，此节回填不改变上述最终 current-tree receipt。
+
+## 18. 无桌面依赖文件入口源码回归与发布审计（2026-11-08）
+
+实现 `ec56b71` 后的完整 Rust workspace 为 **183 targets、1304 passed / 0 failed / 16 默认 ignored**；S1–S99 场景/golden、fmt、workspace check、strict Clippy、Python 95 tests（1 skipped）和完整合规均通过。日志为 `target/native-legacy-review-20261106/headless-m5-bounded-gate-20261108.log`。该完整 M5 调用最终 exit 1：S99 发现新增 `winapi-util` 已有审查正文、NOTICE 和 borrowing record，但缺少机器可读的依赖表格行。更早一次因 Windows 链接资源不足失败，两个原始失败日志均保留；不把任一完整调用改写为 `M5 FINAL ACCEPTANCE: PASS`。
+
+`8bf904a` 只补依赖清单与本轮验收说明，没有改已测试代码。在该干净源码上独立重跑 `tools/m5_release_audit.py`，**8 项检查全部 PASS**，生成工件的独立 `--verify` 亦 PASS。规范回执更新为 `sha256:b57b9f96d9d1ae8529c4ef9c65f86a92127d98264a9b8ad2dab11c8d2ac36d83`，源码树摘要为 `sha256:cadcfe1c660c67908b42272487d0ff5830c7163c1178d3436cf661c3b2f1f42c`；原始生成目录与日志分别为 `headless-current-source-audit-20261108/`、`headless-current-source-audit-20261108.log`，均位于上述证据目录。上一规范回执 `050699da…` 归档到该目录并保留于 Git 历史。非目标平台 advisory、unmaintained 与 yanked 观察完整保留，不将它们隐藏成新摘要。
+
+这组证据闭合当前源码回归和独立发布审计，不替代完整 M5 调用的终态，也不代表修正版的签名候选、安装升级、系统服务文件操作、其他原生平台或 IP01–IP24 已通过。本节与规范回执目录属于既有自指排除项，其回填不改变上述源码树摘要。文件入口问题、原 Unknown 的显式裁决和原生验收步骤见[本轮记录](installed-product-headless-file-acceptance-20261108.md)。
