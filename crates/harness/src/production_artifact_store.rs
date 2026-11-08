@@ -5,6 +5,9 @@ use forme_store::{ProtectedContentRecord, SqliteEventStore, StoreContentProtecti
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(test)]
+mod tests;
+
 pub(super) struct ProtectedRuntimeArtifacts {
     pub(super) inner: FileArtifactStore,
     pub(super) protection: StoreContentProtection,
@@ -38,6 +41,9 @@ impl ArtifactStore for ProtectedRuntimeArtifacts {
         register_material(&self.store, &self.protection, &self.owner, &record, bytes)?;
         Ok(ArtifactRecord {
             content_ref: record.content_ref,
+            // The receipt identifies the original material, not its sealed file.
+            digest,
+            bytes: bytes.len() as u64,
             ..file
         })
     }
