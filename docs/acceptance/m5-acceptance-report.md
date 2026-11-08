@@ -273,3 +273,11 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 `8bf904a` 只补依赖清单与本轮验收说明，没有改已测试代码。在该干净源码上独立重跑 `tools/m5_release_audit.py`，**8 项检查全部 PASS**，生成工件的独立 `--verify` 亦 PASS。规范回执更新为 `sha256:b57b9f96d9d1ae8529c4ef9c65f86a92127d98264a9b8ad2dab11c8d2ac36d83`，源码树摘要为 `sha256:cadcfe1c660c67908b42272487d0ff5830c7163c1178d3436cf661c3b2f1f42c`；原始生成目录与日志分别为 `headless-current-source-audit-20261108/`、`headless-current-source-audit-20261108.log`，均位于上述证据目录。上一规范回执 `050699da…` 归档到该目录并保留于 Git 历史。非目标平台 advisory、unmaintained 与 yanked 观察完整保留，不将它们隐藏成新摘要。
 
 这组证据闭合当前源码回归和独立发布审计，不替代完整 M5 调用的终态，也不代表修正版的签名候选、安装升级、系统服务文件操作、其他原生平台或 IP01–IP24 已通过。本节与规范回执目录属于既有自指排除项，其回填不改变上述源码树摘要。文件入口问题、原 Unknown 的显式裁决和原生验收步骤见[本轮记录](installed-product-headless-file-acceptance-20261108.md)。
+
+## 19. 会话页面表单后的源码与审计绑定（2026-11-08）
+
+实现 `8ada1f6` 与组件说明 `62fa2d0` 衔接后，完整源码质量门 exit 0：183 个 Rust 测试目标、1304 passed / 0 failed / 16 默认 ignored，strict Clippy、21 项结构/资源 Python 回归、前端 115/115、嵌入资源与打包组件、NTFS/防火墙只读策略及完整合规通过。实际 Inno 退出夹具独立执行 2/2 PASS；统一门内未传 toolchain 的 NOT_RUN 保留。首次质量门在链接时因临时浏览器进程占用失败，原日志保留。详细证据见[会话操作验收](installed-product-session-actions-acceptance-20261108.md)，不把浏览器组件提升为安装版验收。
+
+在干净 `62fa2d0` 上独立运行当前树 M5 release audit，8 项检查全部 PASS、`blocking=false`，生成工件的独立 `--verify` 通过。规范回执为 `sha256:df64fd3a91c96b7e6b92704a5e86ec4a4e9cb4a22b6ce4886b18cf5d87d92e65`，源码树摘要为 `sha256:781737c99556b84881e0ede66769cc474d70094be779e6b582b2ea73f7d1b6b1`。生成目录和日志是 `target/native-legacy-review-20261106/session-actions-current-source-audit-20261108/` 与同名 `.log`。上版 `b57b9f…` 原件保留在同目录树的 `headless-current-source-audit-20261108/` 和 Git 历史；仓库规范目录只保留本次回执。审计中的非目标平台 advisory、unmaintained 和 yanked 观察没有删除。
+
+本轮没有重新运行完整 `verify-m5.ps1`，没有新的 `M5 FINAL ACCEPTANCE: PASS` 终线，也未部署修正版或完成完整 IP17/IP24。规范回执和本节属于既有自指排除项，不改变上述源码树摘要；后续打包与原生窗口须绑定最终完整 commit，不能给旧候选改名。
