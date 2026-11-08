@@ -39,3 +39,29 @@
 原安装的 Host/Web/Brain 仍 Running，release-updater Stopped；本轮没有修改 Windows UAC、安装配置、程序或服务。当前工具进程没有管理员令牌。此前 `20261108-5ad46d4` 签名候选与密封批次不能覆盖本批新源码，不应将它作为本修复的安装证明。
 
 后续须从新干净源码生成并核验候选，取得真实管理员窗口后完成受控部署及原生文件/数据联合验收。旧 Unknown 只查原命令；本修复不迁移历史密文、不恢复或重执行原预览。真实遗忘、备份恢复、桌面/受管消费者、跨设备及完整 IP24 继续保留各自未验证状态。
+
+## 5. 闭合测试清单补齐与当前回归（2026-11-09）
+
+后续完整 Python 回归在 `7b13529` 发现一项真实失败：`test_repository_inventory_contains_every_d_test_and_explicit_ignored_cli` 拒绝将本批新增的两个 store 数据保护测试遗漏在 D 波清单之外。原日志 `correction-scope-python-full-20261109.log` 保留于原工作树的工件根，SHA-256 为 `95964a7432cfec28365c66cf93eb7f261ef28121577db08a2e73a5c3ed68e3d4`；当次为 95 项、1 failed、1 skipped，不能用此前 Rust/质量门覆盖这次失败。
+
+独立工作树 `shu/closure-inventory` 的修复提交 `037a9c8` 仅向 `C22-C23-data-protection` 登记以下两个真实测试；没有修改严格清单比对、测试 selector、Rust 实现、协议或规模基线。脚本仍为 600 行，A/B/C/D 清单分别为 47/50/36/73 项，总计 206；两项各出现一次。
+
+- `c23_actual_cross_scope_content_dependency_still_rejects_without_deleting_keys`
+- `c23_erased_aggregate_tail_keeps_replay_rebuild_and_subsequent_writes_consistent`
+
+在与该提交相同的源码改动上，fmt、workspace check、全部 binary build、完整 workspace tests 与完整合规均通过。Rust 为 183 个测试目标、1,310 passed / 0 failed / 16 默认 ignored；完整 Python 独立运行为 95 项、94 passed / 1 skipped，原清单断言通过。结构门为 883 文件、63 项历史规模债务，`git diff --check` 通过。该回归不将默认 ignored、fixture 或旧安装升级为原生证据。
+
+本次驱动在全部 Rust 测试结束后、严格 Clippy 执行前，因磁盘仅余约 16.1 GiB、低于规定的 20 GiB 而退出 1；Clippy 尚未执行，整套驱动不记 PASS。Python 和完整合规的上述通过结果来自独立进程。修复提交满足其格式、编译、完整 Rust 测试、结构和合规提交门；新源码的严格 Clippy、完整 M5、四波便携证据与 clean-tree Final 仍开放。
+
+本轮日志在独立工作树 `target/closure-inventory-evidence/`，不是原生安装回执：
+
+| 工件 | SHA-256 |
+| --- | --- |
+| `source-gates-native-part-01.log` | `d18966f17224f60ef7be96cf1010991ae8d4a70adc1022db5869373eaf268b7a` |
+| `source-gates-native-part-02.log` | `430e42a73b427eb871d30f35269edb7ee0e69d15c9ead75b0a212dab0240d02c` |
+| `python-full.log` | `d2ff3ae9eb030731945d83f8bd5d2900be11697b87d47999532c0e20180a8158` |
+| `compliance-full.log` | `7902959834c14884d3ce0a23522df671eda274a2327a2020f961aef57f9148f5` |
+
+`build-resources.json` 记录该工作树缓存约 25.3 GiB 逻辑大小、22.6 GiB 去重分配大小，预算未超限；它不代表目标卷仍有足够空间。主工作树缓存清理仅做 dry-run，尚未删除。
+
+原工作树继续固定在干净 `7b13529`，保留已签名候选及原单次管理员批次；当前仍只有原 UAC 等待进程，无管理员启动、升级或产品窗口回执。该独立清单提交未改变它的 HEAD 或密封输入。旧 A/C24 证据不能重标为修复后完整四波证据：便携清单的 source attestation 同时包含 `crates`、`tools` 和 Cargo 输入，后续须按新清单重新采集。当前安装版本和 IP20/IP24 状态仍按 §4 保持。

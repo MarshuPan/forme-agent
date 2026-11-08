@@ -8,6 +8,8 @@
 
 边界说明 `84f324d`、实现 `d76b113` 已分开提交；整仓最终质量门实际 exit 0，183 个 Rust 测试目标、1,310 passed / 0 failed / 16 默认 ignored，前端 118/118、strict Clippy、完整合规、原生安装器退出夹具 2/2 与冻结 workspace 门均通过。纠正/真实 core 重启和配置/离线恢复两项原进程测试最终串行 2/2、exit 0。组件正反证据及先前并行 502 的完整记录见[纠正 scope 验收](installed-product-correction-scope-acceptance-20261109.md)。当前安装继续是 `cf3fbc9`；此前 `20261108-5ad46d4` 候选不能覆盖新源码。真实遗忘、备份恢复及完整 IP20/IP24 保持开放，未因组件测试关闭。
 
+后续完整 Python 回归发现 D 波漏登两项新增数据保护测试，原失败日志保留。独立分支 `shu/closure-inventory` 的 `037a9c8` 仅补齐清单，A/B/C/D 为 47/50/36/73 项；完整 Rust 1,310/0/16、完整 Python 94 passed / 1 skipped、格式/编译/结构与完整合规通过。驱动随后因卷剩约 16.1 GiB，在严格 Clippy 前被空间门阻止，不能记为整门通过。Clippy、M5、新源码四波与 Final 仍开放；原 `7b13529` 签名升级批次继续保持原件、等待同一 UAC，无升级回执。细节见上述验收 §5，不能以独立源码分支推进宣称安装 IP 已通过。
+
 ## 2026-11-08 已安装项目监管与工作空间上下文取得真实证据
 
 旧安装 `cf3fbc9` 的正式项目登记、暂停/恢复、同号重放、陈旧版本/异义拒绝及双请求 CAS 已验证；竞争请求只一个成功，最终监管暂停在版本 3。浏览器绑定测试会话的 workspace 后，一次真实 run 的 `SessionBound`、charter context、实际 `compatible:gpt-6.1-sol` 调用、19 个事件及刷新历史均核实，零工具提议/执行，原三个 run 事件保持。这是部分 IP17/IP19；不提升完整 IP24。合并回执和 12 份工件摘要见[本轮项目与上下文报告](installed-product-workspace-context-acceptance-20261108.md)。
