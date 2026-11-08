@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 加密工件回执修复通过，安装结果链仍开放
+
+`85afa70` 修复 `ProtectedRuntimeArtifacts` 的返回摘要/长度误用密文文件值：现在与 content_ref 解密得到的原始内容及材料登记一致，历史回执不重写。真实保护存储回归修复前断言失败、修复后通过；完整 workspace 为 183 targets、1,311 passed / 0 failed / 16 默认 ignored，格式/check、strict Clippy、D RuntimeOnly、结构质量与完整合规均 exit 0。原空间停止记录保留，验证只续跑剩余阶段；49 个缓存程序只做字节保持的可逆 NTFS 压缩，无删除或阈值放宽。详见[本次修复验收](installed-artifact-receipt-correction-20261109.md)。
+
+本次不是新的完整 Final 或原生升级；安装仍为 `cf3fbc9`，原三份管理员/原生/产品窗口回执仍缺。新增[桌面结果接线草案](../architecture/proposals/installed-desktop-output-closure.md) 将 helper→Host→core→Web 的原始工件、绑定、保护投影与同号恢复写成可审查范围，仍待明确契约批准；既有受管消费者和桌面授权提案也保持待批。引用输入、真实 PTY 与整体 IP01–IP24 未因该修复关闭。
+
 ## 2026-11-09 当前源码完整 Final 通过，整体安装目标仍开放
 
 干净 `shu/closure-inventory@6899f56` 的原 Final 在本地时间 03:14:03–04:11:07 完成，exit 0，结束时工作树干净。内嵌 M5 真正取得 S1–S99 总门 PASS；A/B/C/D 逐名 **47/50/36/73，共 206 项**，C24 当前源码/真实工件、typed 工件、core/M5 生成与仓库回执的独立验证和 compare 全通过。workspace 两段各为 **183 targets、1310 passed / 0 failed / 16 默认 ignored**，不叠加；Python **94 passed / 1 skipped**。原始终态、摘要和空间报告见[核心终验 §7](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。下文“Final 仍待”等表述保留各先行阶段，后续终态以本节为准。
