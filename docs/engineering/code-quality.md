@@ -111,4 +111,8 @@ M0/M1/M2 的内部组合参数 `-DeferSharedChecks` 只将共享检查交给父�
 
 本机有已审查的 Inno 编译器时，统一门另传 `-WindowsInstallerToolchain <absolute-toolchain-json>`，运行实际安装 helper 的低权限原生成功/失败夹具，证明 post-install 失败返回非零。它不安装 ForMe、不注册服务、不请求 UAC；未提供工具链时明确记为 `NOT_RUN`，不能用结构断言替代这份原生证据。
 
-当前公开维护债务约 63 个文件。已完成的第一批是 `harness/src/brain_orchestration.rs`：路线状态机仍留在原模块，节点构造/输出归并/验证/签名转换已移到 `brain_orchestration/support.rs`，保留原有 API、事件和恢复语义，并移除已偿还的规模豁免。下一批优先级固定为：`harness/src/lib.rs` 的入口/控制域、`harness/src/production.rs` 的 composition/服务域、`store/src/sqlite.rs` 的事务/投影域；每次只处理一个事务边界。`memory`、`protocol` 等承重协议文件除非有明确收益，不做机械按行切割。
+当前公开维护债务约 63 个文件。已完成的第一批是 `harness/src/brain_orchestration.rs`：路线状态机仍留在原模块，节点构造/输出归并/验证/签名转换已移到 `brain_orchestration/support.rs`，保留原有 API、事件和恢复语义，并移除已偿还的规模豁免。
+
+2026-11-09 的 `5000ac0` 完成 `harness/src/lib.rs` 入口域的一个独立边界：准入、持久化命令去重、运行派发和两个 ingress adapter 移入 `run_ingress.rs`。根文件从 5,630 行缩至 5,282 行，新生产模块 362 行；方法体除内部可见性外保持一致，trait 实现体不变。新增集成场景使用真实 SQLite 与 ProductionRuntime、受控 HTTP 模型，验证混入异源 authority 时整次提交无事件/模型调用、重启后旧 authority 失效、同命令重放无新增效果及冲突语义拒绝。工作区 184 个测试目标共 1,312 passed、0 failed、16 默认 ignored；fmt、workspace check、strict Clippy、质量与合规通过。原检查回执在完整测试后因空间门以 1 退出，保留原件；无损压缩空闲构建缓存后，仅续跑尚未执行的 Clippy/质量/合规，续跑回执为 0，均核对同一组源码摘要。证据位于本工作树 `target/closure-inventory-evidence/run-ingress-*`，空间报告为 `run-ingress-refactor-build-resources.json`。这只是维护拆分，未刷新完整 Final，也未取得新的原生安装/IP 验收。
+
+下一批优先级仍为：`harness/src/lib.rs` 剩余控制域、`harness/src/production.rs` 的 composition/服务域、`store/src/sqlite.rs` 的事务/投影域；每次只处理一个事务边界。Harness 根文件仍超限，63 项现有规模债务及基线保持，不宣称整个控制域已完成拆分。`memory`、`protocol` 等承重协议文件除非有明确收益，不做机械按行切割。
