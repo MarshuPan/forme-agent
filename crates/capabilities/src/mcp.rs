@@ -1,10 +1,12 @@
+mod transport;
+
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::process::{Command, Stdio};
 use std::sync::{Mutex, MutexGuard};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use transport::RpcSession;
 
 use forme_policy::PolicyContext;
 use forme_protocol as p;
@@ -792,6 +794,7 @@ fn discover_over_stdio(server: &StdioMcpServer) -> Result<McpCatalog, McpFailure
             "MCP stdio configuration is incomplete",
         ));
     }
+    let admission = transport::Admission::acquire(&server.provider_id)?;
     let mut command = Command::new(&server.command);
     command
         .args(&server.args)
@@ -807,7 +810,12 @@ fn discover_over_stdio(server: &StdioMcpServer) -> Result<McpCatalog, McpFailure
             format!("failed to start MCP stdio process: {error}"),
         )
     })?;
-    let mut rpc = RpcSession::new(child, server)?;
+    let mut rpc = RpcSession::new(child, server, admission)?;
+    let result = read_catalog(&mut rpc, server);
+    rpc.finish(result)
+}
+
+fn read_catalog(rpc: &mut RpcSession, server: &StdioMcpServer) -> Result<McpCatalog, McpFailure> {
     let initialize = rpc.request(
         "initialize",
         serde_json::json!({
@@ -940,159 +948,6 @@ fn parse_resources(
         }
     }
     Ok(parsed)
-}
-
-struct RpcSession {
-    child: Child,
-    stdin: ChildStdin,
-    lines: Receiver<String>,
-    timeout: Duration,
-    server: p::ProviderId,
-    next_id: u64,
-}
-
-impl RpcSession {
-    fn new(mut child: Child, server: &StdioMcpServer) -> Result<Self, McpFailure> {
-        let stdin = child.stdin.take().ok_or_else(|| {
-            failure(
-                server.provider_id.clone(),
-                McpErrorClass::ServerError,
-                "MCP process did not expose stdin",
-            )
-        })?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            failure(
-                server.provider_id.clone(),
-                McpErrorClass::ServerError,
-                "MCP process did not expose stdout",
-            )
-        })?;
-        let (sender, lines) = mpsc::sync_channel(64);
-        std::thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let Ok(line) = line else {
-                    break;
-                };
-                if sender.send(line).is_err() {
-                    break;
-                }
-            }
-        });
-        Ok(Self {
-            child,
-            stdin,
-            lines,
-            timeout: Duration::from_millis(server.timeout.0),
-            server: server.provider_id.clone(),
-            next_id: 0,
-        })
-    }
-
-    fn request(
-        &mut self,
-        method: &str,
-        params: serde_json::Value,
-    ) -> Result<serde_json::Value, McpFailure> {
-        self.next_id = self.next_id.saturating_add(1);
-        let id = self.next_id;
-        self.send(serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method,
-            "params": params,
-        }))?;
-        self.receive(id)
-    }
-
-    fn notify(&mut self, method: &str, params: serde_json::Value) -> Result<(), McpFailure> {
-        self.send(serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-        }))
-    }
-
-    fn send(&mut self, value: serde_json::Value) -> Result<(), McpFailure> {
-        serde_json::to_writer(&mut self.stdin, &value).map_err(|error| {
-            failure(
-                self.server.clone(),
-                McpErrorClass::ServerError,
-                format!("failed to encode MCP request: {error}"),
-            )
-        })?;
-        self.stdin.write_all(b"\n").map_err(|error| {
-            failure(
-                self.server.clone(),
-                McpErrorClass::ServerError,
-                format!("failed to write MCP request: {error}"),
-            )
-        })?;
-        self.stdin.flush().map_err(|error| {
-            failure(
-                self.server.clone(),
-                McpErrorClass::ServerError,
-                format!("failed to flush MCP request: {error}"),
-            )
-        })
-    }
-
-    fn receive(&self, id: u64) -> Result<serde_json::Value, McpFailure> {
-        let deadline = Instant::now() + self.timeout;
-        loop {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return Err(failure(
-                    self.server.clone(),
-                    McpErrorClass::Timeout,
-                    "MCP response deadline elapsed",
-                ));
-            }
-            let line = match self.lines.recv_timeout(remaining) {
-                Ok(line) => line,
-                Err(RecvTimeoutError::Timeout) => {
-                    return Err(failure(
-                        self.server.clone(),
-                        McpErrorClass::Timeout,
-                        "MCP response deadline elapsed",
-                    ));
-                }
-                Err(RecvTimeoutError::Disconnected) => {
-                    return Err(failure(
-                        self.server.clone(),
-                        McpErrorClass::ServerError,
-                        "MCP process ended before responding",
-                    ));
-                }
-            };
-            let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) else {
-                continue;
-            };
-            if response.get("id").and_then(serde_json::Value::as_u64) != Some(id) {
-                continue;
-            }
-            if let Some(error) = response.get("error") {
-                return Err(failure(
-                    self.server.clone(),
-                    McpErrorClass::ServerError,
-                    format!("MCP server returned an error: {error}"),
-                ));
-            }
-            return response.get("result").cloned().ok_or_else(|| {
-                failure(
-                    self.server.clone(),
-                    McpErrorClass::SchemaMismatch,
-                    "MCP response has no result",
-                )
-            });
-        }
-    }
-}
-
-impl Drop for RpcSession {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
 }
 
 fn failure(server: p::ProviderId, class: McpErrorClass, detail: impl Into<String>) -> McpFailure {

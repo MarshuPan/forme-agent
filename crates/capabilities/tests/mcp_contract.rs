@@ -1,5 +1,5 @@
 use std::io::{BufRead, Write};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use forme_capabilities::{
     CapabilityRegistry, InMemoryCapabilityRegistry, McpAllowlist, McpErrorClass, McpRegistry,
@@ -7,8 +7,43 @@ use forme_capabilities::{
 };
 use forme_protocol as p;
 
+fn transport_test() -> std::sync::MutexGuard<'static, ()> {
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+struct ScratchDirectory(std::path::PathBuf);
+
+impl ScratchDirectory {
+    fn new() -> Self {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!(
+            "forme-mcp-discovery-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for ScratchDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 #[test]
 fn s3_stdio_discovery_allowlist_prepare_call_and_disable_are_governed() {
+    let _serial = transport_test();
     let server = server("success", 1_000);
     let id = server.id();
     let registry = activate(server, envelope());
@@ -92,6 +127,7 @@ fn s3_stdio_discovery_allowlist_prepare_call_and_disable_are_governed() {
 
 #[test]
 fn s3_discovery_classifies_timeout_schema_and_server_errors() {
+    let _serial = transport_test();
     for (mode, timeout_ms, expected) in [
         ("timeout", 150, McpErrorClass::Timeout),
         ("server", 1_000, McpErrorClass::ServerError),
@@ -113,10 +149,88 @@ fn s3_discovery_classifies_timeout_schema_and_server_errors() {
 }
 
 #[test]
+fn mcp_discovery_rejects_oversized_frames_without_publishing_metadata() {
+    let _serial = transport_test();
+    let server = server("oversized-frame", 5_000);
+    let id = server.id();
+    let registry = activate(server, envelope());
+    let error = registry.discover_detailed(id.clone()).unwrap_err();
+    assert_eq!(error.class, McpErrorClass::SchemaMismatch);
+    assert!(error.detail.contains("wire frame bound"));
+    assert!(registry.discovery(&id).is_none());
+    assert!(registry.take_events().is_empty());
+}
+
+#[test]
+fn mcp_discovery_retains_original_io_and_never_publishes_uncertain_metadata() {
+    let _serial = transport_test();
+    let directory = ScratchDirectory::new();
+    let ready = directory.path().join("discovery-ready");
+    let done = directory.path().join("holder-done");
+    let mut source = server("held-pipe", 500);
+    source.env.push((
+        "FORME_MCP_READY".into(),
+        ready.to_string_lossy().into_owned(),
+    ));
+    source.env.push((
+        "FORME_MCP_HOLDER_DONE".into(),
+        done.to_string_lossy().into_owned(),
+    ));
+    let original_id = source.id();
+    let original = activate(source, envelope());
+    let started = Instant::now();
+    let error = original.discover_detailed(original_id.clone()).unwrap_err();
+    assert!(ready.exists());
+    assert!(started.elapsed() < Duration::from_secs(4));
+    assert_eq!(error.class, McpErrorClass::ServerError);
+    assert!(error.detail.contains("cleanup is unverified"));
+    assert!(original.discovery(&original_id).is_none());
+    assert!(original.take_events().is_empty());
+
+    let source = server("success", 1_000);
+    let id = source.id();
+    let next = activate(source, envelope());
+    let blocked = next.discover_detailed(id.clone()).unwrap_err();
+    assert!(blocked.detail.contains("original cleanup"));
+    assert!(next.discovery(&id).is_none());
+    assert!(next.take_events().is_empty());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !done.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(done.exists());
+    loop {
+        match next.discover_detailed(id.clone()) {
+            Ok(discovery) => {
+                assert_eq!(discovery.tools.len(), 1);
+                break;
+            }
+            Err(error)
+                if error.detail.contains("original cleanup") && Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("new discovery after original cleanup: {}", error.detail),
+        }
+    }
+    assert!(matches!(
+        next.take_events().as_slice(),
+        [p::EventPayload::McpDiscovered(_)]
+    ));
+    assert!(original.discovery(&original_id).is_none());
+    assert!(original.take_events().is_empty());
+}
+
+#[test]
 fn mcp_fixture_child() {
     let Ok(mode) = std::env::var("FORME_MCP_FIXTURE_MODE") else {
         return;
     };
+    if mode == "pipe-holder" {
+        std::thread::sleep(Duration::from_secs(4));
+        std::fs::write(std::env::var_os("FORME_MCP_HOLDER_DONE").unwrap(), b"done").unwrap();
+        return;
+    }
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout).unwrap();
@@ -135,6 +249,11 @@ fn mcp_fixture_child() {
         }
         if mode == "timeout" {
             std::thread::sleep(Duration::from_secs(2));
+            return;
+        }
+        if method == "tools/list" && mode == "oversized-frame" {
+            let _ = stdout.write_all(&vec![b'x'; 8 * 1_024 * 1_024 + 1]);
+            let _ = stdout.flush();
             return;
         }
         let response = match method {
@@ -181,6 +300,29 @@ fn mcp_fixture_child() {
         };
         writeln!(stdout, "{response}").unwrap();
         stdout.flush().unwrap();
+        if method == "initialize" && mode == "held-pipe" {
+            let mut holder = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "mcp_fixture_child",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env_clear()
+                .env("FORME_MCP_FIXTURE_MODE", "pipe-holder")
+                .env(
+                    "FORME_MCP_HOLDER_DONE",
+                    std::env::var_os("FORME_MCP_HOLDER_DONE").unwrap(),
+                )
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .unwrap();
+            std::fs::write(std::env::var_os("FORME_MCP_READY").unwrap(), b"ready").unwrap();
+            holder.wait().unwrap();
+            return;
+        }
         if method == "resources/list" || (method == "tools/list" && mode == "server") {
             return;
         }
