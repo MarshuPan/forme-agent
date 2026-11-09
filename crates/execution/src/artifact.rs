@@ -14,6 +14,18 @@ pub struct ArtifactRecord {
 }
 
 pub trait ArtifactStore: Send + Sync {
+    fn supports_worker_output(&self) -> bool {
+        false
+    }
+    fn write_worker_output(
+        &self,
+        _binding: &p::WorkerArtifactBinding,
+        _bytes: &[u8],
+    ) -> p::Result<ArtifactRecord> {
+        Err(p::Error(
+            "protected worker artifact storage is unavailable".into(),
+        ))
+    }
     fn write(&self, scope: &p::Scope, extension: &str, bytes: &[u8]) -> p::Result<ArtifactRecord>;
 }
 

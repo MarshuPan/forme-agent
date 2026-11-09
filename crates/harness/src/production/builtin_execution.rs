@@ -219,8 +219,7 @@ pub(super) fn assemble(inputs: Inputs<'_>) -> p::Result<BuiltinExecution> {
         ));
     }
 
-    let artifact_store = if !managed_mode
-        && (capability_config.browser.enabled || capability_config.computer.enabled)
+    let artifact_store = if capability_config.browser.enabled || capability_config.computer.enabled
     {
         FileArtifactStore::new(config.data.artifact_root.clone())
             .ok()
@@ -340,14 +339,13 @@ pub(super) fn assemble(inputs: Inputs<'_>) -> p::Result<BuiltinExecution> {
                 && surface.bounds.validate().is_ok()
         });
     if managed_mode && capability_config.computer.enabled {
-        desktop_backend = managed_workers::register(
-            managed_mode,
+        desktop_backend = managed_workers::register_computer(
             desktop_binding,
-            p::BackendKind::Computer,
             config,
             &output_budget,
             timeout,
             &backends,
+            artifact_store.clone(),
         )?;
         if desktop_backend.is_some() {
             add_builtin_capability(

@@ -23,6 +23,10 @@ mod service_switch_cases;
 #[path = "installed_release_staging/updater_cases.rs"]
 mod updater_cases;
 
+#[cfg(windows)]
+#[path = "installed_release_staging/desktop_output_cases.rs"]
+mod desktop_output_cases;
+
 const TOKEN: &str = "release-maintenance-test-token-00000000000001";
 const RELEASE: &str = "0.0.2";
 const OP: &str = "stage-operation";

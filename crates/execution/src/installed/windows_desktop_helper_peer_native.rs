@@ -3,16 +3,18 @@
 
 use std::ffi::c_void;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::mem::size_of;
 use std::os::windows::fs::OpenOptionsExt;
 use std::os::windows::io::{AsRawHandle, FromRawHandle, IntoRawHandle, OwnedHandle, RawHandle};
 use std::ptr::{null, null_mut};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+pub(crate) use super::desktop_helper_wire::{
+    helper_pipe_argument, read_frame, read_output_bytes, write_frame, write_output_bytes,
+    write_output_frame,
+};
 use forme_protocol as p;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use windows_sys::Win32::Foundation::{
     GetLastError, ERROR_BROKEN_PIPE, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING,
     ERROR_PIPE_NOT_CONNECTED, HANDLE, HLOCAL, INVALID_HANDLE_VALUE,
@@ -28,8 +30,8 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX, SECURITY_IDENTIFICATION,
 };
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, PeekNamedPipe,
-    SetNamedPipeHandleState, WaitNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE,
+    ConnectNamedPipe, CreateNamedPipeW, GetNamedPipeClientProcessId, GetNamedPipeServerProcessId,
+    PeekNamedPipe, SetNamedPipeHandleState, WaitNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE,
     PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_WAIT,
 };
 use windows_sys::Win32::System::StationsAndDesktops::{
@@ -47,7 +49,6 @@ use super::windows_desktop_session_native::{
 };
 
 const PIPE_BUFFER_BYTES: u32 = 64 * 1024;
-const MAX_FRAME_BYTES: usize = 256 * 1024;
 const IO_POLL: Duration = Duration::from_millis(10);
 const HELLO_TIMEOUT: Duration = Duration::from_secs(5);
 const DESKTOP_PIPE_PREFIX: &str = r"\\.\pipe\forme-desktop-helper-v1-";
@@ -59,7 +60,43 @@ pub(crate) fn connect_server(
     snapshot: &WindowsDesktopSessionSnapshot,
     host: &WindowsDesktopSessionHost,
 ) -> p::Result<File> {
-    let deadline = Instant::now() + HELLO_TIMEOUT;
+    connect_mode(
+        server,
+        expected_pid,
+        spawned,
+        snapshot,
+        host,
+        Instant::now() + HELLO_TIMEOUT,
+        false,
+    )
+}
+pub(crate) fn connect_output_server(
+    server: OwnedHandle,
+    expected_pid: u32,
+    spawned: &SpawnedDesktopHelper,
+    snapshot: &WindowsDesktopSessionSnapshot,
+    host: &WindowsDesktopSessionHost,
+    deadline: Instant,
+) -> p::Result<File> {
+    connect_mode(
+        server,
+        expected_pid,
+        spawned,
+        snapshot,
+        host,
+        deadline,
+        true,
+    )
+}
+fn connect_mode(
+    server: OwnedHandle,
+    expected_pid: u32,
+    spawned: &SpawnedDesktopHelper,
+    snapshot: &WindowsDesktopSessionSnapshot,
+    host: &WindowsDesktopSessionHost,
+    deadline: Instant,
+    output: bool,
+) -> p::Result<File> {
     loop {
         let connected =
             unsafe { ConnectNamedPipe(server.as_raw_handle() as HANDLE, null_mut()) } != 0;
@@ -75,7 +112,7 @@ pub(crate) fn connect_server(
         }
         std::thread::sleep(IO_POLL);
     }
-    let mode = PIPE_READMODE_BYTE | PIPE_WAIT;
+    let mode = PIPE_READMODE_BYTE | if output { PIPE_NOWAIT } else { PIPE_WAIT };
     if unsafe { SetNamedPipeHandleState(server.as_raw_handle() as HANDLE, &mode, null(), null()) }
         == 0
     {
@@ -169,8 +206,23 @@ pub(crate) fn create_pipe(name: &str, user_sid: &str) -> p::Result<(OwnedHandle,
 }
 
 pub(crate) fn open_helper_pipe(name: &str) -> p::Result<File> {
+    open_mode(name, 30_000, false)
+}
+pub(crate) fn open_output_pipe(name: &str, deadline: Instant) -> p::Result<File> {
+    let ms = deadline
+        .saturating_duration_since(Instant::now())
+        .as_millis()
+        .min(5000) as u32;
+    if ms == 0 {
+        return Err(p::Error(
+            "desktop output connection deadline expired".into(),
+        ));
+    }
+    open_mode(name, ms, true)
+}
+fn open_mode(name: &str, wait_ms: u32, output: bool) -> p::Result<File> {
     let name_w = wide(name);
-    if unsafe { WaitNamedPipeW(name_w.as_ptr(), 30_000) } == 0 {
+    if unsafe { WaitNamedPipeW(name_w.as_ptr(), wait_ms) } == 0 {
         return Err(native_error("desktop helper named pipe is unavailable"));
     }
     let file = OpenOptions::new()
@@ -179,7 +231,7 @@ pub(crate) fn open_helper_pipe(name: &str) -> p::Result<File> {
         .security_qos_flags(SECURITY_IDENTIFICATION)
         .open(name)
         .map_err(|_| p::Error("desktop helper named pipe could not be opened".into()))?;
-    let mode = PIPE_READMODE_BYTE | PIPE_WAIT;
+    let mode = PIPE_READMODE_BYTE | if output { PIPE_NOWAIT } else { PIPE_WAIT };
     if unsafe { SetNamedPipeHandleState(file.as_raw_handle() as HANDLE, &mode, null(), null()) }
         == 0
     {
@@ -245,63 +297,11 @@ pub(crate) fn desktop_pipe_name(binding: &p::DesktopSessionBinding) -> p::Result
     Ok(format!("{DESKTOP_PIPE_PREFIX}{digest}"))
 }
 
-pub(crate) fn helper_pipe_argument() -> p::Result<String> {
-    let arguments: Vec<_> = std::env::args().skip(1).collect();
-    if arguments.len() != 3
-        || arguments[0] != "--desktop-session-helper"
-        || arguments[1] != "--pipe"
-    {
-        return Err(p::Error("desktop helper arguments are invalid".into()));
-    }
-    let pipe = arguments[2].clone();
-    if !pipe.starts_with(DESKTOP_PIPE_PREFIX)
-        || pipe.len() > 256
-        || pipe.chars().any(char::is_control)
-    {
-        return Err(p::Error("desktop helper pipe is invalid".into()));
-    }
-    Ok(pipe)
-}
-
-const fn valid_frame_length(length: usize) -> bool {
-    length > 0 && length <= MAX_FRAME_BYTES
-}
-
-pub(crate) fn write_frame<T: Serialize>(stream: &mut File, value: &T) -> p::Result<()> {
-    let bytes = serde_json::to_vec(value)
-        .map_err(|_| p::Error("desktop helper frame cannot be encoded".into()))?;
-    if !valid_frame_length(bytes.len()) {
-        return Err(p::Error("desktop helper frame is outside its bound".into()));
-    }
-    let length = u32::try_from(bytes.len())
-        .map_err(|_| p::Error("desktop helper frame is too large".into()))?;
-    stream
-        .write_all(&length.to_le_bytes())
-        .map_err(|_| p::Error("desktop helper frame cannot be written".into()))?;
-    stream
-        .write_all(&bytes)
-        .map_err(|_| p::Error("desktop helper frame cannot be written".into()))?;
-    stream
-        .flush()
-        .map_err(|_| p::Error("desktop helper frame cannot be flushed".into()))
-}
-
-pub(crate) fn read_frame<T: DeserializeOwned>(
+pub(super) fn read_bounded(
     stream: &mut File,
+    output: &mut [u8],
     deadline: Instant,
-) -> p::Result<T> {
-    let mut length = [0u8; 4];
-    read_bounded(stream, &mut length, deadline)?;
-    let length = u32::from_le_bytes(length) as usize;
-    if !valid_frame_length(length) {
-        return Err(p::Error("desktop helper frame length is invalid".into()));
-    }
-    let mut bytes = vec![0u8; length];
-    read_bounded(stream, &mut bytes, deadline)?;
-    serde_json::from_slice(&bytes).map_err(|_| p::Error("desktop helper frame is malformed".into()))
-}
-
-fn read_bounded(stream: &mut File, output: &mut [u8], deadline: Instant) -> p::Result<()> {
+) -> p::Result<()> {
     let mut offset = 0usize;
     while offset < output.len() {
         if Instant::now() >= deadline {
@@ -528,6 +528,24 @@ pub(crate) fn timestamp_deadline(timestamp: p::Timestamp) -> Instant {
 fn native_error(message: &str) -> p::Error {
     let _ = unsafe { GetLastError() };
     p::Error(message.into())
+}
+
+/// Independently bind the live server PID to the installed Running SCM service.
+pub(crate) fn prepare_output_peer(stream: &File) -> p::Result<()> {
+    let mut pid = 0;
+    // SAFETY: valid live pipe handle and writable PID output; no handle escapes.
+    if unsafe { GetNamedPipeServerProcessId(stream.as_raw_handle() as HANDLE, &mut pid) } == 0
+        || pid == 0
+    {
+        return Err(native_error("desktop output Host PID unavailable"));
+    }
+    // SAFETY: read-only limited query; returned handle is owned below.
+    let process = owned_handle(
+        unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) },
+        "desktop output Host image unavailable",
+    )?;
+    let image = process_image_path(process.as_raw_handle() as HANDLE)?;
+    super::windows_agent_execution_identity::verify_host_image(pid, image)
 }
 
 #[cfg(test)]

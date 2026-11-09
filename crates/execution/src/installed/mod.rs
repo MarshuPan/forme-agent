@@ -13,6 +13,10 @@ mod desktop_provisioning;
 pub use desktop_provisioning::{
     InstalledDesktopProvisioning, INSTALLED_DESKTOP_PROFILE, INSTALLED_DESKTOP_SURFACE,
 };
+#[cfg(windows)]
+mod desktop_helper_wire;
+#[cfg(windows)]
+mod desktop_output_release;
 mod file_provisioning;
 mod file_worker;
 #[cfg(windows)]
@@ -65,6 +69,8 @@ mod windows_appcontainer_support;
 mod windows_desktop_helper_peer_native;
 #[cfg(windows)]
 mod windows_desktop_helper_runtime;
+#[cfg(windows)]
+mod windows_desktop_output_runtime;
 #[cfg(windows)]
 mod windows_desktop_session_native;
 #[cfg(windows)]
@@ -131,6 +137,8 @@ pub use windows_agent_execution_native::{
 pub use windows_appcontainer::*;
 #[cfg(windows)]
 pub use windows_desktop_helper_runtime::run_desktop_session_helper;
+#[cfg(windows)]
+pub use windows_desktop_output_runtime::run_desktop_output_helper;
 #[cfg(windows)]
 pub use windows_worker::*;
 pub use worker::*;

@@ -22,6 +22,20 @@ fn run() -> p::Result<()> {
         [mode] if mode == "--installed-file-worker" => {
             return forme_execution::installed::run_installed_file_worker();
         }
+        [mode, pipe_flag, _pipe]
+            if mode == "--desktop-session-helper-output-v2" && pipe_flag == "--pipe" =>
+        {
+            #[cfg(windows)]
+            {
+                return forme_execution::installed::run_desktop_output_helper();
+            }
+            #[cfg(not(windows))]
+            {
+                return Err(p::Error(
+                    "desktop output is unsupported on this platform".into(),
+                ));
+            }
+        }
         [mode, pipe_flag, pipe] if mode == "--desktop-session-helper" && pipe_flag == "--pipe" => {
             #[cfg(windows)]
             {

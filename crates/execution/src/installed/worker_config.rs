@@ -407,6 +407,30 @@ impl WorkerRuntimeConfig {
     ) -> p::Result<
         WorkerExecutorHost<WindowsAppContainerWorkerIsolation, Option<WindowsDesktopHelperAdapter>>,
     > {
+        let helper = helper_image
+            .map(WindowsDesktopHelperAdapter::new)
+            .transpose()?;
+        self.open_managed_windows_host_with_adapter(agent_credential_digest, helper)
+    }
+    #[cfg(windows)]
+    pub fn open_managed_windows_host_with_verified_desktop_helper(
+        &self,
+        agent_credential_digest: p::SchemaDigest,
+        release: &super::VerifiedStagedRelease,
+    ) -> p::Result<
+        WorkerExecutorHost<WindowsAppContainerWorkerIsolation, Option<WindowsDesktopHelperAdapter>>,
+    > {
+        let helper = WindowsDesktopHelperAdapter::from_verified_release(release)?;
+        self.open_managed_windows_host_with_adapter(agent_credential_digest, Some(helper))
+    }
+    #[cfg(windows)]
+    fn open_managed_windows_host_with_adapter(
+        &self,
+        agent_credential_digest: p::SchemaDigest,
+        desktop_helper: Option<WindowsDesktopHelperAdapter>,
+    ) -> p::Result<
+        WorkerExecutorHost<WindowsAppContainerWorkerIsolation, Option<WindowsDesktopHelperAdapter>>,
+    > {
         self.validate()?;
         let launches = self
             .launch_profiles
@@ -424,9 +448,6 @@ impl WorkerRuntimeConfig {
             WorkerLaunchRegistry::from_specs(launches)?,
             self.workspace_roots.clone(),
         )?;
-        let desktop_helper = helper_image
-            .map(WindowsDesktopHelperAdapter::new)
-            .transpose()?;
         WorkerExecutorHost::open_with_adapters(
             &self.journal_path,
             agent_credential_digest,

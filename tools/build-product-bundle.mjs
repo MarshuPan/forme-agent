@@ -150,6 +150,16 @@ export async function buildBundle(config, root = repository) {
     await writeFile(destination, bytes, { flag: 'wx', mode });
     files.push({ path: input.path, bytes: bytes.length, sha256: sha(bytes) });
   }
+  if (config.target === 'windows-x86_64') {
+    const helper = files.find((file) => file.path === 'bin/forme-executord.exe');
+    const path = 'share/forme/desktop-output-v2.json';
+    const bytes = Buffer.from(`${JSON.stringify({ schema_version: 2,
+      helper_digest: `sha256:${helper.sha256}`, helper_bytes: helper.bytes })}\n`);
+    await mkdir(dirname(join(output, path)), { recursive: true });
+    await writeFile(join(output, path), bytes, { flag: 'wx' });
+    files.push({ path, bytes: bytes.length, sha256: sha(bytes) });
+    files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  }
   const inventory = {
     schema_version: 1, product: 'forme', release_id: config.releaseId,
     target: config.target, development: config.development, files,

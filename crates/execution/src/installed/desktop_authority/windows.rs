@@ -6,6 +6,14 @@ pub struct WindowsDesktopSessionCatalog {
     session: WindowsDesktopSessionHost,
 }
 impl WindowsDesktopSessionCatalog {
+    pub fn from_verified_release(
+        release: &crate::installed::VerifiedStagedRelease,
+    ) -> p::Result<Self> {
+        Ok(Self {
+            session: WindowsDesktopSessionHost::from_release(release)?,
+        })
+    }
+
     pub fn new(helper_image: impl AsRef<Path>) -> p::Result<Self> {
         Ok(Self {
             session: WindowsDesktopSessionHost::new(helper_image.as_ref())?,

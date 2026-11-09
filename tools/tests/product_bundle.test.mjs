@@ -74,6 +74,16 @@ test('bundle hashes every reviewed file reproducibly and records unverified rele
     assert.equal(inventory.binary_target_verification, 'not_performed');
     assert.equal(inventory.files.filter((f) => f.path.startsWith('bin/')).length, 7);
     assert.ok(inventory.files.some((f) => f.path === `bin/forme-executord${targets[target].extension}`));
+    const declarationPath = 'share/forme/desktop-output-v2.json';
+    if (target === 'windows-x86_64') {
+      const declaration = JSON.parse(await readFile(join(config.output, declarationPath), 'utf8'));
+      const helper = inventory.files.find((file) => file.path === 'bin/forme-executord.exe');
+      assert.deepEqual(declaration, { schema_version: 2,
+        helper_digest: `sha256:${helper.sha256}`, helper_bytes: helper.bytes });
+      assert.ok(inventory.files.some((file) => file.path === declarationPath));
+    } else {
+      assert.ok(!inventory.files.some((file) => file.path === declarationPath));
+    }
     assert(inventory.files.some((f) => f.path.endsWith('LICENSES.txt')));
     if (targets[target].template === 'macos') {
       assert(inventory.files.some((f) => f.path === 'packaging/macos/scripts/postinstall'));

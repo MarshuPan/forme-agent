@@ -41,6 +41,7 @@ const MAX_TOKEN_INFO_BYTES: usize = 1 << 20;
 /// boundary. The token and process handles never leave this module.
 pub(crate) struct WindowsDesktopSessionHost {
     helper_image: PathBuf,
+    output_release: Option<super::desktop_output_release::DesktopOutputRelease>,
 }
 
 pub(crate) struct WindowsDesktopSessionSnapshot {
@@ -72,7 +73,27 @@ impl WindowsDesktopSessionHost {
             .canonicalize()
             .map_err(|_| p::Error("desktop helper image cannot be canonicalized".into()))?;
         super::reject_linked_ancestors(&helper_image)?;
-        Ok(Self { helper_image })
+        Ok(Self {
+            helper_image,
+            output_release: None,
+        })
+    }
+
+    pub(crate) fn from_release(release: &super::VerifiedStagedRelease) -> p::Result<Self> {
+        let mut value = Self::new(release.content_root().join("bin/forme-executord.exe"))?;
+        value.output_release =
+            super::desktop_output_release::DesktopOutputRelease::from_release(release)?;
+        if value
+            .output_release
+            .as_ref()
+            .is_some_and(|output| output.image() != value.helper_image)
+        {
+            return Err(p::Error("desktop output image binding changed".into()));
+        }
+        Ok(value)
+    }
+    pub(crate) fn supports_output(&self) -> bool {
+        self.output_release.is_some()
     }
 
     pub(crate) fn inspect(
@@ -143,7 +164,7 @@ impl WindowsDesktopSessionHost {
             // Locked, disconnected, or unqueryable token sessions confer no
             // choice authority. Rechecking a selected session never skips errors.
             if let Ok(snapshot) = self.inspect_session(id) {
-                sessions.push(observed(&snapshot));
+                sessions.push(observed(&snapshot, self.supports_output()));
             }
         }
         Ok(sessions)
@@ -154,7 +175,7 @@ impl WindowsDesktopSessionHost {
         original: &super::ObservedDesktopSession,
     ) -> p::Result<()> {
         let snapshot = self.inspect_session(parse_session_id(&original.os_session_ref)?)?;
-        if observed(&snapshot) != *original {
+        if observed(&snapshot, self.supports_output()) != *original {
             return Err(p::Error(
                 "desktop catalog session changed before admission".into(),
             ));
@@ -171,6 +192,24 @@ impl WindowsDesktopSessionHost {
         snapshot: &WindowsDesktopSessionSnapshot,
         pipe_name: &str,
     ) -> p::Result<SpawnedDesktopHelper> {
+        self.spawn_mode(snapshot, pipe_name, false)
+    }
+    pub(crate) fn spawn_output_helper(
+        &self,
+        snapshot: &WindowsDesktopSessionSnapshot,
+        pipe_name: &str,
+    ) -> p::Result<SpawnedDesktopHelper> {
+        if !self.supports_output() {
+            return Err(p::Error("desktop output release is unavailable".into()));
+        }
+        self.spawn_mode(snapshot, pipe_name, true)
+    }
+    fn spawn_mode(
+        &self,
+        snapshot: &WindowsDesktopSessionSnapshot,
+        pipe_name: &str,
+        output: bool,
+    ) -> p::Result<SpawnedDesktopHelper> {
         if !pipe_name.starts_with(r"\\.\pipe\forme-desktop-helper-v1-")
             || pipe_name.len() > 256
             || pipe_name.chars().any(char::is_control)
@@ -182,8 +221,13 @@ impl WindowsDesktopSessionHost {
             .to_str()
             .ok_or_else(|| p::Error("desktop helper image path is not Unicode".into()))?;
         let command = format!(
-            "{} --desktop-session-helper --pipe {}",
+            "{} {} --pipe {}",
             quote_windows_arg(image),
+            if output {
+                "--desktop-session-helper-output-v2"
+            } else {
+                "--desktop-session-helper"
+            },
             quote_windows_arg(pipe_name)
         );
         let application = wide(image);
@@ -462,7 +506,10 @@ fn owned_handle(handle: HANDLE, message: &'static str) -> p::Result<OwnedHandle>
     Ok(unsafe { OwnedHandle::from_raw_handle(handle as RawHandle) })
 }
 
-fn observed(snapshot: &WindowsDesktopSessionSnapshot) -> super::ObservedDesktopSession {
+fn observed(
+    snapshot: &WindowsDesktopSessionSnapshot,
+    output: bool,
+) -> super::ObservedDesktopSession {
     super::ObservedDesktopSession {
         schema_version: p::SchemaVersion(1),
         helper_ref: "helper:installed-desktop".into(),
@@ -480,6 +527,7 @@ fn observed(snapshot: &WindowsDesktopSessionSnapshot) -> super::ObservedDesktopS
             p::DesktopCapability::Scroll,
         ]
         .into_iter()
+        .chain(output.then_some(p::DesktopCapability::Screenshot))
         .collect(),
     }
 }

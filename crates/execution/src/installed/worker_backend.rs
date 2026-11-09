@@ -22,6 +22,7 @@ use crate::{
 use super::{ManagedWorkerBinding, WorkerBrokerTransport};
 
 mod desktop;
+mod output;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
 const RESULT_ASSEMBLY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -45,6 +46,7 @@ pub struct WorkerActionBackend {
     budget: OutputBudget,
     timeout: p::DurationMs,
     attempts: Mutex<BTreeMap<p::ActionId, WorkerAttempt>>,
+    artifacts: Option<Arc<dyn crate::ArtifactStore>>,
 }
 
 impl WorkerActionBackend {
@@ -81,6 +83,7 @@ impl WorkerActionBackend {
             budget,
             timeout,
             attempts: Mutex::new(BTreeMap::new()),
+            artifacts: None,
         })
     }
 
@@ -180,6 +183,16 @@ impl WorkerActionBackend {
         if validate_manifest(&manifest, attempt, plan, observation).is_err() {
             return unknown_result(plan, sink, &self.budget, &attempt.job.job_id);
         }
+        if output::is_screenshot(plan) {
+            return self.complete_image(
+                plan,
+                attempt,
+                observation,
+                &manifest,
+                sink,
+                result_started,
+            );
+        }
         if !matches!(
             manifest.status,
             p::WorkerResultStatus::Available | p::WorkerResultStatus::Empty
@@ -266,7 +279,9 @@ impl WorkerActionBackend {
             None if manifest.bytes == 0 => {}
             _ => return Err(p::Error("worker result digest is invalid".into())),
         }
-        if std::str::from_utf8(&bytes).is_err() {
+        if manifest.encoding == p::WorkerResultEncoding::Utf8
+            && std::str::from_utf8(&bytes).is_err()
+        {
             return Err(p::Error("worker UTF-8 result is invalid".into()));
         }
         Ok(bytes)
@@ -285,6 +300,7 @@ impl ActionBackend for WorkerActionBackend {
             ));
         }
         let mut plan = plan_with(intent, self.budget.clone(), self.timeout)?;
+        self.require_output_consumer(&plan)?;
         if is_file_mutation(intent) {
             // A Host overlay is a commit boundary, not a post-completion
             // FileRollback snapshot that this adapter could restore.
@@ -309,6 +325,7 @@ impl ActionBackend for WorkerActionBackend {
                 "worker execution limits or rollback differ from the planned backend".into(),
             ));
         }
+        self.require_output_consumer(&plan)?;
         let empty = BoundedOutput::new(self.budget.clone());
         let (attempt, fresh) = self.claim_dispatch(&plan, now_ms())?;
         if fresh && token.is_cancelled() {

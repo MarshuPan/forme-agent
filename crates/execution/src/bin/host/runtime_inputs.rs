@@ -63,17 +63,17 @@ pub(crate) fn load_worker_host(
         )?;
         #[cfg(windows)]
         if context.managed_service_bound {
-            let helper_image = match context.active_release {
-                Some(release) => {
-                    release.recheck()?;
-                    Some(release.content_root().join("bin/forme-executord.exe"))
+            let mut host = match context.active_release {
+                Some(release) => config
+                    .open_managed_windows_host_with_verified_desktop_helper(digest, release)?,
+                None => {
+                    let helper = context
+                        .initial_release_root
+                        .map(|root| root.join("bin/forme-executord.exe"));
+                    config
+                        .open_managed_windows_host_with_desktop_helper(digest, helper.as_deref())?
                 }
-                None => context
-                    .initial_release_root
-                    .map(|root| root.join("bin/forme-executord.exe")),
             };
-            let mut host = config
-                .open_managed_windows_host_with_desktop_helper(digest, helper_image.as_deref())?;
             if let Some(authority) = context.desktop_authority {
                 host = host.with_installed_desktop_authority(authority);
             }
@@ -349,21 +349,20 @@ pub(crate) fn load_desktop_authority(
             return Ok(None);
         };
         let worker = WorkerRuntimeConfig::load(worker_config)?;
-        let helper = match release {
-            Some(release) => {
-                release.recheck()?;
-                release.content_root().join("bin/forme-executord.exe")
-            }
-            None => initial_root
-                .ok_or_else(|| p::Error("installed desktop helper root is unavailable".into()))?
-                .join("bin/forme-executord.exe"),
+        let catalog = match release {
+            Some(release) => WindowsDesktopSessionCatalog::from_verified_release(release)?,
+            None => WindowsDesktopSessionCatalog::new(
+                initial_root
+                    .ok_or_else(|| p::Error("installed desktop helper root is unavailable".into()))?
+                    .join("bin/forme-executord.exe"),
+            )?,
         };
         Ok(Some(Arc::new(InstalledDesktopAuthority::new(
             journal.with_extension("desktop.jsonl"),
             installation.into(),
             worker.authority_epoch,
             configuration,
-            Arc::new(WindowsDesktopSessionCatalog::new(helper)?),
+            Arc::new(catalog),
         )?)))
     }
     #[cfg(not(windows))]

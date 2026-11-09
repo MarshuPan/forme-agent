@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(test)]
 mod tests;
+#[path = "production_worker_artifacts.rs"]
+mod worker;
 
 pub(super) struct ProtectedRuntimeArtifacts {
     pub(super) inner: FileArtifactStore,
@@ -16,6 +18,16 @@ pub(super) struct ProtectedRuntimeArtifacts {
 }
 
 impl ArtifactStore for ProtectedRuntimeArtifacts {
+    fn supports_worker_output(&self) -> bool {
+        true
+    }
+    fn write_worker_output(
+        &self,
+        binding: &p::WorkerArtifactBinding,
+        bytes: &[u8],
+    ) -> p::Result<ArtifactRecord> {
+        self.persist_worker_output(binding, bytes)
+    }
     fn write(&self, scope: &p::Scope, extension: &str, bytes: &[u8]) -> p::Result<ArtifactRecord> {
         let digest = p::sha256_content_digest(bytes);
         let safe_scope = p::Scope(format!(

@@ -87,20 +87,45 @@ impl DesktopHelperAdapter for UnavailableDesktopHelper {
 pub struct WindowsDesktopHelperAdapter {
     session: WindowsDesktopSessionHost,
     peer: Mutex<Option<WindowsDesktopHelperPeer>>,
+    output_peer: Mutex<Option<output::OutputPeerState>>,
 }
 
 #[cfg(windows)]
+#[path = "desktop_output_adapter.rs"]
+mod output;
+#[cfg(windows)]
 impl WindowsDesktopHelperAdapter {
+    pub fn from_verified_release(release: &super::VerifiedStagedRelease) -> p::Result<Self> {
+        Ok(Self {
+            session: WindowsDesktopSessionHost::from_release(release)?,
+            peer: Mutex::new(None),
+            output_peer: Mutex::new(None),
+        })
+    }
+
     pub fn new(helper_image: impl AsRef<Path>) -> p::Result<Self> {
         Ok(Self {
             session: WindowsDesktopSessionHost::new(helper_image.as_ref())?,
             peer: Mutex::new(None),
+            output_peer: Mutex::new(None),
         })
     }
 }
 
 #[cfg(windows)]
 impl DesktopHelperAdapter for WindowsDesktopHelperAdapter {
+    fn supports_output(&self) -> bool {
+        self.session.supports_output()
+    }
+    fn execute_with_output(
+        &self,
+        request: &p::DesktopActionRequest,
+        intent: &p::ActionIntent,
+        sink: &mut dyn super::DesktopOutputSink,
+    ) -> p::Result<p::DesktopActionReceipt> {
+        self.execute_output(request, intent, sink)
+    }
+
     fn observe(
         &self,
         binding: &p::DesktopSessionBinding,
@@ -113,28 +138,37 @@ impl DesktopHelperAdapter for WindowsDesktopHelperAdapter {
             ));
         }
         let snapshot = self.session.inspect(binding)?;
-        let mut peer = self
-            .peer
-            .lock()
-            .map_err(|_| p::Error("desktop helper peer state is unavailable".into()))?;
-        if peer
-            .as_ref()
-            .is_some_and(|current| current.binding_key() != binding.grant_ref)
+        if binding
+            .capabilities
+            .contains(&p::DesktopCapability::Screenshot)
         {
-            *peer = None;
+            self.observe_output(binding, &snapshot, now)?;
+        } else {
+            let mut peer = self
+                .peer
+                .lock()
+                .map_err(|_| p::Error("desktop helper peer state is unavailable".into()))?;
+            if peer
+                .as_ref()
+                .is_some_and(|current| current.binding_key() != binding.grant_ref)
+            {
+                *peer = None;
+            }
+            if peer.is_none() {
+                *peer = Some(WindowsDesktopHelperPeer::connect(
+                    &self.session,
+                    binding,
+                    &snapshot,
+                )?);
+            }
+            let ping_deadline = Instant::now()
+                + Duration::from_millis(
+                    binding.expires_at.saturating_sub(now).clamp(1, 2_000) as u64
+                );
+            peer.as_mut()
+                .ok_or_else(|| p::Error("desktop helper peer is unavailable".into()))?
+                .ping(ping_deadline)?;
         }
-        if peer.is_none() {
-            *peer = Some(WindowsDesktopHelperPeer::connect(
-                &self.session,
-                binding,
-                &snapshot,
-            )?);
-        }
-        let ping_deadline = Instant::now()
-            + Duration::from_millis(binding.expires_at.saturating_sub(now).clamp(1, 2_000) as u64);
-        peer.as_mut()
-            .ok_or_else(|| p::Error("desktop helper peer is unavailable".into()))?
-            .ping(ping_deadline)?;
         Ok(p::DesktopSessionObservation {
             schema_version: p::DESKTOP_SESSION_SCHEMA_VERSION,
             helper_ref: binding.helper_ref.clone(),
@@ -184,6 +218,21 @@ impl DesktopHelperAdapter for WindowsDesktopHelperAdapter {
 
 #[cfg(windows)]
 impl DesktopHelperAdapter for Option<WindowsDesktopHelperAdapter> {
+    fn supports_output(&self) -> bool {
+        self.as_ref().is_some_and(|value| value.supports_output())
+    }
+    fn execute_with_output(
+        &self,
+        request: &p::DesktopActionRequest,
+        intent: &p::ActionIntent,
+        sink: &mut dyn super::DesktopOutputSink,
+    ) -> p::Result<p::DesktopActionReceipt> {
+        match self {
+            Some(adapter) => adapter.execute_with_output(request, intent, sink),
+            None => UnavailableDesktopHelper.execute_with_output(request, intent, sink),
+        }
+    }
+
     fn observe(
         &self,
         binding: &p::DesktopSessionBinding,
