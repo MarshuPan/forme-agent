@@ -139,7 +139,7 @@ impl ProductConfigStore {
         p::ProductNetworkSettingsView::from_internal(network, material_configured)
     }
 
-    fn materialize_settings_network(
+    pub(super) fn materialize_settings_network(
         &self,
         settings: &p::ProductNetworkSettingsPatch,
     ) -> p::Result<p::ProductNetworkConfig> {

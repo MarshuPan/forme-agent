@@ -139,3 +139,6 @@ fn managed_config_rejects_unknown_fields_relative_paths_and_oversize_files() {
     std::fs::write(&path, vec![b' '; 256 * 1024 + 1]).unwrap();
     assert!(CoreServiceConfig::load(&path).is_err());
 }
+
+#[path = "publisher_tests.rs"]
+mod publishers;

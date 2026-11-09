@@ -9,6 +9,7 @@ use serde::Deserialize;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
+mod publishers;
 mod skills;
 mod worker;
 
@@ -42,6 +43,12 @@ pub struct ManagedBrainConfig {
     pub model_routing: p::ProductModelRouting,
     #[serde(default)]
     pub capabilities: Option<p::ProductCapabilitySettings>,
+    #[serde(default)]
+    pub managed_capabilities: Option<p::ProductManagedCapabilitySettings>,
+    #[serde(default)]
+    pub channels: Option<p::ProductChannelSettings>,
+    #[serde(default)]
+    pub publisher_key_files: std::collections::BTreeMap<String, PathBuf>,
     pub scheduler_enabled: bool,
     pub scheduler: p::SchedulerConfig,
     pub cognition: CognitiveRuntimeConfig,

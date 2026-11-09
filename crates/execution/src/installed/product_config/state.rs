@@ -31,6 +31,12 @@ pub(super) struct ConfigState {
     pub(super) release: Option<p::ProductReleaseBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) worker: Option<super::super::InstalledFileProvisioning>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) managed_capabilities: Option<p::ProductManagedCapabilitySettings>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) channels: Option<p::ProductChannelSettings>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub(super) publisher_key_files: BTreeMap<String, PathBuf>,
 }
 
 impl ConfigState {
@@ -49,6 +55,9 @@ impl ConfigState {
             proxy: None,
             release: None,
             worker: None,
+            managed_capabilities: None,
+            channels: None,
+            publisher_key_files: BTreeMap::new(),
         }
     }
 
@@ -63,6 +72,7 @@ impl ConfigState {
                 | p::SchemaVersion(7)
                 | p::SchemaVersion(8)
                 | p::SchemaVersion(9)
+                | p::SchemaVersion(10)
         ) || (self.schema_version.0 < 9 && self.worker.is_some())
             || (self.schema_version == p::SchemaVersion(9) && self.worker.is_none())
             || self.install_ref != template.install_ref
@@ -81,6 +91,7 @@ impl ConfigState {
         {
             return Err(invalid());
         }
+        super::managed::validate_state(self, template)?;
         release::validate_state(self, template)?;
         if let Some(worker) = &self.worker {
             worker.validate_template(template)?;

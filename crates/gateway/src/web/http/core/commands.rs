@@ -41,6 +41,9 @@ pub(super) fn bind_body(
     owner: &p::WebSessionView,
     key: Option<&str>,
 ) -> Result<Vec<u8>, WebError> {
+    if path.starts_with("ecosystem/") {
+        return super::ecosystem::body(method, path, body, owner, key);
+    }
     if method == "GET" {
         return if body.is_empty() {
             Ok(Vec::new())

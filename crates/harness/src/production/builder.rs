@@ -10,6 +10,7 @@ pub struct ProductionRuntimeBuilder {
     managed_mode: bool,
     worker_binding: Option<ManagedWorkerBinding>,
     worker_file_roots: BTreeMap<String, PathBuf>,
+    publisher_keyring: Arc<forme_capabilities::InMemoryPublisherKeyring>,
     // None is development; Some(None) is a managed, unrestored store.
     required_restoration_fence: Option<Option<p::SchemaDigest>>,
 }
@@ -34,6 +35,7 @@ impl ProductionRuntimeBuilder {
             managed_mode: false,
             worker_binding: None,
             worker_file_roots: BTreeMap::new(),
+            publisher_keyring: Arc::new(forme_capabilities::InMemoryPublisherKeyring::default()),
             required_restoration_fence: None,
         })
     }
@@ -55,6 +57,7 @@ impl ProductionRuntimeBuilder {
             }
             None => None,
         };
+        let publisher_keyring = config.publisher_keyring()?;
         let worker_binding = config.worker_binding.clone();
         let worker_file_roots = config.worker_file_roots.clone();
         let runtime = config.runtime_config()?;
@@ -76,6 +79,7 @@ impl ProductionRuntimeBuilder {
             managed_mode: true,
             worker_binding,
             worker_file_roots,
+            publisher_keyring,
             required_restoration_fence: Some(expected_fence),
         })
     }
@@ -146,9 +150,12 @@ impl ProductionRuntimeBuilder {
             store,
             self.credential_files,
             access,
-            self.managed_mode,
-            self.worker_binding,
-            self.worker_file_roots,
+            composition::ManagedCompositionInputs {
+                managed_mode: self.managed_mode,
+                worker_binding: self.worker_binding,
+                worker_file_roots: self.worker_file_roots,
+                publisher_keyring: self.publisher_keyring,
+            },
         )?;
         runtime.data_operation_root = data_operation_root;
         Ok(runtime)

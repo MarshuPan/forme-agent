@@ -2,15 +2,26 @@
 //! Ordering, authority fences and recovery are shared by every builder path.
 use super::*;
 
+pub(super) struct ManagedCompositionInputs {
+    pub(super) managed_mode: bool,
+    pub(super) worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
+    pub(super) worker_file_roots: BTreeMap<String, PathBuf>,
+    pub(super) publisher_keyring: Arc<forme_capabilities::InMemoryPublisherKeyring>,
+}
+
 pub(super) fn compose(
     config: ProductionRuntimeConfig,
     store: SqliteEventStore,
     credential_files: Option<builder::ManagedModelSources>,
     access: forme_store::StoreAccessGuard,
-    managed_mode: bool,
-    worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
-    worker_file_roots: BTreeMap<String, PathBuf>,
+    managed: ManagedCompositionInputs,
 ) -> p::Result<ProductionRuntime> {
+    let ManagedCompositionInputs {
+        managed_mode,
+        worker_binding,
+        worker_file_roots,
+        publisher_keyring,
+    } = managed;
     if !store.is_file_backed()? {
         return Err(p::Error(
             "the production brain requires a durable file-backed authority store".into(),
@@ -141,12 +152,20 @@ pub(super) fn compose(
     );
     let verifier: Arc<dyn Verifier + Send + Sync> = Arc::new(DeterministicVerifier);
 
-    let mut harness = ReactiveHarness::new_without_recovery(
+    let ecosystem = Arc::new(crate::EcosystemHarnessRuntime::new_with_keyring(
+        (*store).clone(),
+        p::VerifiedPrincipal(config.owner.0.clone()),
+        crate::m5::default_admission_policy(),
+        capabilities.clone(),
+        publisher_keyring,
+    )?);
+    let mut harness = ReactiveHarness::new_without_recovery_and_ecosystem(
         (*store).clone(),
         provider,
         backends.clone(),
         governance,
         harness_config.clone(),
+        ecosystem,
     )?
     .with_model_registry(model_registry.clone())
     .with_m3_domain_runtime(m3)

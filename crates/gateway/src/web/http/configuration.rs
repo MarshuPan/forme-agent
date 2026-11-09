@@ -49,6 +49,30 @@ pub(super) struct ProductConfigBodyV2 {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+pub(super) struct ProductConfigBodyV3 {
+    schema_version: p::SchemaVersion,
+    #[serde(rename = "operation_id")]
+    _operation_id: String,
+    expected_revision: u64,
+    models: Vec<p::ProductModelProfilePatch>,
+    #[serde(default)]
+    brain: Option<p::ProductBrainPreferences>,
+    #[serde(default)]
+    capabilities: Option<p::ProductCapabilitySettings>,
+    #[serde(default)]
+    network: Option<p::ProductNetworkSettingsPatch>,
+    #[serde(default)]
+    proxy: Option<p::ProductProxyConfig>,
+    #[serde(default)]
+    managed_capabilities: Option<p::ProductManagedCapabilityPatch>,
+    #[serde(default)]
+    channels: Option<p::ProductChannelSettings>,
+    #[serde(default)]
+    password: Option<SensitivePassword>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct SettingsQuery {
     #[serde(default = "legacy_settings_version")]
     schema_version: p::SchemaVersion,
@@ -59,6 +83,9 @@ fn legacy_settings_version() -> p::SchemaVersion {
 }
 
 fn settings_version(version: p::SchemaVersion) -> Result<(), WebError> {
+    if version == p::PRODUCT_MANAGED_SETTINGS_SCHEMA_VERSION {
+        return Ok(());
+    }
     p::validate_product_settings_schema(version).map_err(|_| {
         WebError::new(
             axum::http::StatusCode::UPGRADE_REQUIRED,
@@ -128,6 +155,19 @@ pub(super) async fn read(
     client(&state)?;
     let owner = owner(&state, &headers, false).await?;
     settings_version(query.schema_version)?;
+    if query.schema_version == p::PRODUCT_MANAGED_SETTINGS_SCHEMA_VERSION {
+        let view = state
+            .configuration_call(|configuration| configuration.snapshot_v3())
+            .await?;
+        if view
+            .owner
+            .as_ref()
+            .is_some_and(|bound| bound != &owner.view().owner)
+        {
+            return Err(AuthError::Unauthenticated.into());
+        }
+        return Ok(Json(view).into_response());
+    }
     if query.schema_version == p::PRODUCT_SETTINGS_SCHEMA_VERSION {
         let view = state
             .configuration_call(|configuration| configuration.snapshot_v2())
@@ -193,6 +233,44 @@ pub(super) async fn write(
             "Conflict",
             "配置操作标识与请求绑定不一致",
         ));
+    }
+    if schema_version == p::PRODUCT_MANAGED_SETTINGS_SCHEMA_VERSION {
+        let body: ProductConfigBodyV3 =
+            serde_json::from_value(value).map_err(|_| WebError::invalid())?;
+        let patch = p::ProductConfigPatchV3 {
+            schema_version: body.schema_version,
+            operation_id,
+            expected_revision: body.expected_revision,
+            owner: owner.view().owner.clone(),
+            models: body.models,
+            brain: body.brain,
+            capabilities: body.capabilities,
+            network: body.network,
+            proxy: body.proxy,
+            managed_capabilities: body.managed_capabilities,
+            channels: body.channels,
+        };
+        let digest = patch.digest().map_err(|_| WebError::invalid())?;
+        if let Some(managed) = &patch.managed_capabilities {
+            let before = state
+                .configuration_call(|configuration| configuration.snapshot_v3())
+                .await?;
+            if before.owner.as_ref() != Some(&patch.owner) {
+                return Err(AuthError::Unauthenticated.into());
+            }
+            if before.managed_capabilities.publisher_keys != managed.view().publisher_keys {
+                let password = body.password.ok_or_else(WebError::invalid)?;
+                state
+                    .blocking(true, move |identity| {
+                        identity.authorize_product_operation(&owner, password, &digest)
+                    })
+                    .await?;
+            }
+        }
+        let response = state
+            .configuration_call(move |configuration| configuration.apply_v3(patch))
+            .await?;
+        return Ok(Json(response).into_response());
     }
     if schema_version == p::PRODUCT_SETTINGS_SCHEMA_VERSION {
         let body: ProductConfigBodyV2 =

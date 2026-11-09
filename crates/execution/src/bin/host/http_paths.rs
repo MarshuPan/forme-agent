@@ -8,6 +8,7 @@ pub(super) fn is_configuration_path(path: &str) -> bool {
         path,
         "/v1/host/configuration"
             | "/v1/host/configuration/v2"
+            | "/v1/host/configuration/v3"
             | "/v1/host/configuration/owner"
             | "/v1/host/configuration/validate"
             | "/v1/host/configuration/data/verify"

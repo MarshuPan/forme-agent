@@ -11,6 +11,8 @@ mod host_bootstrap;
 mod host_configuration;
 #[path = "host_maintenance.rs"]
 mod host_maintenance;
+#[path = "host_managed_configuration.rs"]
+mod host_managed_configuration;
 #[path = "host_network.rs"]
 mod host_network;
 pub use host_network::PreparedOwnerNetwork;

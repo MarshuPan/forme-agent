@@ -53,6 +53,10 @@ impl LocalConfigurationClient {
         self.request("GET", "/v1/host/configuration/v2", None::<&()>)
     }
 
+    pub(super) fn snapshot_v3(&self) -> p::Result<p::ProductConfigViewV3> {
+        self.request("GET", "/v1/host/configuration/v3", None::<&()>)
+    }
+
     pub(super) fn status(&self) -> p::Result<p::HostStatus> {
         self.request("GET", "/v1/host/status", None::<&()>)
     }
@@ -86,6 +90,13 @@ impl LocalConfigurationClient {
         &self,
         patch: p::ProductConfigPatchV2,
     ) -> p::Result<p::ProductConfigResponseV2> {
+        self.request("POST", "/v1/host/configuration", Some(&patch))
+    }
+
+    pub(super) fn apply_v3(
+        &self,
+        patch: p::ProductConfigPatchV3,
+    ) -> p::Result<p::ProductConfigResponseV3> {
         self.request("POST", "/v1/host/configuration", Some(&patch))
     }
 
@@ -251,6 +262,7 @@ impl LocalConfigurationClient {
             ("GET", "/v1/host/status")
                 | ("GET", "/v1/host/configuration")
                 | ("GET", "/v1/host/configuration/v2")
+                | ("GET", "/v1/host/configuration/v3")
                 | ("POST", "/v1/host/configuration")
                 | ("POST", "/v1/host/configuration/owner")
                 | ("POST", "/v1/host/configuration/validate")

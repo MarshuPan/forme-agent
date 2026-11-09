@@ -525,3 +525,8 @@ mod health;
 pub use health::*;
 mod settings_schema;
 pub use settings_schema::*;
+
+mod managed;
+pub use managed::*;
+mod settings_v3;
+pub use settings_v3::*;

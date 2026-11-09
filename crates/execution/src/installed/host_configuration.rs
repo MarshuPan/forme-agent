@@ -351,7 +351,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         })
     }
 
-    fn reconcile_core_after_configuration(
+    pub(super) fn reconcile_core_after_configuration(
         &self,
         auth: &HostAuth,
         owner: Option<&p::OwnerPrincipalRef>,

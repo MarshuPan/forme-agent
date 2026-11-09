@@ -178,7 +178,9 @@ impl ProductConfigStore {
             return Err(invalid());
         }
         let mut state = self.state.clone();
-        state.schema_version = p::SchemaVersion(if state.worker.is_some() {
+        state.schema_version = p::SchemaVersion(if state.schema_version.0 >= 10 {
+            10
+        } else if state.worker.is_some() {
             9
         } else if state.proxy.is_some() {
             8

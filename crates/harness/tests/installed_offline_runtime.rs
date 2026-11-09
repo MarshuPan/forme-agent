@@ -29,6 +29,9 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
                 "base_url":model.base_url,"credential_env":model.credential_env,"default":true},
             "credential_path":key}]))
         .unwrap(),
+        managed_capabilities: None,
+        channels: None,
+        publisher_key_files: Default::default(),
         worker_binding: None,
         worker_file_roots: Default::default(),
         model_proxy: None,

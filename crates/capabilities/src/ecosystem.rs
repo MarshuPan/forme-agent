@@ -2,7 +2,6 @@
 #![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use ed25519_dalek::{Signature, VerifyingKey};
@@ -11,31 +10,8 @@ use sha2::{Digest, Sha256};
 
 use crate::{Capability, CapabilityDescriptor, CapabilitySource, InMemoryCapabilityRegistry};
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct PublisherPublicKey([u8; 32]);
-
-impl PublisherPublicKey {
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-
-    pub fn digest(&self) -> p::SchemaDigest {
-        sha256_prefixed(&self.0)
-    }
-}
-
-impl fmt::Debug for PublisherPublicKey {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_tuple("PublisherPublicKey")
-            .field(&self.digest())
-            .finish()
-    }
-}
+mod publisher_key;
+pub use publisher_key::PublisherPublicKey;
 
 pub trait PublisherKeyring: Send + Sync {
     fn public_key(&self, publisher: &p::CapabilityPublisherRef) -> p::Result<PublisherPublicKey>;

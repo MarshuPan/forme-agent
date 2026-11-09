@@ -387,6 +387,15 @@ pub(super) fn core_config(
         config["brain"]["capabilities"] =
             serde_json::to_value(capabilities).map_err(|_| invalid())?;
     }
+    if let Some(managed) = &state.managed_capabilities {
+        config["brain"]["managed_capabilities"] =
+            serde_json::to_value(managed).map_err(|_| invalid())?;
+        config["brain"]["publisher_key_files"] =
+            serde_json::to_value(&state.publisher_key_files).map_err(|_| invalid())?;
+    }
+    if let Some(channels) = &state.channels {
+        config["brain"]["channels"] = serde_json::to_value(channels).map_err(|_| invalid())?;
+    }
     if let Some(worker) = &state.worker {
         worker.materialize(&mut config["brain"])?;
     }
@@ -483,6 +492,9 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         proxy: None,
         release: None,
         worker: None,
+        managed_capabilities: None,
+        channels: None,
+        publisher_key_files: BTreeMap::new(),
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

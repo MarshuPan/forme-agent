@@ -7,6 +7,9 @@ mod journal;
 mod legacy_journal_tests;
 #[cfg(test)]
 mod maintenance_tests;
+mod managed;
+#[cfg(test)]
+mod managed_tests;
 mod materialize;
 mod network;
 #[cfg(test)]
@@ -137,15 +140,30 @@ impl ProductConfigStore {
         patch: p::ProductConfigPatch,
         proxy_update: Option<p::ProductProxyConfig>,
     ) -> p::Result<p::ProductConfigResponse> {
+        self.apply_transaction(patch, proxy_update, None)
+    }
+
+    fn apply_transaction(
+        &mut self,
+        patch: p::ProductConfigPatch,
+        proxy_update: Option<p::ProductProxyConfig>,
+        managed: Option<managed::ManagedUpdate>,
+    ) -> p::Result<p::ProductConfigResponse> {
         patch.validate().map_err(|_| rejected_patch())?;
+        if let Some(update) = &managed {
+            update.validate()?;
+        }
         if let Some(proxy) = &proxy_update {
             materialize::validate_proxy(proxy).map_err(|_| rejected_patch())?;
         }
         let settings_schema = patch.schema_version;
         self.recover()?;
-        let digest = match &proxy_update {
-            Some(proxy) => p::canonical_digest(&(patch.digest()?, proxy))?,
-            None => patch.digest()?,
+        let digest = match &managed {
+            Some(update) => update.digest.clone(),
+            None => match &proxy_update {
+                Some(proxy) => p::canonical_digest(&(patch.digest()?, proxy))?,
+                None => patch.digest()?,
+            },
         };
         if self.journal.existing(&patch.operation_id, &digest)? {
             return self.settings_response(patch.operation_id, false, settings_schema);
@@ -191,8 +209,10 @@ impl ProductConfigStore {
             .worker
             .clone()
             .or_else(|| self.installed_file.clone());
-        let state = ConfigState {
-            schema_version: p::SchemaVersion(if worker.is_some() {
+        let mut state = ConfigState {
+            schema_version: p::SchemaVersion(if self.state.schema_version.0 >= 10 {
+                10
+            } else if worker.is_some() {
                 9
             } else if proxy.is_some() {
                 8
@@ -219,12 +239,21 @@ impl ProductConfigStore {
             proxy,
             release: self.state.release.clone(),
             worker,
+            managed_capabilities: self.state.managed_capabilities.clone(),
+            channels: self.state.channels.clone(),
+            publisher_key_files: self.state.publisher_key_files.clone(),
         };
+        if let Some(update) = &managed {
+            update.prepare(&self.template, &id, &mut state)?;
+        }
         state
             .validate(&self.template)
             .map_err(|_| rejected_patch())?;
         materialize::validate_size(&self.template, &state).map_err(|_| rejected_patch())?;
         materialize::write_credentials(&self.template, &id, &prepared)?;
+        if let Some(update) = &managed {
+            update.write_keys(&state)?;
+        }
         self.commit_state_with_network(patch.operation_id.clone(), digest, state, active_network)?;
         self.settings_response(patch.operation_id, true, settings_schema)
     }
@@ -347,6 +376,7 @@ impl ProductConfigStore {
             return Ok(());
         };
         let state = self.load_state(&intent.snapshot)?;
+        managed::verify_keys(&state)?;
         if self.state.owner.is_some() && state.owner != self.state.owner {
             return Err(invalid());
         }
@@ -396,6 +426,7 @@ impl ProductConfigStore {
     fn verify_published(&self) -> p::Result<()> {
         self.state.validate(&self.template)?;
         self.verify_installed_file(&self.state)?;
+        managed::verify_keys(&self.state)?;
         if let Some(reference) = self
             .journal
             .current()

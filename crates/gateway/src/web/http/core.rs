@@ -19,6 +19,8 @@ struct RuntimeWorkspaceSnapshot {
 
 #[path = "core/commands.rs"]
 mod commands;
+#[path = "core/ecosystem.rs"]
+mod ecosystem;
 
 pub(super) async fn upload(
     State(state): State<Arc<WebState>>,
@@ -374,6 +376,9 @@ fn allowlisted_core_path(
     path: &str,
     query: Option<&str>,
 ) -> Result<String, WebError> {
+    if path.starts_with("ecosystem/") {
+        return ecosystem::path(method, path, query);
+    }
     let segments: Vec<&str> = path.split('/').collect();
     let (core_path, methods) = match segments.as_slice() {
         ["profile"] => ("/v1/profile".to_owned(), RouteMethods::Get),

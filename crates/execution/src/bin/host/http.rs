@@ -226,10 +226,23 @@ fn route(
             serde_json::to_vec(&broker.configuration_v2(auth)?)
                 .map_err(|_| p::Error("host configuration response failed".into()))?
         }
+        ("GET", "/v1/host/configuration/v3") if matches!(domain, EndpointDomain::Configuration) => {
+            serde_json::to_vec(&broker.configuration_view_v3(auth)?)
+                .map_err(|_| p::Error("host configuration response failed".into()))?
+        }
         ("POST", "/v1/host/configuration") if matches!(domain, EndpointDomain::Configuration) => {
             let value: serde_json::Value = serde_json::from_slice(&request.body)
                 .map_err(|_| p::Error("host configuration body is invalid".into()))?;
             if value
+                .get("schema_version")
+                .and_then(serde_json::Value::as_u64)
+                == Some(3)
+            {
+                let patch: p::ProductConfigPatchV3 = serde_json::from_value(value)
+                    .map_err(|_| p::Error("host settings v3 body is invalid".into()))?;
+                serde_json::to_vec(&broker.apply_configuration_v3(auth, patch)?)
+                    .map_err(|_| p::Error("host configuration response failed".into()))?
+            } else if value
                 .get("schema_version")
                 .and_then(serde_json::Value::as_u64)
                 == Some(u64::from(p::PRODUCT_SETTINGS_SCHEMA_VERSION.0))

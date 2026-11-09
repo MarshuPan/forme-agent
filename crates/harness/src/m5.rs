@@ -1948,7 +1948,7 @@ fn operation_name(operation: p::CapabilityPackageOperation) -> &'static str {
     }
 }
 
-fn default_admission_policy() -> p::CapabilityAdmissionPolicy {
+pub(crate) fn default_admission_policy() -> p::CapabilityAdmissionPolicy {
     p::CapabilityAdmissionPolicy {
         schema_version: p::M5_SCHEMA_VERSION,
         reference: p::CapabilityPolicyRef("policy:ecosystem-default".into()),

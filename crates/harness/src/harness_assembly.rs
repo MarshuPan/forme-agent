@@ -27,6 +27,20 @@ impl ReactiveHarness {
         governance: GovernanceConfig,
         config: HarnessConfig,
     ) -> p::Result<Self> {
+        let ecosystem = Arc::new(EcosystemHarnessRuntime::local(store.clone()));
+        Self::new_without_recovery_and_ecosystem(
+            store, model, backends, governance, config, ecosystem,
+        )
+    }
+
+    pub(crate) fn new_without_recovery_and_ecosystem(
+        store: SqliteEventStore,
+        model: Arc<dyn ModelProvider>,
+        backends: Arc<ExecutionBackendRegistry>,
+        governance: GovernanceConfig,
+        config: HarnessConfig,
+        ecosystem: Arc<EcosystemHarnessRuntime>,
+    ) -> p::Result<Self> {
         config.validate()?;
         model.profile().validate()?;
         let context_builder: Arc<dyn ContextBuilder + Send + Sync> =
@@ -34,7 +48,6 @@ impl ReactiveHarness {
         let loop_engine = ReactiveLoopEngine::new(context_builder.clone(), model.clone());
         let evolution_control = Arc::new(M3EvolutionHarness::new(store.clone()));
         let federation = Arc::new(FederatedHarnessRuntime::new(store.clone()));
-        let ecosystem = Arc::new(EcosystemHarnessRuntime::local(store.clone()));
         let harness = Self {
             store,
             authority_guard: None,
