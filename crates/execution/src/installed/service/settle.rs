@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use forme_protocol as p;
 
-pub(super) fn wait(
+pub(in crate::installed) fn wait(
     action: p::NativeServiceAction,
     deadline: Instant,
     mut inspect: impl FnMut() -> p::Result<p::NativeServiceState>,
@@ -18,7 +18,13 @@ pub(super) fn wait(
     };
     let mut transition_seen = false;
     loop {
+        if Instant::now() >= deadline {
+            return Err(unsettled());
+        }
         let state = inspect()?;
+        if Instant::now() >= deadline {
+            return Err(unsettled());
+        }
         if state == target {
             return Ok(state);
         }

@@ -9,7 +9,7 @@ use std::{
 
 use forme_protocol as p;
 
-mod settle;
+pub(super) mod settle;
 
 pub trait NativeServiceManager: Send + Sync {
     fn inspect(&self, id: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus>;

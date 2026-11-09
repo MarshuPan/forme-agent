@@ -108,26 +108,18 @@ pub(in crate::installed) fn change(
             _ => return Err(invalid()),
         }
     }
-    loop {
-        if Instant::now() >= deadline {
-            return Err(invalid());
-        }
-        verify(&service, &info)?;
-        let state = service.query_status().map_err(|_| invalid())?.current_state;
-        if state == wanted {
-            break;
-        }
-        if !matches!(
-            state,
-            ServiceState::StartPending | ServiceState::StopPending
-        ) {
-            return Err(invalid());
-        }
-        std::thread::sleep(
-            Duration::from_millis(25).min(deadline.saturating_duration_since(Instant::now())),
-        );
-    }
-    observe(
+    wait_for_change(
+        action,
+        deadline,
+        || {
+            service
+                .query_status()
+                .map(|status| status.current_state)
+                .map_err(|_| invalid())
+        },
+        || verify(&service, &info),
+    )?;
+    let observed = observe(
         installation,
         root,
         id,
@@ -135,8 +127,42 @@ pub(in crate::installed) fn change(
             p::NativeServiceAction::Start => p::NativeServiceState::Running,
             p::NativeServiceAction::Stop => p::NativeServiceState::Stopped,
         }),
+    )?;
+    if Instant::now() >= deadline {
+        return Err(invalid());
+    }
+    Ok(observed)
+}
+
+fn wait_for_change(
+    action: p::NativeServiceAction,
+    deadline: Instant,
+    mut inspect: impl FnMut() -> p::Result<ServiceState>,
+    mut recheck: impl FnMut() -> p::Result<()>,
+) -> p::Result<()> {
+    super::super::service::settle::wait(
+        action,
+        deadline,
+        || {
+            recheck()?;
+            if Instant::now() >= deadline {
+                return Err(invalid());
+            }
+            Ok(match inspect()? {
+                ServiceState::Running => p::NativeServiceState::Running,
+                ServiceState::Stopped => p::NativeServiceState::Stopped,
+                ServiceState::StartPending => p::NativeServiceState::Starting,
+                ServiceState::StopPending => p::NativeServiceState::Stopping,
+                _ => return Err(invalid()),
+            })
+        },
+        std::thread::sleep,
     )
+    .map(|_| ())
 }
 fn invalid() -> p::Error {
     p::Error("release service lifecycle is unverified or interrupted; do not retry".into())
 }
+
+#[cfg(test)]
+mod tests;
