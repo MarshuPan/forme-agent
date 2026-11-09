@@ -142,6 +142,10 @@ pub(crate) fn computer_operation_within_bounds(spec: &p::ComputerActionSpec) -> 
 }
 
 #[cfg(target_os = "windows")]
+#[path = "computer_surface.rs"]
+mod surface;
+
+#[cfg(target_os = "windows")]
 mod native {
     use std::sync::Mutex;
 
@@ -274,33 +278,28 @@ mod native {
         surface: &p::SurfaceRef,
         bounds: p::CoordinateBounds,
     ) -> p::Result<xcap::image::RgbaImage> {
-        let id = surface
-            .0
-            .strip_prefix("surface:monitor:")
-            .ok_or_else(|| p::Error("native screenshot requires a monitor surface".into()))?
-            .parse::<u32>()
-            .map_err(|_| p::Error("native monitor surface identifier is invalid".into()))?;
-        let monitor = xcap::Monitor::all()
-            .map_err(|_| p::Error("native monitors cannot be enumerated".into()))?
-            .into_iter()
-            .find(|monitor| monitor.id().ok() == Some(id))
+        use super::surface::{resolve_capture_region, MonitorGeometry};
+        let monitors = xcap::Monitor::all()
+            .map_err(|_| p::Error("native monitors cannot be enumerated".into()))?;
+        let geometry = monitors
+            .iter()
+            .map(|monitor| {
+                let unavailable = || p::Error("native monitor geometry is unavailable".into());
+                Ok(MonitorGeometry {
+                    id: monitor.id().map_err(|_| unavailable())?,
+                    x: monitor.x().map_err(|_| unavailable())?,
+                    y: monitor.y().map_err(|_| unavailable())?,
+                    width: monitor.width().map_err(|_| unavailable())?,
+                    height: monitor.height().map_err(|_| unavailable())?,
+                })
+            })
+            .collect::<p::Result<Vec<_>>>()?;
+        let region = resolve_capture_region(surface, bounds, &geometry)?;
+        let monitor = monitors
+            .get(region.monitor_index)
             .ok_or_else(|| p::Error("native monitor surface is unavailable".into()))?;
-        let monitor_x = monitor
-            .x()
-            .map_err(|_| p::Error("native monitor geometry is unavailable".into()))?;
-        let monitor_y = monitor
-            .y()
-            .map_err(|_| p::Error("native monitor geometry is unavailable".into()))?;
-        let x = u32::try_from(bounds.min_x - monitor_x)
-            .map_err(|_| p::Error("computer screenshot bounds precede the monitor".into()))?;
-        let y = u32::try_from(bounds.min_y - monitor_y)
-            .map_err(|_| p::Error("computer screenshot bounds precede the monitor".into()))?;
-        let width = u32::try_from(bounds.max_x_exclusive - bounds.min_x)
-            .map_err(|_| p::Error("computer screenshot width is invalid".into()))?;
-        let height = u32::try_from(bounds.max_y_exclusive - bounds.min_y)
-            .map_err(|_| p::Error("computer screenshot height is invalid".into()))?;
         monitor
-            .capture_region(x, y, width, height)
+            .capture_region(region.x, region.y, region.width, region.height)
             .map_err(|_| p::Error("native monitor capture failed".into()))
     }
 
