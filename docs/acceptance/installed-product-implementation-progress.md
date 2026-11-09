@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 升级服务的状态传播与期限组件通过，尚未部署
+
+`3803069` 使升级专用服务适配器复用既有有界观察器：SCM 接受单次控制后允许短暂旧状态，只接受本方向 pending；配置漂移、回退和超出原 deadline 均拒绝，零命令补发。原实现的三项失败保留；新八项和原共享三项逐名通过。
+
+完整 workspace 为 189 targets、1,363 passed / 0 failed / 22 默认 ignored；fmt/check/test、strict Clippy、质量和完整合规均 exit 0，四份源码及全量原件独立核验 PASS。细节见[升级服务观察验收](installed-release-service-observation-acceptance-20261109.md)。这不是本机故障归因或部署证据，未刷新完整 Final/IP；原升级、冻结提案和原生义务仍开放。当前命令进程未提升，未修改全机 UAC。
+
 ## 2026-11-09 普通 Shell 的有界清理与 Unknown 通过，尚未部署
 
 `b131832` 修复后代继承输出管道时的无界等待：原 child/readers 共用有界清理、八槽准入及唯一监督，未确认结束只保留 Unknown，新 backend 不能绕过原清理。四类真实故障均证明原 marker 恰一次、零重复派发；原清理结束不改写结果，普通成功/失败和已确认取消保持区分。

@@ -30,6 +30,8 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 
 随后 `b131832` 闭合普通 Shell 继承管道的有界清理、八槽准入和唯一 Unknown；四类真实故障与正常路径通过。最终 workspace 为 189 targets、1,355 passed / 0 failed / 22 默认 ignored，fmt/check/test、strict Clippy、质量、完整合规及独立原件核验通过；原资源/Clippy 拒绝均保留，详见[Shell I/O 组件验收](installed-shell-io-lifecycle-acceptance-20261109.md)。安装版 Shell 的实际 placement 仍属上表义务，本次未部署或刷新完整 Final/IP。
 
+`3803069` 另修复升级专用服务观察：原状态传播不再立即失败，相反 pending/状态回退及超期终态仍拒绝，保留单次控制和原授权期限。原三项失败与最终八项/共享三项均留证；完整 workspace 189 targets、1,363 passed / 0 failed / 22 默认 ignored，七阶段与独立原件核验 PASS，见[升级服务观察验收](installed-release-service-observation-acceptance-20261109.md)。修复尚未部署，未取得原升级受保护诊断，不据组件复现断言现场根因或 IP 通过。
+
 本表列实施义务，不把代码中正确显示 unavailable 视为完成；也不把历史 M0 的延后能力误用来阻止已经激活的 M2/V1 设计。需要冻结变更时遵守 AGENTS.md 硬规则 3；常规实现与修复不再另造审批要求。
 
 ## 3. IP01–IP24 的逐项完成审计
