@@ -177,6 +177,14 @@ fn make_broker(
     config: Arc<Mutex<ProductConfigStore>>,
     updater: Arc<InstalledReleaseUpdater>,
 ) -> ProductHostBroker<NoServices> {
+    make_broker_with_services(f, config, updater, NoServices)
+}
+fn make_broker_with_services<M: NativeServiceManager>(
+    f: &Fixture,
+    config: Arc<Mutex<ProductConfigStore>>,
+    updater: Arc<InstalledReleaseUpdater>,
+    services: M,
+) -> ProductHostBroker<M> {
     ProductHostBroker::open_with_service_manager_and_config(
         &f.journal(),
         &f.installation.install_id,
@@ -187,13 +195,26 @@ fn make_broker(
         f.installation.target,
         f.installation.release_id.clone(),
         Some(config),
-        NoServices,
+        services,
     )
     .unwrap()
     .with_release_stager(Arc::new(f.stager()))
     .unwrap()
     .with_release_updater(updater)
     .unwrap()
+}
+struct RunningServices;
+impl NativeServiceManager for RunningServices {
+    fn inspect(&self, service: p::BuiltinServiceId) -> p::Result<p::NativeServiceStatus> {
+        Ok(p::NativeServiceStatus {
+            schema_version: p::SchemaVersion(1),
+            service,
+            state: p::NativeServiceState::Running,
+        })
+    }
+    fn apply(&self, _: p::ValidatedServiceChange) -> p::Result<p::NativeReceipt> {
+        panic!("startup must yield to the original release transaction")
+    }
 }
 fn request(f: &Fixture, revision: u64) -> p::ProductMaintenanceRequest {
     p::ProductMaintenanceRequest {
@@ -484,7 +505,28 @@ fn updater_transfers_real_writers_and_child_pipe_then_leaves_target_checking_clo
         ProductConfigStore::open(&f.installation.paths.config.join("product-template.json"))
             .unwrap(),
     );
-    let broker = make_broker(&f, config.clone(), updater.clone());
+    let broker = make_broker_with_services(&f, config.clone(), updater.clone(), RunningServices);
+    // The target Host starts before its original release Checking completes.
+    // Ordinary startup must neither issue another service action nor latch a
+    // permanent failure once that same transaction obtains its live proof.
+    let auth = broker.authenticate_web_configuration(WEB_TOKEN).unwrap();
+    let before_startup = broker.maintenance_snapshot(&auth).unwrap();
+    broker.reconcile_core_startup().unwrap();
+    let after_startup = broker.maintenance_snapshot(&auth).unwrap();
+    assert_eq!(before_startup.operations, after_startup.operations);
+    assert_eq!(
+        before_startup.product_revision,
+        after_startup.product_revision
+    );
+    assert_eq!(
+        after_startup.host.product_state,
+        p::ProductState::RecoveryRequired
+    );
+    assert!(!after_startup
+        .host
+        .issue_refs
+        .iter()
+        .any(|issue| issue == "core_reconciliation_unavailable"));
     let proof_server = std::thread::spawn(move || serve_proofs(listener, ready));
     broker.reconcile_release_checking().unwrap(); // first response has a foreign signing key
     let auth = broker.authenticate_web_configuration(WEB_TOKEN).unwrap();
@@ -496,6 +538,14 @@ fn updater_transfers_real_writers_and_child_pipe_then_leaves_target_checking_clo
         p::MaintenanceStage::Committed
     );
     broker.reconcile_release_checking().unwrap(); // fresh valid proof permits commit
+    let after_commit = broker.maintenance_snapshot(&auth).unwrap();
+    assert_eq!(after_commit.host.product_state, p::ProductState::Ready);
+    assert_eq!(after_commit.host.core_health, p::CoreHealth::Ready);
+    assert!(!after_commit
+        .host
+        .issue_refs
+        .iter()
+        .any(|issue| issue == "core_reconciliation_unavailable"));
     assert_eq!(
         broker
             .owner_maintenance_operation(&auth, "upgrade:deferred")

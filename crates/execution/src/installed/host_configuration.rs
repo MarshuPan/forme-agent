@@ -368,8 +368,14 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         if !configured || revision == 0 {
             return Ok(None);
         }
-        let result =
-            self.reconcile_core(auth, owner, revision, pending_restart, current_timestamp()?);
+        let result = self.reconcile_core(
+            auth,
+            owner,
+            revision,
+            pending_restart,
+            current_timestamp()?,
+            false,
+        );
         self.mark_startup_reconciliation_failed(result.is_err());
         result
     }

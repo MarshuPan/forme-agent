@@ -38,6 +38,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
                 view.active_revision,
                 view.pending_restart,
                 current_timestamp()?,
+                true,
             )
             .map(|_| ())
         })();
@@ -52,6 +53,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         revision: u64,
         pending_restart: bool,
         now: p::Timestamp,
+        startup: bool,
     ) -> p::Result<Option<p::ProductCoreActivationResponse>> {
         self.verify_web_configuration_auth(auth)?;
         let mut store = self
@@ -65,10 +67,28 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             return Err(p::Error("core reconciliation configuration changed".into()));
         }
         let operations = self.journal.operations(0)?;
-        if operations
+        let unfinished: Vec<_> = operations
             .iter()
-            .any(|op| !op.stage.is_terminal() || op.pending_stage.is_some())
-        {
+            .filter(|op| !op.stage.is_terminal() || op.pending_stage.is_some())
+            .collect();
+        if !unfinished.is_empty() {
+            if startup {
+                let mut release_checking = true;
+                for operation in unfinished {
+                    release_checking &= operation.stage == p::MaintenanceStage::Switching
+                        && operation.pending_stage == Some(p::MaintenanceStage::Checking)
+                        && self
+                            .journal
+                            .release_checking(&operation.operation_id)?
+                            .is_some();
+                }
+                if release_checking {
+                    // The updater owns service startup; the target Host only
+                    // verifies its original Checking transaction. Yielding is
+                    // not an activation failure or proof of readiness.
+                    return Ok(None);
+                }
+            }
             return Err(p::Error(
                 "core reconciliation requires original operation review".into(),
             ));
