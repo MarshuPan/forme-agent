@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 普通 PTY 阻塞 I/O 修复完成，安装版接线仍开放
+
+`451f3b4` 修复同步输入阻塞期限、持续输出饿死超时检查及关闭/join 无界等待。读写有界队列独立运行，原清理由监督线程持有；超过 2 秒等待仍未核实时保留 Unknown、占用名额并阻断新程序。新增八项真实 Windows 组件场景与两个单元场景，最终 workspace 为 187 targets、1,329 passed / 0 failed / 21 默认 ignored，fmt/check/strict Clippy/结构质量/完整合规均通过；四份源码与六份日志摘要及八份原现场另行核验 PASS。
+
+旧实现的两个期限失败、先行 VT 断言与其他失败日志保留，最终八项均未触发外层强制 Job 清理。证据和实际采样时间见[PTY I/O 验收](installed-pty-io-lifecycle-acceptance-20261109.md)。这些场景作用于普通 backend，未合并成 Low AppContainer 故障矩阵证明；生产授权、输入/输出与 placement、三份冻结提案、原生批次及完整 IP01–IP24 继续开放。本次未部署、未修改 UAC、未刷新完整 Final。
+
 ## 2026-11-09 隔离 PTY 三项机制通过，生产与故障矩阵仍开放
 
 `1207740` 在测试专用入口中证明 Low AppContainer 内的真实 ConPTY、runner/conhost/child/grandchild 的独立 token/Job 核验及原树取消；生产派生限制反例继续由 OS 拒绝。两份先行实验的退出观察清理不明已仅沿原 Job/lease 恢复，零程序重启，原失败记录保持。完整组件检查为 186 targets、1,319 passed / 0 failed / 20 默认 ignored，strict Clippy、结构质量与完整合规均通过。

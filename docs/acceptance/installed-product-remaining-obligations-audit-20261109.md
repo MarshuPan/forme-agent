@@ -23,7 +23,7 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 | --- | --- | --- |
 | 既有能力的受管配置及消费者 | settings v3、Host 注册来源/程序/包公钥，MCP 隔离 discovery/call、插件贡献、已有渠道 adapter 与 typed M5 Web 控制。 | `docs/architecture/proposals/installed-managed-consumers-closure.md` 已可审查；等待明确契约批准，未改冻结 DTO/trait。 |
 | 桌面授权及主脑接线 | Host OS 会话目录、pending/consent/issue/revoke journal，exact grant 消费、正式 planner/backend 与 Web 会话选择。 | `docs/architecture/proposals/installed-desktop-authority-closure.md` 已可审查；等待明确契约批准。 |
-| 截图、引用输入和真实 PTY | helper 当前拒绝截图和 ContentRef/SecretRef Type，只处理 Computer；desktop 结果 source=None。`1207740` 已证明测试专用 Low AppContainer/ConPTY、后代取消与原文件派生限制三个机制；I/O 故障矩阵及生产接线未完成。 | 组件结果见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；不凭机制或两份提案自动授权新增协议。 |
+| 截图、引用输入和真实 PTY | helper 当前拒绝截图和 ContentRef/SecretRef Type，只处理 Computer；desktop 结果 source=None。`1207740` 已证明测试专用 Low AppContainer/ConPTY、后代取消与原文件派生限制三个机制；`451f3b4` 另修复普通 PTY 阻塞 I/O，八项 Windows 组件及完整源码回归通过。隔离机制内的故障矩阵与生产接线仍未完成。 | 证据分别见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)与[I/O 组件验收](installed-pty-io-lifecycle-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；普通 backend 结果不能自动证明隔离机制或授权新增协议。 |
 | 其他安装版执行 placement | Shell、Browser、AppApi、Notification 逐项核对实际消费者、隔离 profile、凭据/输入/结果与取消。 | 有通用 broker/factory 分支不等于实际安装能力；不得统一启用 flag 或回退 brain 进程内 driver。 |
 
 本表列实施义务，不把代码中正确显示 unavailable 视为完成；也不把历史 M0 的延后能力误用来阻止已经激活的 M2/V1 设计。需要冻结变更时遵守 AGENTS.md 硬规则 3；常规实现与修复不再另造审批要求。
