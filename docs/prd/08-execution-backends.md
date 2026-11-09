@@ -78,6 +78,7 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 - 传输层按完整 JSON 行处理，单帧上限 8 MiB（含换行）；输入编码不得先无界增长再判断，响应也不得用无界 `lines()` 分配。待读响应最多两帧、待写队列最多一帧。超长帧按 schema 错误终止；普通有效帧之后的 ActionOutput 仍遵守已审批的 OutputBudget，传输上限不替代输出预算。
 - 普通调用最多同时持有八个进程/I/O 槽位。停止后关闭队列、结束原 child、wait 并 join 原读写线程；主调用最多等待两秒清理。不能确认清理时只写 `ActionOutcomeUnknown`，不改写为成功、失败或取消，也不重派原动作。
 - 原 child 与线程的清理句柄由有限 supervisor 保管，包括创建清理线程失败时尚未执行的清理材料。存在未结束的清理或已确认的清理失败时拒绝新的进程 admission；正常清理全部结束才释放槽位，稍后的清理结果不改写原 Unknown。Drop 只是兜底，正式终态须在显式清理结果后决定。
+- 工具请求的写入尝试和工具结果确认分别记录在原会话中；序列化/排队不冒充已派发，写入尝试也不冒充服务端已完成。`tools/call` 一旦可能写入管道，若未取得匹配 id、有效 JSON-RPC envelope 和可用结果/明确协议错误，timeout、断线、无效响应或取消都只能产生 `ActionOutcomeUnknown`；保留原 MCP 错误分类。kill/wait/join 成功只证明清理，不撤销已经发生的副作用。尚未尝试写工具请求的拒绝/取消保持原语义；有效结果或明确协议错误与清理均确认后才可记普通终态。Harness 对 Unknown 挂起原 run，重启/重放不能重新派发原动作。
 - 这不宣称普通 stdio 已拥有后代进程隔离或安装版 Host grant。受管 discovery/call、隔离工作区、受保护输入/结果与真实安装验收继续按 PRD24/25 和对应待审提案闭合。
 
 ## 6. 错误/安全/权限/审批
@@ -107,6 +108,7 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 - **S3 执行侧(总纲 §7.6)**:MCP 调用产 `McpCallEvent`;错误分类。
 - **单元**:output budget/timeout/cancel 生效;file 写前必产 diff;shell 不作默认兜底(无匹配→报错非 fallback);rollback 边界按 backend 声明。
 - **MCP I/O 回归**:真实自建子进程在 initialize 后不再读取输入，分别验证大请求写入中的 timeout/cancel；超长无换行响应被限制；噪声/不匹配帧不越过输出预算；后代持有管道时原动作保持 Unknown、新动作 admission 被阻止，原清理 join 后只允许新的不同动作运行。有限 fixture 不代替安装版后代隔离或全平台原生验收。
+- **MCP 副作用未确认回归**:真实自建工具先持久写 marker，再分别丢响应、返回无效响应和等待取消；原 marker 恰一次，脑事实只能为 Unknown。正式 Harness 核对 Waiting、恢复原号和重放零额外工具派发；有效成功/协议错误和工具请求派发前错误继续区分，不把所有错误统一掩盖为 Unknown。
 
 ## 10. 验收
 
