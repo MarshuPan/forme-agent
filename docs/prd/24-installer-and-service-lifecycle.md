@@ -531,6 +531,7 @@ Windows 交互 helper 的 Win32 代码只能存在于两个独立审计文件：
 - Host 启动代次取其独占打开并重放 product journal 后观察到的 `product_seq`，在该 Host 生命周期内固定。自动 operation 摘要绑定 install/config revision/action/该代次；重复检查和保存回执不创建新动作。
 - 当上一代动作已 `Committed`、没有任何未决生命周期操作、配置有效且实际 Brain 为 `Stopped` 时，新代次可接纳一次新的启动。原动作未知、只有 intent、`RecoveryRequired` 或存在 pending stage 时，继续核实原动作，不能借新代次换号重试。
 - Brain 为 `Running` 且同一配置 revision 已有成功激活动作时，等待 core acknowledgement；缺 ack 本身不触发又一次重启，也不构成 `Ready`。
+- 升级目标 Host 启动时，若唯一未决事务已有原 `ProductReleaseChecking`，处于 `Switching / pending Checking`，普通启动协调应让出生命周期控制，由原发布核实继续推进。这是等待原事务，不是启动协调失败，不留下永久的 `core_reconciliation_unavailable`。只有原发布核实完成、配置确认和实际服务状态满足既有条件后才报告 Ready。其他未决/失败阶段仍拒绝普通启动，配置保存触发的协调不享有这项启动期让行。
 - journal 中最后一个显式 `StartCore/StopCore/RestartCore` 为已提交的 `StopCore` 时，保留 owner 的停止意图。保存配置、刷新、Host 重启均不能自动撤销它；只有新的明确 `StartCore/RestartCore` 才解除。判断、配置校验、journal 接纳与服务动作继续受同一配置/生命周期互斥约束。
 
 1. 校验 OS/CPU、包签名、磁盘、目标路径/ACL、端口；发现旧 installation/store 时进入接管路径，不覆盖。
