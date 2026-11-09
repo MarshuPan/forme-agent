@@ -121,7 +121,7 @@ pub enum SteeringCommand { CorrectMisunderstanding(..), AdjustProactivity(Scope,
   ```
 - **resume**:读 `ResumeState` + `snapshot_ref` 事件 → 校验 `ResumeInput` 与 `PendingKind` 匹配 → 恢复到 `at` 状态 → 续推。
 - **UnknownOutcome 与启动恢复扫描(canonical §7)**:崩溃窗口 = `ActionStarted` 已落盘而终态动作事件未落盘(副作用可能已发生)。启动时恢复扫描:逐 run 找无终态的 `ActionStarted` → 追加 `ActionOutcomeUnknown{intent_id}` → run 置 Suspended(ToolInterrupt);裁决:backend 可按 `intent_id` 幂等键探测副作用则自动补记终态,否则升人工裁决(owner 经 `ResumeInput::ToolOutcome` 定结果)。**绝不盲目重试**(防重复副作用)。
-- **cancel/stop**:任何时刻 cancel → `StopReason::UserCancel`;停止条件见 §3 `StopReason`(§4.1 全列)。
+- **cancel/stop**:cancel 请求停止进一步执行；没有未确认副作用时，仍在运行的 run 按既有 `StopReason::UserCancel` 收尾，已落盘的动作终态不改写。已经发生但结果未确认的副作用必须保持 `Suspended(ToolInterrupt)`，再次 cancel 也不替代 receipt/probe/owner 裁决，不得补造 ActionCancelled 或把原 run 结束来隐藏 Unknown。停止条件见 §3 `StopReason`(§4.1 全列)。
 - **背景 tick 调度(canonical §18)**:**前台优先、绝不打断**——执行中的 run 不被新念头劫持(承诺守卫);后台只在 `PostTurn/Idle/Schedule/Diff` 触发,无有意义触发不跑;调 `ProactivityEngine::tick(trigger, snapshot)`(只读快照,产 Impulse/candidate,不动手);后台内部按价值排队。长任务/多 Agent 跑时后台重活暂停。
 - **并发(§7)**:同 session run 进 `SessionQueues` 串行;所有事件经 store 单写路径;子代理 child run 只读快照、只回 summary/result、不写父 session 稳定态。
 

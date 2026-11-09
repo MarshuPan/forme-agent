@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 MCP 未确认副作用与 Harness 挂起恢复通过
+
+`1b6884f` / `d43e27a` 修复工具已产生副作用却丢失/返回无效响应时的错误终态，以及 Harness 把已持久化 Unknown 当普通失败继续调用模型的问题；副作用后的取消和再次取消都保留原 run 待裁决。同号重放、真实 SQLite 重启和 owner 持久裁决证明 marker 恰一次、零额外派发；明确结果与派发前取消仍正常处理。
+
+workspace 为 188 targets、1,346 passed / 0 failed / 22 默认 ignored；fmt/check/test、strict Clippy、质量与完整合规通过。原空间门停止及相同源码续跑分开留证，没有重跑完整测试、清理缓存或降低阈值；七份源码和所有检查原件另行核验 PASS。详见[MCP Unknown 组件验收](installed-mcp-unknown-outcome-acceptance-20261109.md)。这些提交没有部署到本机，不提升完整 Final/M5/IP；原升级未结算，管理员诊断未取得结果，没有重跑旧操作或修改 UAC。
+
 ## 2026-11-09 普通 MCP 发现与调用 I/O 通过，受管接入仍开放
 
 `320d0b0` / `a372499` 修复既有 stdio 的阻塞写入、无界帧和 reader 所有权：调用共用 deadline/cancel，发现共用全流程 deadline；发布/终态前显式清理，原 child/worker 未确认结束时保留材料并阻止新 admission。真实有限子进程分别覆盖大输入超时/取消、超长帧、输出预算与后代持管；发现端不发布不确定 metadata，调用端清理不明保留唯一 Unknown。

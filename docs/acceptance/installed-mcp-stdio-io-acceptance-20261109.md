@@ -50,6 +50,6 @@
 
 安装版 managed discovery/call、受管 program/source、Host 授权、隔离 placement、受保护输入/结果与设置消费者仍未闭合，见[剩余义务审计](installed-product-remaining-obligations-audit-20261109.md)。本轮不部署、不调用真实模型、不刷新完整 Final/M5、不提升任何完整 IP01–IP24 状态。
 
-后续还须用独立有限进程核对 Shell 的继承管道清理，以及 MCP 已产生副作用却无可用响应时的原动作结果与 Harness 重试决定。这两项目前只有源码定位，不以本轮 cleanup Unknown 场景宣称已验证或修复。
+该轮结束时，Shell 继承管道清理及 MCP 已产生副作用却无可用响应时的原动作结果/Harness 重试决定仍待核对。随后 `1b6884f` / `d43e27a` 已用真实有限子进程和 SQLite 闭合后者，见[MCP Unknown 组件验收](installed-mcp-unknown-outcome-acceptance-20261109.md)；普通 Shell 仍开放。上表是原轮的历史结果，其中阻塞输入超时/取消的普通终态已由后续修复收紧为 Unknown，不能继续作为当前行为描述。
 
 原本机候选为 `7b13529`，窗口前安装版本为 `cf3fbc9`。本轮收尾期间，原 UAC 请求取得启动回执，10:34:47 原生及产品窗口均以 stopped 留证：候选入库 committed，正式升级的原操作尚未结算，文件矩阵和数据阶段未执行。当前状态及三份原件摘要见[剩余义务审计 §7](installed-product-remaining-obligations-audit-20261109.md#7-原生窗口取得回执后的状态更新)。这不属于本轮 MCP 源码的部署；没有重派原窗口、Unknown 或修改系统安全策略。三份冻结提案等待明确答复，普通 I/O 修复不提供它们的实施授权。
