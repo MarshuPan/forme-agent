@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 隔离 PTY 的八项 I/O 组合通过，生产接线仍开放
+
+`e9da708` 让现有 `PtyBackend` 实际运行在测试专用 Low AppContainer/Job 中，补上此前两个组件分开取证的接缝。输入超时/取消、持续输出、严格预算、正文 append 拒绝、尾部、截断和 exit 7 均核对准确结果；外层独立检查原 runner/conhost/child 的 token/Job，原进程退出、Job 清空和 ACL/profile 清理全部 PASS。最终二进制显式执行 4 tests、11 个独立实验，包含原文件派生限制和两个原终端场景，不把默认 ignored 计入通过。
+
+完整组件门为 187 targets、1,329 passed / 0 failed / 22 默认 ignored，fmt/check/strict Clippy/结构质量/完整合规均通过；四份源码、六份日志、最终程序和 11 份回执另行核验 PASS。精确摘要、时间及先行原件见[组合验收](installed-isolated-pty-io-composition-acceptance-20261109.md)。生产 PTY、初始化/OS 关闭异常矩阵、三份冻结提案、原生批次和完整 IP01–IP24 继续开放；本次未部署、未更改 UAC、未刷新完整 Final。下文两个独立组件的限制保留各自采样时的事实，后续八项组合结果以本节为准。
+
 ## 2026-11-09 普通 PTY 阻塞 I/O 修复完成，安装版接线仍开放
 
 `451f3b4` 修复同步输入阻塞期限、持续输出饿死超时检查及关闭/join 无界等待。读写有界队列独立运行，原清理由监督线程持有；超过 2 秒等待仍未核实时保留 Unknown、占用名额并阻断新程序。新增八项真实 Windows 组件场景与两个单元场景，最终 workspace 为 187 targets、1,329 passed / 0 failed / 21 默认 ignored，fmt/check/strict Clippy/结构质量/完整合规均通过；四份源码与六份日志摘要及八份原现场另行核验 PASS。

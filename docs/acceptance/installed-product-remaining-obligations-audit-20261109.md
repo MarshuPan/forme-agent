@@ -23,7 +23,7 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 | --- | --- | --- |
 | 既有能力的受管配置及消费者 | settings v3、Host 注册来源/程序/包公钥，MCP 隔离 discovery/call、插件贡献、已有渠道 adapter 与 typed M5 Web 控制。 | `docs/architecture/proposals/installed-managed-consumers-closure.md` 已可审查；等待明确契约批准，未改冻结 DTO/trait。 |
 | 桌面授权及主脑接线 | Host OS 会话目录、pending/consent/issue/revoke journal，exact grant 消费、正式 planner/backend 与 Web 会话选择。 | `docs/architecture/proposals/installed-desktop-authority-closure.md` 已可审查；等待明确契约批准。 |
-| 截图、引用输入和真实 PTY | helper 当前拒绝截图和 ContentRef/SecretRef Type，只处理 Computer；desktop 结果 source=None。`1207740` 已证明测试专用 Low AppContainer/ConPTY、后代取消与原文件派生限制三个机制；`451f3b4` 另修复普通 PTY 阻塞 I/O，八项 Windows 组件及完整源码回归通过。隔离机制内的故障矩阵与生产接线仍未完成。 | 证据分别见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)与[I/O 组件验收](installed-pty-io-lifecycle-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；普通 backend 结果不能自动证明隔离机制或授权新增协议。 |
+| 截图、引用输入和真实 PTY | helper 当前拒绝截图和 ContentRef/SecretRef Type，只处理 Computer；desktop 结果 source=None。`1207740` 证明三个隔离机制，`451f3b4` 修复普通 I/O；后续 `e9da708` 将同一真实 backend 放入隔离 fixture，八项 I/O 组合和三个原场景共 11 个独立实验全部通过。初始化/OS 关闭异常矩阵与生产接线仍未完成。 | 证据见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)、[I/O 组件验收](installed-pty-io-lifecycle-acceptance-20261109.md)和[组合验收](installed-isolated-pty-io-composition-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；组合机制不授权新增冻结协议，也不关闭完整 IP。 |
 | 其他安装版执行 placement | Shell、Browser、AppApi、Notification 逐项核对实际消费者、隔离 profile、凭据/输入/结果与取消。 | 有通用 broker/factory 分支不等于实际安装能力；不得统一启用 flag 或回退 brain 进程内 driver。 |
 
 本表列实施义务，不把代码中正确显示 unavailable 视为完成；也不把历史 M0 的延后能力误用来阻止已经激活的 M2/V1 设计。需要冻结变更时遵守 AGENTS.md 硬规则 3；常规实现与修复不再另造审批要求。
@@ -69,7 +69,7 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 ## 5. 下一步顺序
 
 1. 保存已结束的 Final 原始回执；回填本轮状态后只按现有规则刷新文档所影响的发布审计，不重复完整 workspace/Final，也不扩大审计排除集。
-2. 已写好的两份冻结提案待明确答复；批准后先回填正式文档，再按依赖实现，模块各自验证/提交。
+2. 已写好的三份冻结提案待明确答复；批准后先回填正式文档，再按依赖实现，模块各自验证/提交。
 3. 原生窗口只沿原请求取得 OS 管理员令牌后执行；不叠加 RunAs，不重新派发旧 Unknown，不伪造缺失回执。
 4. 完成剩余真实消费者和安装包后，按上述 IP 判据补齐原生联合证据及所需平台条件；环境不足保留未验证，不宣告整体完成。
 

@@ -50,6 +50,6 @@
 
 ## 4. 尚未关闭的要求
 
-设计稿在 Low AppContainer 内的高输出、阻塞输入、PTY 初始化失败、错误 exit、输出截断和关闭等待故障矩阵尚未完整执行；10 秒观察期限和本次有界往返不能代替这些故障注入。后续 `451f3b4` 已专门修复普通 `PtyBackend` 的持续排空、同步写入与 reader join，并完成八项 Windows I/O 场景及完整组件门，详见[追加验收](installed-pty-io-lifecycle-acceptance-20261109.md)。该组场景未同时运行在本报告的隔离 runner 中，两个组件结果不能合并成隔离故障矩阵 PASS。生产专用 placement、Host grant、受保护输入/输出、overlay 回写、恢复与真实 SCM/session 联合证据也未完成。
+本报告原采样时，Low AppContainer 内的高输出、阻塞输入、PTY 初始化失败、错误 exit、输出截断和关闭等待故障矩阵尚未完整执行；10 秒观察期限和有界往返不能代替故障注入。后续 `451f3b4` 专门修复普通 `PtyBackend` I/O，详见[追加验收](installed-pty-io-lifecycle-acceptance-20261109.md)，该批本身不能证明隔离组合。再后续 `e9da708` 已让同一真实 backend 在隔离 fixture 内完成八项 I/O，并与本报告的三个原场景一起核对最终二进制和 11 份独立回执，见[组合验收](installed-isolated-pty-io-composition-acceptance-20261109.md)。PTY 初始化、线程资源和 OS 关闭异常完整矩阵仍开放；生产 placement、Host grant、受保护输入/输出、overlay 回写、恢复与真实 SCM/session 联合证据也未完成。
 
 本轮没有安装、升级、启停服务或修改 UAC，未刷新完整 Final/M5，也不关闭三份待确认的冻结协议提案或任何完整 IP 场景。普通 PTY I/O 的后续结果以上述追加验收为准；原生批次仍只核对原提权进程和原回执。
