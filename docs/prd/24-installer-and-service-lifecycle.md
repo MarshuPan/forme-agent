@@ -623,3 +623,7 @@ IP01–03、IP10–16 的 fixture/正反断言以 requirements/18 为准。每�
 OS 服务机制按公开 SCM/launchd/systemd API 原创适配，不移植 OpenClaw/Hermes 的脚本、提示、错误或目录。安装构建器、签名工具、平台安全 wrapper 与 managed dependencies 均固定版本/source/license/copy_risk/notice，审计包含随包分发的 runtime/安装片段；不预设生成包免除第三方义务。
 
 `research/upstreams/**` 不进 build。新增直接依赖、原生包依赖和签名流程在实施时更新依赖清单/NOTICE/SBOM；本次仅设计，未引入任何新依赖。每个提交前合规门仍必须通过。
+
+## 12. 已批准的桌面授权签发与恢复
+
+桌面授权的独立 closed DTO、Host journal、OS 只读目录、精确 grant 消费、互斥顺序与 crash-cut 拒绝表以[桌面授权实施契约](../architecture/installed-desktop-authority-contract.md)为准。它落实 owner 在 2026-11-09 已批准的方案；旧 worker/session/审批协议保持兼容。Host 必须核对独立签发原件，不能以请求携带 binding 自证授权。

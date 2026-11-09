@@ -759,3 +759,7 @@ owner 已批准[历史安装审查协议](proposals/installed-legacy-release-rec
 
 历史裁决使用独立产品 DTO/domain/facts，最低 journal reader/updater 3，保留 v1/v2 原字节/hash 与正常恢复接口。单个 commit 原子形成原升级 Aborted、新历史决定 Committed，原 baseline 仍缺失。重放无 IO，同义只查，intent 后必须原号显式重新认证 verify；执行前重查和全局维护互斥保留。实际本机管理程序替换、旧 journal 接入、服务启停与新升级仍须独立精确方案；隔离实现不关闭 IP14–15/IP24。
 
+
+### 29.14 桌面授权独立签发
+
+owner 已批准的桌面授权增量落实于[桌面授权实施契约](installed-desktop-authority-contract.md)。Web 只能选择 Host 只读观察产生的 opaque 会话目录；Core 注册 exact pending，Host 独立持久 consent/grant 并在 worker admission 前消费。请求携带的 binding 不是签发事实。响应丢失、消费意图后的崩溃及 Started 后不明只核对原记录，不重新发起动作；既有脑审批/nonce 与桌面 consent/worker nonce 保持分域。

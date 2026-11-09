@@ -415,3 +415,7 @@ Host 核对已认领 owner、当前配置 revision 和安装身份后，使用�
 ### 11.14 已批准的受管设置 v3
 
 2026-11-09 owner 明确批准三项协议补充并实施。配置 v3 的字段、版本、摘要、事务、边界与拒绝表以[受管设置契约](../architecture/installed-managed-settings-contract.md)为规范性补充；旧协议保持兼容。桌面授权与截图结果按已批准提案先补齐正式契约，再实施。批准状态不代替组件或安装验收。
+
+## 12. 桌面选择的认证边界
+
+[桌面授权实施契约](../architecture/installed-desktop-authority-contract.md)固定 owner consent/revoke 的近期重新认证与原 operation 摘要绑定。session 目录只读，不启动 helper。配置启用、产品登录和 SuperAdmin 都不替代原动作审批与 exact desktop consent；AgentExecution grant 接口不向 Web configuration 凭据开放。

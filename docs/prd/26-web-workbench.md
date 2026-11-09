@@ -333,3 +333,7 @@ React/TypeScript/Vite 及 renderer/component/icon 等实际依赖实施时锁版
 浏览器 body 复用现有 Gateway 请求的 schema_version/run/grant/previous/expected、run/catalog_run/package、operation/package/release、run/plan/approval/reason、plan/target_peer/authority_epoch 字段。所有 body 为 closed，schema_version 恰为 1，原内层 DTO 静态验证保持。changes 的 approval 仅含 schema_version/approval/plan_digest/nonce/expires_at，principal 由认证会话补入；plan digest 必须等于批准 digest，nonce 必须等于原请求 Idempotency-Key。其他带 run 的变更也将 Idempotency-Key 绑定 run，零用户自报 owner/principal。计划版本、期限、一次性 nonce、签名与 CAS 仍由原 M5 authority 验证；Web 不保存第二套包状态。
 
 正式批准应展示准备步骤取得的确切 plan、版本、影响范围及期限；响应不明按原 run/nonce 与 snapshot 核对，不自动生成新的提交。未认证/CSRF、伪造 principal、改 plan、错误版本和越界路由均在 Core 调用前拒绝。受管功能还须通过真实签名准入、贡献可见/禁用、重启保持以及负例零安装才可关闭对应验收。
+
+## 13. 桌面操作的会话选择
+
+按[桌面授权实施契约](../architecture/installed-desktop-authority-contract.md)接入四类 typed 路由。页面从原 pending 与 Host opaque 目录展示动作和会话；重新认证提交 consent，原号明确 Committed 后才开放原 grant-once 操作。响应未知只查原 operation。不可由浏览器填入 OS 标识、principal、grant 或 worker nonce；不将桌面选择视为动作已完成。
