@@ -73,4 +73,16 @@ Host 的私有 ConfigState 11 增加 optional desktop placement；旧 2–10 的
 
 `ManagedBrainConfig` 增加 optional `desktop_placement`，由 Host 受保护配置发布；ProductionRuntimeBuilder 验证其 schema/profile/epoch/endpoint、与 managed Computer 设置的对应关系，并将专用 desktop binding 单独传至 capability assembly。能力只有配置显式启用且该 binding 可用才注册，不通过 File binding 的 backend_kinds 推断支持。Host 在注册 pending、签发及消费前再次读取当前启用配置并比较 profile、scope、surface、driver 与参数范围；禁用立即阻断新准入，原已开始 job 仍只核对原 receipt。
 
+安装版的配置与 worker 互斥遵循现有维护顺序：configuration → worker operations → desktop authority；不能持有 worker 锁再等配置锁。桌面 dispatch 在获取 worker 锁之前取得 authority handle，并在配置检查的同一临界区进入 worker/authority 准入；既有原 job 的只读重放先核对 journal 原件，不因配置禁用或撤销而另取 grant。测试装配没有 configuration 锁时保持 worker → authority 顺序。
+
 Web 在原审批卡内显示会话目录、重新认证口令及同一次 consent 的状态。pending_ref 使用 §4.1 的 canonical tuple 定位；目录变化要求重新读取，已提交或响应不明的操作只能按原 operation 查询。口令和目录不写浏览器持久存储。只有 Host 已核实 Committed 才解锁原“仅批准这一次”；拒绝原动作始终可用。原请求数据和批准 nonce 不因刷新查询而重新生成。
+
+为使浏览器重载后仍能定位原件，既有 GET `/api/v1/desktop/consents/{id}` 同时接受原 operation_id 或登记的 `desktop-pending:…` 定位引用。后者经 Host 查原 pending：已有 consent 返回它的原 view；尚未提交则返回原 schema 的 Prepared view，operation_id 固定为 `desktop-consent-request:` 加 pending_ref 的摘要部分，revision 为当前 authority revision，expires_at 不超过 pending 与当前时刻加 15 分钟。Prepared 是只读投影，不写 journal、不创建授权。未知 pending 或查询错误不能被 UI 当作 Prepared。提交响应丢失后 UI 只调用该 GET，不重新 POST；查询原 operation_id 仍保持原语义。AgentExecution 的只读 pending-consent 方法共享同一投影，只有 Committed 能通过准入。
+
+桌面动作的 Web 原审批命令 nonce 固定为 `desktop-approval:` 加 §4.1 pending_ref 的摘要部分，保持当前 ApprovalGrant/ResumeInput 形状。刷新后继续使用该原 nonce；改为拒绝也不换号，若相反决策已被接收则由原审批控制面返回冲突。该可推导引用仅用于幂等，不替代认证、最终 plan 检查或 Host consent。
+
+## 7. 无正文动作的完成交接
+
+已实现的非截图 Computer 操作，其原 `DesktopActionReceipt` 经 Host 独立核对为 Committed 且 `result_ref=None` 时，本身证明“动作完成且不产生正文”。Host 必须为原 job 封存真实零字节 AEAD 结果，manifest 为 `Empty/Utf8`、原始空正文摘要、bytes=0、result_ref=None，先 journal manifest 再写原 worker receipt。Core 继续经过原 manifest/chunk/receipt 核验完成；不得把 `source=None` 的 Missing manifest 当成成功。
+
+若 helper 声称存在 result_ref 却没有传回正文，保持原 Missing/Unknown 语义，不凭该引用生成空结果；Screenshot 永不走本分支，必须按独立输出协议传回且核验真实图片。此交接不改旧 DTO、事件、结果读取预算或原 job 的重复派发规则。
