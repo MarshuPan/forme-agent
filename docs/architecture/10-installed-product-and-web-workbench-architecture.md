@@ -329,3 +329,7 @@ Markdown/HTML、附件、产物预览按不可信内容渲染。严格 CSP、无
 2026-11-09 owner 明确批准三项协议补充并实施。配置 v3 的字段、版本、摘要、事务、边界与拒绝表以[受管设置契约](installed-managed-settings-contract.md)为规范性补充；旧协议保持兼容。桌面授权与截图结果按已批准提案先补齐正式契约，再实施。批准状态不代替组件或安装验收。
 
 桌面授权的正式实施细节见[独立契约](installed-desktop-authority-contract.md)，包括 DTO 精确类型、有界独立 journal、先消费意图后 worker admission 的恢复拒绝表与固定锁顺序。目录观察和执行 helper 启动分离；缺少原签发事实的 binding 不具备准入权。
+
+## 13. 已批准的截图原件输出
+
+原 Screenshot 的 v2 有界输出、Host AEAD/descriptor、core 幂等保护登记及认证工具产物目录按[截图结果实施契约](installed-desktop-output-contract.md)执行。旧桌面/worker/上传协议保持；未完成正式消费者和原生验证前不得报告截图可用或 IP 通过。

@@ -627,3 +627,7 @@ OS 服务机制按公开 SCM/launchd/systemd API 原创适配，不移植 OpenCl
 ## 12. 已批准的桌面授权签发与恢复
 
 桌面授权的独立 closed DTO、Host journal、OS 只读目录、精确 grant 消费、互斥顺序与 crash-cut 拒绝表以[桌面授权实施契约](../architecture/installed-desktop-authority-contract.md)为准。它落实 owner 在 2026-11-09 已批准的方案；旧 worker/session/审批协议保持兼容。Host 必须核对独立签发原件，不能以请求携带 binding 自证授权。
+
+## 13. 截图结果交换
+
+原 Screenshot 的 v2 有界输出、Host AEAD/descriptor、core 幂等保护登记及认证工具产物目录按[截图结果实施契约](../architecture/installed-desktop-output-contract.md)执行。旧桌面/worker/上传协议保持；未完成正式消费者和原生验证前不得报告截图可用或 IP 通过。

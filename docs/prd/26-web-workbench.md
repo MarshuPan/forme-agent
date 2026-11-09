@@ -337,3 +337,7 @@ React/TypeScript/Vite 及 renderer/component/icon 等实际依赖实施时锁版
 ## 13. 桌面操作的会话选择
 
 按[桌面授权实施契约](../architecture/installed-desktop-authority-contract.md)接入四类 typed 路由。页面从原 pending 与 Host opaque 目录展示动作和会话；重新认证提交 consent，原号明确 Committed 后才开放原 grant-once 操作。响应未知只查原 operation。不可由浏览器填入 OS 标识、principal、grant 或 worker nonce；不将桌面选择视为动作已完成。
+
+## 14. 工具截图产物
+
+原 Screenshot 的 v2 有界输出、Host AEAD/descriptor、core 幂等保护登记及认证工具产物目录按[截图结果实施契约](../architecture/installed-desktop-output-contract.md)执行。旧桌面/worker/上传协议保持；未完成正式消费者和原生验证前不得报告截图可用或 IP 通过。
