@@ -27,19 +27,19 @@ transfer 必须逐项匹配原 DesktopActionRequest 和原 Screenshot intent（�
 
 普通控制帧仍最多 256 KiB。正文既不派生 Debug，也不使用 JSON 数组/base64；raw read/write 是独立长度限定接口，保持原 peer 身份与 SQOS。所有步骤共享原 deadline，不因读到下一块而延长。
 
-解码必须先核对 PNG signature、chunk 边界、唯一 IHDR/IEND 和 IEND 后零尾随正文；拒绝 APNG、多帧、未知 critical chunk、重复头、截断及尺寸不符。再用锁定的 png 解码库检查 CRC、压缩数据和实际解码尺寸。解码工作预算最多 128 MiB（包含输出像素和 decoder 分配限额），编码正文另受 64 MiB 限额；不只读取 IHDR 后宣称图片有效。库是独立可审查外部依赖，不新增内部 crate 依赖边。
+解码必须先核对 PNG signature、chunk 边界、唯一 IHDR/IEND 和 IEND 后零尾随正文；拒绝 APNG、多帧、未知 critical chunk、重复头、截断及尺寸不符。每个 chunk 均通过显式 CRC 检查，chunk 总数上限 65,536；再用锁定的 png 解码库检查压缩数据和实际解码尺寸。解码工作预算最多 128 MiB（包含输出像素和 decoder 分配限额），编码正文另受 64 MiB 限额；不只读取 IHDR 后宣称图片有效。库是独立可审查外部依赖，不新增内部 crate 依赖边。
 
 ## 3. Host sink、封存与恢复
 
 保留 `DesktopHelperAdapter::execute`；新增 `execute_with_output(request, intent, output_sink: &mut dyn DesktopOutputSink)`，返回原 DesktopActionReceipt。默认实现拒绝 Screenshot，其余动作仍可调用 execute。新增只读 `supports_output() -> bool` 缺省 false；Host 在 Started 前拒绝不支持输出的 adapter。`DesktopOutputSink` 只含不可变 `transfer()` 读取及 `begin(header)`、`write_chunk(header, bytes)`、`finish(finish)`，不承担动作授权或重试。
 
-Host 在已有 worker operations 排他区内接收，一次至多一份结果；该配额从创建暂存到封存/明确失败清理一直占用。Host 为原 job 在私有结果目录 create_new 暂存文件，拒绝链接/替换、限制长度，保存原 transfer 元数据。每步错绑定/顺序/摘要或超时使 sink 永久失败，不接纳补发或第二个 header。
+Host 在已有 worker operations 排他区内接收，一次至多一份结果；该配额从创建暂存到封存/明确失败清理一直占用。Host 为原 job 在私有结果目录 create_new 固定暂存槽，拒绝链接/替换、限制长度，保存原 transfer 元数据。该单槽跨 job/进程重启保持；失败或不明时保留并阻止新截图准入，不能通过换 job 累积暂存。Windows 从创建到封存清理持有原文件和目录祖先句柄，清理经已有审计边界按原句柄删除；不关闭句柄后重新按路径删除。每步错绑定/顺序/摘要或超时使 sink 永久失败，不接纳补发或第二个 header。
 
-finish 后 Host 重算原件 SHA-256、长度并完整验证 PNG，核对当前原 session/generation，然后沿既有 WorkerResultStore 写入 AEAD。生成 Host 结果引用，manifest 固定 Available/Binary/Completed。原 helper receipt 的引用只指 helper 的一次 capture，不直接作为 Host/core 原件身份。
+finish 后 Host 重算原件 SHA-256、长度并完整验证 PNG，核对当前原 session/generation，然后沿既有 WorkerResultStore 写入 AEAD。封存前再次核验已消费 grant、当前 consent 与会话，持授权锁完成封存/回执接纳，防止传输期间已提交的撤销被晚到成功绕过。生成 Host 结果引用，manifest 固定 Available/Binary/Completed。原 helper receipt 的引用只指 helper 的一次 capture，不直接作为 Host/core 原件身份。
 
 顺序固定为：实际 capture 一次 → 完整传输与验证 → AEAD 原件 → 原 manifest → Host descriptor → result_sealed 暂存清理 → 原 WorkerReceipt。上述完成前不能返回 Completed。Started 后任一不明确失败保持原 job Unknown；重复 dispatch 只返回 journal 原件，driver 不再调用。完整暂存/封存可供核对，不凭文件存在推断终态，也不自动从 Unknown 追加成功回执。
 
-worker journal 增加 descriptor 事实；新事实使用 envelope schema 2，原 schema 1 前缀字节和摘要保持。首次 v2 后不降回 v1；旧 reader 必须拒绝 v2。重放校验 descriptor 对原 job、permit、desktop binding、execution binding 和 manifest；缺 manifest、错序、替换、第二个异义 descriptor 均拒绝。非截图旧记录保持原语义。
+worker journal 的新截图 Admitted 追加可选 `output_transfer`，在 Started 前记录完整原传输绑定；普通旧记录省略该字段，原 schema 1 前缀字节和摘要保持。新截图准入与 descriptor 事实使用 envelope schema 2，成功 receipt 必须已有相同 transfer 的 manifest 和 descriptor。首次 v2 后不降回 v1；旧 reader 必须拒绝 v2。重放校验 descriptor 对原 job、permit、desktop binding、execution binding 和 manifest；缺 manifest、错序、替换、第二个异义 descriptor 均拒绝。非截图旧记录保持原语义。
 
 `WorkerBrokerTransport` 和 `IsolatedExecutorHost` 增加只读 `desktop_output(job_id)`，缺省拒绝；Host 使用 `/v1/agent/workers/{id}/desktop-output`，限定 AgentExecution domain。原件读取仍经既有 manifest/chunk，不增加 Host 公共下载 URL。查询必须核验持锁 journal 原件，不能创建 descriptor 或执行恢复副作用。
 

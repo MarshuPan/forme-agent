@@ -650,3 +650,12 @@ execution 直接复用已有 `ed25519-dalek =2.2.0`（关闭 default features，
 分支整合和本机测试安装恢复已实际推进。36f8662 已通过完整工作区检查，并经正式签名开发包升级；当前 product/core Ready、配置 3/ack 3，既有身份和任务事件保留。详见[原生回执与边界](installed-startup-reconciliation-20261109.md)。三项消费者/桌面协议已获 owner 批准，继续实施；不得继续标作“等待协议确认”，也不得标作已完成。
 
 随后 `4dc1550` 完成受管设置 v3 和 publisher 材料装配，`7e4b7ce` 接通 Host 桌面授权、主脑恢复及 Web 会话选择，`84e0406` 完成[独立桌面开关与原保存回执核验](installed-computer-settings-20261109.md)。最后一批完整源码回归为 190 suites、1,394 passed / 0 failed / 22 ignored，前端 126 tests、4 个真实产品配置进程场景及 required checks 均 PASS。`9dc0481` 已冻结截图交换实施细节；截图原件传输/保护/预览与受管 MCP/插件/渠道实际消费者继续推进。以上后续源码尚未替换现场安装，不据此新增 IP 通过结论。
+
+
+## 截图输出协议增量（2026-11-09）
+
+`aca7837` 已加入独立 schema 2 的原 job/permit/grant/session 输出绑定及有界传输元数据，保持旧 schema 1。完整源码门和独立原件核验 PASS：191 个 Rust targets，1,401 passed / 0 failed / 22 默认 ignored，见[协议组件验证](installed-desktop-output-protocol-20261109.md)。这批只验证元数据；PNG 实际接收、Host 加密封存、原生 helper、core 材料登记与 Web 预览仍继续实施，不更新完整 IP 或部署结论。
+
+## 截图结果 Host 接收与封存（2026-11-09）
+
+原 job 的有界暂存、完整 PNG/CRC 校验、授权锁下封存、schema 2 descriptor 与零重派重放已通过组件门及独立核验。191 个 Rust targets，1,418 passed / 0 failed / 22 默认 ignored；七项检查均通过，固定 target 实际分配约 51.0 GiB。详见[Host 组件验证](installed-desktop-output-host-20261109.md)。原生 helper 输出仍缺省关闭；core 登记、浏览器预览与实际安装验收继续实施，没有更新完整 IP 或现场安装。
