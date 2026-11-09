@@ -18,6 +18,10 @@ transfer 必须逐项匹配原 DesktopActionRequest 和原 Screenshot intent（�
 
 沿原已认证 named pipe 增加固定 `--desktop-session-helper-output-v2` 启动模式；旧模式的消息及 hello 保持。v2 Hello/Ready/Ping/Pong 必须严格匹配版本；v2 Execute 包含原 request、intent 和 transfer。双方在原 Started 前完成协议确认；未知/旧 peer 不降级执行 Screenshot。
 
+Windows 的输出支持声明固定为 `share/forme/desktop-output-v2.json`，closed 内容是 `{schema_version:2, helper_digest:SchemaDigest, helper_bytes:u64}`，精确绑定同一发布中的 `bin/forme-executord.exe`。声明与 helper 都必须进入签名 ReleaseManifest；Host 只从已验证活动发布建立支持状态，持有声明、helper 及目录祖先的原句柄，在取得保管后重新核验发布。仅有路径或未签名初装目录的旧构造函数不启用截图；首次安装的可信支持仍需独立接通，不用声明文件存在替代签名验证。打包器生成声明不代表原生行为已验收；实际 v2 Hello/Ready/Ping/Pong 仍须在 Started 前成功。
+
+v2 双端使用非阻塞 pipe；控制帧与 raw chunk 写入/读取共享从原 request deadline 一次换算的 monotonic deadline，部分进展不延长期限。连接/握手使用独立短上限并受 grant 到期限制；不改变 v1 模式。helper 从 live pipe server PID 验证现有 SCM Running、own-process、LocalSystem 与同发布 Host image，沿已有 AgentExecution 身份检查，不放宽 ACL。原 helper 在 Finish 后退出；Host 对同一 grant 的晚到观察只能复用已验证的一次交换并重查实际 session/generation，不得重启 helper，未确认交换保持拒绝。
+
 输出控制帧为 closed schema 2 对象：
 
 - `DesktopOutputHeader { schema_version, binding, transfer_ref, media_type:String, bytes:u64, content_digest:SchemaDigest, width:u32, height:u32 }`；只允许 image/png，编码不超过 8 KiB，正文非零且不超过 transfer 预算。
@@ -62,6 +66,12 @@ core 完整保留原 job/permit/manifest/receipt、offset/chunk、budget、整�
 `ToolArtifactRead {schema_version:2, session, run, content_ref, content_digest, offset:u64, max_bytes:u32}` 的 max_bytes 在 1..=262144；返回 closed `ToolArtifactChunk {schema_version:2, session, run, content_ref, content_digest, offset, next_offset, total_bytes, finished, bytes}`。内部 typed 传输可沿既有 bounded chunk 编码；Web 响应为实际 PNG 分块字节，Content-Type:image/png、nosniff/no-store，并有明确范围和整体摘要元数据，不返回 Host 引用/路径。
 
 每次读取持 data read fence，重新核对 owner/session/run、材料登记、摘要/长度及删除状态。Web 使用有限 typed 路由 `/api/v2/sessions/{session}/runs/{run}/artifacts` 与对应 `/{content_ref}` 分块读取，不开放通配 core 代理。前端仅在认证内存中组装、重算完整 digest/bytes 后创建 Blob URL；关闭/登出/删除/认证失效立即 abort 并 revoke。未经完整验证不渲染部分图片，不持久缓存。
+
+工具目录的独立常量 `TOOL_ARTIFACT_SCHEMA_VERSION=2`。closed `ToolArtifactEntry` 精确包含 `schema_version, content_ref, content_digest, action, scope, bytes, media_type, width, height`；closed `ToolArtifactCatalogView` 包含 `schema_version, session, run, digest, total, next_offset, artifacts`。目录最多 20,000 项，单次 run 事实读取最多 100,000 条；超界明确拒绝。分页摘要绑定 owner、原 session/run/workspace、原 run head 与完整元数据列表；读取前后 run head 不一致返回 Conflict。工具目录不扫描图片正文：受保护 descriptor 和材料回执给出尺寸/摘要，并通过 store 的当前 owner/scope/subject 原件存在性查询排除 pending/deleted subject 与删除的 object。公开分块读取才解密并完整核验原件；不使用未受删除 fence 保护的引用列表代替存在性核对。
+
+内部只增加 `/v1/artifacts/tools/query` 和 `/v1/artifacts/tools/read` 两个 typed POST 读取入口，仍核验正式 core assertion，HTTP 动词不赋予写权限。Web v2 GET 目录参数固定 `offset, limit, snapshot?`，分块参数固定 `content_digest, offset, max_bytes`，未知字段拒绝；不把这两个内部入口加入旧通配代理。Web 核对 closed typed 响应与原请求，并在回传前再次核对原认证会话。原始分块返回 206、`Content-Range: bytes start-end/total`、`X-Forme-Content-Digest`、`X-Forme-Total-Bytes` 与 `X-Forme-Next-Offset`；无原件身份、总量、范围或格式相符的响应不能显示。整体 source 固定，旧上传附件入口不变。
+
+浏览器使用有限流式读取，单块分配不超过 256 KiB、整图不超过原 64 MiB 预算；拒绝超长正文、错序/截断范围、错摘要和尺寸。校验完成才创建 URL；只读操作允许用户显式重新读取原件，不派发截图。切换运行/会话/工作面、关闭预览、页面隐藏、退出或认证失效会取消读取并回收 URL，数据页的生命周期操作前先卸载图片消费者。CSP 仅对 `img-src` 增加 `blob:`，不增加脚本/对象来源；图片样式使用现有受控 CSS。完整 Host 副本删除及原生联合验收仍遵守 §6。
 
 模型当前仍只看到引用/状态，不据此宣称理解像素。真实视觉模型消费者和依赖像素的任务另行验收。
 
