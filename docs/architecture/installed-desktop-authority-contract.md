@@ -83,6 +83,6 @@ Web 在原审批卡内显示会话目录、重新认证口令及同一次 consen
 
 ## 7. 无正文动作的完成交接
 
-已实现的非截图 Computer 操作，其原 `DesktopActionReceipt` 经 Host 独立核对为 Committed 且 `result_ref=None` 时，本身证明“动作完成且不产生正文”。Host 必须为原 job 封存真实零字节 AEAD 结果，manifest 为 `Empty/Utf8`、原始空正文摘要、bytes=0、result_ref=None，先 journal manifest 再写原 worker receipt。Core 继续经过原 manifest/chunk/receipt 核验完成；不得把 `source=None` 的 Missing manifest 当成成功。
+已实现的非截图 Computer 操作，其原 `DesktopActionReceipt` 经 Host 独立核对为 Committed 且 `result_ref=None` 时，本身证明“动作完成且不产生正文”。Host 必须为原 job 封存真实零字节 AEAD 结果，manifest 为 `Empty/Utf8`、原始空正文摘要、bytes=0。遵守既有 WorkerResultManifest v1 的非空引用约束：Host 从原 result binding 派生唯一 `desktop-empty:` 引用，指向实际封存的零字节结果，并将同一引用写入 worker receipt；helper 原回执仍为 `result_ref=None`。先 journal manifest 再写原 worker receipt。Core 继续经过原 manifest/chunk/receipt 核验完成；不得把 `source=None` 的 Missing manifest 当成成功。
 
 若 helper 声称存在 result_ref 却没有传回正文，保持原 Missing/Unknown 语义，不凭该引用生成空结果；Screenshot 永不走本分支，必须按独立输出协议传回且核验真实图片。此交接不改旧 DTO、事件、结果读取预算或原 job 的重复派发规则。
