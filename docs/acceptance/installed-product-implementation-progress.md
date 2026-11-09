@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 普通 Shell 的有界清理与 Unknown 通过，尚未部署
+
+`b131832` 修复后代继承输出管道时的无界等待：原 child/readers 共用有界清理、八槽准入及唯一监督，未确认结束只保留 Unknown，新 backend 不能绕过原清理。四类真实故障均证明原 marker 恰一次、零重复派发；原清理结束不改写结果，普通成功/失败和已确认取消保持区分。
+
+最终七阶段均 exit 0，workspace 为 189 targets、1,355 passed / 0 failed / 22 默认 ignored，strict Clippy、质量与完整合规通过；四份源码与全部日志、计数、失败原件及空间报告独立核验 PASS。原空间门拒绝、随后 Clippy 的夹具拒绝均保留；修改测试后重新完成整轮，未复用旧源码测试结果。细节见[Shell I/O 组件验收](installed-shell-io-lifecycle-acceptance-20261109.md)。本次未部署、未启用安装版 Shell 或刷新完整 Final/IP；本机原升级和三份冻结提案仍开放。
+
 ## 2026-11-09 MCP 未确认副作用与 Harness 挂起恢复通过
 
 `1b6884f` / `d43e27a` 修复工具已产生副作用却丢失/返回无效响应时的错误终态，以及 Harness 把已持久化 Unknown 当普通失败继续调用模型的问题；副作用后的取消和再次取消都保留原 run 待裁决。同号重放、真实 SQLite 重启和 owner 持久裁决证明 marker 恰一次、零额外派发；明确结果与派发前取消仍正常处理。

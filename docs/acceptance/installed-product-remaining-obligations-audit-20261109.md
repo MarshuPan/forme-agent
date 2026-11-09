@@ -26,7 +26,9 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 | 截图、引用输入和真实 PTY | helper 当前拒绝截图和 ContentRef/SecretRef Type，只处理 Computer；desktop 结果 source=None。`1207740` 证明三个隔离机制，`451f3b4` 修复普通 I/O；后续 `e9da708` 将同一真实 backend 放入隔离 fixture，八项 I/O 组合和三个原场景共 11 个独立实验全部通过。初始化/OS 关闭异常矩阵与生产接线仍未完成。 | 证据见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)、[I/O 组件验收](installed-pty-io-lifecycle-acceptance-20261109.md)和[组合验收](installed-isolated-pty-io-composition-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；组合机制不授权新增冻结协议，也不关闭完整 IP。 |
 | 其他安装版执行 placement | Shell、Browser、AppApi、Notification 逐项核对实际消费者、隔离 profile、凭据/输入/结果与取消。 | 有通用 broker/factory 分支不等于实际安装能力；不得统一启用 flag 或回退 brain 进程内 driver。 |
 
-追加组件证据：`1b6884f` / `d43e27a` 已闭合普通 MCP 丢响应/无效响应/副作用后取消的 Unknown，以及 Harness 的原号挂起、真实 SQLite 恢复、同键重放和持久裁决。workspace 为 188 targets、1,346 passed / 0 failed / 22 默认 ignored，required checks 与原件核验通过；详见[MCP Unknown 组件验收](installed-mcp-unknown-outcome-acceptance-20261109.md)。这不启用受管消费者，不替代安装证据；普通 Shell 继承管道仍待闭合。
+追加组件证据：`1b6884f` / `d43e27a` 已闭合普通 MCP 丢响应/无效响应/副作用后取消的 Unknown，以及 Harness 的原号挂起、真实 SQLite 恢复、同键重放和持久裁决。workspace 为 188 targets、1,346 passed / 0 failed / 22 默认 ignored，required checks 与原件核验通过；详见[MCP Unknown 组件验收](installed-mcp-unknown-outcome-acceptance-20261109.md)。这不启用受管消费者，也不替代安装证据。
+
+随后 `b131832` 闭合普通 Shell 继承管道的有界清理、八槽准入和唯一 Unknown；四类真实故障与正常路径通过。最终 workspace 为 189 targets、1,355 passed / 0 failed / 22 默认 ignored，fmt/check/test、strict Clippy、质量、完整合规及独立原件核验通过；原资源/Clippy 拒绝均保留，详见[Shell I/O 组件验收](installed-shell-io-lifecycle-acceptance-20261109.md)。安装版 Shell 的实际 placement 仍属上表义务，本次未部署或刷新完整 Final/IP。
 
 本表列实施义务，不把代码中正确显示 unavailable 视为完成；也不把历史 M0 的延后能力误用来阻止已经激活的 M2/V1 设计。需要冻结变更时遵守 AGENTS.md 硬规则 3；常规实现与修复不再另造审批要求。
 

@@ -420,6 +420,8 @@ Host 先写 Validated receipt，再以原 revision/CAS 持久化 `ReleaseTakeove
 
 updater 初次读固定安装/handoff，先以 create-new、fsync 的 per-operation dispatch marker 消耗原执行；它只防止取得 journal writer 前重复停服，不是第二事实源。marker、handoff、installation 的绑定错误或过期在原生调用前拒绝。原生停止按 Brain → Web → Host，在相同截止时间内核实实际 Stopped；不得把 stop 超时当作可重复调用的许可。停止 Host 后才取得唯一 ProductJournal 与配置 writer，并核对同一 `ReleaseTakeoverPrepared`、Quiescing intent、旧配置与活动版本。无法取得 writer 或发现不匹配保留现场，不写另一个 journal。
 
+SCM 接受一次 start/stop 后，升级专用适配器与普通服务适配器遵守相同的状态传播约束：首次仍观察到原稳定状态时只继续核实，不重复原命令，也不立即把传播延迟当成失败。只接受本次方向对应的 pending；已经观察到 pending 后再次回到原状态、相反方向 pending、暂停/未知状态、查询或固定服务配置核验失败均停止。整个观察过程复用原绝对 deadline，不因旧状态或 pending 刷新时限；期限到达不能以稍后终态补报本次成功。每轮保持确切 image/account/recovery 检查，终态后仍走原独立观察与摘要绑定。这是既有原生观察的实施细化，不改变 wire/持久 DTO、trait、journal、升级次数或恢复权限。
+
 取得 writer 后完成 Quiescing receipt；在 BackedUp intent 后调用 §4.10.1，实际 schema 兼容才做一次备份；Switching intent 后调用 §4.10.2。在 core 仍停服且旧 inspector 释放独占锁后，由已验签目标 release 的固定 hostctl 再只读核验同一 owner/store/schema/数据库摘要/事件水位，不改变数据库。新配置 revision 在同一配置 journal 中发布 Host-only release binding，保留模型/凭据/恢复绑定，旧不可变 revision 字节保持不变（私有 state schema 7；公开配置 v1/v2 与 core 外壳 schema 1 不改）。hold 必须在发布新 config 前持久化；故障可关闭准入，不能提前开放。
 
 updater 写 Switching receipt 与原 journal active release 变更，再写 Checking intent及其绑定证据；释放管理/config writer 后，按 Host → Web → Brain 启动目标程序。每个动作前后复核期限、确切 service/image 与实际状态，不在进程内另起长期 supervisor。新 Host 只消费原 Checking 证据核实，不重复停服/备份/image change。核实当前 executable、三服务实际目标、fresh release readiness、config ack 与原 owner/store 后才写 Checking receipt/Committed；仅在 Committed 落盘后发布 released=true。配置保存/restore 必须保留或显式重新绑定当前 release，不能清掉另一条 admission。
