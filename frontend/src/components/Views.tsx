@@ -14,6 +14,7 @@ import { Maintenance } from './Maintenance.tsx';
 import { RuntimeDiagnostics } from './RuntimeDiagnostics.tsx';
 import { BrainPreferences } from './BrainPreferences.tsx';
 import { SkillSettings } from './SkillSettings.tsx';
+import { ComputerSettings } from './ComputerSettings.tsx';
 import { ConfigurationAvailability } from './ConfigurationAvailability.tsx';
 import type { MaterialLifecycleTarget } from '../memory-material.ts';
 import { settingConfigurable } from '../settings-schema.ts';
@@ -69,6 +70,7 @@ export function Settings({ api, runtime, issue, refresh, signedOut, materialTarg
     </article><RuntimeDiagnostics api={api} runtime={runtime} /><article className="surface"><h2>主脑与入口配置</h2><p className="muted">密钥只写入本机受保护存储，不会回显到页面、浏览器存储或日志。</p>
       <ConfigurationAvailability value={config?.availability} />
       <ProductConfigEditor api={api} config={config} loading={configLoading} error={configError} busy={configBusy} onReload={() => void loadConfig()} onBusy={setConfigBusy} onError={setConfigError} onSaved={setConfig} />
+      <ComputerSettings api={api} revision={config?.active_revision} disabled={configBusy} onSaved={() => { void loadConfig(); refresh(); }} />
       <ConfigurationActivation api={api} config={config} coreConnected={Boolean(runtime)} onSaved={setConfig} refresh={refresh} />
       {settingConfigurable(config, 'network') && <NetworkConfigurationActivation api={api} config={config} onSaved={setConfig} refresh={refresh} />}
     </article><article className="surface"><h2>修改登录密码</h2><p className="muted">成功后撤销已有登录会话，脑数据与所有者身份保持不变。</p><form onSubmit={changePassword} aria-busy={busy}>

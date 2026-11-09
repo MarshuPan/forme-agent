@@ -2,6 +2,7 @@
 #[cfg(test)]
 mod activation_tests;
 mod bootstrap;
+mod computer_settings;
 mod desktop;
 mod journal;
 #[cfg(test)]

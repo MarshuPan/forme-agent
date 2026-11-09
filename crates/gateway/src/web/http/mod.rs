@@ -4,6 +4,7 @@ mod auth;
 mod backup_verification;
 mod bootstrap;
 mod bootstrap_legacy;
+mod computer_settings;
 mod configuration;
 mod connections;
 #[path = "core.rs"]
@@ -234,6 +235,16 @@ fn router(state: Arc<WebState>) -> Router {
             get(configuration::read)
                 .post(configuration::write)
                 .layer(DefaultBodyLimit::max(256 * 1024)),
+        )
+        .route(
+            "/api/v1/desktop/settings",
+            get(computer_settings::read)
+                .post(computer_settings::write)
+                .layer(DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route(
+            "/api/v1/desktop/settings/operations/{id}",
+            get(computer_settings::operation),
         )
         .route("/api/v1/desktop/sessions", get(desktop::sessions))
         .route(

@@ -228,6 +228,62 @@ impl ConfigJournal {
         self.projection.acknowledged
     }
 
+    /// Query only the original committed fact; never recover or append a write.
+    pub(super) fn committed_digest(&mut self, operation: &str) -> p::Result<p::SchemaDigest> {
+        p::validate_product_id(operation)?;
+        if self.poisoned {
+            return Err(invalid());
+        }
+        let cursor = self.file.stream_position().map_err(|_| invalid())?;
+        let checked = (|| {
+            let length = self.file.metadata().map_err(|_| invalid())?.len();
+            if length == 0 || length > 64 * 1024 * 1024 {
+                return Err(invalid());
+            }
+            self.file.seek(SeekFrom::Start(0)).map_err(|_| invalid())?;
+            let mut reader = BufReader::new((&mut self.file).take(length + 1));
+            let mut actual = Projection::default();
+            let mut line = Vec::new();
+            let mut total = 0_u64;
+            loop {
+                line.clear();
+                let count = reader
+                    .by_ref()
+                    .take(8193)
+                    .read_until(b'\n', &mut line)
+                    .map_err(|_| invalid())?;
+                if count == 0 {
+                    break;
+                }
+                total += count as u64;
+                if count > 8192 || total > length || line.last() != Some(&b'\n') {
+                    return Err(invalid());
+                }
+                actual.fold(&serde_json::from_slice(&line).map_err(|_| invalid())?)?;
+            }
+            if total != length
+                || actual.sequence != self.projection.sequence
+                || actual.head()? != self.projection.head()?
+            {
+                return Err(invalid());
+            }
+            Ok(())
+        })();
+        let restored = self
+            .file
+            .seek(SeekFrom::Start(cursor))
+            .map_err(|_| invalid());
+        if checked.is_err() || restored.is_err() {
+            self.poisoned = true;
+            return Err(invalid());
+        }
+        self.projection
+            .operations
+            .get(operation)
+            .cloned()
+            .ok_or_else(invalid)
+    }
+
     pub fn existing(&self, operation: &str, digest: &p::SchemaDigest) -> p::Result<bool> {
         if self.poisoned {
             return Err(invalid());
@@ -307,3 +363,7 @@ impl ConfigJournal {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "journal_query_tests.rs"]
+mod query_tests;

@@ -1,5 +1,6 @@
 // Real isolated Web/Host processes; never controls installed services/firewall.
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { createManagedProduct, readJson } from './fixtures/managed_product.mjs';
 
@@ -9,6 +10,7 @@ test('Web network settings stage and recover without changing the live listener 
   let host = await product.startHost();
   await product.startWeb();
   const setup = 'claim:network-process';
+  const password = 'network process fixture password 72';
   await product.request('/api/v1/bootstrap/prove', { method: 'POST', key: setup,
     body: { schema_version: 1, proof: product.proof(setup) } });
   const candidate = await product.request('/api/v1/bootstrap/data');
@@ -16,7 +18,7 @@ test('Web network settings stage and recover without changing the live listener 
     body: { schema_version: 1, candidate_ref: candidate.candidate_ref } });
   await product.request('/api/v1/bootstrap/claim', { method: 'POST', key: setup, body: {
     schema_version: 1, operation_id: setup, candidate_ref: candidate.candidate_ref,
-    login_name: 'fixture', password: 'network process fixture password 72',
+    login_name: 'fixture', password,
   } });
   const original = await readJson(product.template.web_network_config_path);
   const desired = { ...original, bind: '127.0.0.1:1' };
@@ -79,4 +81,36 @@ test('Web network settings stage and recover without changing the live listener 
   assert.equal(Object.hasOwn(oldSaved.view, 'availability'), false);
   assert.deepEqual(oldSaved.view.network, desired);
   assert.equal((await product.request('/api/v1/product/config?schema_version=2')).active_revision, 2);
+  // Exercise the actual Web -> Host configuration transaction and original
+  // receipt query; this disposable installation has no desktop placement.
+  const beforeDesktop = await product.request('/api/v1/desktop/settings');
+  assert.equal(beforeDesktop.available, false);
+  assert.equal(beforeDesktop.active_revision, 2);
+  const desktop = { schema_version: 1, operation_id: 'desktop:process-settings', expected_revision: 2,
+    computer: beforeDesktop.computer, password };
+  const desktopSaved = await product.request('/api/v1/desktop/settings', {
+    method: 'POST', key: desktop.operation_id, body: desktop });
+  assert.equal(desktopSaved.applied, true);
+  assert.equal(desktopSaved.view.active_revision, 3);
+  const originalPatch = { schema_version: 1, operation_id: desktop.operation_id, expected_revision: 2,
+    owner: beforeDesktop.owner, computer: desktop.computer };
+  const digest = 'sha256:' + createHash('sha256')
+    .update(JSON.stringify(['forme.product.computer-settings.v1', originalPatch])).digest('hex');
+  const queryPath = '/api/v1/desktop/settings/operations/' + desktop.operation_id;
+  const originalReceipt = await product.request(queryPath);
+  assert.deepEqual(originalReceipt, { schema_version: 1, owner: beforeDesktop.owner,
+    operation_id: desktop.operation_id, request_digest: digest, committed: true });
+  const replay = await product.request('/api/v1/desktop/settings', {
+    method: 'POST', key: desktop.operation_id, body: desktop });
+  assert.equal(replay.applied, false);
+  assert.deepEqual(replay.view, desktopSaved.view);
+  await product.stop(host);
+  host = await product.startHost();
+  assert.deepEqual(await product.request(queryPath), originalReceipt);
+  const afterDesktop = await product.request('/api/v1/product/config?schema_version=3');
+  assert.deepEqual(afterDesktop.network, desired);
+  assert.deepEqual(afterDesktop.models, oldSaved.view.models);
+  assert.equal(afterDesktop.active_revision, 3);
+  assert.deepEqual((await product.request('/api/v1/product/maintenance')).operations, []);
+
 });

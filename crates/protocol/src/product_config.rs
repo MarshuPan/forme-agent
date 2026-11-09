@@ -14,6 +14,9 @@ use crate::{
     SchemaDigest, SchemaVersion, WorkspaceRef,
 };
 
+mod computer;
+pub use computer::*;
+
 mod proxy;
 pub use proxy::*;
 

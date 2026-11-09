@@ -17,6 +17,8 @@ import type { WorkbenchItem } from '../workbench.ts';
 import { parseCorrectionReceipt, parseCorrectionsView } from '../correction.ts';
 import type { CognitionCorrection } from '../correction.ts';
 import { parseProductSettings } from '../settings-schema.ts';
+import { parseComputerSettings, parseComputerSettingsResponse } from '../computer-settings.ts';
+import type { ComputerSettingsPatch } from '../computer-settings.ts';
 import { parseOfflineBackupVerification } from '../offline-backup.ts';
 import { parseReleaseRecoveryCandidate, parseReleaseRecoveries, parseReleaseRecovery } from '../release-recovery.ts';
 import type { ReleaseRecoveryCommand, ReleaseRecoveryVerification } from '../release-recovery.ts';
@@ -155,6 +157,14 @@ export class WorkbenchClient {
   }
   async password(old_password: string, new_password: string, operation: string) {
     await this.request('auth/password', 'PUT', { schema_version: 1, old_password, new_password }, operation); this.clear();
+  }
+  async computerSettings() { return parseComputerSettings(await this.json<unknown>('desktop/settings')); }
+  async saveComputerSettings(patch: ComputerSettingsPatch, password: string) {
+    const { owner: _owner, ...body } = patch;
+    return parseComputerSettingsResponse(await this.json<unknown>('desktop/settings', 'POST', { ...body, password }, patch.operation_id), patch);
+  }
+  computerSettingsOperation(operation: string) {
+    return this.json<unknown>(`desktop/settings/operations/${id(operation)}`);
   }
   async productConfig() {
     return parseProductSettings(await this.json<unknown>('product/config?schema_version=2', 'GET', undefined, undefined, 2));

@@ -98,18 +98,12 @@ impl WorkerBrokerTransport for Transport {
 struct Fixture {
     backend: WorkerActionBackend,
     transport: Arc<Transport>,
-    path: std::path::PathBuf,
+    _root: tempfile::TempDir,
 }
 impl Fixture {
     fn new(lost_issue: bool, unavailable_reads: bool) -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "forme-desktop-backend-{}-{}.jsonl",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("authority.jsonl");
         let authority = Arc::new(
             DesktopAuthority::open(
                 &path,
@@ -141,7 +135,7 @@ impl Fixture {
         Self {
             backend,
             transport,
-            path,
+            _root: root,
         }
     }
     fn pending(&self) -> forme_execution::ExecutionPlan {
@@ -182,12 +176,7 @@ impl Fixture {
             .unwrap()
     }
 }
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        // The journal's OS lock is intentionally retained until its handles drop.
-        let _ = std::fs::remove_file(&self.path);
-    }
-}
+
 #[test]
 fn desktop_preflight_waits_for_real_consent_then_dispatches_once() {
     let f = Fixture::new(false, false);

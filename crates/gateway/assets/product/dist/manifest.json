@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "0ea2a287f79ea3d3369800eb137658467e8f9cafe2d8771ba7f8d4283c00203f",
+  "source_digest": "5422265d33f79a9108991099f66442e7490e5eadf90058dab8af7b2f02288343",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "92faad80ae8af2d20947766f5800be02d32340aaa151669ac61319e742326077"
+      "sha256": "a9f9f100f228f7e5af9901835c59526eafc56c7b17b8a458766131abadd56657"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -53,6 +53,10 @@
     {
       "path": "frontend/src/components/CognitionCorrection.tsx",
       "sha256": "eef6c9f00009e70ebbf16ed9ed76b4197cb686564506c2c5baf7523f382e46a8"
+    },
+    {
+      "path": "frontend/src/components/ComputerSettings.tsx",
+      "sha256": "31e92f64c6147f8ab0df4f9ce2e8986d0cedcac3d98c20f8473bfda45da2cb77"
     },
     {
       "path": "frontend/src/components/ConfigurationActivation.tsx",
@@ -128,7 +132,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "627924c6c90bc2244a7cd1f407d7067332e77804666c6c57303805f24051a316"
+      "sha256": "0c7060c4f16bb5ac3d82ceb07c7a9b78754e5bc52ab04d0acd5519a902089607"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -141,6 +145,10 @@
     {
       "path": "frontend/src/components/project-command.ts",
       "sha256": "1d7c56cbb2554bcd96b159b4661f97f8f062b57317dc3370159b9df72797f724"
+    },
+    {
+      "path": "frontend/src/computer-settings.ts",
+      "sha256": "75c41f7e10cc0f5934d8727414a720894162569d0b98eaefb1521463a9d69a21"
     },
     {
       "path": "frontend/src/configuration.ts",
@@ -245,6 +253,10 @@
     {
       "path": "frontend/src/tests/client.test.ts",
       "sha256": "e413cb9213ef47b3f7bbb7d3ab1bb3ee38d89d5620c0375b8c521d52fa89820d"
+    },
+    {
+      "path": "frontend/src/tests/computer-settings.test.ts",
+      "sha256": "1cc4f09a6f288aba752bc4558f86612ccb1fbabc9070a80ae543575faa26a006"
     },
     {
       "path": "frontend/src/tests/configuration.test.ts",
@@ -353,9 +365,9 @@
   ],
   "files": [
     {
-      "path": "assets/index-BF8HPd-Z.js",
-      "sha256": "0c3763f37fa5f490e454218d0450ba2bed6a53851158735c5ebb91d77ecb17dd",
-      "bytes": 412798
+      "path": "assets/index-Dds3W8Ko.js",
+      "sha256": "69b422451a378e6ff6b1861a7828cd8322a858d26e35f1078af5bb109ace595a",
+      "bytes": 418539
     },
     {
       "path": "assets/index-kab-1l06.css",
@@ -374,7 +386,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "4bce3e6de848571d9e87ad33d5ed5dc2447d62e4244a7ada84963ee1edf41621",
+      "sha256": "dda9ca81bf093503ec30fe91821e6e7447fcf9fb798800ce44e3e0dea37a43f2",
       "bytes": 595
     },
     {

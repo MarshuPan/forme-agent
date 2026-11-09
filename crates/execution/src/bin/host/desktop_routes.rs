@@ -37,6 +37,12 @@ fn dispatch(
     }
     let path = request.path.as_str();
     match (domain, request.method.as_str(), path) {
+        (EndpointDomain::Configuration, "GET", "/v1/host/configuration/desktop/settings") => {
+            encode(&broker.computer_settings(auth)?)
+        }
+        (EndpointDomain::Configuration, "POST", "/v1/host/configuration/desktop/settings") => {
+            encode(&broker.apply_computer_settings(auth, decode(&request.body)?)?)
+        }
         (EndpointDomain::Configuration, "GET", "/v1/host/configuration/desktop/sessions") => {
             encode(&broker.desktop_sessions(auth, now)?)
         }
@@ -45,6 +51,14 @@ fn dispatch(
         }
         (EndpointDomain::Configuration, "POST", "/v1/host/configuration/desktop/revocations") => {
             encode(&broker.revoke_desktop(auth, decode(&request.body)?, now)?)
+        }
+        (EndpointDomain::Configuration, "GET", _)
+            if path.starts_with("/v1/host/configuration/desktop/settings/operations/") =>
+        {
+            encode(&broker.computer_settings_operation(
+                auth,
+                id(path, "/v1/host/configuration/desktop/settings/operations/")?,
+            )?)
         }
         (EndpointDomain::Configuration, "GET", _) => encode(&broker.desktop_consent(
             auth,

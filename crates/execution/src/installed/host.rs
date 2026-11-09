@@ -7,6 +7,8 @@ use forme_protocol as p;
 mod host_backup_verification;
 #[path = "host_bootstrap.rs"]
 mod host_bootstrap;
+#[path = "host_computer_settings.rs"]
+mod host_computer_settings;
 #[path = "host_configuration.rs"]
 mod host_configuration;
 #[path = "host_desktop.rs"]

@@ -140,3 +140,126 @@ fn desktop_projection_rejects_file_profile_foreign_endpoint_and_unknown_fields()
         assert!(parsed.is_err() || parsed.unwrap().validate_template(&store.template).is_err());
     }
 }
+
+#[test]
+fn narrow_desktop_save_preserves_credentials_and_publisher_material_and_recovers_original_commit() {
+    let (_root, path, store) = fixture();
+    let mut store = store.into_inner().unwrap();
+    let key = ed25519_dalek::SigningKey::from_bytes(&[29; 32])
+        .verifying_key()
+        .to_bytes();
+    let mut base = update("save:managed-base", 0, false);
+    base.managed_capabilities
+        .as_mut()
+        .unwrap()
+        .publisher_keys
+        .push(p::ProductPublisherKeyPatch {
+            schema_version: p::SchemaVersion(1),
+            publisher_ref: "publisher:retained".into(),
+            public_key_digest: p::sha256_content_digest(&key),
+            public_key: key,
+        });
+    base.channels = Some(p::ProductChannelSettings {
+        schema_version: p::SchemaVersion(1),
+        channels: vec![],
+    });
+    store.apply_settings_v3(base).unwrap();
+    let placement = placement(&store);
+    let original = store.state.clone();
+    let key_files: Vec<_> = original
+        .publisher_key_files
+        .values()
+        .map(|path| (path.clone(), std::fs::read(path).unwrap()))
+        .collect();
+    drop(store);
+    let mut store =
+        ProductConfigStore::open_with_installed_placements(&path, None, Some(placement))
+            .unwrap()
+            .into_inner()
+            .unwrap();
+    let patch = p::ProductComputerSettingsPatch {
+        schema_version: p::SchemaVersion(1),
+        operation_id: "save:computer-only".into(),
+        expected_revision: 1,
+        owner: original.owner.clone().unwrap(),
+        computer: p::ProductComputerPlacementSettings {
+            schema_version: p::SchemaVersion(1),
+            enabled: true,
+            scope: p::Scope("workspace:default".into()),
+            surface_refs: vec![INSTALLED_DESKTOP_SURFACE.into()],
+        },
+    };
+    assert!(
+        store
+            .apply_computer_settings(patch.clone())
+            .unwrap()
+            .applied
+    );
+    let journal_path = store
+        .template
+        .core_config_path
+        .with_extension("journal.jsonl");
+    drop(store);
+    let journal = std::fs::read(&journal_path).unwrap();
+    let mut store = ProductConfigStore::open(&path)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    assert!(
+        !store
+            .apply_computer_settings(patch.clone())
+            .unwrap()
+            .applied
+    );
+    let query = store
+        .computer_settings_operation(&patch.operation_id)
+        .unwrap();
+    assert!(query.committed);
+    assert_eq!(query.request_digest, patch.digest().unwrap());
+    assert_eq!(query.owner, patch.owner);
+    assert!(store.computer_settings_operation("save:missing").is_err());
+    for changed in 0..3 {
+        let mut wrong = patch.clone();
+        match changed {
+            0 => wrong.computer.enabled = false,
+            1 => wrong.owner.0 = "owner:foreign".into(),
+            _ => wrong.operation_id = "save:stale".into(),
+        }
+        assert!(store.apply_computer_settings(wrong).is_err());
+    }
+    assert_eq!(store.state.credentials, original.credentials);
+    assert_eq!(
+        store.state.publisher_key_files,
+        original.publisher_key_files
+    );
+    assert_eq!(store.state.channels, original.channels);
+    assert_eq!(store.state.models, original.models);
+    for (path, bytes) in &key_files {
+        assert_eq!(std::fs::read(path).unwrap(), *bytes);
+    }
+    drop(store);
+    assert_eq!(std::fs::read(&journal_path).unwrap(), journal);
+    let mut store = ProductConfigStore::open(&path)
+        .unwrap()
+        .into_inner()
+        .unwrap();
+    assert!(
+        store
+            .computer_settings_operation(&patch.operation_id)
+            .unwrap()
+            .committed
+    );
+    let mut disable = patch;
+    disable.operation_id = "save:computer-disable".into();
+    disable.expected_revision = 2;
+    disable.computer.enabled = false;
+    store.apply_computer_settings(disable).unwrap();
+    assert!(!store.computer_settings().unwrap().computer.enabled);
+    assert_eq!(
+        store.state.publisher_key_files,
+        original.publisher_key_files
+    );
+    for (path, bytes) in key_files {
+        assert_eq!(std::fs::read(path).unwrap(), bytes);
+    }
+}

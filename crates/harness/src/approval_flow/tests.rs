@@ -98,9 +98,13 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
+        // Parallel tests can observe the same Windows wall-clock tick. Keep
+        // their independently locked authority journals distinct regardless.
+        static NEXT_FIXTURE: AtomicUsize = AtomicUsize::new(0);
         let path = std::env::temp_dir().join(format!(
-            "forme-desktop-harness-{}-{}.jsonl",
+            "forme-desktop-harness-{}-{}-{}.jsonl",
             std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()

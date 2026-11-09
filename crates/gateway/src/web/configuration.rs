@@ -259,48 +259,52 @@ impl LocalConfigurationClient {
         path: &str,
         body: Option<&B>,
     ) -> p::Result<T> {
-        if !matches!(
-            (method, path),
-            ("GET", "/v1/host/status")
-                | ("GET", "/v1/host/configuration")
-                | ("GET", "/v1/host/configuration/v2")
-                | ("GET", "/v1/host/configuration/v3")
-                | ("POST", "/v1/host/configuration")
-                | ("POST", "/v1/host/configuration/owner")
-                | ("POST", "/v1/host/configuration/validate")
-                | ("POST", "/v1/host/configuration/activate")
-                | ("POST", "/v1/host/configuration/data/verify")
-                | ("GET", "/v1/host/configuration/maintenance")
-                | ("POST", "/v1/host/configuration/maintenance")
-                | ("POST", "/v1/host/configuration/release-recovery")
-                | ("POST", "/v1/host/configuration/release-recovery/verify")
-                | ("GET", "/v1/host/configuration/release-recovery/operations")
-                | ("POST", "/v1/host/configuration/legacy-release-recovery")
-                | (
-                    "POST",
-                    "/v1/host/configuration/legacy-release-recovery/verify"
-                )
-                | (
-                    "GET",
-                    "/v1/host/configuration/legacy-release-recovery/operations"
-                )
-        ) && !(method == "GET"
-            && path
-                .strip_prefix("/v1/host/configuration/operations/")
-                .or_else(|| path.strip_prefix("/v1/host/configuration/maintenance/operations/"))
-                .or_else(|| {
-                    path.strip_prefix("/v1/host/configuration/release-recovery/operations/")
-                })
-                .or_else(|| {
-                    path.strip_prefix("/v1/host/configuration/release-recovery/candidates/")
-                })
-                .or_else(|| {
-                    path.strip_prefix("/v1/host/configuration/legacy-release-recovery/review/")
-                })
-                .or_else(|| {
-                    path.strip_prefix("/v1/host/configuration/legacy-release-recovery/operations/")
-                })
-                .is_some_and(|id| p::validate_product_id(id).is_ok()))
+        if !desktop::allows_route(method, path)
+            && !matches!(
+                (method, path),
+                ("GET", "/v1/host/status")
+                    | ("GET", "/v1/host/configuration")
+                    | ("GET", "/v1/host/configuration/v2")
+                    | ("GET", "/v1/host/configuration/v3")
+                    | ("POST", "/v1/host/configuration")
+                    | ("POST", "/v1/host/configuration/owner")
+                    | ("POST", "/v1/host/configuration/validate")
+                    | ("POST", "/v1/host/configuration/activate")
+                    | ("POST", "/v1/host/configuration/data/verify")
+                    | ("GET", "/v1/host/configuration/maintenance")
+                    | ("POST", "/v1/host/configuration/maintenance")
+                    | ("POST", "/v1/host/configuration/release-recovery")
+                    | ("POST", "/v1/host/configuration/release-recovery/verify")
+                    | ("GET", "/v1/host/configuration/release-recovery/operations")
+                    | ("POST", "/v1/host/configuration/legacy-release-recovery")
+                    | (
+                        "POST",
+                        "/v1/host/configuration/legacy-release-recovery/verify"
+                    )
+                    | (
+                        "GET",
+                        "/v1/host/configuration/legacy-release-recovery/operations"
+                    )
+            )
+            && !(method == "GET"
+                && path
+                    .strip_prefix("/v1/host/configuration/operations/")
+                    .or_else(|| path.strip_prefix("/v1/host/configuration/maintenance/operations/"))
+                    .or_else(|| {
+                        path.strip_prefix("/v1/host/configuration/release-recovery/operations/")
+                    })
+                    .or_else(|| {
+                        path.strip_prefix("/v1/host/configuration/release-recovery/candidates/")
+                    })
+                    .or_else(|| {
+                        path.strip_prefix("/v1/host/configuration/legacy-release-recovery/review/")
+                    })
+                    .or_else(|| {
+                        path.strip_prefix(
+                            "/v1/host/configuration/legacy-release-recovery/operations/",
+                        )
+                    })
+                    .is_some_and(|id| p::validate_product_id(id).is_ok()))
         {
             return Err(invalid());
         }
