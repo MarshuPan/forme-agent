@@ -20,22 +20,24 @@ use super::super::windows_appcontainer_acl as acl;
 use super::runtime::ObservedProcess;
 use super::{LaunchRequest, SetupResources};
 
+mod io_cases;
+
 #[test]
 #[ignore = "creates a private Low AppContainer and real ConPTY; explicit mechanism evidence only"]
 fn native_isolated_pty_roundtrip_and_exit() {
-    experiment(false, true);
+    experiment(false, true, None);
 }
 
 #[test]
 #[ignore = "creates a private Low AppContainer and cancels its actual terminal process tree"]
 fn native_isolated_pty_descendant_cancellation() {
-    experiment(true, true);
+    experiment(true, true, None);
 }
 
 #[test]
 #[ignore = "independently verifies production child restriction with the fixed PTY fixture"]
 fn native_file_policy_still_rejects_terminal_children() {
-    experiment(false, false);
+    experiment(false, false, None);
 }
 
 fn durable(path: &Path, value: &Value) -> ProbeResult<()> {
@@ -168,6 +170,7 @@ fn run_probe(
     allow_terminal: bool,
     observed: &mut Vec<ObservedProcess>,
     report: &mut Value,
+    io_case: Option<io_cases::Case>,
 ) -> ProbeResult<()> {
     worker.verify_resume()?;
     report["pre_resume_token_and_single_job_root"] = json!("PASS");
@@ -304,6 +307,9 @@ fn run_probe(
     }
     report["all_observed_tokens_and_job_membership"] = json!("PASS");
     report["terminal_host_isolation"] = json!("PASS");
+    if let Some(case) = io_case {
+        return io_cases::finish(root, worker, observed, report, deadline, case);
+    }
     while !workspace.join("roundtrip.json").is_file() {
         if Instant::now() >= deadline || worker.terminal_state()?.0 {
             return Err("terminal roundtrip did not complete within the bound".into());
@@ -337,7 +343,7 @@ fn run_probe(
     Ok(())
 }
 
-fn experiment(tree: bool, allow_terminal: bool) {
+fn experiment(tree: bool, allow_terminal: bool, io_case: Option<io_cases::Case>) {
     let evidence = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
@@ -394,6 +400,7 @@ fn experiment(tree: bool, allow_terminal: bool) {
         .unwrap();
     let mut report = json!({
         "schema_version": 1, "tree_case": tree, "test_only_child_permission": allow_terminal,
+        "io_case": io_case.map(io_cases::Case::name),
         "fixture_digest": p::sha256_content_digest(&fs::read(&source).unwrap()),
         "terminal_and_roundtrip": "NOT_RUN", "terminal_host_isolation": "NOT_RUN",
         "all_observed_tokens_and_job_membership": "NOT_RUN", "original_tree_termination": "NOT_RUN",
@@ -432,18 +439,18 @@ fn experiment(tree: bool, allow_terminal: bool) {
             &mut lease,
         )?;
         worker.create_job(&format!("Local\\ForMePtyProbe-{profile_name}"))?;
-        let spec = WorkerLaunchSpec::new(
-            "sandbox:pty-mechanism-test",
-            program,
-            vec![if !allow_terminal {
-                "--file-policy-control"
-            } else if tree {
-                "--runner-tree"
-            } else {
-                "--runner"
-            }
-            .into()],
-        )?;
+        let mut arguments = vec![if !allow_terminal {
+            "--file-policy-control"
+        } else if tree {
+            "--runner-tree"
+        } else {
+            "--runner"
+        }
+        .into()];
+        if let Some(case) = io_case {
+            arguments = vec!["--io-runner".into(), case.name().into()];
+        }
+        let spec = WorkerLaunchSpec::new("sandbox:pty-mechanism-test", program, arguments)?;
         worker.launch(LaunchRequest {
             spec: &spec,
             workspace: &workspace,
@@ -462,6 +469,7 @@ fn experiment(tree: bool, allow_terminal: bool) {
             allow_terminal,
             &mut observed,
             &mut report,
+            io_case,
         )
     })();
     report["result"] = json!(if result.is_ok() { "PASS" } else { "FAIL" });

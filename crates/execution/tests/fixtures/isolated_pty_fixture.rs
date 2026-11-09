@@ -10,6 +10,9 @@ use std::time::{Duration, Instant};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use serde_json::{json, Value};
 
+#[path = "isolated_pty_io_fixture.rs"]
+mod io_fault;
+
 fn record(name: &str, value: Value) {
     let bytes = serde_json::to_vec(&value).expect("fixture record");
     let temporary = format!("{name}.pending");
@@ -228,6 +231,8 @@ fn main() {
         }
         Some("--runner") => runner(false),
         Some("--runner-tree") => runner(true),
+        Some("--io-runner") => io_fault::runner(),
+        Some("--io-child") => io_fault::child(),
         Some("--child") => terminal_child(false),
         Some("--child-tree") => terminal_child(true),
         Some("--grandchild") => {
