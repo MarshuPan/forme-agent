@@ -636,3 +636,7 @@ owner 已告知登录并配置。本次从干净 `main@d00b232` 继续检查，�
 execution 直接复用已有 `ed25519-dalek =2.2.0`（关闭 default features，仅 std）与 `getrandom =0.4.3`；新增 Windows-only `windows-service =0.8.1` 使用公开 SCM API，以及精确 pin 的 `win-custody =0.1.1` 使用公开 Job Object/launch API。没有新增内部 crate/依赖边或内核，锁文件、`compliance/borrowing-records.json` 和来源/许可清单同步更新。测试签名密钥是仓库自建的确定性 fixture，不是发布密钥。
 
 本批不会读取或迁移本机 `.forme` 里的真实脑/模型配置，不注册系统服务，不更改系统账号/防火墙/开机项。测试数据只在临时目录创建和清理；密钥、bootstrap proof 和账号口令不进入提交。
+
+## 2026-11-09 集成与现场启动修复
+
+分支整合和本机测试安装恢复已实际推进。36f8662 已通过完整工作区检查，并经正式签名开发包升级；当前 product/core Ready、配置 3/ack 3，既有身份和任务事件保留。详见[原生回执与边界](installed-startup-reconciliation-20261109.md)。三项消费者/桌面协议已获 owner 批准，继续实施；不得继续标作“等待协议确认”，也不得标作已完成。

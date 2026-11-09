@@ -411,3 +411,7 @@ listener digest 绑定实际加载的 bind、精确 Host 和 TLS 开关/配置�
 Host 核对已认领 owner、当前配置 revision 和安装身份后，使用当前安装固定的 `forme-hostctl maintenance-verify-backup --installation-manifest <安装派生路径>`，经有界 stdin/stdout pipe 传递该请求；程序、参数、配置和数据根不能由浏览器选择。worker 从受保护的安装清单、template 与 storage-only 配置派生唯一 vault 和 `brain/data-operations/<source>`。它通过现有 `OfflineCoreMaintenance`/`OfflineBrainMaintenance` 获得备份的 exclusive access fence，验证 owner、原 key、完整性、事件连续性和 replay；不建立 ProductionRuntime、不加载模型/worker/代理、不启动 core、不写脑事件、不恢复或切换数据。已知 runtime-only 配置只能被明确忽略，未知字段仍拒绝。锁冲突、错误 key、链接、保护不可证、坏备份或过期 revision 均拒绝，不新建空脑。
 
 返回 `ProductBackupVerificationResponse{schema_version:1,request_digest,config_revision,verification}`，`verification` 沿用不含路径、key 或正文的 `DataBackupView`，不携带 restoration。Host/Web 同时核对请求摘要、对象与 revision，失败不转为 verified；worker 的完整交换、成功退出及回收共用最多 8 秒期限，frame 上限沿现有维护 pipe，外层 Configuration transport 保留 10 秒期限。Host 在核对与核验期间持有既有配置锁；未决生命周期事务阻断查询，不另建事实源。页面在线核验仍走正式 core；离线时显式选择本路径，仅显示核验结果和边界，不解锁备份创建、遗忘、导入、恢复或切换。此只读查询可重新检查，但不被包装成任何 mutation 的重试或批准。它不改变现有 brain/maintenance trait、EventKind 或私有配置历史字节。
+
+### 11.14 已批准的受管设置 v3
+
+2026-11-09 owner 明确批准三项协议补充并实施。配置 v3 的字段、版本、摘要、事务、边界与拒绝表以[受管设置契约](../architecture/installed-managed-settings-contract.md)为规范性补充；旧协议保持兼容。桌面授权与截图结果按已批准提案先补齐正式契约，再实施。批准状态不代替组件或安装验收。
