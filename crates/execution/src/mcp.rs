@@ -1,6 +1,7 @@
-use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+mod io;
+
+use std::process::{Child, Command, Stdio};
+use std::sync::mpsc::RecvTimeoutError;
 use std::time::{Duration, Instant};
 
 use forme_protocol as p;
@@ -58,6 +59,8 @@ impl McpBackend {
         }
 
         emit_started(plan, sink)?;
+        let admission =
+            io::Admission::acquire().map_err(|error| failed(plan, sink, error.detail))?;
         let effective_timeout = p::DurationMs(plan.timeout.0.min(timeout.0).min(self.timeout.0));
         let mut command = Command::new(&stdio.command);
         command
@@ -79,7 +82,7 @@ impl McpBackend {
                 ));
             }
         };
-        let mut rpc = match McpRpcSession::new(child, effective_timeout, token.clone()) {
+        let mut rpc = match McpRpcSession::new(child, admission, effective_timeout, token.clone()) {
             Ok(rpc) => rpc,
             Err(error) => return self.finish_error(plan, sink, server, tool, error),
         };
@@ -119,6 +122,16 @@ impl McpBackend {
             Ok(result)
         })();
 
+        if !rpc.io.shutdown() {
+            return self.finish_error(
+                plan,
+                sink,
+                server,
+                tool,
+                McpExecutionError::cleanup_unknown(),
+            );
+        }
+
         match result {
             Ok(result) => {
                 emit_call(sink, server, tool, false, None)?;
@@ -152,6 +165,17 @@ impl McpBackend {
             McpExecutionErrorKind::Timeout => McpCallError::Timeout,
             McpExecutionErrorKind::Schema => McpCallError::Schema,
             McpExecutionErrorKind::Server => McpCallError::Server,
+            McpExecutionErrorKind::CleanupUnknown => {
+                emit_call(sink, server, tool, false, Some(McpCallError::Server))?;
+                sink.emit(p::EventPayload::ActionOutcomeUnknown(
+                    p::ActionOutcomeUnknownPayload {
+                        intent_id: plan.intent.intent_id.clone(),
+                        probe_hint: p::ProbeHintRef("review-original-mcp-process-and-io".into()),
+                        remote_lease: None,
+                    },
+                ))?;
+                return Err(p::Error(error.detail));
+            }
             McpExecutionErrorKind::Cancelled => {
                 emit_call(sink, server, tool, false, None)?;
                 return cancelled(plan, sink, &output);
@@ -239,6 +263,7 @@ enum McpExecutionErrorKind {
     Schema,
     Server,
     Cancelled,
+    CleanupUnknown,
 }
 
 struct McpExecutionError {
@@ -247,6 +272,12 @@ struct McpExecutionError {
 }
 
 impl McpExecutionError {
+    fn cleanup_unknown() -> Self {
+        Self {
+            kind: McpExecutionErrorKind::CleanupUnknown,
+            detail: "MCP original process or I/O cleanup is unverified".into(),
+        }
+    }
     fn timeout(detail: impl Into<String>) -> Self {
         Self {
             kind: McpExecutionErrorKind::Timeout,
@@ -277,9 +308,7 @@ impl McpExecutionError {
 }
 
 struct McpRpcSession {
-    child: Child,
-    stdin: ChildStdin,
-    lines: Receiver<String>,
+    io: io::ProcessIo,
     deadline: Instant,
     token: CancelToken,
     next_id: u64,
@@ -287,34 +316,15 @@ struct McpRpcSession {
 
 impl McpRpcSession {
     fn new(
-        mut child: Child,
+        child: Child,
+        admission: io::Admission,
         timeout: p::DurationMs,
         token: CancelToken,
     ) -> Result<Self, McpExecutionError> {
-        let stdin = child
-            .stdin
-            .take()
-            .ok_or_else(|| McpExecutionError::server("MCP process did not expose stdin"))?;
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| McpExecutionError::server("MCP process did not expose stdout"))?;
-        let (sender, lines) = mpsc::sync_channel(64);
-        std::thread::spawn(move || {
-            for line in BufReader::new(stdout).lines() {
-                let Ok(line) = line else {
-                    break;
-                };
-                if sender.send(line).is_err() {
-                    break;
-                }
-            }
-        });
+        let deadline = Instant::now() + Duration::from_millis(timeout.0);
         Ok(Self {
-            child,
-            stdin,
-            lines,
-            deadline: Instant::now() + Duration::from_millis(timeout.0),
+            io: io::ProcessIo::start(child, admission)?,
+            deadline,
             token,
             next_id: 0,
         })
@@ -345,18 +355,32 @@ impl McpRpcSession {
     }
 
     fn send(&mut self, value: serde_json::Value) -> Result<(), McpExecutionError> {
-        if self.token.is_cancelled() {
-            return Err(McpExecutionError::cancelled());
+        self.check_live()?;
+        let receipt = self.io.send(&value, self.deadline, &self.token)?;
+        loop {
+            self.check_live()?;
+            let next = receipt.recv_timeout(io::POLL);
+            self.check_live()?;
+            match next {
+                Ok(Ok(())) => return Ok(()),
+                Ok(Err(_)) | Err(RecvTimeoutError::Disconnected) => {
+                    return Err(McpExecutionError::server(
+                        "MCP request could not be written",
+                    ));
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+            }
         }
-        serde_json::to_writer(&mut self.stdin, &value).map_err(|error| {
-            McpExecutionError::server(format!("failed to encode MCP request: {error}"))
-        })?;
-        self.stdin.write_all(b"\n").map_err(|error| {
-            McpExecutionError::server(format!("failed to write MCP request: {error}"))
-        })?;
-        self.stdin.flush().map_err(|error| {
-            McpExecutionError::server(format!("failed to flush MCP request: {error}"))
-        })
+    }
+
+    fn check_live(&self) -> Result<(), McpExecutionError> {
+        if self.token.is_cancelled() {
+            Err(McpExecutionError::cancelled())
+        } else if Instant::now() >= self.deadline {
+            Err(McpExecutionError::timeout("MCP call deadline elapsed"))
+        } else {
+            Ok(())
+        }
     }
 
     fn receive(&self, id: u64) -> Result<serde_json::Value, McpExecutionError> {
@@ -369,8 +393,18 @@ impl McpRpcSession {
                 return Err(McpExecutionError::timeout("MCP call deadline elapsed"));
             }
             let wait = remaining.min(Duration::from_millis(5));
-            let line = match self.lines.recv_timeout(wait) {
-                Ok(line) => line,
+            let next = self.io.output().recv_timeout(wait);
+            self.check_live()?;
+            let line = match next {
+                Ok(io::ReadEvent::Frame(line)) => line,
+                Ok(io::ReadEvent::Oversized) => {
+                    return Err(McpExecutionError::schema(
+                        "MCP response exceeds its wire frame bound",
+                    ));
+                }
+                Ok(io::ReadEvent::Failed) => {
+                    return Err(McpExecutionError::server("MCP response could not be read"));
+                }
                 Err(RecvTimeoutError::Timeout) => continue,
                 Err(RecvTimeoutError::Disconnected) => {
                     return Err(McpExecutionError::server(
@@ -378,9 +412,10 @@ impl McpRpcSession {
                     ));
                 }
             };
-            let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) else {
+            let Ok(response) = serde_json::from_slice::<serde_json::Value>(&line) else {
                 continue;
             };
+            self.check_live()?;
             if response.get("id").and_then(serde_json::Value::as_u64) != Some(id) {
                 continue;
             }
@@ -394,12 +429,5 @@ impl McpRpcSession {
                 .cloned()
                 .ok_or_else(|| McpExecutionError::schema("MCP response has no result"));
         }
-    }
-}
-
-impl Drop for McpRpcSession {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
     }
 }

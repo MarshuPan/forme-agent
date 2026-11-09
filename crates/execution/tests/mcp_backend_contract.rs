@@ -1,13 +1,21 @@
 use std::io::{BufRead, Write};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use forme_execution::{
     ActionBackend, ActionStatus, CancelToken, EventSink, McpBackend, OutputBudget,
 };
 use forme_protocol as p;
 
+fn transport_test() -> std::sync::MutexGuard<'static, ()> {
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[test]
 fn s3_mcp_backend_emits_call_event_and_completed_action() {
+    let _serial = transport_test();
     let backend = McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(1_000)).unwrap();
     let sink = EventSink::default();
     let result = backend
@@ -35,6 +43,7 @@ fn s3_mcp_backend_emits_call_event_and_completed_action() {
 
 #[test]
 fn s3_mcp_backend_classifies_timeout_schema_and_server_errors() {
+    let _serial = transport_test();
     for (mode, expected, timeout) in [
         ("timeout", "timeout", 150),
         ("schema", "schema_mismatch", 1_000),
@@ -74,10 +83,312 @@ fn s3_mcp_backend_classifies_timeout_schema_and_server_errors() {
 }
 
 #[test]
+fn mcp_timeout_covers_a_request_to_a_nonreading_server() {
+    let _serial = transport_test();
+    let directory = tempfile::tempdir().unwrap();
+    let ready = directory.path().join("server-ready");
+    let backend = McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(400)).unwrap();
+    let mut intent = mcp_intent("blocked-input", 400);
+    if let p::ActionParameters::Mcp {
+        arguments, stdio, ..
+    } = &mut intent.parameters
+    {
+        *arguments = serde_json::json!({"payload": "x".repeat(256 * 1_024)});
+        stdio.env.push((
+            "FORME_MCP_READY".into(),
+            ready.to_string_lossy().into_owned(),
+        ));
+    }
+    let sink = EventSink::default();
+    let started = Instant::now();
+    let result = backend.execute(
+        backend.plan(&intent).unwrap(),
+        &sink,
+        CancelToken::default(),
+    );
+    assert!(result.is_err());
+    assert!(
+        ready.exists(),
+        "the fixture must complete initialize before blocking"
+    );
+    assert!(started.elapsed() < Duration::from_secs(2));
+    println!(
+        "MCP blocked-input timeout: {} ms",
+        started.elapsed().as_millis()
+    );
+    assert!(sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::McpCallEvent(call)
+            if call.timeout && call.error_class == Some(p::McpErrorClass("timeout".into()))
+    )));
+    assert!(!sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::ActionCompleted(_) | p::EventPayload::ActionOutcomeUnknown(_)
+    )));
+}
+
+#[test]
+fn mcp_cancel_covers_a_request_to_a_nonreading_server() {
+    let _serial = transport_test();
+    let directory = tempfile::tempdir().unwrap();
+    let ready = directory.path().join("server-ready");
+    let backend = McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(10_000)).unwrap();
+    let mut intent = mcp_intent("blocked-input", 10_000);
+    if let p::ActionParameters::Mcp {
+        arguments, stdio, ..
+    } = &mut intent.parameters
+    {
+        *arguments = serde_json::json!({"payload": "x".repeat(256 * 1_024)});
+        stdio.env.push((
+            "FORME_MCP_READY".into(),
+            ready.to_string_lossy().into_owned(),
+        ));
+    }
+    let token = CancelToken::default();
+    let cancellation = token.clone();
+    let observed = ready.clone();
+    let cancel = std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !observed.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+        cancellation.cancel();
+    });
+    let sink = EventSink::default();
+    let started = Instant::now();
+    let result = backend.execute(backend.plan(&intent).unwrap(), &sink, token);
+    cancel.join().unwrap();
+    assert!(ready.exists(), "cancel must follow successful initialize");
+    assert!(started.elapsed() < Duration::from_secs(2));
+    println!(
+        "MCP blocked-input cancellation: {} ms",
+        started.elapsed().as_millis()
+    );
+    assert_eq!(result.unwrap().status, ActionStatus::Cancelled);
+    assert_eq!(
+        sink.events()
+            .iter()
+            .filter(|event| matches!(event, p::EventPayload::ActionCancelled(_)))
+            .count(),
+        1
+    );
+    assert!(!sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::ActionCompleted(_)
+            | p::EventPayload::ActionFailed(_)
+            | p::EventPayload::ActionOutcomeUnknown(_)
+    )));
+}
+
+#[test]
+fn mcp_rejects_an_oversized_unterminated_response() {
+    let _serial = transport_test();
+    let backend = McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(5_000)).unwrap();
+    let sink = EventSink::default();
+    let error = backend
+        .execute(
+            backend.plan(&mcp_intent("oversized-frame", 5_000)).unwrap(),
+            &sink,
+            CancelToken::default(),
+        )
+        .unwrap_err();
+    assert!(error.0.contains("wire frame bound"), "{error}");
+    assert!(sink.events().iter().any(|event| matches!(event,
+        p::EventPayload::McpCallEvent(call)
+            if call.error_class == Some(p::McpErrorClass("schema_mismatch".into()))
+    )));
+    assert_eq!(
+        sink.events()
+            .iter()
+            .filter(|event| matches!(event, p::EventPayload::ActionFailed(_)))
+            .count(),
+        1
+    );
+    assert!(!sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::ActionOutputDelta(_)
+            | p::EventPayload::ActionCompleted(_)
+            | p::EventPayload::ActionOutcomeUnknown(_)
+    )));
+}
+
+#[test]
+fn mcp_rejects_an_oversized_request_before_tool_dispatch() {
+    let _serial = transport_test();
+    let directory = tempfile::tempdir().unwrap();
+    let called = directory.path().join("tool-called");
+    let backend = McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(5_000)).unwrap();
+    let mut intent = mcp_intent("success", 5_000);
+    if let p::ActionParameters::Mcp {
+        arguments, stdio, ..
+    } = &mut intent.parameters
+    {
+        *arguments = serde_json::json!({"payload": "x".repeat(8 * 1_024 * 1_024)});
+        stdio.env.push((
+            "FORME_MCP_CALLED".into(),
+            called.to_string_lossy().into_owned(),
+        ));
+    }
+    let sink = EventSink::default();
+    let error = backend
+        .execute(
+            backend.plan(&intent).unwrap(),
+            &sink,
+            CancelToken::default(),
+        )
+        .unwrap_err();
+    assert!(
+        error.0.contains("request exceeds its wire frame bound"),
+        "{error}"
+    );
+    assert!(
+        !called.exists(),
+        "an oversized tool request must not be dispatched"
+    );
+    assert!(sink.events().iter().any(|event| matches!(event,
+        p::EventPayload::McpCallEvent(call)
+            if call.error_class == Some(p::McpErrorClass("schema_mismatch".into()))
+    )));
+    assert!(!sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::ActionCompleted(_) | p::EventPayload::ActionOutcomeUnknown(_)
+    )));
+}
+
+#[test]
+fn mcp_wire_framing_preserves_output_budget_and_ignores_unmatched_frames() {
+    let _serial = transport_test();
+    for truncate in [true, false] {
+        let backend = McpBackend::new(
+            OutputBudget {
+                schema_version: p::SchemaVersion(1),
+                max_bytes: 16,
+                truncate,
+            },
+            p::DurationMs(2_000),
+        )
+        .unwrap();
+        let sink = EventSink::default();
+        let result = backend.execute(
+            backend.plan(&mcp_intent("noisy-frames", 2_000)).unwrap(),
+            &sink,
+            CancelToken::default(),
+        );
+        if truncate {
+            let result = result.unwrap();
+            assert_eq!(result.status, ActionStatus::Completed);
+            assert!(result.truncated);
+        } else {
+            assert!(result.unwrap_err().0.contains("strict byte budget"));
+        }
+        assert!(!sink
+            .events()
+            .iter()
+            .any(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_))));
+    }
+}
+
+#[test]
+fn mcp_retains_inherited_pipe_cleanup_and_blocks_new_processes_until_joined() {
+    let _serial = transport_test();
+    let directory = tempfile::tempdir().unwrap();
+    let ready = directory.path().join("server-ready");
+    let done = directory.path().join("holder-done");
+    let backend = McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(1_000)).unwrap();
+    let mut original = mcp_intent("held-pipe", 500);
+    if let p::ActionParameters::Mcp { stdio, .. } = &mut original.parameters {
+        stdio.env.push((
+            "FORME_MCP_READY".into(),
+            ready.to_string_lossy().into_owned(),
+        ));
+        stdio.env.push((
+            "FORME_MCP_HOLDER_DONE".into(),
+            done.to_string_lossy().into_owned(),
+        ));
+    }
+    let sink = EventSink::default();
+    let started = Instant::now();
+    let error = backend
+        .execute(
+            backend.plan(&original).unwrap(),
+            &sink,
+            CancelToken::default(),
+        )
+        .unwrap_err();
+    assert!(ready.exists());
+    assert!(started.elapsed() < Duration::from_secs(4));
+    assert!(error.0.contains("cleanup is unverified"), "{error}");
+    println!(
+        "MCP retained original cleanup: {} ms",
+        started.elapsed().as_millis()
+    );
+    assert_eq!(
+        sink.events()
+            .iter()
+            .filter(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_)))
+            .count(),
+        1
+    );
+    assert!(!sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::ActionCompleted(_)
+            | p::EventPayload::ActionCancelled(_)
+            | p::EventPayload::ActionFailed(_)
+    )));
+
+    // This is a different action, never a redispatch of the Unknown original.
+    let mut next = mcp_intent("success", 1_000);
+    let blocked = backend
+        .execute(
+            backend.plan(&next).unwrap(),
+            &EventSink::default(),
+            CancelToken::default(),
+        )
+        .unwrap_err();
+    assert!(blocked.0.contains("original cleanup"));
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !done.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(done.exists(), "the finite pipe holder must stop");
+    loop {
+        next.intent_id.0.push('x');
+        match backend.execute(
+            backend.plan(&next).unwrap(),
+            &EventSink::default(),
+            CancelToken::default(),
+        ) {
+            Ok(result) => {
+                assert_eq!(result.status, ActionStatus::Completed);
+                break;
+            }
+            Err(error) if error.0.contains("original cleanup") && Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => panic!("new admission after original cleanup: {error}"),
+        }
+    }
+    assert_eq!(
+        sink.events()
+            .iter()
+            .filter(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_)))
+            .count(),
+        1,
+        "cleanup must not rewrite the original terminal event"
+    );
+}
+
+#[test]
 fn execution_mcp_fixture_child() {
     let Ok(mode) = std::env::var("FORME_MCP_EXECUTION_FIXTURE") else {
         return;
     };
+    if mode == "pipe-holder" {
+        std::thread::sleep(Duration::from_secs(4));
+        std::fs::write(std::env::var_os("FORME_MCP_HOLDER_DONE").unwrap(), b"done").unwrap();
+        return;
+    }
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout).unwrap();
@@ -88,9 +399,30 @@ fn execution_mcp_fixture_child() {
         if method == "notifications/initialized" {
             continue;
         }
+        if method == "tools/call" {
+            if let Some(called) = std::env::var_os("FORME_MCP_CALLED") {
+                std::fs::write(called, b"called").unwrap();
+            }
+        }
         if mode == "timeout" {
             std::thread::sleep(Duration::from_secs(2));
             return;
+        }
+        if method == "tools/call" && mode == "oversized-frame" {
+            let _ = stdout.write_all(&vec![b'x'; 8 * 1_024 * 1_024 + 1]);
+            let _ = stdout.flush();
+            std::thread::sleep(Duration::from_secs(4));
+            return;
+        }
+        if method == "tools/call" && mode == "noisy-frames" {
+            stdout.write_all(b"\xff\xfe\n{broken\n").unwrap();
+            for id in 100..120 {
+                writeln!(
+                    stdout,
+                    "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"result\":{{}}}}"
+                )
+                .unwrap();
+            }
         }
         let id = request["id"].clone();
         let response = match method {
@@ -116,6 +448,40 @@ fn execution_mcp_fixture_child() {
         };
         writeln!(stdout, "{response}").unwrap();
         stdout.flush().unwrap();
+        if method == "initialize" && (mode == "blocked-input" || mode == "held-pipe") {
+            let holder = if mode == "held-pipe" {
+                Some(
+                    std::process::Command::new(std::env::current_exe().unwrap())
+                        .args([
+                            "--exact",
+                            "execution_mcp_fixture_child",
+                            "--nocapture",
+                            "--test-threads=1",
+                        ])
+                        .env_clear()
+                        .env("FORME_MCP_EXECUTION_FIXTURE", "pipe-holder")
+                        .env(
+                            "FORME_MCP_HOLDER_DONE",
+                            std::env::var_os("FORME_MCP_HOLDER_DONE").unwrap(),
+                        )
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::inherit())
+                        .stderr(std::process::Stdio::null())
+                        .spawn()
+                        .unwrap(),
+                )
+            } else {
+                None
+            };
+            let ready = std::env::var_os("FORME_MCP_READY").unwrap();
+            std::fs::write(ready, b"initialized").unwrap();
+            if let Some(mut holder) = holder {
+                holder.wait().unwrap();
+            } else {
+                std::thread::sleep(Duration::from_secs(4));
+            }
+            return;
+        }
         if method == "tools/call" {
             return;
         }
