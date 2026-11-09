@@ -222,3 +222,146 @@ fn stale_owner_revision_digest_nonce_and_expiry_cannot_publish_a_release() {
             .exists());
     }
 }
+
+fn desktop_fixture(enabled: bool) -> (tempfile::TempDir, std::path::PathBuf, ProductConfigStore) {
+    use crate::installed::{
+        InstalledDesktopProvisioning, INSTALLED_DESKTOP_PROFILE, INSTALLED_DESKTOP_SURFACE,
+    };
+    let (root, path, store) = fixture();
+    let mut store = store.into_inner().unwrap();
+    store.apply(patch("desktop-release:base", 0)).unwrap();
+    let endpoint =
+        p::canonical_digest(&("forme-agent-execution-pipe-v1", &store.template.install_ref))
+            .unwrap();
+    let placement: InstalledDesktopProvisioning = serde_json::from_value(serde_json::json!({
+        "schema_version": 1,
+        "binding": {
+            "schema_version": 1,
+            "endpoint": {"transport": "windows_named_pipe", "name": format!(r"\\.\pipe\forme-agent-execution-v1-{}", &endpoint.0[7..])},
+            "credential_path": store.template.model_credentials_directory.parent().unwrap().join("agent-execution.token"),
+            "authority_epoch": 1,
+            "sandbox_profile_ref": INSTALLED_DESKTOP_PROFILE,
+            "backend_kinds": ["Computer"]
+        },
+        "scope": "workspace:default",
+        "surface_refs": [INSTALLED_DESKTOP_SURFACE]
+    })).unwrap();
+    store.installed_desktop = Some(placement);
+    let computer = p::ProductComputerPlacementSettings {
+        schema_version: p::SchemaVersion(1),
+        enabled,
+        scope: p::Scope("workspace:default".into()),
+        surface_refs: vec![INSTALLED_DESKTOP_SURFACE.into()],
+    };
+    store
+        .apply_computer_settings(p::ProductComputerSettingsPatch {
+            schema_version: p::SchemaVersion(1),
+            operation_id: "desktop-release:settings".into(),
+            expected_revision: 1,
+            owner: store.state.owner.clone().unwrap(),
+            computer,
+        })
+        .unwrap();
+    (root, path, store)
+}
+
+#[test]
+fn release_publication_preserves_desktop_schema_and_exact_placement_across_restart() {
+    for enabled in [false, true] {
+        let (_root, path, mut store) = desktop_fixture(enabled);
+        let original_placement = store.state.desktop.clone().unwrap();
+        let original_computer = store.computer_settings().unwrap().computer;
+        let prior = store.journal.current().unwrap().clone();
+        let old_state_path =
+            materialize::revision_directory(&store.template, &prior.id).join("state.json");
+        let original = std::fs::read(&old_state_path).unwrap();
+        let request = takeover(&mut store);
+        let release = binding(&request);
+        store
+            .publish_release_binding(&request, release.clone(), 100)
+            .unwrap();
+        assert_eq!(store.state.schema_version, p::SchemaVersion(11));
+        assert_eq!(store.state.revision, 3);
+        assert!(store.state.desktop.as_ref() == Some(&original_placement));
+        assert_eq!(
+            store.computer_settings().unwrap().computer,
+            original_computer
+        );
+        assert_eq!(std::fs::read(old_state_path).unwrap(), original);
+        drop(store);
+        let reopened = ProductConfigStore::open(&path).unwrap();
+        let mut reopened = reopened.lock().unwrap();
+        assert_eq!(reopened.state.schema_version, p::SchemaVersion(11));
+        assert!(reopened.state.desktop.as_ref() == Some(&original_placement));
+        assert_eq!(reopened.release_binding(), Some(&release));
+        assert_eq!(
+            reopened.computer_settings().unwrap().computer,
+            original_computer
+        );
+    }
+}
+
+#[test]
+fn restore_publication_preserves_desktop_schema_and_rejects_stale_replay() {
+    for enabled in [false, true] {
+        let (_root, path, mut store) = desktop_fixture(enabled);
+        let original_placement = store.state.desktop.clone().unwrap();
+        let original_computer = store.computer_settings().unwrap().computer;
+        let owner = store.state.owner.clone().unwrap();
+        let binding = p::ProductDataBinding {
+            schema_version: p::SchemaVersion(1),
+            candidate_ref: "restored-desktop.db".into(),
+            store_path: store
+                .template
+                .brain_store_path
+                .parent()
+                .unwrap()
+                .join("data-operations/restored-desktop.db"),
+            content_key_directory: store
+                .template
+                .brain_store_path
+                .with_extension("content-keys"),
+            owner_digest: p::sha256_content_digest(owner.0.as_bytes()),
+            store_identity: digest("desktop:store"),
+            manifest_digest: digest("desktop:manifest"),
+            execution_fence_digest: Some(digest("desktop:fence")),
+        };
+        let request = p::ProductRestoreRequest {
+            schema_version: p::SchemaVersion(1),
+            install_ref: store.template.install_ref.clone(),
+            operation_id: "restore:desktop".into(),
+            command_digest: digest("restore:desktop"),
+            expected_config_revision: store.state.revision,
+            owner,
+            candidate_ref: binding.candidate_ref.clone(),
+            candidate_digest: binding.manifest_digest.clone(),
+        };
+        let prior = store.journal.current().unwrap().clone();
+        let old_state_path =
+            materialize::revision_directory(&store.template, &prior.id).join("state.json");
+        let original = std::fs::read(&old_state_path).unwrap();
+        store
+            .publish_restored_data(&request, binding.clone())
+            .unwrap();
+        assert_eq!(store.state.schema_version, p::SchemaVersion(11));
+        assert_eq!(store.state.revision, 3);
+        assert_eq!(std::fs::read(old_state_path).unwrap(), original);
+        drop(store);
+        let reopened = ProductConfigStore::open(&path).unwrap();
+        let mut reopened = reopened.lock().unwrap();
+        assert_eq!(reopened.state.schema_version, p::SchemaVersion(11));
+        assert!(reopened.state.desktop.as_ref() == Some(&original_placement));
+        assert_eq!(
+            reopened.computer_settings().unwrap().computer,
+            original_computer
+        );
+        assert_eq!(reopened.state.active_data.as_ref(), Some(&binding));
+        let published = std::fs::read(&reopened.template.core_config_path).unwrap();
+        assert!(reopened.publish_restored_data(&request, binding).is_err());
+        assert_eq!(
+            std::fs::read(&reopened.template.core_config_path).unwrap(),
+            published
+        );
+        assert_eq!(reopened.state.revision, 3);
+    }
+}
