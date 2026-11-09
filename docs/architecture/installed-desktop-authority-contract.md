@@ -86,3 +86,17 @@ Web 在原审批卡内显示会话目录、重新认证口令及同一次 consen
 已实现的非截图 Computer 操作，其原 `DesktopActionReceipt` 经 Host 独立核对为 Committed 且 `result_ref=None` 时，本身证明“动作完成且不产生正文”。Host 必须为原 job 封存真实零字节 AEAD 结果，manifest 为 `Empty/Utf8`、原始空正文摘要、bytes=0。遵守既有 WorkerResultManifest v1 的非空引用约束：Host 从原 result binding 派生唯一 `desktop-empty:` 引用，指向实际封存的零字节结果，并将同一引用写入 worker receipt；helper 原回执仍为 `result_ref=None`。先 journal manifest 再写原 worker receipt。Core 继续经过原 manifest/chunk/receipt 核验完成；不得把 `source=None` 的 Missing manifest 当成成功。
 
 若 helper 声称存在 result_ref 却没有传回正文，保持原 Missing/Unknown 语义，不凭该引用生成空结果；Screenshot 永不走本分支，必须按独立输出协议传回且核验真实图片。此交接不改旧 DTO、事件、结果读取预算或原 job 的重复派发规则。
+
+## 8. 桌面设置的独立 owner 编辑
+
+为使 owner 能从产品设置启用/禁用已安装 placement，并保留只写 publisher 材料，新增窄的配置事务，不要求浏览器重传整份 managed_capabilities。现有 v1/v2/v3 DTO 和摘要不变；同一 ProductConfigStore/journal/revision 仍为唯一配置权威。
+
+- `ProductComputerSettingsPatch` 是 closed schema 1，字段为 `schema_version, operation_id, expected_revision, owner, computer: ProductComputerPlacementSettings`。revision 范围 0–1,000,000,000，operation/owner 遵守既有 product id 限制，computer 沿既有验证。摘要为 canonical_digest(("forme.product.computer-settings.v1", 完整 patch))。
+- `ProductComputerSettingsView` 是 closed schema 1，字段为 `schema_version, owner: Option<OwnerPrincipalRef>, active_revision, pending_restart, configured, computer, available: bool, available_scope: Option<Scope>, available_surfaces: Vec<String>`。available 只表示独立安装 placement 及消费者接缝可配置，不表示已有交互会话或已授予操作权；缺 placement 时 scope=None、surfaces=[]。视图不返回程序、凭据路径、OS 身份或 publisher 公钥。
+- `ProductComputerSettingsResponse` 是 closed schema 1，字段为 `schema_version, operation_id, applied, view`。重复原 operation/digest 只返回原事务已接收事实及当前配置视图，applied=false；不同摘要冲突。读取原 operation 使用既有 ProductConfigOperation 接口；未知请求不伪造已提交。
+- Host 新增 `GET/POST /v1/host/configuration/desktop/settings`，仅 WebConfiguration 凭据可用；Web 新增 `GET/POST /api/v1/desktop/settings`。Web POST body 为 `schema_version, operation_id, expected_revision, computer, password`，拒绝自报 owner/principal 和额外字段。owner 从认证会话注入，operation_id 必须等于幂等头，CSRF 与密码重新认证绑定完整 patch digest。请求最多 16 KiB，查询无副作用，不启动 helper 或 core。
+- ProductConfigStore 的 `computer_settings()` 与 `apply_computer_settings(patch)` 复用原恢复、发布核验、owner/CAS、不可变快照和 commit/recover。新事务必须已完成基础模型配置；克隆当前 state，仅变更 computer 和新增可验证的安装 desktop placement，revision 加一。模型/凭据引用、skills、MCP、插件、publisher 材料及 channels 原样保留。缺 placement 的启用在 staging 前拒绝；禁用不要求获取新授权。新启用仍需原 core acknowledgement 后才展示为运行生效，禁用在 Host 下一次准入立即阻断。
+- ProductHostBroker 增加对应具名方法，沿原 config→worker 的维护互斥。该窄事务不自动启动或重启服务，原“应用配置”入口及真实 ack 负责启用新运行时。UI 保存后刷新公共配置 revision；显示已保存、待应用和不可配置，不能把保存成功当成桌面操作成功。
+- 提交响应丢失后 UI 只查原配置 operation，确认同号 committed 后重新读取当前设置；不自动第二次 POST。未证实前禁止创建另一操作，刷新后的当前配置读取也不宣称前一请求已提交。password 只存在当前表单内存，提交完成或失败即清空。
+
+本节在已批准桌面 owner 控制和受管配置范围内细化产品接缝，不扩大 desktop grant、执行权限、设置版本或秘密回显范围。验收必须覆盖 publisher 文件/摘要原样保留、旧设置保存、CAS/异义重放、未认证/CSRF/错误密码/伪造 owner、未绑定启用拒绝、丢响应原号查询及实际浏览器开关。
