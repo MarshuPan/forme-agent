@@ -67,7 +67,7 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 - **ShellBackend**:sandbox 内执行;output budget/timeout/cancel;**不作默认兜底**(无匹配 backend 不 fallback 到 shell)。
 - **FileBackend**:写前产 **diff/变更摘要**;路径受 `PathScope` 约束(least-privilege)。
 - **McpBackend**:用 `ExecutionPlan` 内的 `McpTransport` handle(prd/07 spawn、protocol 类型)执行 stdio 调用;发 `McpCallEvent` + timeout/schema/server 错误分类。
-- **cancel**:`CancelToken` 传播到 backend,产 `ActionCancelled`。
+- **cancel**:`CancelToken` 传播到 backend；已确认停止与清理时产 `ActionCancelled`，未确认副作用或清理时按 canonical §7 保留 `ActionOutcomeUnknown`，不把取消请求当作完成证明。
 - **rollback**:`RollbackBoundary` 按 backend 声明(如 File 可提供反向 diff;Shell 一般不可回滚)——**不泛化承诺"都能回滚"**。
 
 ### 5.1 现有 MCP stdio 调用的 I/O 实施约束
@@ -80,6 +80,16 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 - 原 child 与线程的清理句柄由有限 supervisor 保管，包括创建清理线程失败时尚未执行的清理材料。存在未结束的清理或已确认的清理失败时拒绝新的进程 admission；正常清理全部结束才释放槽位，稍后的清理结果不改写原 Unknown。Drop 只是兜底，正式终态须在显式清理结果后决定。
 - 工具请求的写入尝试和工具结果确认分别记录在原会话中；序列化/排队不冒充已派发，写入尝试也不冒充服务端已完成。`tools/call` 一旦可能写入管道，若未取得匹配 id、有效 JSON-RPC envelope 和可用结果/明确协议错误，timeout、断线、无效响应或取消都只能产生 `ActionOutcomeUnknown`；保留原 MCP 错误分类。kill/wait/join 成功只证明清理，不撤销已经发生的副作用。尚未尝试写工具请求的拒绝/取消保持原语义；有效结果或明确协议错误与清理均确认后才可记普通终态。Harness 对 Unknown 挂起原 run，重启/重放不能重新派发原动作。
 - 这不宣称普通 stdio 已拥有后代进程隔离或安装版 Host grant。受管 discovery/call、隔离工作区、受保护输入/结果与真实安装验收继续按 PRD24/25 和对应待审提案闭合。
+
+### 5.2 现有 Shell 子进程与输出清理的实施约束
+
+本节细化既有 timeout/cancel/output/Unknown 与有界资源不变量；不改变公开 DTO、trait、EventKind、crate 或依赖边，也不启用安装版 Shell placement。
+
+- stdout/stderr 由两个受管理 reader 读取，每块最多 4 KiB、共享最多十六块的有界队列；读取错误须显式返回，不能当作 EOF。最终结果继续遵守原计划的 OutputBudget，严格预算失败也要经过清理。
+- 超时、取消、预算错误、读/观察错误和正常退出均进入同一显式清理路径。直接 child 的 kill/wait 与两个 reader 的 join 由原清理任务持有，主调用最多等待两秒清理，不做无期限 recv/drain/join。仅有直接 child exit code 不证明继承输出管道已关闭。
+- 普通 Shell 同时最多八个进程/I/O 槽位。未确认清理时原动作只产唯一 `ActionOutcomeUnknown`，不产普通完成/失败/取消终态；原 child/reader 句柄留在有界 supervisor，新 backend 实例也不能绕过原清理准入。清理线程无法创建时仍保管原任务；确认清理失败继续阻断，不释放为假成功。
+- 原清理稍后确认结束只释放资源，不改写 Unknown、不重新执行原动作、不推进原 run；结果仍经原 receipt/probe/owner 裁决。派发前取消、有效退出、已确认清理的取消/超时保持各自既有语义。
+- 普通 Shell 只证明直接 child 与其输出线程的生命周期，不宣称后代隔离或 OS sandbox。安装版仍必须沿 Host/WorkerBroker 的真实隔离路径；不能拿本节组件测试关闭 IP10/IP11/IP24。
 
 ## 6. 错误/安全/权限/审批
 
@@ -109,6 +119,7 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 - **单元**:output budget/timeout/cancel 生效;file 写前必产 diff;shell 不作默认兜底(无匹配→报错非 fallback);rollback 边界按 backend 声明。
 - **MCP I/O 回归**:真实自建子进程在 initialize 后不再读取输入，分别验证大请求写入中的 timeout/cancel；超长无换行响应被限制；噪声/不匹配帧不越过输出预算；后代持有管道时原动作保持 Unknown、新动作 admission 被阻止，原清理 join 后只允许新的不同动作运行。有限 fixture 不代替安装版后代隔离或全平台原生验收。
 - **MCP 副作用未确认回归**:真实自建工具先持久写 marker，再分别丢响应、返回无效响应和等待取消；原 marker 恰一次，脑事实只能为 Unknown。正式 Harness 核对 Waiting、恢复原号和重放零额外工具派发；有效成功/协议错误和工具请求派发前错误继续区分，不把所有错误统一掩盖为 Unknown。
+- **Shell I/O 生命周期回归**:真实有限后代持有继承 stdout/stderr，分别触发 timeout、cancel、strict budget 及直接父进程先退出；原调用有界返回唯一 Unknown、原 marker 恰一次、新 backend 零派发，原清理 join 后仅新的不同动作可执行且不改写原 Unknown；正常成功/失败与已确认停止的取消、派发前取消仍保持区分。
 
 ## 10. 验收
 
