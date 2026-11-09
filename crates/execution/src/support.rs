@@ -1,10 +1,6 @@
 use std::collections::BTreeMap;
-use std::io::Read;
-use std::process::{Child, ExitStatus};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 
 use forme_protocol as p;
 
@@ -298,103 +294,4 @@ fn emit_evidence(result: &ActionResult, sink: &EventSink) -> p::Result<()> {
             reliability: result.evidence.reliability.clone(),
         },
     ))
-}
-
-pub(crate) enum ProcessOutcome {
-    Exited(ExitStatus),
-    Cancelled,
-    TimedOut,
-}
-
-pub(crate) fn monitor_child(
-    child: &mut Child,
-    timeout: p::DurationMs,
-    token: &CancelToken,
-    plan: &ExecutionPlan,
-    sink: &EventSink,
-    output: &mut BoundedOutput,
-) -> p::Result<ProcessOutcome> {
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| p::Error("child process stdout is unavailable".into()))?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| p::Error("child process stderr is unavailable".into()))?;
-    let (sender, receiver) = mpsc::sync_channel(16);
-    let readers = vec![
-        spawn_reader(stdout, sender.clone()),
-        spawn_reader(stderr, sender.clone()),
-    ];
-    drop(sender);
-    let started = Instant::now();
-    let mut status = None;
-    let mut output_closed = false;
-
-    let outcome = loop {
-        if token.is_cancelled() {
-            let _ = child.kill();
-            let _ = child.wait();
-            break ProcessOutcome::Cancelled;
-        }
-        if started.elapsed() >= Duration::from_millis(timeout.0) {
-            let _ = child.kill();
-            let _ = child.wait();
-            break ProcessOutcome::TimedOut;
-        }
-
-        match receiver.recv_timeout(Duration::from_millis(5)) {
-            Ok(chunk) => {
-                if let Err(error) = output.push(&chunk, plan, sink) {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    drop(receiver);
-                    for reader in readers {
-                        let _ = reader.join();
-                    }
-                    return Err(error);
-                }
-            }
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => output_closed = true,
-        }
-        if status.is_none() {
-            status = child
-                .try_wait()
-                .map_err(|error| p::Error(format!("failed to inspect child process: {error}")))?;
-        }
-        if let Some(status) = status {
-            if output_closed {
-                break ProcessOutcome::Exited(status);
-            }
-        }
-    };
-
-    while let Ok(chunk) = receiver.recv() {
-        output.push(&chunk, plan, sink)?;
-    }
-    for reader in readers {
-        let _ = reader.join();
-    }
-    Ok(outcome)
-}
-
-fn spawn_reader<R>(mut reader: R, sender: mpsc::SyncSender<Vec<u8>>) -> std::thread::JoinHandle<()>
-where
-    R: Read + Send + 'static,
-{
-    std::thread::spawn(move || {
-        let mut buffer = [0_u8; 4_096];
-        loop {
-            match reader.read(&mut buffer) {
-                Ok(0) | Err(_) => break,
-                Ok(count) => {
-                    if sender.send(buffer[..count].to_vec()).is_err() {
-                        break;
-                    }
-                }
-            }
-        }
-    })
 }

@@ -1,16 +1,19 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Instant;
 
 use forme_protocol as p;
 
 use crate::support::{
-    cancelled, complete, emit_started, failed, monitor_child, ActiveCancellations, BoundedOutput,
-    ProcessOutcome,
+    cancelled, complete, emit_started, failed, outcome_unknown, ActiveCancellations, BoundedOutput,
 };
 use crate::{
     planner::plan_with, planner::validate_plan_for, ActionBackend, ActionResult, BackendKind,
     CancelToken, EventSink, ExecutionPlan, OutputBudget,
 };
+
+mod process;
+use process::{Admission, ProcessIo, ProcessOutcome};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShellSandbox {
@@ -118,6 +121,11 @@ impl ShellBackend {
             return Err(p::Error("shell environment contains an empty name".into()));
         }
 
+        let admission = Admission::acquire()?;
+        let mut output = BoundedOutput::new(plan.budget.clone());
+        if token.is_cancelled() {
+            return cancelled(plan, sink, &output);
+        }
         emit_started(plan, sink)?;
         let mut command = Command::new(program);
         command
@@ -129,11 +137,24 @@ impl ShellBackend {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         validate_plan_for(plan, p::BackendKind::Shell)?;
-        let mut child = command.spawn().map_err(|error| {
+        if token.is_cancelled() {
+            return cancelled(plan, sink, &output);
+        }
+        let started = Instant::now();
+        let child = command.spawn().map_err(|error| {
             failed(plan, sink, format!("failed to start shell action: {error}"))
         })?;
-        let mut output = BoundedOutput::new(plan.budget.clone());
-        match monitor_child(&mut child, plan.timeout, token, plan, sink, &mut output) {
+        let mut process = ProcessIo::new(child, admission);
+        let outcome = process.monitor(plan, sink, token, &mut output, started);
+        if !process.shutdown() {
+            return outcome_unknown(
+                plan,
+                sink,
+                &output,
+                p::ProbeHintRef(format!("shell-cleanup:{}", plan.intent.intent_id.0)),
+            );
+        }
+        match outcome {
             Ok(ProcessOutcome::Exited(status)) if status.success() => {
                 complete(plan, sink, &output, None, None)
             }
