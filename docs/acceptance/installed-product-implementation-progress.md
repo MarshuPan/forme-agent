@@ -2,13 +2,17 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 桌面区域与升级/恢复配置修复通过
+
+`8635b65` 修复安装 surface 到唯一原生显示器的精确区域映射；`71cc476` 修复升级/恢复将桌面 schema 11 降成 10 的配置失效。最终整仓 1,456 passed / 0 failed / 22 默认 ignored，七项源码门及独立原件核验通过；干净提交 D RuntimeOnly 73/73 通过。签名开发候选已验证；一次 UAC 启动未获确认，随后只读核对仍为旧版 Ready，本次 stage/upgrade 未出现在正式维护投影中。尚未部署。详见[修复与候选记录](installed-desktop-surface-and-lifecycle-20261110.md)。
+
 ## 2026-11-10 截图原件运行时与认证 Web 读取组件通过
 
 `656f16a` 接通 helper v2、Host 签名支持与 AEAD 封存、core 受保护原件及幂等材料登记；`0a25416` 接通认证 v2 目录/分块读取和工作台图片预览。逐块读取核验归属及删除 fence，前端完整核验长度/摘要/尺寸，关闭、取消和退出释放 Blob。
 
 最终 workspace 192 targets、1,450 passed / 0 failed / 22 默认 ignored，前端 131 passed；fmt/check、strict Clippy、工作台 8 场景、质量和完整合规通过。干净 `0a25416` 的 D RuntimeOnly 73/73 与独立核验通过。Ego Lite 实测正式前端组件和自建 HTTP 图片的解码/拒绝/取消/退出，不计作安装服务原生截图。详见[截图组件验收](installed-desktop-output-runtime-web-20261110.md)。
 
-本批尚未部署。源码核对发现安装逻辑 surface 与原生 monitor 标识不匹配，确切区域映射已写入输出契约，接续实施；首次安装可信输出支持、Host 执行域副本删除和原生联合验证继续开放。受管 MCP/插件/渠道实际消费者也未关闭。
+本批尚未部署。该批发现的安装逻辑 surface 与原生 monitor 标识不匹配已由上方 `8635b65` 修复；首次安装可信输出支持、Host 执行域副本删除和原生联合验证继续开放。受管 MCP/插件/渠道实际消费者也未关闭。
 
 ## 2026-11-09 桌面授权已接通，独立设置页与截图输出继续实施
 

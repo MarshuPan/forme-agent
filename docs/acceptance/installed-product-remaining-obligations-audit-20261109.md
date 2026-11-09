@@ -83,7 +83,7 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 
 ## 6. 截图工件接线的追加源码证据
 
-2026-11-10 更新：下两段是本审计最初定位的历史缺口。`656f16a` 已实现 helper→Host 原件传输与 Binary 保护投影，`0a25416` 已实现认证目录/分块读取与 Web 预览，旧的强制 UTF-8 和 helper 拒绝结论不再描述当前源码。组件验证及限制见[新验收记录](installed-desktop-output-runtime-web-20261110.md)。当前尚未部署；安装 surface 映射、初装支持与 Host 副本删除继续实施，完整原生链仍未验收。
+2026-11-10 更新：下两段是本审计最初定位的历史缺口。`656f16a` 已实现 helper→Host 原件传输与 Binary 保护投影，`0a25416` 已实现认证目录/分块读取与 Web 预览，旧的强制 UTF-8 和 helper 拒绝结论不再描述当前源码。组件验证及限制见[新验收记录](installed-desktop-output-runtime-web-20261110.md)。安装 surface 映射已由 `8635b65` 修复，`71cc476` 修复升级/恢复保留桌面配置版本；[追加验证与签名候选](installed-desktop-surface-and-lifecycle-20261110.md)已留证。本次 UAC 启动未获确认，现场仍为旧版 Ready；初装支持、Host 副本删除与完整原生链仍未验收。
 
 
 `protocol/installed_product/worker_result.rs` 已区分 Utf8/Binary，Host 的 `worker_results.rs::seal_path` 也封存 Binary 原件；但 `worker_backend.rs:288` 在完整长度/摘要核验后仍要求 UTF-8。因此即使补好 helper → Host 截图传输，原始 PNG 也不能直接沿当前主脑文本结果入口完成。`external_receipt` 把 result_ref 映射为 ContentRef，不证明模型或 Web 内容消费者已经接通。

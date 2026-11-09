@@ -66,6 +66,6 @@ HTTP 并发测试最初错误地同步等待注销后才释放核心读取，与
 
 2026-11-09 23:58（Asia/Shanghai）只读实测本机仍为 `forme-windows-x86_64-20261109-36f8662-dev`，Host/Web/Brain Running，product/core Ready，revision/ack 3，issue_refs 为空。本轮新实现尚未部署。
 
-源码复核另发现安装 placement 使用 `surface:windows-default`，原生截图驱动只接受 `surface:monitor:<编号>`；这是下一项必须修复的生产接缝，不能用本组件证据宣称原生截图成功。需按原授权 bounds 映射当前唯一显示器，拒绝越界、跨屏或歧义，不扩大为全屏。
+该批源码复核发现安装 placement 使用 `surface:windows-default`，原生截图驱动只接受 `surface:monitor:<编号>`。后续 `8635b65` 已按原授权 bounds 映射当前唯一显示器，拒绝越界、跨屏或歧义；`71cc476` 同时修复升级/恢复保留桌面配置版本。最终源码及签名候选见[追加验证](installed-desktop-surface-and-lifecycle-20261110.md)，原生截图成功仍需独立证据。
 
 完整 helper→Host AEAD→core AEAD→实际浏览器的一次原生 capture、原身份/授权/会话负例和 Host 副本删除仍待执行。首次安装的受信输出支持也仍需接通；本次已实现签名活动发布的支持绑定。原输入、PTY、其他平台和完整 IP01–IP24 义务不因上述组件通过关闭。
