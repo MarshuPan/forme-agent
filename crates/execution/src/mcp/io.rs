@@ -81,6 +81,7 @@ struct WriteRequest {
     complete: SyncSender<std::io::Result<()>>,
     deadline: Instant,
     token: crate::CancelToken,
+    tool_dispatch: Option<Arc<AtomicBool>>,
 }
 
 pub(super) struct ProcessIo {
@@ -90,6 +91,7 @@ pub(super) struct ProcessIo {
     stop: Arc<AtomicBool>,
     workers: Vec<JoinHandle<()>>,
     admission: Option<Admission>,
+    tool_dispatch: Arc<AtomicBool>,
 }
 
 impl ProcessIo {
@@ -101,6 +103,7 @@ impl ProcessIo {
             stop: Arc::new(AtomicBool::new(false)),
             workers: Vec::new(),
             admission: Some(admission),
+            tool_dispatch: Arc::new(AtomicBool::new(false)),
         };
         if let Err(error) = io.start_pipes() {
             return Err(if io.shutdown() {
@@ -168,6 +171,9 @@ impl ProcessIo {
                 complete,
                 deadline,
                 token: token.clone(),
+                tool_dispatch: (value.get("method").and_then(serde_json::Value::as_str)
+                    == Some("tools/call"))
+                .then(|| self.tool_dispatch.clone()),
             })
             .map_err(|_| McpExecutionError::server("MCP input is unavailable or occupied"))?;
         Ok(receipt)
@@ -175,6 +181,10 @@ impl ProcessIo {
 
     pub(super) fn output(&self) -> &Receiver<ReadEvent> {
         self.output.as_ref().expect("MCP reader is initialized")
+    }
+
+    pub(super) fn tool_dispatch_started(&self) -> bool {
+        self.tool_dispatch.load(Ordering::SeqCst)
     }
 
     pub(super) fn shutdown(&mut self) -> bool {
@@ -265,6 +275,11 @@ fn write_requests(mut writer: impl Write, requests: Receiver<WriteRequest>, stop
                 .complete
                 .send(Err(std::io::Error::other("MCP write expired")));
             break;
+        }
+        // An attempted pipe write may have delivered a complete request even
+        // when its receipt is lost. Encoding and enqueue alone do not dispatch.
+        if let Some(dispatch) = &request.tool_dispatch {
+            dispatch.store(true, Ordering::SeqCst);
         }
         let result = writer
             .write_all(&request.bytes)

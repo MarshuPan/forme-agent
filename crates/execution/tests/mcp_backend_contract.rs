@@ -73,13 +73,100 @@ fn s3_mcp_backend_classifies_timeout_schema_and_server_errors() {
             "mode={mode}"
         );
         assert_eq!(call.timeout, mode == "timeout");
-        assert!(events
-            .iter()
-            .any(|event| matches!(event, p::EventPayload::ActionFailed(_))));
+        let unresolved = mode == "schema";
+        assert_eq!(
+            events
+                .iter()
+                .any(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_))),
+            unresolved
+        );
+        assert_eq!(
+            events
+                .iter()
+                .any(|event| matches!(event, p::EventPayload::ActionFailed(_))),
+            !unresolved
+        );
         assert!(!events
             .iter()
             .any(|event| matches!(event, p::EventPayload::ActionCompleted(_))));
     }
+}
+
+#[test]
+fn mcp_missing_response_after_a_real_effect_is_unknown() {
+    assert_effect_without_outcome("effect-no-response", false);
+}
+
+#[test]
+fn mcp_invalid_response_after_a_real_effect_is_unknown() {
+    for mode in [
+        "effect-invalid-response",
+        "effect-invalid-version",
+        "effect-invalid-error",
+        "effect-both-result-and-error",
+        "effect-missing-content",
+        "effect-invalid-content",
+        "effect-invalid-is-error",
+    ] {
+        assert_effect_without_outcome(mode, false);
+    }
+}
+
+#[test]
+fn mcp_cancellation_after_a_real_effect_is_unknown() {
+    assert_effect_without_outcome("effect-no-response", true);
+}
+
+fn assert_effect_without_outcome(mode: &str, cancel_after_effect: bool) {
+    let _serial = transport_test();
+    let directory = tempfile::tempdir().unwrap();
+    let effect = directory.path().join("actual-effect");
+    let timeout = if cancel_after_effect { 2_000 } else { 500 };
+    let backend =
+        McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(timeout)).unwrap();
+    let mut intent = mcp_intent(mode, timeout);
+    if let p::ActionParameters::Mcp { stdio, .. } = &mut intent.parameters {
+        stdio.env.push((
+            "FORME_MCP_EFFECT".into(),
+            effect.to_string_lossy().into_owned(),
+        ));
+    }
+    let token = CancelToken::default();
+    let cancellation = token.clone();
+    let observed = effect.clone();
+    let cancel = cancel_after_effect.then(|| {
+        std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while !observed.exists() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            cancellation.cancel();
+        })
+    });
+    let sink = EventSink::default();
+    let result = backend.execute(backend.plan(&intent).unwrap(), &sink, token);
+    if let Some(cancel) = cancel {
+        cancel.join().unwrap();
+    }
+    assert_eq!(std::fs::read(&effect).unwrap(), b"effect\n");
+    assert!(
+        result.is_err(),
+        "an unobserved effect must remain unresolved"
+    );
+    assert_eq!(
+        sink.events()
+            .iter()
+            .filter(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_)))
+            .count(),
+        1,
+        "killing and joining a process does not undo its real effect"
+    );
+    assert!(!sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::ActionCompleted(_)
+            | p::EventPayload::ActionFailed(_)
+            | p::EventPayload::ActionCancelled(_)
+    )));
 }
 
 #[test]
@@ -123,8 +210,12 @@ fn mcp_timeout_covers_a_request_to_a_nonreading_server() {
     )));
     assert!(!sink.events().iter().any(|event| matches!(
         event,
-        p::EventPayload::ActionCompleted(_) | p::EventPayload::ActionOutcomeUnknown(_)
+        p::EventPayload::ActionCompleted(_) | p::EventPayload::ActionFailed(_)
     )));
+    assert!(sink
+        .events()
+        .iter()
+        .any(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_))));
 }
 
 #[test]
@@ -165,11 +256,11 @@ fn mcp_cancel_covers_a_request_to_a_nonreading_server() {
         "MCP blocked-input cancellation: {} ms",
         started.elapsed().as_millis()
     );
-    assert_eq!(result.unwrap().status, ActionStatus::Cancelled);
+    assert!(result.is_err());
     assert_eq!(
         sink.events()
             .iter()
-            .filter(|event| matches!(event, p::EventPayload::ActionCancelled(_)))
+            .filter(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_)))
             .count(),
         1
     );
@@ -177,7 +268,28 @@ fn mcp_cancel_covers_a_request_to_a_nonreading_server() {
         event,
         p::EventPayload::ActionCompleted(_)
             | p::EventPayload::ActionFailed(_)
-            | p::EventPayload::ActionOutcomeUnknown(_)
+            | p::EventPayload::ActionCancelled(_)
+    )));
+}
+
+#[test]
+fn mcp_cancel_before_dispatch_has_no_tool_effect_and_is_cancelled() {
+    let _serial = transport_test();
+    let backend = McpBackend::new(OutputBudget::truncate_at(4_096), p::DurationMs(1_000)).unwrap();
+    let sink = EventSink::default();
+    let token = CancelToken::default();
+    token.cancel();
+    let result = backend
+        .execute(
+            backend.plan(&mcp_intent("success", 1_000)).unwrap(),
+            &sink,
+            token,
+        )
+        .unwrap();
+    assert_eq!(result.status, ActionStatus::Cancelled);
+    assert!(!sink.events().iter().any(|event| matches!(
+        event,
+        p::EventPayload::ActionStarted(_) | p::EventPayload::ActionOutcomeUnknown(_)
     )));
 }
 
@@ -201,7 +313,7 @@ fn mcp_rejects_an_oversized_unterminated_response() {
     assert_eq!(
         sink.events()
             .iter()
-            .filter(|event| matches!(event, p::EventPayload::ActionFailed(_)))
+            .filter(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_)))
             .count(),
         1
     );
@@ -209,7 +321,7 @@ fn mcp_rejects_an_oversized_unterminated_response() {
         event,
         p::EventPayload::ActionOutputDelta(_)
             | p::EventPayload::ActionCompleted(_)
-            | p::EventPayload::ActionOutcomeUnknown(_)
+            | p::EventPayload::ActionFailed(_)
     )));
 }
 
@@ -403,6 +515,45 @@ fn execution_mcp_fixture_child() {
             if let Some(called) = std::env::var_os("FORME_MCP_CALLED") {
                 std::fs::write(called, b"called").unwrap();
             }
+        }
+        if method == "tools/call" && mode.starts_with("effect-") {
+            let mut effect = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(std::env::var_os("FORME_MCP_EFFECT").unwrap())
+                .unwrap();
+            effect.write_all(b"effect\n").unwrap();
+            effect.sync_all().unwrap();
+            if mode != "effect-no-response" {
+                let response = match mode.as_str() {
+                    "effect-invalid-version" => serde_json::json!({
+                        "jsonrpc":"1.0", "id":request["id"], "result":{}
+                    }),
+                    "effect-invalid-error" => serde_json::json!({
+                        "jsonrpc":"2.0", "id":request["id"], "error":null
+                    }),
+                    "effect-both-result-and-error" => serde_json::json!({
+                        "jsonrpc":"2.0", "id":request["id"], "result":{},
+                        "error":{"code":-32000,"message":"fixture"}
+                    }),
+                    "effect-missing-content" => serde_json::json!({
+                        "jsonrpc":"2.0", "id":request["id"], "result":{}
+                    }),
+                    "effect-invalid-content" => serde_json::json!({
+                        "jsonrpc":"2.0", "id":request["id"], "result":{"content":null}
+                    }),
+                    "effect-invalid-is-error" => serde_json::json!({
+                        "jsonrpc":"2.0", "id":request["id"],
+                        "result":{"content":[], "isError":"false"}
+                    }),
+                    _ => serde_json::json!({"jsonrpc":"2.0", "id":request["id"]}),
+                };
+                writeln!(stdout, "{response}").unwrap();
+                stdout.flush().unwrap();
+            } else {
+                std::thread::sleep(Duration::from_secs(4));
+            }
+            return;
         }
         if mode == "timeout" {
             std::thread::sleep(Duration::from_secs(2));

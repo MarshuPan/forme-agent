@@ -114,6 +114,26 @@ impl McpBackend {
                     "MCP tools/call result must be an object",
                 ));
             }
+            if !result
+                .get("content")
+                .is_some_and(serde_json::Value::is_array)
+                || result
+                    .get("structuredContent")
+                    .is_some_and(|value| !value.is_object())
+            {
+                return Err(McpExecutionError::schema(
+                    "MCP tools/call content is invalid",
+                ));
+            }
+            if result
+                .get("isError")
+                .is_some_and(|value| !value.is_boolean())
+            {
+                return Err(McpExecutionError::schema(
+                    "MCP tools/call error flag must be boolean",
+                ));
+            }
+            rpc.tool_outcome_observed = true;
             if result.get("isError").and_then(serde_json::Value::as_bool) == Some(true) {
                 return Err(McpExecutionError::server(
                     "MCP tool reported an unsuccessful result",
@@ -132,6 +152,10 @@ impl McpBackend {
             );
         }
 
+        let result = result.map_err(|mut error| {
+            error.unverified_outcome = rpc.io.tool_dispatch_started() && !rpc.tool_outcome_observed;
+            error
+        });
         match result {
             Ok(result) => {
                 emit_call(sink, server, tool, false, None)?;
@@ -162,32 +186,33 @@ impl McpBackend {
     ) -> p::Result<ActionResult> {
         let output = BoundedOutput::new(plan.budget.clone());
         let call_error = match error.kind {
-            McpExecutionErrorKind::Timeout => McpCallError::Timeout,
-            McpExecutionErrorKind::Schema => McpCallError::Schema,
-            McpExecutionErrorKind::Server => McpCallError::Server,
-            McpExecutionErrorKind::CleanupUnknown => {
-                emit_call(sink, server, tool, false, Some(McpCallError::Server))?;
-                sink.emit(p::EventPayload::ActionOutcomeUnknown(
-                    p::ActionOutcomeUnknownPayload {
-                        intent_id: plan.intent.intent_id.clone(),
-                        probe_hint: p::ProbeHintRef("review-original-mcp-process-and-io".into()),
-                        remote_lease: None,
-                    },
-                ))?;
-                return Err(p::Error(error.detail));
+            McpExecutionErrorKind::Timeout => Some(McpCallError::Timeout),
+            McpExecutionErrorKind::Schema => Some(McpCallError::Schema),
+            McpExecutionErrorKind::Server | McpExecutionErrorKind::CleanupUnknown => {
+                Some(McpCallError::Server)
             }
-            McpExecutionErrorKind::Cancelled => {
-                emit_call(sink, server, tool, false, None)?;
-                return cancelled(plan, sink, &output);
-            }
+            McpExecutionErrorKind::Cancelled => None,
         };
         emit_call(
             sink,
             server,
             tool,
-            call_error == McpCallError::Timeout,
-            Some(call_error),
+            call_error == Some(McpCallError::Timeout),
+            call_error,
         )?;
+        if error.unverified_outcome {
+            sink.emit(p::EventPayload::ActionOutcomeUnknown(
+                p::ActionOutcomeUnknownPayload {
+                    intent_id: plan.intent.intent_id.clone(),
+                    probe_hint: p::ProbeHintRef("review-original-mcp-process-and-io".into()),
+                    remote_lease: None,
+                },
+            ))?;
+            return Err(p::Error(error.detail));
+        }
+        if error.kind == McpExecutionErrorKind::Cancelled {
+            return cancelled(plan, sink, &output);
+        }
         Err(failed(plan, sink, error.detail))
     }
 }
@@ -269,6 +294,7 @@ enum McpExecutionErrorKind {
 struct McpExecutionError {
     kind: McpExecutionErrorKind,
     detail: String,
+    unverified_outcome: bool,
 }
 
 impl McpExecutionError {
@@ -276,12 +302,14 @@ impl McpExecutionError {
         Self {
             kind: McpExecutionErrorKind::CleanupUnknown,
             detail: "MCP original process or I/O cleanup is unverified".into(),
+            unverified_outcome: true,
         }
     }
     fn timeout(detail: impl Into<String>) -> Self {
         Self {
             kind: McpExecutionErrorKind::Timeout,
             detail: detail.into(),
+            unverified_outcome: false,
         }
     }
 
@@ -289,6 +317,7 @@ impl McpExecutionError {
         Self {
             kind: McpExecutionErrorKind::Schema,
             detail: detail.into(),
+            unverified_outcome: false,
         }
     }
 
@@ -296,6 +325,7 @@ impl McpExecutionError {
         Self {
             kind: McpExecutionErrorKind::Server,
             detail: detail.into(),
+            unverified_outcome: false,
         }
     }
 
@@ -303,6 +333,7 @@ impl McpExecutionError {
         Self {
             kind: McpExecutionErrorKind::Cancelled,
             detail: "MCP action was cancelled".into(),
+            unverified_outcome: false,
         }
     }
 }
@@ -312,6 +343,7 @@ struct McpRpcSession {
     deadline: Instant,
     token: CancelToken,
     next_id: u64,
+    tool_outcome_observed: bool,
 }
 
 impl McpRpcSession {
@@ -327,6 +359,7 @@ impl McpRpcSession {
             deadline,
             token,
             next_id: 0,
+            tool_outcome_observed: false,
         })
     }
 
@@ -343,7 +376,7 @@ impl McpRpcSession {
             "method": method,
             "params": params,
         }))?;
-        self.receive(id)
+        self.receive(id, method == "tools/call")
     }
 
     fn notify(&mut self, method: &str, params: serde_json::Value) -> Result<(), McpExecutionError> {
@@ -383,7 +416,11 @@ impl McpRpcSession {
         }
     }
 
-    fn receive(&self, id: u64) -> Result<serde_json::Value, McpExecutionError> {
+    fn receive(
+        &mut self,
+        id: u64,
+        tool_call: bool,
+    ) -> Result<serde_json::Value, McpExecutionError> {
         loop {
             if self.token.is_cancelled() {
                 return Err(McpExecutionError::cancelled());
@@ -419,7 +456,26 @@ impl McpRpcSession {
             if response.get("id").and_then(serde_json::Value::as_u64) != Some(id) {
                 continue;
             }
+            if response.get("jsonrpc").and_then(serde_json::Value::as_str) != Some("2.0")
+                || response.get("result").is_some() == response.get("error").is_some()
+            {
+                return Err(McpExecutionError::schema(
+                    "MCP response envelope is invalid",
+                ));
+            }
             if let Some(error) = response.get("error") {
+                if error
+                    .get("code")
+                    .and_then(serde_json::Value::as_i64)
+                    .is_none()
+                    || error
+                        .get("message")
+                        .and_then(serde_json::Value::as_str)
+                        .is_none()
+                {
+                    return Err(McpExecutionError::schema("MCP error response is invalid"));
+                }
+                self.tool_outcome_observed |= tool_call;
                 return Err(McpExecutionError::server(format!(
                     "MCP server returned an error: {error}"
                 )));
