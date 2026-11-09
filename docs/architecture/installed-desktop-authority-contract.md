@@ -62,3 +62,15 @@ backend 预留 attempt 与实际 dispatch 尝试是两个状态。申请 grant �
 ## 5. 验证
 
 协议测试覆盖 closed schema/尺寸/期限、错误摘要与身份。真实 journal 测试覆盖 CAS、同号幂等、异义冲突、重启/双 writer、残行/篡改、撤销竞争和逐 crash cut 的零第二次准入。生产接线测试必须经正式 pending/审批与 worker backend，不能仅手工构造 binding。Windows 原生验收另外证明 SCM Host、真实登录用户会话、锁屏/注销、固定 helper/peer 和同 job receipt；组件通过不替代 IP11。
+
+## 6. 独立受管 placement 与配置投影
+
+Windows 安装侧新增内部 closed schema 1 `InstalledDesktopProvisioning`，包含原 `ManagedWorkerBinding`、scope 和有限 surface refs；它由已校验的 installation/worker/credential 布局派生，不能从 Web、模型或环境变量输入。endpoint、credential 和 epoch 与安装的 AgentExecution 域一致；独立 profile 为 `sandbox:installed-desktop-v1`，backend_kinds 仅 Computer。它不进入 File 的 AppContainer 程序注册表，桌面调用仍只能经过固定活动 release helper。原 InstalledFileProvisioning 的 profile、语义与序列化保持。
+
+首个 placement 只承认 `workspace:default` 下的 `surface:windows-default`，表示 owner 随后选择的 Windows 交互默认桌面；这不是 SID、会话号或物理显示器 ID。输入坐标许可范围为每轴 [-32768,32768)，用于限制动作参数，不声称是实际屏幕尺寸。精确动作可使用范围内更小的 bounds；helper 执行时仍核对 OS 会话与真实可用显示区域。截图只接受能够映射到单个真实显示器的原 bounds，并受独立输出契约的像素预算限制；不默默裁剪或改变请求尺寸。
+
+Host 的私有 ConfigState 11 增加 optional desktop placement；旧 2–10 的发布字节与快照不重写。仅新的 owner 保存可将安装 placement 纳入新 revision，旧客户端保存保留已存在字段。state 11 必须含 desktop placement，既有 managed 字段允许在 10 或 11；v3 公共设置形状不变。Host 在发布前将 enabled 的 scope/surface_refs 与这个原件逐项比较。没有安装 placement、固定 helper 或消费者时拒绝启用。
+
+`ManagedBrainConfig` 增加 optional `desktop_placement`，由 Host 受保护配置发布；ProductionRuntimeBuilder 验证其 schema/profile/epoch/endpoint、与 managed Computer 设置的对应关系，并将专用 desktop binding 单独传至 capability assembly。能力只有配置显式启用且该 binding 可用才注册，不通过 File binding 的 backend_kinds 推断支持。Host 在注册 pending、签发及消费前再次读取当前启用配置并比较 profile、scope、surface、driver 与参数范围；禁用立即阻断新准入，原已开始 job 仍只核对原 receipt。
+
+Web 在原审批卡内显示会话目录、重新认证口令及同一次 consent 的状态。pending_ref 使用 §4.1 的 canonical tuple 定位；目录变化要求重新读取，已提交或响应不明的操作只能按原 operation 查询。口令和目录不写浏览器持久存储。只有 Host 已核实 Committed 才解锁原“仅批准这一次”；拒绝原动作始终可用。原请求数据和批准 nonce 不因刷新查询而重新生成。
