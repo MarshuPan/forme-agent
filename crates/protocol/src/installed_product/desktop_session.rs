@@ -13,7 +13,10 @@ use serde::{Deserialize, Serialize};
 
 #[path = "desktop_authority.rs"]
 mod authority;
+#[path = "desktop_output.rs"]
+mod output;
 pub use authority::*;
+pub use output::*;
 
 pub const DESKTOP_SESSION_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
 pub const MAX_DESKTOP_SESSION_TTL_MS: i64 = 15 * 60 * 1000;
