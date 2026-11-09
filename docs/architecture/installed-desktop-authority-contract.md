@@ -16,7 +16,7 @@
 
 `DesktopAuthority` 位于 execution 的 installed 域，拥有独立 OS 文件锁及有界、带 schema/sequence/previous digest 的 append-only journal。单 record 最多 128 KiB，总量最多 64 MiB；超过上限明确不可用，不截断历史。首次绑定 installation/owner/epoch，重开须逐项核对。追加先完整校验下一投影，写入并 sync 成功才发布；任何写入结果不明使 writer poisoned，禁止后续写入与执行。残行、错序、错 hash、错 schema、重复/不合法状态迁移均拒绝重开。
 
-目录由只读 OS adapter 观察，不调用 DesktopHelperAdapter::observe（它可能启动 helper）。Host 在内存保留每份未过期目录及对应 OS 原件；session_ref 绑定该目录、真实 user/session/generation 和固定 desktop。重启丢失目录后旧目录不能新建 consent；已提交 consent 的 OS 原件在受保护 journal 中保留，新的 grant 和 admission 仍须重新观察核对。
+目录由只读 OS adapter 观察，不调用 DesktopHelperAdapter::observe（它可能启动 helper）。Host 在内存保留每份未过期目录及对应 OS 原件；session_ref 绑定该目录、真实 user/session/generation 和固定 desktop。`catalog_revision` 等于读取时的 authority revision（首条身份绑定为 revision 1），用于 consent 的 expected_revision；新读取可使旧目录失效，但不改变已提交 consent。Windows 的桌面引用固定为 `desktop:windows-default`，原生 launch 仍选择 `winsta0\default`；引用不是路径，不在产品 ID 中嵌入反斜杠。重启丢失目录后旧目录不能新建 consent；已提交 consent 的 OS 原件在受保护 journal 中保留，新的 grant 和 admission 仍须重新观察核对。
 
 事实分为 pending registered、consent committed、consent revoked、grant issued、grant consumption intent。认证/CSRF/近期重认证由原入口与 Host 分域验证；Web 不传可信 principal/OS 身份。consent 和 revoke 共用 authority revision CAS；同 operation 同义返回原结果，异义拒绝。查询不写事实、不启动 helper、不改变原结果。过期状态是原记录与当前时间的投影。
 
@@ -44,6 +44,20 @@ HostManagement 和 AgentExecution 采用已批方案 §3 的方法与四类 Web 
 主脑使用方案 §4 的原 ApprovalWait/grant-once 流程：最终 policy/plugin recheck 后注册 pending，无桌面 consent 时不得发 ActionStarted；owner 提交 exact consent 后才批准原动作。恢复时再核对 final plan，WorkerActionBackend 保留唯一 attempt，再取原 grant 并通过既有 `with_desktop_session` 附加。获取结果不明只查原 operation，不自动重领。Web 只显示安全目录及 consent 状态，不显示 binding/OS token/nonce/helper endpoint。
 
 Computer 设置与独立 profile 仍按[设置 v3 契约](installed-managed-settings-contract.md)接入。只有上述消费者、固定活动 release helper 和实际 placement 全部存在时才允许启用；配置保存不生成动作批准。Screenshot 输出另按已批结果方案实施，不借授权阶段伪报结果支持。
+
+### 4.1 接线与只读核对细化
+
+主脑与执行注册表共享同一个 `Arc<WorkerActionBackend>`，通过内部装配字段接入，不改变冻结 `ActionBackend` trait。受管 Computer 始终先进入原 ApprovalWait。恢复时先按 pending_ref 只读核对 consent；缺失、过期、撤销或查询不明均保留等待，不 resolve/authorize 原审批，不保留新 worker attempt。通过后执行既有 final plan/policy/capability/competence 重查，再以同一个 backend 保留唯一 job/permit 并申请 grant；原审批的 resolve、authorize 和持久消费均在此之后。父子 Harness 共享相同 backend。
+
+为支持上述零副作用前置核对，AgentExecution 的既有桌面控制面细化一个只读方法：`desktop_pending_consent(&self, pending_ref: &str) -> Result<DesktopConsentView>`；Host 对应方法增加既有 auth/now 参数。它只查询本 installation/owner/epoch 已登记 pending 的原 consent，返回既有安全 view，不返回 OS 标识、grant 或新增执行权限。缺省实现拒绝。此为已批准桌面授权闭合范围内的内部读取接缝，不增加 Web 路由或改变原审批对象。
+
+pending_ref 由 `(forme.product.desktop.pending.v1, reference, approval_ref, plan_digest)` 的 canonical digest 去除 `sha256:` 前缀后加 `desktop-pending:`；consent_ref 由 `(forme.product.desktop.consent.v1, reference, pending_ref)` 同法加 `desktop-consent:`。这些引用仅用于定位原件，绝不证明已授权。pending 与 consent 请求摘要仍覆盖全部冻结字段；不同 owner/epoch/plan 不可借引用绕过原件比较。一个 pending 不可被第二个 consent 替换。
+
+内部有限路由：Configuration 为 GET `.../configuration/desktop/sessions`、POST `.../configuration/desktop/consents`、GET `.../configuration/desktop/consents/{operation_id}`、POST `.../configuration/desktop/revocations`，统一前缀 `/v1/host`；AgentExecution 为 POST `/v1/agent/workers/desktop/pending`、GET `/v1/agent/workers/desktop/consents/{pending_ref}`、POST `/v1/agent/workers/desktop/grants`、GET `/v1/agent/workers/desktop/grants/{operation_id}`。各自只接受对应 credential domain，不接受路径或查询通配。
+
+Web consent/revoke 的外层请求为 closed `{schema_version:1, request:<原 DTO>, password:<write-only>}`，请求体总计不超过 16 KiB；`Idempotency-Key` 必须等于 request.operation_id。口令只用于 Web 的 exact request digest 重新认证，不传给 Host。浏览器先核实 consent Committed，再发送原 grant-once；原 Core 入口也独立核对，不信任浏览器流程。
+
+backend 预留 attempt 与实际 dispatch 尝试是两个状态。申请 grant 不算 dispatch；只在首次实际执行前 CAS 标记 dispatch 已尝试，重复调用只查询原 worker。grant 获取不明后只能查询原 operation；不换号、不再次申请。取得 binding 后必须校验 owner/epoch/action/plan/nonce/capability/有效期与原 request，才能附加到 plan。
 
 ## 5. 验证
 
