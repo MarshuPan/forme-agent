@@ -70,6 +70,16 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 - **cancel**:`CancelToken` 传播到 backend,产 `ActionCancelled`。
 - **rollback**:`RollbackBoundary` 按 backend 声明(如 File 可提供反向 diff;Shell 一般不可回滚)——**不泛化承诺"都能回滚"**。
 
+### 5.1 现有 MCP stdio 调用的 I/O 实施约束
+
+这是既有 timeout/cancel/output/lifecycle 不变量的实现细化，不新增公开 DTO、trait、EventKind、crate 或依赖边，也不启用安装版 MCP placement。
+
+- 调用的同一个 deadline 与 CancelToken 覆盖序列化、写入、flush 和响应等待；主执行线程不得被不读取 stdin 的服务端锁在同步写入内。写线程逐帧给出完成回执，回执等待持续检查原 deadline/cancel，不按阶段重置时限。
+- 传输层按完整 JSON 行处理，单帧上限 8 MiB（含换行）；输入编码不得先无界增长再判断，响应也不得用无界 `lines()` 分配。待读响应最多两帧、待写队列最多一帧。超长帧按 schema 错误终止；普通有效帧之后的 ActionOutput 仍遵守已审批的 OutputBudget，传输上限不替代输出预算。
+- 普通调用最多同时持有八个进程/I/O 槽位。停止后关闭队列、结束原 child、wait 并 join 原读写线程；主调用最多等待两秒清理。不能确认清理时只写 `ActionOutcomeUnknown`，不改写为成功、失败或取消，也不重派原动作。
+- 原 child 与线程的清理句柄由有限 supervisor 保管，包括创建清理线程失败时尚未执行的清理材料。存在未结束的清理或已确认的清理失败时拒绝新的进程 admission；正常清理全部结束才释放槽位，稍后的清理结果不改写原 Unknown。Drop 只是兜底，正式终态须在显式清理结果后决定。
+- 这不宣称普通 stdio 已拥有后代进程隔离或安装版 Host grant。受管 discovery/call、隔离工作区、受保护输入/结果与真实安装验收继续按 PRD24/25 和对应待审提案闭合。
+
 ## 6. 错误/安全/权限/审批
 
 - **错误 → FailureTaxonomy**:`execution_failure`(工具/命令/文件/MCP 执行失败)。
@@ -96,6 +106,7 @@ impl ExecutionBackendRegistry { pub fn backend(&self, kind: BackendKind) -> &dyn
 - **S2 执行侧(总纲 §7.2)**:放行后动作执行;拒绝后**无 `ActionStarted`/`ActionCompleted`**。
 - **S3 执行侧(总纲 §7.6)**:MCP 调用产 `McpCallEvent`;错误分类。
 - **单元**:output budget/timeout/cancel 生效;file 写前必产 diff;shell 不作默认兜底(无匹配→报错非 fallback);rollback 边界按 backend 声明。
+- **MCP I/O 回归**:真实自建子进程在 initialize 后不再读取输入，分别验证大请求写入中的 timeout/cancel；超长无换行响应被限制；噪声/不匹配帧不越过输出预算；后代持有管道时原动作保持 Unknown、新动作 admission 被阻止，原清理 join 后只允许新的不同动作运行。有限 fixture 不代替安装版后代隔离或全平台原生验收。
 
 ## 10. 验收
 
