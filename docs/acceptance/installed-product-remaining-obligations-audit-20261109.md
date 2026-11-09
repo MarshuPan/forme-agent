@@ -25,7 +25,7 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 | --- | --- | --- |
 | 既有能力的受管配置及消费者 | settings v3、Host 注册来源/程序/包公钥，MCP 隔离 discovery/call、插件贡献、已有渠道 adapter 与 typed M5 Web 控制。`320d0b0` / `a372499` 已修复普通 stdio 的有界 I/O 与原 cleanup 监督，详见[MCP 组件验收](installed-mcp-stdio-io-acceptance-20261109.md)；不替代受管接入或隔离。 | 已批准并实施。settings v3、公钥装配与有限 Web 路由已完成组件验证；隔离 discovery/call、插件贡献和渠道实际消费者继续实施。 |
 | 桌面授权及主脑接线 | Host OS 会话目录、pending/consent/issue/revoke journal，exact grant 消费、正式 planner/backend 与 Web 会话选择。 | 已批准并实施。`7e4b7ce` 已接通 Host 授权、主脑等待/恢复、Web 会话选择；独立桌面设置和原生联合验收继续推进。 |
-| 截图、引用输入和真实 PTY | helper 当前拒绝截图和 ContentRef/SecretRef Type，只处理 Computer；desktop 结果 source=None。`1207740` 证明三个隔离机制，`451f3b4` 修复普通 I/O；后续 `e9da708` 将同一真实 backend 放入隔离 fixture，八项 I/O 组合和三个原场景共 11 个独立实验全部通过。初始化/OS 关闭异常矩阵与生产接线仍未完成。 | 证据见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)、[I/O 组件验收](installed-pty-io-lifecycle-acceptance-20261109.md)和[组合验收](installed-isolated-pty-io-composition-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；组合机制不授权新增冻结协议，也不关闭完整 IP。 |
+| 截图、引用输入和真实 PTY | `656f16a` / `0a25416` 已接通截图输出与认证 Web 原件读取组件；安装 surface 映射、初装可信支持、Host 副本删除和原生联合验证仍缺，详见[截图组件验收](installed-desktop-output-runtime-web-20261110.md)。ContentRef/SecretRef Type 与真实 PTY 生产接线继续开放。`1207740` 证明三个隔离机制，`451f3b4` 修复普通 I/O；后续 `e9da708` 将同一真实 backend 放入隔离 fixture，八项 I/O 组合和三个原场景共 11 个独立实验全部通过。初始化/OS 关闭异常矩阵与生产接线仍未完成。 | 证据见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)、[I/O 组件验收](installed-pty-io-lifecycle-acceptance-20261109.md)和[组合验收](installed-isolated-pty-io-composition-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；组合机制不授权新增冻结协议，也不关闭完整 IP。 |
 | 其他安装版执行 placement | Shell、Browser、AppApi、Notification 逐项核对实际消费者、隔离 profile、凭据/输入/结果与取消。 | 有通用 broker/factory 分支不等于实际安装能力；不得统一启用 flag 或回退 brain 进程内 driver。 |
 
 追加组件证据：`1b6884f` / `d43e27a` 已闭合普通 MCP 丢响应/无效响应/副作用后取消的 Unknown，以及 Harness 的原号挂起、真实 SQLite 恢复、同键重放和持久裁决。workspace 为 188 targets、1,346 passed / 0 failed / 22 默认 ignored，required checks 与原件核验通过；详见[MCP Unknown 组件验收](installed-mcp-unknown-outcome-acceptance-20261109.md)。这不启用受管消费者，也不替代安装证据。
@@ -82,6 +82,9 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 4. 完成剩余真实消费者和安装包后，按上述 IP 判据补齐原生联合证据及所需平台条件；环境不足保留未验证，不宣告整体完成。
 
 ## 6. 截图工件接线的追加源码证据
+
+2026-11-10 更新：下两段是本审计最初定位的历史缺口。`656f16a` 已实现 helper→Host 原件传输与 Binary 保护投影，`0a25416` 已实现认证目录/分块读取与 Web 预览，旧的强制 UTF-8 和 helper 拒绝结论不再描述当前源码。组件验证及限制见[新验收记录](installed-desktop-output-runtime-web-20261110.md)。当前尚未部署；安装 surface 映射、初装支持与 Host 副本删除继续实施，完整原生链仍未验收。
+
 
 `protocol/installed_product/worker_result.rs` 已区分 Utf8/Binary，Host 的 `worker_results.rs::seal_path` 也封存 Binary 原件；但 `worker_backend.rs:288` 在完整长度/摘要核验后仍要求 UTF-8。因此即使补好 helper → Host 截图传输，原始 PNG 也不能直接沿当前主脑文本结果入口完成。`external_receipt` 把 result_ref 映射为 ContentRef，不证明模型或 Web 内容消费者已经接通。
 

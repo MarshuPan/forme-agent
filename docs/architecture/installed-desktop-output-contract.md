@@ -14,6 +14,14 @@ binding 摘要域为 `forme.desktop.output.binding.v2`，header 摘要域为 `fo
 
 transfer 必须逐项匹配原 DesktopActionRequest 和原 Screenshot intent（包括完整 normalized digest、surface、bounds、workspace、action）；helper 不可改变。sink 只向 adapter 暴露该不可变 transfer，不能提供路径、密钥或 journal。
 
+### 安装画面与真实显示器的对应
+
+安装 placement 的 `surface:windows-default` 表示已授权交互会话的桌面坐标空间；它不是显示器硬件编号。Screenshot 的原 `bounds` 必须完整落在该会话当前枚举出的唯一一个显示器内。helper 在实际 capture 前解析该映射，只转换为此显示器内的相对坐标，不改变原 intent、surface、bounds、normalized digest、grant 或 transfer；因此输出 width/height 仍精确等于原 bounds 的差值。
+
+显示器不存在、几何无效、编号重复、同一矩形同时由多个显示器完整覆盖，或矩形跨屏/越界时拒绝，不能退回主屏、扩大到全屏、裁剪请求或多次截图后拼接。负坐标显示器允许，坐标差及边界使用足够宽的整数运算。既有 `surface:monitor:<u32>` 的开发驱动选择继续精确匹配指定编号，同样拒绝越界和丢失；安装 placement 不因此接受额外 surface。
+
+对应核验先覆盖确切裁剪、负坐标、全屏边界、跨屏、镜像歧义、重复编号、缺失编号和极值运算；这些几何测试不代替已授权 helper 的真实 capture/服务/原件链证据。
+
 ## 2. 帧与验证顺序
 
 沿原已认证 named pipe 增加固定 `--desktop-session-helper-output-v2` 启动模式；旧模式的消息及 hello 保持。v2 Hello/Ready/Ping/Pong 必须严格匹配版本；v2 Execute 包含原 request、intent 和 transfer。双方在原 Started 前完成协议确认；未知/旧 peer 不降级执行 Screenshot。
