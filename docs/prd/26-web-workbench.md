@@ -325,3 +325,11 @@ Ready/Degraded/Maintenance/RecoveryRequired 路径均可实际操作；IP17–23
 唯一批准的源码复用范围为 [frontend-reuse-policy](../compliance/frontend-reuse-policy.md) 的逐文件前端白名单，保留 MIT/第三方 notices；本模块的 API/reducer/业务/安全 fixture 原创。当前没有导入任何 upstream 源码，不在实际依赖清单虚报已使用。
 
 React/TypeScript/Vite 及 renderer/component/icon 等实际依赖实施时锁版本并审计，外部图片/字体/品牌资源也需授权。禁止把 research/upstreams 加为 alias/import，禁止大范围排除 copy detector；合规与 UI bundle dependency graph 均为发布阻断门。
+
+## 12. 已批准的受管能力包 Web 接入
+
+2026-11-09 owner 批准的受管消费者提案在现有 `/api/v1/brain` adapter 下增加六条精确映射：GET `ecosystem/snapshot?scope=<product-id>`；POST `ecosystem/publishers`、`ecosystem/admissions`、`ecosystem/plans`、`ecosystem/changes`、`ecosystem/distributions/prepare`，分别映射原 `/v1/ecosystem/*`。无其他 query、尾段、方法或通配代理。配置公钥另走 PRD25 的 Host 设置 v3，不接受 catalog 供给公钥。
+
+浏览器 body 复用现有 Gateway 请求的 schema_version/run/grant/previous/expected、run/catalog_run/package、operation/package/release、run/plan/approval/reason、plan/target_peer/authority_epoch 字段。所有 body 为 closed，schema_version 恰为 1，原内层 DTO 静态验证保持。changes 的 approval 仅含 schema_version/approval/plan_digest/nonce/expires_at，principal 由认证会话补入；plan digest 必须等于批准 digest，nonce 必须等于原请求 Idempotency-Key。其他带 run 的变更也将 Idempotency-Key 绑定 run，零用户自报 owner/principal。计划版本、期限、一次性 nonce、签名与 CAS 仍由原 M5 authority 验证；Web 不保存第二套包状态。
+
+正式批准应展示准备步骤取得的确切 plan、版本、影响范围及期限；响应不明按原 run/nonce 与 snapshot 核对，不自动生成新的提交。未认证/CSRF、伪造 principal、改 plan、错误版本和越界路由均在 Core 调用前拒绝。受管功能还须通过真实签名准入、贡献可见/禁用、重启保持以及负例零安装才可关闭对应验收。
