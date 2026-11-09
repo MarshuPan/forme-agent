@@ -21,6 +21,8 @@ use crate::{
 
 use super::{ManagedWorkerBinding, WorkerBrokerTransport};
 
+mod desktop;
+
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
 const RESULT_ASSEMBLY_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_RESULT_CHUNKS: usize = 4096;
@@ -29,6 +31,8 @@ const MAX_RESULT_CHUNKS: usize = 4096;
 struct WorkerAttempt {
     job: p::WorkerJob,
     permit: p::WorkerPermit,
+    dispatch_attempted: bool,
+    desktop: Option<desktop::DesktopAttempt>,
 }
 
 /// `ActionBackend` implementation for an installed, isolated worker.
@@ -100,30 +104,6 @@ impl WorkerActionBackend {
             budget,
             timeout,
         )
-    }
-
-    fn attempt(&self, plan: &ExecutionPlan, now: p::Timestamp) -> p::Result<(WorkerAttempt, bool)> {
-        let mut attempts = self
-            .attempts
-            .lock()
-            .map_err(|_| p::Error("worker action attempt state is unavailable".into()))?;
-        if let Some(existing) = attempts.get(&plan.intent.intent_id) {
-            if existing.job.plan_digest != plan.digest {
-                return Err(p::Error(
-                    "action already has a worker job for another plan".into(),
-                ));
-            }
-            return Ok((existing.clone(), false));
-        }
-        let attempt = build_attempt(
-            plan,
-            self.owner.clone(),
-            self.authority_epoch,
-            self.sandbox_profile_ref.clone(),
-            now,
-        )?;
-        attempts.insert(plan.intent.intent_id.clone(), attempt.clone());
-        Ok((attempt, true))
     }
 
     fn settle(
@@ -330,7 +310,7 @@ impl ActionBackend for WorkerActionBackend {
             ));
         }
         let empty = BoundedOutput::new(self.budget.clone());
-        let (attempt, fresh) = self.attempt(&plan, now_ms())?;
+        let (attempt, fresh) = self.claim_dispatch(&plan, now_ms())?;
         if fresh && token.is_cancelled() {
             return cancelled(&plan, sink, &empty);
         }
@@ -447,7 +427,12 @@ fn build_attempt(
         issued_at,
     };
     permit.validate_for(&job, issued_at)?;
-    Ok(WorkerAttempt { job, permit })
+    Ok(WorkerAttempt {
+        job,
+        permit,
+        dispatch_attempted: false,
+        desktop: None,
+    })
 }
 
 fn execution_spec(plan: &ExecutionPlan) -> p::WorkerExecutionSpec {

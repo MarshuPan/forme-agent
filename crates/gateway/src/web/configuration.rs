@@ -11,6 +11,8 @@ use forme_protocol as p;
 use serde::{de::DeserializeOwned, Serialize};
 use zeroize::Zeroizing;
 
+mod desktop;
+
 const MAX_WIRE_BYTES: usize = 512 * 1024;
 const MAX_BODY_BYTES: usize = 256 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);

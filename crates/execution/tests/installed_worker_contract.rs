@@ -1,3 +1,5 @@
+#[path = "installed_worker_contract/desktop_authorization.rs"]
+mod desktop_authorization;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -788,6 +790,18 @@ fn desktop_helper_dispatch_is_exact_and_terminal_receipt_is_idempotent() {
     .unwrap();
     let (mut job, mut permit) = make_job(1_000);
     let execution = desktop_execution(&mut job, &mut permit);
+    assert!(host
+        .dispatch_with_execution(
+            &agent,
+            job.clone(),
+            permit.clone(),
+            Some(execution.clone()),
+            10
+        )
+        .is_err());
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 0);
+    let (host, execution) =
+        desktop_authorization::authorize(&temp, host, &agent, &job, &permit, execution);
     let first = host
         .dispatch_with_execution(
             &agent,
@@ -856,6 +870,18 @@ fn desktop_helper_loss_after_start_is_unknown_and_never_retried() {
             10
         )
         .is_err());
+    assert_eq!(helper.observations.load(Ordering::SeqCst), 0);
+    let (host, execution) =
+        desktop_authorization::authorize(&temp, host, &agent, &job, &permit, execution);
+    assert!(host
+        .dispatch_with_execution(
+            &agent,
+            job.clone(),
+            permit.clone(),
+            Some(execution.clone()),
+            10
+        )
+        .is_err());
     let unknown = host.probe(&agent, &job.job_id, 11).unwrap();
     assert_eq!(unknown.state, p::WorkerState::Unknown);
     assert_eq!(unknown.outcome, Some(p::WorkerOutcome::Unknown));
@@ -890,15 +916,17 @@ fn desktop_grant_expiry_and_capability_mismatch_are_rejected_before_helper_call(
     .unwrap();
 
     let (mut job, mut permit) = make_job(1_000);
-    let mut expired = desktop_execution(&mut job, &mut permit);
+    let execution = desktop_execution(&mut job, &mut permit);
+    let (host, execution) =
+        desktop_authorization::authorize(&temp, host, &agent, &job, &permit, execution);
+    let mut expired = execution.clone();
     expired.desktop_session.as_mut().unwrap().expires_at = 9;
     assert!(host
         .dispatch_with_execution(&agent, job.clone(), permit.clone(), Some(expired), 10)
         .is_err());
     assert_eq!(helper.observations.load(Ordering::SeqCst), 0);
 
-    let (mut job, mut permit) = make_job(1_000);
-    let mut wrong_capability = desktop_execution(&mut job, &mut permit);
+    let mut wrong_capability = execution;
     wrong_capability
         .desktop_session
         .as_mut()

@@ -1,6 +1,7 @@
 //! Host process composition and bounded listener lifecycle.
 mod bootstrap;
 pub(super) mod config;
+mod desktop_routes;
 pub(super) mod http;
 mod legacy_recovery_routes;
 mod lifecycle;
@@ -203,7 +204,11 @@ fn run_host(
         .product_config_template_path
         .as_deref()
         .map(|path| {
-            ProductConfigStore::open_with_installed_file(path, runtime.installed_file.clone())
+            ProductConfigStore::open_with_installed_placements(
+                path,
+                runtime.installed_file.clone(),
+                runtime.installed_desktop.clone(),
+            )
         })
         .transpose()?
         .map(Arc::new);
@@ -215,7 +220,7 @@ fn run_host(
         credentials,
         runtime.target,
         runtime.active_release,
-        product_config,
+        product_config.clone(),
         forme_execution::installed::SystemServiceManager,
     )?;
     if !runtime.managed {
@@ -235,7 +240,6 @@ fn run_host(
             broker = broker.with_native_legacy_review(trust)?;
         }
     }
-    let broker = Arc::new(broker);
     if runtime.managed {
         on_stage(startup::Stage::InstallationVerification);
         broker.record_installation_verification(
@@ -255,6 +259,19 @@ fn run_host(
     } else {
         None
     };
+    let desktop_authority = load_desktop_authority(
+        &journal,
+        &install_id,
+        product_config,
+        runtime.worker_config_path.as_deref(),
+        managed_service_bound,
+        active_release.as_ref(),
+        runtime.initial_release_root.as_deref(),
+    )?;
+    if let Some(authority) = &desktop_authority {
+        broker = broker.with_desktop_authority(authority.clone())?;
+    }
+    let broker = Arc::new(broker);
     on_stage(startup::Stage::Worker);
     let worker = load_worker_host(
         &journal,
@@ -263,6 +280,7 @@ fn run_host(
         runtime.development_workers,
         WorkerHostContext {
             managed_service_bound,
+            desktop_authority,
             protected_paths: &runtime.worker_protected_paths,
             active_release: active_release.as_ref(),
             initial_release_root: runtime.initial_release_root.as_deref(),

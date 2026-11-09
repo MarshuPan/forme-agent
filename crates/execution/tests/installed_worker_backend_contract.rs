@@ -590,7 +590,7 @@ fn transport_delay_empty_results_and_split_utf8_preserve_the_plan() {
 }
 
 #[test]
-fn desktop_grant_is_forwarded_only_when_bound_to_the_exact_plan() {
+fn caller_supplied_desktop_binding_cannot_bypass_host_grant_acquisition() {
     let transport = Arc::new(FakeTransport::new(FailureMode::None));
     let backend = WorkerActionBackend::new(
         BackendKind::Computer,
@@ -602,39 +602,19 @@ fn desktop_grant_is_forwarded_only_when_bound_to_the_exact_plan() {
         p::DurationMs(10_000),
     )
     .unwrap();
-    let plan = computer_plan(&backend, "worker-backend-desktop-grant");
+    let plan = computer_plan(&backend, "worker-backend-self-issued");
     let binding = desktop_binding(&plan);
-    let mut bound = plan.clone().with_desktop_session(binding.clone()).unwrap();
-
-    let result = backend
-        .execute(bound.clone(), &EventSink::default(), CancelToken::default())
-        .unwrap();
-    assert_eq!(result.status, ActionStatus::Completed);
-    let state = transport.state.lock().unwrap();
-    assert_eq!(
-        state
-            .request
-            .as_ref()
-            .and_then(|request| request.execution.as_ref())
-            .and_then(|execution| execution.desktop_session.as_ref()),
-        Some(&binding)
-    );
-    drop(state);
-
-    let mut foreign = binding.clone();
-    foreign.plan_digest = p::PlanDigest(p::canonical_digest(&"foreign-plan").unwrap().0);
-    assert!(plan.clone().with_desktop_session(foreign).is_err());
-
-    bound
-        .desktop_session
-        .as_mut()
-        .expect("desktop grant is attached")
-        .plan_digest = p::PlanDigest(p::canonical_digest(&"tampered-plan").unwrap().0);
+    let bound = plan.with_desktop_session(binding).unwrap();
+    let sink = EventSink::default();
     assert!(backend
-        .execute(bound, &EventSink::default(), CancelToken::default())
+        .execute(bound, &sink, CancelToken::default())
         .is_err());
-    assert_eq!(transport.snapshot().0, 1);
+    assert!(sink.events().is_empty());
+    assert_eq!(transport.snapshot().0, 0);
 }
+
+#[path = "installed_worker_backend_contract/desktop.rs"]
+mod desktop;
 
 #[test]
 fn a_lost_dispatch_response_can_only_read_the_original_terminal_receipt() {

@@ -156,6 +156,33 @@ impl WorkerResultStore {
         self.persist_manifest(manifest)
     }
 
+    /// Only a verified non-image desktop receipt with no content reference
+    /// proves that successful completion intentionally has an empty body.
+    pub(crate) fn seal_empty_completion(
+        &self,
+        binding: p::WorkerResultBinding,
+        evidence_refs: Vec<String>,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerResultManifest> {
+        let result_ref = format!(
+            "desktop-empty:{}",
+            p::canonical_digest(&("forme.desktop.empty-result.v1", &binding))?.0
+        );
+        let manifest = Self::manifest(ManifestInput {
+            binding,
+            result_ref: Some(result_ref),
+            outcome: Some(p::WorkerOutcome::Completed),
+            status: p::WorkerResultStatus::Empty,
+            bytes: 0,
+            content_digest: Some(p::sha256_content_digest(b"")),
+            encoding: p::WorkerResultEncoding::Utf8,
+            evidence_refs,
+            produced_at: now,
+        })?;
+        self.persist_bytes(&manifest, b"")?;
+        self.persist_manifest(manifest)
+    }
+
     pub(crate) fn pending(
         &self,
         binding: p::WorkerResultBinding,

@@ -10,6 +10,7 @@ pub(super) struct Inputs<'a> {
     pub contents: Arc<dyn ContentResolver>,
     pub managed_mode: bool,
     pub worker_binding: Option<&'a ManagedWorkerBinding>,
+    pub desktop_binding: Option<&'a ManagedWorkerBinding>,
 }
 
 pub(super) struct BuiltinExecution {
@@ -19,6 +20,7 @@ pub(super) struct BuiltinExecution {
     pub service_states: Vec<RuntimeServiceState>,
     pub browser_active: bool,
     pub computer_active: bool,
+    pub desktop_backend: Option<Arc<WorkerActionBackend>>,
     pub pty_active: bool,
 }
 
@@ -32,6 +34,7 @@ pub(super) fn assemble(inputs: Inputs<'_>) -> p::Result<BuiltinExecution> {
         contents,
         managed_mode,
         worker_binding,
+        desktop_binding,
     } = inputs;
     let capability_config = &config.capabilities;
     let output_budget = OutputBudget::truncate_at(capability_config.output_budget_bytes);
@@ -43,6 +46,7 @@ pub(super) fn assemble(inputs: Inputs<'_>) -> p::Result<BuiltinExecution> {
     let mut service_states = Vec::new();
     let mut browser_active = false;
     let mut computer_active = false;
+    let mut desktop_backend = None;
     let mut pty_active = false;
 
     if capability_config.notification_enabled {
@@ -336,16 +340,16 @@ pub(super) fn assemble(inputs: Inputs<'_>) -> p::Result<BuiltinExecution> {
                 && surface.bounds.validate().is_ok()
         });
     if managed_mode && capability_config.computer.enabled {
-        let ready = try_register_managed_worker_backend(
+        desktop_backend = managed_workers::register(
             managed_mode,
-            worker_binding,
+            desktop_binding,
             p::BackendKind::Computer,
             config,
             &output_budget,
             timeout,
             &backends,
         )?;
-        if ready {
+        if desktop_backend.is_some() {
             add_builtin_capability(
                 &mut builtin_entries,
                 &mut bindings,
@@ -488,6 +492,7 @@ pub(super) fn assemble(inputs: Inputs<'_>) -> p::Result<BuiltinExecution> {
         service_states,
         browser_active,
         computer_active,
+        desktop_backend,
         pty_active,
     })
 }

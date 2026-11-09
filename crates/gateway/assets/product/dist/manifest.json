@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "a80f94c40fd18548cc20429a44ae0ce8bb8b4cb0a21075a9f8cbb2b9d00aa806",
+  "source_digest": "0ea2a287f79ea3d3369800eb137658467e8f9cafe2d8771ba7f8d4283c00203f",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "0498924ce763f04088a46a03cd799b43815949775a61bd467c17582ca764ff64"
+      "sha256": "92faad80ae8af2d20947766f5800be02d32340aaa151669ac61319e742326077"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -40,7 +40,7 @@
     },
     {
       "path": "frontend/src/components/Approval.tsx",
-      "sha256": "46b3254a3189e48ef245cf6d111ffa88a651b6703a014371fefd66f7cb4cf865"
+      "sha256": "2bbce38ad6bd2e8263d05d99ce9e5185f80a8fc8149c59d189069b206502bb2a"
     },
     {
       "path": "frontend/src/components/BrainPreferences.tsx",
@@ -69,6 +69,10 @@
     {
       "path": "frontend/src/components/DataManagement.tsx",
       "sha256": "1c7714c45ffb74625251cc9f97a2fbdeaa1267507277a94d91ae7ba4c1e6a950"
+    },
+    {
+      "path": "frontend/src/components/DesktopConsent.tsx",
+      "sha256": "1f78703c1737d960fd38b060d7fdb3090417d4d38d7cce4f8c34a5a771923e56"
     },
     {
       "path": "frontend/src/components/Entry.tsx",
@@ -161,6 +165,10 @@
     {
       "path": "frontend/src/data.ts",
       "sha256": "cf6157680930c17d99fdd39624d3179ff7ee3163147978ce66dea9d09e7f6177"
+    },
+    {
+      "path": "frontend/src/desktop.ts",
+      "sha256": "97f3cadeee8ea606b75ba631d2dcb16faa8149c5e5768f4e9ee225d0d4f5f1c7"
     },
     {
       "path": "frontend/src/events.ts",
@@ -259,6 +267,10 @@
       "sha256": "ba74676062a2b164d3d07def2c1063e4c867acca12d55606ffd255596013f672"
     },
     {
+      "path": "frontend/src/tests/desktop.test.ts",
+      "sha256": "823db1a20676d9089c85c32b84daf76922d5ba0a9da3a7c3ab31217a16c218db"
+    },
+    {
       "path": "frontend/src/tests/events.test.ts",
       "sha256": "9c3bfcf3cf1377c7d2406d2b7deef485aadab31481fb8a9d70e41537dd52fbdf"
     },
@@ -341,9 +353,9 @@
   ],
   "files": [
     {
-      "path": "assets/index-D7242FQV.js",
-      "sha256": "2fec43d615e34ffc08bb722572cfbd5209db0977b5e70000eceb8fe5f375145d",
-      "bytes": 405939
+      "path": "assets/index-BF8HPd-Z.js",
+      "sha256": "0c3763f37fa5f490e454218d0450ba2bed6a53851158735c5ebb91d77ecb17dd",
+      "bytes": 412798
     },
     {
       "path": "assets/index-kab-1l06.css",
@@ -362,7 +374,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "595c311bafa54374ab04f23d539b32bd900afc5ae0bc79a970a2b8c41fca0571",
+      "sha256": "4bce3e6de848571d9e87ad33d5ed5dc2447d62e4244a7ada84963ee1edf41621",
       "bytes": 595
     },
     {

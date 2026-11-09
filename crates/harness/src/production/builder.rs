@@ -9,6 +9,7 @@ pub struct ProductionRuntimeBuilder {
     managed_key_directory: Option<PathBuf>,
     managed_mode: bool,
     worker_binding: Option<ManagedWorkerBinding>,
+    desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     worker_file_roots: BTreeMap<String, PathBuf>,
     publisher_keyring: Arc<forme_capabilities::InMemoryPublisherKeyring>,
     // None is development; Some(None) is a managed, unrestored store.
@@ -34,6 +35,7 @@ impl ProductionRuntimeBuilder {
             managed_key_directory: None,
             managed_mode: false,
             worker_binding: None,
+            desktop_placement: None,
             worker_file_roots: BTreeMap::new(),
             publisher_keyring: Arc::new(forme_capabilities::InMemoryPublisherKeyring::default()),
             required_restoration_fence: None,
@@ -59,6 +61,7 @@ impl ProductionRuntimeBuilder {
         };
         let publisher_keyring = config.publisher_keyring()?;
         let worker_binding = config.worker_binding.clone();
+        let desktop_placement = config.desktop_placement.clone();
         let worker_file_roots = config.worker_file_roots.clone();
         let runtime = config.runtime_config()?;
         let key_directory = config.content_key_directory()?;
@@ -78,6 +81,7 @@ impl ProductionRuntimeBuilder {
             managed_key_directory: Some(key_directory),
             managed_mode: true,
             worker_binding,
+            desktop_placement,
             worker_file_roots,
             publisher_keyring,
             required_restoration_fence: Some(expected_fence),
@@ -153,6 +157,7 @@ impl ProductionRuntimeBuilder {
             composition::ManagedCompositionInputs {
                 managed_mode: self.managed_mode,
                 worker_binding: self.worker_binding,
+                desktop_placement: self.desktop_placement,
                 worker_file_roots: self.worker_file_roots,
                 publisher_keyring: self.publisher_keyring,
             },

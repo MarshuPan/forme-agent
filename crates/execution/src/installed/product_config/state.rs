@@ -32,6 +32,8 @@ pub(super) struct ConfigState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) worker: Option<super::super::InstalledFileProvisioning>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) desktop: Option<super::super::InstalledDesktopProvisioning>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) managed_capabilities: Option<p::ProductManagedCapabilitySettings>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) channels: Option<p::ProductChannelSettings>,
@@ -55,6 +57,7 @@ impl ConfigState {
             proxy: None,
             release: None,
             worker: None,
+            desktop: None,
             managed_capabilities: None,
             channels: None,
             publisher_key_files: BTreeMap::new(),
@@ -73,8 +76,10 @@ impl ConfigState {
                 | p::SchemaVersion(8)
                 | p::SchemaVersion(9)
                 | p::SchemaVersion(10)
+                | p::SchemaVersion(11)
         ) || (self.schema_version.0 < 9 && self.worker.is_some())
             || (self.schema_version == p::SchemaVersion(9) && self.worker.is_none())
+            || (self.schema_version.0 == 11) != self.desktop.is_some()
             || self.install_ref != template.install_ref
             || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
             || (self.schema_version.0 < 4 && self.brain.is_some())
@@ -95,6 +100,20 @@ impl ConfigState {
         release::validate_state(self, template)?;
         if let Some(worker) = &self.worker {
             worker.validate_template(template)?;
+        }
+        if let Some(desktop) = &self.desktop {
+            desktop.validate_template(template)?;
+            if let Some(managed) = &self.managed_capabilities {
+                desktop.validate_settings(&managed.computer)?;
+            }
+        }
+        if self
+            .managed_capabilities
+            .as_ref()
+            .is_some_and(|m| m.computer.enabled)
+            && self.desktop.is_none()
+        {
+            return Err(invalid());
         }
         if let Some(owner) = &self.owner {
             owner.validate()?;

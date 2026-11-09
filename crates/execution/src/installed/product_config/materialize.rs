@@ -396,6 +396,10 @@ pub(super) fn core_config(
     if let Some(channels) = &state.channels {
         config["brain"]["channels"] = serde_json::to_value(channels).map_err(|_| invalid())?;
     }
+    if let Some(desktop) = &state.desktop {
+        config["brain"]["desktop_placement"] =
+            serde_json::to_value(desktop).map_err(|_| invalid())?;
+    }
     if let Some(worker) = &state.worker {
         worker.materialize(&mut config["brain"])?;
     }
@@ -492,6 +496,7 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         proxy: None,
         release: None,
         worker: None,
+        desktop: None,
         managed_capabilities: None,
         channels: None,
         publisher_key_files: BTreeMap::new(),

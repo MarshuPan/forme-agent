@@ -34,72 +34,9 @@ impl WorkerIsolation for UnavailableWorkerIsolation {
     }
 }
 
-pub trait IsolatedExecutorHost: Send + Sync {
-    /// Internal Host-only check. Hold worker admission/observation exclusion
-    /// through the callback; external implementations fail closed by default.
-    fn with_quiescent_workers(
-        &self,
-        _action: &mut dyn FnMut(p::SchemaDigest) -> p::Result<()>,
-    ) -> p::Result<()> {
-        Err(p::Error(
-            "worker recovery observation is unavailable".into(),
-        ))
-    }
-    fn dispatch(
-        &self,
-        auth: &HostAuth,
-        job: p::WorkerJob,
-        permit: p::WorkerPermit,
-        now: p::Timestamp,
-    ) -> p::Result<p::WorkerObservation>;
-    fn dispatch_with_execution(
-        &self,
-        auth: &HostAuth,
-        job: p::WorkerJob,
-        permit: p::WorkerPermit,
-        execution: Option<p::WorkerExecutionSpec>,
-        now: p::Timestamp,
-    ) -> p::Result<p::WorkerObservation> {
-        let _ = execution;
-        self.dispatch(auth, job, permit, now)
-    }
-    fn probe(
-        &self,
-        auth: &HostAuth,
-        job_id: &str,
-        now: p::Timestamp,
-    ) -> p::Result<p::WorkerObservation>;
-    fn cancel(
-        &self,
-        auth: &HostAuth,
-        job_id: &str,
-        now: p::Timestamp,
-    ) -> p::Result<p::WorkerCancelReceipt>;
-    fn record_receipt(
-        &self,
-        auth: &HostAuth,
-        receipt: p::WorkerReceipt,
-        now: p::Timestamp,
-    ) -> p::Result<p::WorkerObservation>;
-    fn result_manifest(
-        &self,
-        auth: &HostAuth,
-        job_id: &str,
-        now: p::Timestamp,
-    ) -> p::Result<p::WorkerResultManifest> {
-        let _ = (auth, job_id, now);
-        Err(p::Error("worker result channel is unavailable".into()))
-    }
-    fn read_result(
-        &self,
-        auth: &HostAuth,
-        request: p::WorkerResultRead,
-        now: p::Timestamp,
-    ) -> p::Result<p::WorkerResultChunk> {
-        let _ = (auth, request, now);
-        Err(p::Error("worker result channel is unavailable".into()))
-    }
-}
+mod contract;
+mod desktop;
+pub use contract::IsolatedExecutorHost;
 
 pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDesktopHelper> {
     // Keep the durable transition and platform effect in one control-plane
@@ -112,6 +49,8 @@ pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDes
     allowed_scopes: BTreeSet<p::Scope>,
     isolation: I,
     desktop_helper: D,
+    desktop_authority: Option<std::sync::Arc<super::DesktopAuthority>>,
+    installed_desktop_authority: Option<std::sync::Arc<super::InstalledDesktopAuthority>>,
     pub(super) result_store: WorkerResultStore,
     pub(super) installation_ref: String,
 }
@@ -190,9 +129,36 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             allowed_scopes,
             isolation,
             desktop_helper,
+            desktop_authority: None,
+            installed_desktop_authority: None,
             result_store: WorkerResultStore::open(&result_root)?,
             installation_ref,
         })
+    }
+
+    /// Installs the same Host-owned authority used by owner consent controls.
+    pub fn with_desktop_authority(
+        mut self,
+        authority: std::sync::Arc<super::DesktopAuthority>,
+    ) -> Self {
+        self.desktop_authority = Some(authority);
+        self
+    }
+
+    pub fn with_installed_desktop_authority(
+        mut self,
+        authority: std::sync::Arc<super::InstalledDesktopAuthority>,
+    ) -> Self {
+        self.installed_desktop_authority = Some(authority);
+        self
+    }
+    fn desktop_authority(&self) -> p::Result<std::sync::Arc<super::DesktopAuthority>> {
+        if let Some(installed) = &self.installed_desktop_authority {
+            return installed.authority();
+        }
+        self.desktop_authority
+            .clone()
+            .ok_or_else(|| p::Error("desktop authority is unavailable".into()))
     }
 
     pub(super) fn verify(&self, auth: &HostAuth) -> p::Result<()> {
@@ -219,42 +185,6 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             return Err(p::Error("worker workspace scope is not admitted".into()));
         }
         Ok(())
-    }
-
-    fn prepare_desktop_action(
-        &self,
-        job: &p::WorkerJob,
-        permit: &p::WorkerPermit,
-        execution: &p::WorkerExecutionSpec,
-        now: p::Timestamp,
-    ) -> p::Result<Option<(p::DesktopActionRequest, p::DesktopSessionObservation)>> {
-        let Some(binding) = &execution.desktop_session else {
-            return Ok(None);
-        };
-        binding.validate_for(job, permit, now)?;
-        let capability = required_capability(&execution.intent)?;
-        if !binding.capabilities.contains(&capability) {
-            return Err(p::Error("desktop capability is outside the grant".into()));
-        }
-        let observation = self.desktop_helper.observe(binding, now)?;
-        validate_live_observation(binding, &observation, now)?;
-        let timeout_ms = i64::try_from(execution.timeout.0)
-            .map_err(|_| p::Error("desktop action timeout is too large".into()))?;
-        let timeout_deadline = now
-            .checked_add(timeout_ms)
-            .ok_or_else(|| p::Error("desktop action deadline overflows".into()))?;
-        let deadline = binding.expires_at.min(job.deadline).min(timeout_deadline);
-        let request = p::DesktopActionRequest {
-            schema_version: p::DESKTOP_SESSION_SCHEMA_VERSION,
-            job_id: job.job_id.clone(),
-            permit_ref: permit.permit_ref.clone(),
-            binding: binding.clone(),
-            normalized_action_digest: execution.normalized_action_digest.clone(),
-            capability,
-            deadline,
-        };
-        request.validate_at(&observation, now)?;
-        Ok(Some((request, observation)))
     }
 
     pub(super) fn refresh_isolation(
@@ -291,6 +221,59 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
 impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
     for WorkerExecutorHost<I, D>
 {
+    fn register_desktop_pending(
+        &self,
+        auth: &HostAuth,
+        request: p::DesktopPendingAction,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopPendingAction> {
+        self.verify(auth)?;
+        self.desktop_authority()?
+            .identity_matches(&request.owner_ref, self.authority_epoch)?;
+        let authority = self.desktop_authority()?;
+        match &self.installed_desktop_authority {
+            Some(installed) => installed.with_pending(&request, || {
+                authority.register_pending(request.clone(), now)
+            }),
+            None => authority.register_pending(request, now),
+        }
+    }
+    fn desktop_pending_consent(
+        &self,
+        auth: &HostAuth,
+        pending_ref: &str,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopConsentView> {
+        self.verify(auth)?;
+        self.desktop_authority()?.pending_consent(pending_ref, now)
+    }
+    fn acquire_desktop_grant(
+        &self,
+        auth: &HostAuth,
+        request: p::DesktopGrantRequest,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopGrantView> {
+        self.verify(auth)?;
+        self.validate_admission(&request.job, &request.permit, now)?;
+        self.desktop_authority()?
+            .identity_matches(&request.job.owner_ref, self.authority_epoch)?;
+        let authority = self.desktop_authority()?;
+        match &self.installed_desktop_authority {
+            Some(installed) => installed.with_execution(&request.job, &request.execution, || {
+                authority.issue(request.clone(), now)
+            }),
+            None => authority.issue(request, now),
+        }
+    }
+    fn desktop_grant(
+        &self,
+        auth: &HostAuth,
+        operation_id: &str,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopGrantView> {
+        self.verify(auth)?;
+        self.desktop_authority()?.grant_operation(operation_id, now)
+    }
     fn with_quiescent_workers(
         &self,
         action: &mut dyn FnMut(p::SchemaDigest) -> p::Result<()>,
@@ -318,112 +301,50 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation> {
         self.verify(auth)?;
-        let _operation = self.operations.lock().map_err(|_| storage_error())?;
         self.validate_admission(&job, &permit, now)?;
-        if let Some(execution) = &execution {
-            execution.validate_for(&job, &permit, now)?;
+        if let Some(spec) = &execution {
+            spec.validate_for(&job, &permit, now)?;
         }
-
-        // Duplicate dispatches must return the journaled result before asking
-        // a desktop helper for a fresh liveness observation. This is what keeps
-        // a terminal Unknown job from becoming a second helper attempt.
+        // Original observations remain readable after disable/revoke and never
+        // need a new config/authority lock or helper observation.
         if self
             .journal
             .existing_observation(&job.job_id, now)?
             .is_some()
         {
-            let (_, observation) =
-                self.journal
-                    .admit_with_execution(job, permit, execution.as_ref(), now)?;
-            return Ok(observation);
+            return self
+                .journal
+                .admit_with_execution(job, permit, execution.as_ref(), now)
+                .map(|(_, observation)| observation);
         }
-
-        let desktop = match execution.as_ref() {
-            Some(execution) => self.prepare_desktop_action(&job, &permit, execution, now)?,
-            None => None,
+        let desktop = execution.as_ref().is_some_and(|spec| {
+            spec.backend == p::BackendKind::Computer || spec.desktop_session.is_some()
+        });
+        let authority = if desktop {
+            Some(self.desktop_authority()?)
+        } else {
+            None
         };
-        let (fresh, observation) = self.journal.admit_with_execution(
-            job.clone(),
-            permit.clone(),
-            execution.as_ref(),
-            now,
-        )?;
-        if !fresh {
-            return Ok(observation);
+        let request = p::WorkerDispatchRequest {
+            schema_version: p::SchemaVersion(1),
+            job,
+            permit,
+            execution,
+        };
+        if desktop {
+            if let Some(installed) = &self.installed_desktop_authority {
+                // Match maintenance's config -> worker -> authority lock order.
+                return installed.with_execution(
+                    &request.job,
+                    request
+                        .execution
+                        .as_ref()
+                        .ok_or_else(|| p::Error("desktop execution is missing".into()))?,
+                    || self.dispatch_authorized(auth, request.clone(), now, authority),
+                );
+            }
         }
-
-        if let Some((request, initial_observation)) = desktop {
-            self.journal.record_desktop_observation(
-                &job.job_id,
-                request.binding.clone(),
-                initial_observation,
-                now,
-            )?;
-            let _started = self.journal.start(&job.job_id, now)?;
-
-            // Re-read liveness after the durable start boundary. A session can
-            // be revoked between admission and the helper call.
-            let live_observation =
-                self.desktop_helper
-                    .observe(&request.binding, now)
-                    .and_then(|observation| {
-                        validate_live_observation(&request.binding, &observation, now)?;
-                        Ok(observation)
-                    });
-            let live_observation = match live_observation {
-                Ok(observation) => observation,
-                Err(error) => {
-                    let reason = p::canonical_digest(&("desktop-session-unknown", &job.job_id))?.0;
-                    self.journal.mark_unknown(&job.job_id, reason, now)?;
-                    return Err(error);
-                }
-            };
-            self.journal.record_desktop_observation(
-                &job.job_id,
-                request.binding.clone(),
-                live_observation,
-                now,
-            )?;
-
-            let intent = execution
-                .as_ref()
-                .map(|execution| &execution.intent)
-                .ok_or_else(|| p::Error("desktop execution binding is missing".into()))?;
-            let receipt = match self.desktop_helper.execute(&request, intent) {
-                Ok(receipt) => receipt,
-                Err(error) => {
-                    let reason = p::canonical_digest(&("desktop-action-unknown", &job.job_id))?.0;
-                    self.journal.mark_unknown(&job.job_id, reason, now)?;
-                    return Err(error);
-                }
-            };
-            let worker_receipt = worker_receipt(&request, receipt, now)?;
-            self.seal_result(WorkerResultSealRequest {
-                job: &job,
-                receipt_ref: Some(worker_receipt.receipt_ref.clone()),
-                result_ref: worker_receipt.safe_result_ref.clone(),
-                outcome: Some(worker_receipt.observed_outcome),
-                source: None,
-                evidence_refs: worker_receipt.ground_truth_refs.clone(),
-                now,
-            })?;
-            return self.journal.record_receipt(worker_receipt, now);
-        }
-
-        // Make the Running transition durable before asking the platform to
-        // create a process. If process creation succeeds and the journal write
-        // were attempted afterwards, a storage failure could leave a side
-        // effect without a recoverable state boundary.
-        let started = self.journal.start(&job.job_id, now)?;
-        if let Err(error) =
-            self.isolation
-                .admit_with_execution(&job, &permit, execution.as_ref(), now)
-        {
-            let reason = p::canonical_digest(&("worker-admission-unknown", &job.job_id))?.0;
-            self.journal.mark_unknown(&job.job_id, reason, now)?;
-            return Err(error);
-        }
-        Ok(started)
+        self.dispatch_authorized(auth, request, now, authority)
     }
 
     fn probe(

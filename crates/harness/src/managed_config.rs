@@ -9,6 +9,7 @@ use serde::Deserialize;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
+mod desktop;
 mod publishers;
 mod skills;
 mod worker;
@@ -34,6 +35,8 @@ pub struct ManagedBrainConfig {
     /// to a brain-process backend.
     #[serde(default)]
     pub worker_binding: Option<ManagedWorkerBinding>,
+    #[serde(default)]
+    pub desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     /// Host-owned readonly placement projection, separate from the binding.
     #[serde(default)]
     pub worker_file_roots: std::collections::BTreeMap<String, PathBuf>,

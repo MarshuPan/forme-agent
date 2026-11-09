@@ -5,6 +5,7 @@ use super::*;
 pub(super) struct ManagedCompositionInputs {
     pub(super) managed_mode: bool,
     pub(super) worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
+    pub(super) desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     pub(super) worker_file_roots: BTreeMap<String, PathBuf>,
     pub(super) publisher_keyring: Arc<forme_capabilities::InMemoryPublisherKeyring>,
 }
@@ -19,6 +20,7 @@ pub(super) fn compose(
     let ManagedCompositionInputs {
         managed_mode,
         worker_binding,
+        desktop_placement,
         worker_file_roots,
         publisher_keyring,
     } = managed;
@@ -82,7 +84,10 @@ pub(super) fn compose(
             .ok_or_else(|| p::Error("production content protection is not installed".into()))?,
         store.as_ref().clone(),
         managed_mode,
-        worker_binding.as_ref(),
+        managed_workers::Bindings {
+            worker: worker_binding.as_ref(),
+            desktop: desktop_placement.as_ref().map(|p| p.binding()),
+        },
     )?;
     let capabilities = capability_assembly.capabilities.clone();
     let skills = capability_assembly.skills.clone();
@@ -191,6 +196,7 @@ pub(super) fn compose(
     .with_capability_rechecker(capability_assembly.rechecker.clone())
     .with_authority_guard(guard.clone());
 
+    harness.desktop_backend = capability_assembly.desktop_backend.clone();
     harness.formal_tool_bindings = capability_assembly
         .bindings
         .values()
@@ -251,6 +257,23 @@ pub(super) fn compose(
             &binding.sandbox_profile_ref,
             &binding.backend_kinds,
         ))?,
+        None => capability_snapshot,
+    };
+    let capability_snapshot = match desktop_placement.as_ref() {
+        Some(placement) => {
+            let binding = placement.binding();
+            p::canonical_digest(&(
+                "forme-installed-desktop-placement-v1",
+                capability_snapshot,
+                binding.schema_version,
+                &binding.endpoint,
+                binding.authority_epoch,
+                &binding.sandbox_profile_ref,
+                &binding.backend_kinds,
+                placement.scope(),
+                placement.surface_refs(),
+            ))?
+        }
         None => capability_snapshot,
     };
     let capability_snapshot = if worker_file_roots.is_empty() {

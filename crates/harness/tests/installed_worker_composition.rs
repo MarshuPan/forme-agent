@@ -35,6 +35,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
         channels: None,
         publisher_key_files: Default::default(),
         worker_binding: None,
+        desktop_placement: None,
         worker_file_roots: Default::default(),
         model_proxy: None,
         model_routing: Default::default(),
@@ -241,5 +242,77 @@ fn installed_file_roots_are_scope_bound_rechecked_and_part_of_composition() {
     .into_iter()
     .collect();
     assert!(unsafe_root.runtime_config().is_err());
+    assert_eq!(f.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn installed_computer_requires_its_own_placement_and_matching_protected_configuration() {
+    use forme_execution::installed::{INSTALLED_DESKTOP_PROFILE, INSTALLED_DESKTOP_SURFACE};
+    let f = Fixture::new();
+    let mut config = managed(&f);
+    config.workspace = p::WorkspaceRef("workspace:default".into());
+    let mut settings = p::ProductManagedCapabilitySettings::default();
+    settings.computer.enabled = true;
+    settings.computer.scope = p::Scope(config.workspace.0.clone());
+    settings.computer.surface_refs = vec![INSTALLED_DESKTOP_SURFACE.into()];
+    config.managed_capabilities = Some(settings);
+    assert!(config.runtime_config().is_err());
+    let mut file = binding(&f);
+    file.backend_kinds.insert(p::BackendKind::Computer);
+    config.worker_binding = Some(file);
+    assert!(
+        config.runtime_config().is_err(),
+        "adding Computer to File must not supply desktop placement"
+    );
+    config.worker_binding = None;
+    let projection = serde_json::json!({
+        "schema_version":1,"binding":{"schema_version":1,
+            "endpoint":{"transport":"windows_named_pipe","name":r"\\.\pipe\forme-agent-execution-v1-composition-fixture"},
+            "credential_path":f.config.store_path.with_file_name("desktop.token"),
+            "authority_epoch":1,"sandbox_profile_ref":INSTALLED_DESKTOP_PROFILE,"backend_kinds":["Computer"]},
+        "scope":"workspace:default","surface_refs":[INSTALLED_DESKTOP_SURFACE]
+    });
+    config.desktop_placement = Some(serde_json::from_value(projection.clone()).unwrap());
+    let runtime = config.runtime_config().unwrap();
+    assert!(runtime.capabilities.computer.enabled);
+    assert!(!runtime.capabilities.file.enabled);
+    assert_eq!(
+        runtime.capabilities.computer.surfaces[0].surface.0,
+        INSTALLED_DESKTOP_SURFACE
+    );
+    let mut foreign = config.clone();
+    foreign.workspace = p::WorkspaceRef("workspace:foreign".into());
+    assert!(
+        !foreign
+            .runtime_config()
+            .unwrap()
+            .capabilities
+            .computer
+            .enabled
+    );
+    config.worker_binding = Some(binding(&f));
+    assert!(
+        config.runtime_config().is_err(),
+        "different protected worker authorities must not be combined"
+    );
+    config.worker_binding = None;
+    config
+        .managed_capabilities
+        .as_mut()
+        .unwrap()
+        .computer
+        .enabled = false;
+    assert!(
+        !config
+            .runtime_config()
+            .unwrap()
+            .capabilities
+            .computer
+            .enabled
+    );
+    let mut changed = projection;
+    changed["binding"]["sandbox_profile_ref"] = "sandbox:installed-file-v1".into();
+    config.desktop_placement = Some(serde_json::from_value(changed).unwrap());
+    assert!(config.runtime_config().is_err());
     assert_eq!(f.calls.load(Ordering::SeqCst), 0);
 }

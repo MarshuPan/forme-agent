@@ -45,7 +45,10 @@ use forme_store::{
     SqliteEventStore, StoreOptions,
 };
 
+mod action_admission;
 mod action_policy;
+mod approval_flow;
+use approval_flow::{approval_request, pending_approval};
 mod brain_charter;
 mod brain_evolution;
 mod brain_evolution_seed;
@@ -732,6 +735,7 @@ pub struct ReactiveHarness {
     verifier: Arc<dyn eval::Verifier + Send + Sync>,
     coordination: Option<Arc<dyn coordination::CoordinationReasoner + Send + Sync>>,
     capability_rechecker: Option<Arc<dyn ExecutionCapabilityRechecker + Send + Sync>>,
+    desktop_backend: Option<Arc<forme_execution::installed::WorkerActionBackend>>,
     skill_registry: Option<Arc<InMemorySkillRegistry>>,
     skill_runtime_lock: Mutex<()>,
     runs: Mutex<BTreeMap<p::RunId, Arc<RunHandle>>>,
@@ -2650,6 +2654,7 @@ impl ReactiveHarness {
             child_harness.project_directory = directory.map(std::path::Path::to_path_buf);
             child_harness.configured_owner = self.configured_owner.clone();
             child_harness.capability_rechecker = self.capability_rechecker.clone();
+            child_harness.desktop_backend = self.desktop_backend.clone();
             child_harness.charter_workspace_override = Some(parent_workspace.clone());
             if let Some(guard) = &self.authority_guard {
                 child_harness = child_harness.with_authority_guard(guard.clone());
@@ -3019,6 +3024,15 @@ impl ReactiveHarness {
             &record.competence_inputs,
             self.competence.as_ref(),
         );
+        if intent.backend_hint == p::BackendKind::Computer
+            && self.desktop_backend.is_some()
+            && evaluation.decision == p::PolicyDecision::Allow
+        {
+            evaluation.decision = p::PolicyDecision::Ask;
+            evaluation.reason = p::ReasonRef(
+                "managed desktop action requires session consent and owner approval".into(),
+            );
+        }
         let effective_decision = evaluation.decision;
         self.append(
             run.clone(),
@@ -3053,6 +3067,18 @@ impl ReactiveHarness {
                         &plan,
                         &self.config,
                     )?;
+                    if intent.backend_hint == p::BackendKind::Computer {
+                        if let Some(backend) = &self.desktop_backend {
+                            backend.register_desktop_pending(
+                                &plan,
+                                run.clone(),
+                                approval_id.clone(),
+                                self.config.policy_version,
+                                self.config.tool_schema_version,
+                                request.expires_at,
+                            )?;
+                        }
+                    }
                     let ticket = record.approval.request(request)?;
                     for payload in record.approval.take_events() {
                         self.append(run.clone(), turn.clone(), provenance.clone(), payload)?;
@@ -3094,269 +3120,28 @@ impl ReactiveHarness {
         handle: &Arc<RunHandle>,
         record: &mut RunRecord,
         intent: p::ActionIntent,
-        mut plan: ExecutionPlan,
+        plan: ExecutionPlan,
         approval: Option<forme_approval::ApprovalGrant>,
     ) -> p::Result<()> {
-        record.competence_inputs =
-            self.refresh_competence(&intent.scope, Some(&intent.capability_ref))?;
+        let Some(plan) =
+            self.prepare_action(run, handle, record, intent.clone(), plan, approval.clone())?
+        else {
+            return Ok(());
+        };
+        self.execute_prepared_action(run, handle, record, intent, plan, approval)
+    }
+
+    fn execute_prepared_action(
+        &self,
+        run: &p::RunId,
+        handle: &Arc<RunHandle>,
+        record: &mut RunRecord,
+        intent: p::ActionIntent,
+        plan: ExecutionPlan,
+        approval: Option<forme_approval::ApprovalGrant>,
+    ) -> p::Result<()> {
         let turn = Some(current_turn(run, record.loop_ctx.turn_index));
         let provenance = internal_provenance(record.request.source);
-        let policy_context = self.governance.policy_context(
-            record.loop_ctx.session.clone(),
-            self.config.toolset_ref.clone(),
-            &self.policy,
-            record.bound_envelope.as_ref(),
-        );
-        let mut recheck = self.policy.evaluate_detailed(&policy_context, &intent);
-        recheck = apply_policy_floors(
-            recheck,
-            &intent,
-            Some(&plan),
-            &policy_context,
-            &record.competence_inputs,
-            self.competence.as_ref(),
-        );
-        self.append(
-            run.clone(),
-            turn.clone(),
-            provenance.clone(),
-            recheck.event_payload(),
-        )?;
-        if record.effect_mode == Some(p::EffectMode::CounterfactualDeny) {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                p::ReasonRef("simulation_effect_denied".into()),
-                StopReason::ApprovalDenied,
-            );
-        }
-        if recheck.decision == p::PolicyDecision::Deny {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                recheck.reason,
-                StopReason::ApprovalDenied,
-            );
-        }
-        if recheck.decision == p::PolicyDecision::Ask && approval.is_none() {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                p::ReasonRef(format!(
-                    "final policy recheck requires approval before dispatch: {}",
-                    recheck.reason.0
-                )),
-                StopReason::ApprovalDenied,
-            );
-        }
-        let capability_recheck = match &self.capability_rechecker {
-            Some(rechecker) => rechecker.recheck(&intent, &policy_context),
-            None if matches!(
-                intent.backend_hint,
-                p::BackendKind::Mcp | p::BackendKind::AppApi
-            ) =>
-            {
-                Err(p::Error(
-                    "external capability execution has no registry rechecker".into(),
-                ))
-            }
-            None => Ok(()),
-        };
-        if let Err(error) = capability_recheck {
-            self.append(
-                run.clone(),
-                turn,
-                provenance,
-                p::EventPayload::ActionDenied(p::ActionDeniedPayload {
-                    intent_id: intent.intent_id.clone(),
-                    reason: p::ReasonRef(error.to_string()),
-                }),
-            )?;
-            self.append_failure(
-                run,
-                record,
-                p::FailureClass::ExecutionFailure,
-                &error.to_string(),
-            )?;
-            record
-                .loop_ctx
-                .terminate(p::RunStatus::Aborted, StopReason::RetryExhausted);
-            return self.finish_terminal(run, handle, record);
-        }
-        self.enforce_envelope(&intent, approval.is_some(), record.bound_envelope.as_ref())?;
-        if requires_competence_gate(&intent) {
-            let ceiling = self.competence.ceiling(
-                intent.scope.clone(),
-                intent.risk_hint,
-                &record.competence_inputs,
-            );
-            self.append(
-                run.clone(),
-                turn.clone(),
-                provenance.clone(),
-                p::EventPayload::CompetenceGateEvaluated(p::CompetenceGateEvaluatedPayload {
-                    scope: intent.scope.clone(),
-                    risk: intent.risk_hint,
-                    max_level: protocol_intervention(ceiling),
-                    reads: record.competence_inputs.protocol_reads(),
-                }),
-            )?;
-            if ceiling < required_intervention_level(&intent, &plan.rollback_boundary) {
-                return self.deny_action(
-                    run,
-                    handle,
-                    record,
-                    &intent,
-                    p::ReasonRef("competence ceiling downgraded the action below execution".into()),
-                    StopReason::ApprovalDenied,
-                );
-            }
-        }
-
-        // Re-plan at the execution boundary.  A backend may derive
-        // driver-affecting fields from live state, so the plan captured before
-        // approval cannot be trusted without this final comparison.
-        plan.validate_digest()?;
-        // A charter may tighten while an approval is waiting. Re-read it at
-        // the final driver boundary; an old approval cannot override it.
-        if let Err(error) = self
-            .check_project_action(run, &intent)
-            .and_then(|_| self.check_workspace_action(&record.workspace, &intent))
-        {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                p::ReasonRef(error.0),
-                StopReason::ApprovalDenied,
-            );
-        }
-        if let Some(charter) = self.store.workspace_charter(
-            self.charter_workspace_override
-                .as_ref()
-                .unwrap_or(&record.workspace),
-        )? {
-            let rules = p::CharterRules::parse(&charter)?;
-            if rules.check_action(&intent).is_err() || (rules.require_review && approval.is_none())
-            {
-                return self.deny_action(
-                    run,
-                    handle,
-                    record,
-                    &intent,
-                    p::ReasonRef("current workspace charter blocks dispatch".into()),
-                    StopReason::ApprovalDenied,
-                );
-            }
-        }
-        if plan.intent != intent {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                p::ReasonRef("execution plan intent changed before dispatch".into()),
-                StopReason::ApprovalDenied,
-            );
-        }
-        let current_plan = self.backends.backend(intent.backend_hint)?.plan(&intent)?;
-        current_plan.validate_digest()?;
-        if current_plan.digest != plan.digest
-            || current_plan.normalized_action_digest != plan.normalized_action_digest
-            || current_plan.affected_resources != plan.affected_resources
-        {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                p::ReasonRef("execution plan changed before dispatch; approval is stale".into()),
-                StopReason::ApprovalDenied,
-            );
-        }
-
-        let mut final_recheck = self.policy.evaluate_detailed(&policy_context, &intent);
-        final_recheck = apply_policy_floors(
-            final_recheck,
-            &intent,
-            Some(&current_plan),
-            &policy_context,
-            &record.competence_inputs,
-            self.competence.as_ref(),
-        );
-        self.append(
-            run.clone(),
-            turn.clone(),
-            provenance.clone(),
-            final_recheck.event_payload(),
-        )?;
-        record.loop_ctx.mark_policy(final_recheck.decision);
-        if final_recheck.decision == p::PolicyDecision::Deny {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                final_recheck.reason,
-                StopReason::ApprovalDenied,
-            );
-        }
-        if final_recheck.decision == p::PolicyDecision::Ask && approval.is_none() {
-            return self.deny_action(
-                run,
-                handle,
-                record,
-                &intent,
-                p::ReasonRef(format!(
-                    "final policy recheck requires approval before dispatch: {}",
-                    final_recheck.reason.0
-                )),
-                StopReason::ApprovalDenied,
-            );
-        }
-        plan = current_plan;
-
-        if let Some(grant) = approval.as_ref() {
-            if plan
-                .approval_ref
-                .as_ref()
-                .is_some_and(|approval_ref| approval_ref != &grant.approval_id)
-            {
-                return Err(p::Error(
-                    "execution plan approval reference does not match the grant".into(),
-                ));
-            }
-            if grant.bound_plan_digest != plan.digest
-                || grant.normalized_action_digest != plan.normalized_action_digest
-                || grant.affected_resources != plan.affected_resources
-                || grant.policy_version != self.config.policy_version
-                || grant.tool_schema_version != self.config.tool_schema_version
-            {
-                return Err(p::Error(
-                    "approval binding does not match the final execution plan".into(),
-                ));
-            }
-            plan = plan.with_approval(grant.approval_id.clone());
-        } else if plan.approval_ref.is_some() {
-            return Err(p::Error(
-                "unapproved execution plan carries an approval reference".into(),
-            ));
-        }
-        plan.validate_digest()?;
-        if record.remaining_action_budget == Some(0) {
-            record.loop_ctx.terminate(
-                p::RunStatus::Limited,
-                StopReason::BudgetExhausted(forme_loop::BudgetKind::ToolCalls),
-            );
-            return self.finish_terminal(run, handle, record);
-        }
         if let Some(grant) = approval.as_ref() {
             self.claim_approval_consumption(grant, &intent, &plan)?;
         }
@@ -3932,117 +3717,6 @@ impl ReactiveHarness {
         Ok(())
     }
 
-    fn resume_approval(
-        &self,
-        run: &p::RunId,
-        handle: &Arc<RunHandle>,
-        record: &mut RunRecord,
-        grant: forme_approval::ApprovalGrant,
-    ) -> p::Result<()> {
-        self.validate_configured_owner(&grant.approver)?;
-        let Some(pending) = record.pending_action.clone() else {
-            return Err(p::Error("run has no pending approval action".into()));
-        };
-        if pending.ticket.0 != grant.approval_id {
-            return Err(p::Error("approval grant targets another ticket".into()));
-        }
-        if requires_one_shot_approval(&pending.intent, &pending.plan.rollback_boundary)
-            && grant.granted_scope != GrantScope::OneShot
-        {
-            record.resume_state = None;
-            record.pending_action = None;
-            self.deny_action(
-                run,
-                handle,
-                record,
-                &pending.intent,
-                p::ReasonRef(
-                    "high-impact external action requires a one-shot owner approval".into(),
-                ),
-                StopReason::ApprovalDenied,
-            )?;
-            return Ok(());
-        }
-        record
-            .approval
-            .resolve(pending.ticket.clone(), grant.clone())?;
-        let turn = Some(current_turn(run, record.loop_ctx.turn_index));
-        let provenance = internal_provenance(record.request.source);
-        for payload in record.approval.take_events() {
-            self.append(run.clone(), turn.clone(), provenance.clone(), payload)?;
-        }
-        self.append(
-            run.clone(),
-            turn,
-            provenance,
-            p::EventPayload::RunResumed(p::RunResumedPayload {
-                wait_reason: p::WaitReason("approval".into()),
-                resume_ref: p::ResumeRef(format!("approval:{}", grant.approval_id.0)),
-            }),
-        )?;
-        record.loop_ctx.mark_approval(grant.outcome);
-        if grant.outcome != p::ApprovalOutcome::Granted {
-            record.resume_state = None;
-            record.pending_action = None;
-            self.deny_action(
-                run,
-                handle,
-                record,
-                &pending.intent,
-                p::ReasonRef("approval was denied or expired".into()),
-                StopReason::ApprovalDenied,
-            )?;
-            return Ok(());
-        }
-        let authorization = record.approval.authorize(&ApprovalAuthorization {
-            approval_id: grant.approval_id.clone(),
-            session: record.loop_ctx.session.clone(),
-            scope: pending.intent.scope.clone(),
-            plan_digest: pending.plan.digest.clone(),
-            normalized_action_digest: pending.plan.normalized_action_digest.clone(),
-            affected_resources: pending.plan.affected_resources.clone(),
-            policy_version: self.config.policy_version,
-            tool_schema_version: self.config.tool_schema_version,
-            now: now_ms(),
-            intent: pending.intent.clone(),
-        });
-        if let Err(error) = authorization {
-            record.resume_state = None;
-            record.pending_action = None;
-            self.deny_action(
-                run,
-                handle,
-                record,
-                &pending.intent,
-                p::ReasonRef(error.to_string()),
-                StopReason::ApprovalDenied,
-            )?;
-            return Ok(());
-        }
-        record.resume_state = None;
-        record.pending_action = None;
-        if let Err(error) = self.execute_action(
-            run,
-            handle,
-            record,
-            pending.intent.clone(),
-            pending.plan,
-            Some(grant.clone()),
-        ) {
-            if !record.loop_ctx.state.is_terminal() {
-                self.deny_action(
-                    run,
-                    handle,
-                    record,
-                    &pending.intent,
-                    p::ReasonRef(error.to_string()),
-                    StopReason::ApprovalDenied,
-                )?;
-            }
-        }
-        Ok(())
-    }
-
     fn resume_unknown(
         &self,
         run: &p::RunId,
@@ -4479,59 +4153,6 @@ fn action_only_model_profile() -> p::Result<ModelProfile> {
         },
         credential_ref: p::CredentialRef("secret:unused-action-only-model".into()),
     })
-}
-
-fn approval_request(
-    approval_id: p::ApprovalId,
-    session: &p::SessionId,
-    intent: &p::ActionIntent,
-    plan: &ExecutionPlan,
-    config: &HarnessConfig,
-) -> p::Result<ApprovalRequest> {
-    let now = now_ms();
-    let ttl = i64::try_from(config.approval_ttl_ms)
-        .map_err(|_| p::Error("approval TTL exceeds timestamp range".into()))?;
-    Ok(ApprovalRequest {
-        schema_version: p::SchemaVersion(1),
-        approval_id,
-        session: session.clone(),
-        action_summary: format!("{:?} action in {}", intent.backend_hint, intent.scope.0),
-        risk_level: intent.risk_hint,
-        scope: intent.scope.clone(),
-        requested_permissions: intent.requested_permissions.clone(),
-        normalized_action_digest: plan.normalized_action_digest.clone(),
-        affected_resources: plan.affected_resources.clone(),
-        rollback_boundary: plan.rollback_boundary.clone(),
-        expires_at: now.saturating_add(ttl),
-        choices: vec![
-            p::ApprovalChoice("grant-once".into()),
-            p::ApprovalChoice("deny".into()),
-        ],
-        plan_digest: plan.digest.clone(),
-        policy_version: config.policy_version,
-        tool_schema_version: config.tool_schema_version,
-    })
-}
-
-fn pending_approval(run: p::RunId, request: ApprovalRequest) -> p::PendingApproval {
-    p::PendingApproval {
-        schema_version: request.schema_version,
-        run,
-        session: request.session,
-        approval_id: request.approval_id,
-        action_summary: request.action_summary,
-        risk_level: request.risk_level,
-        scope: request.scope,
-        requested_permissions: request.requested_permissions,
-        normalized_action_digest: request.normalized_action_digest,
-        affected_resources: request.affected_resources,
-        rollback_boundary: request.rollback_boundary,
-        expires_at: request.expires_at,
-        choices: request.choices,
-        plan_digest: request.plan_digest,
-        policy_version: request.policy_version,
-        tool_schema_version: request.tool_schema_version,
-    }
 }
 
 fn run_summary_from_events(run: p::RunId, events: &[p::Event]) -> p::Result<p::RunSummary> {

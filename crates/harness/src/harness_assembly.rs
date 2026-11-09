@@ -73,6 +73,7 @@ impl ReactiveHarness {
             verifier: Arc::new(eval::DeterministicVerifier),
             coordination: None,
             capability_rechecker: None,
+            desktop_backend: None,
             skill_registry: None,
             skill_runtime_lock: Mutex::new(()),
             runs: Mutex::new(BTreeMap::new()),

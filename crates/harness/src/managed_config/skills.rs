@@ -6,6 +6,7 @@ impl ManagedBrainConfig {
     pub(super) fn runtime_capabilities(&self) -> p::Result<CapabilityRuntimeConfig> {
         let mut capabilities = CapabilityRuntimeConfig::default();
         self.configure_file_placement(&mut capabilities)?;
+        self.configure_desktop_placement(&mut capabilities)?;
         if let Some(settings) = &self.capabilities {
             settings.validate()?;
             capabilities.skills = settings

@@ -8,8 +8,8 @@ use runtime_inputs::{
     reject_path, validate_native_target,
 };
 pub(crate) use runtime_inputs::{
-    load_bootstrap_authority, load_or_create_token, load_worker_host, required, required_path,
-    target_from_environment, token_path, WorkerHostContext,
+    load_bootstrap_authority, load_desktop_authority, load_or_create_token, load_worker_host,
+    required, required_path, target_from_environment, token_path, WorkerHostContext,
 };
 
 use std::io::Read;
@@ -221,6 +221,7 @@ pub(crate) struct HostRuntimeConfig {
     pub worker_config_path: Option<PathBuf>,
     pub product_config_template_path: Option<PathBuf>,
     pub installed_file: Option<InstalledFileProvisioning>,
+    pub installed_desktop: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     pub release_stager: Option<std::sync::Arc<ReleaseStager>>,
     pub legacy_review_trust: Option<ReleaseStagingConfig>,
     pub restore_worker: Option<std::sync::Arc<forme_execution::installed::InstalledRestoreWorker>>,
@@ -395,6 +396,7 @@ pub(super) fn from_environment(development_workers: bool) -> p::Result<HostRunti
         worker_config_path: std::env::var_os("FORME_WORKER_CONFIG_PATH").map(PathBuf::from),
         product_config_template_path: None,
         installed_file: None,
+        installed_desktop: None,
         release_stager: None,
         restore_worker: None,
         release_updater: None,
@@ -499,6 +501,25 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         .flatten();
     #[cfg(not(windows))]
     let installed_file = None;
+    #[cfg(windows)]
+    let installed_desktop =
+        if installed_file.is_some() {
+            let worker =
+                WorkerRuntimeConfig::load(config.worker_config_path.as_deref().ok_or_else(
+                    || p::Error("desktop worker configuration is unavailable".into()),
+                )?)?;
+            Some(
+                forme_execution::installed::InstalledDesktopProvisioning::derive(
+                    &manifest,
+                    &worker,
+                    &config.agent_execution_credential_path,
+                )?,
+            )
+        } else {
+            None
+        };
+    #[cfg(not(windows))]
+    let installed_desktop = None;
     Ok(HostRuntimeConfig {
         journal_path: config.journal_path,
         #[cfg(windows)]
@@ -514,6 +535,7 @@ pub(super) fn from_managed_config(path: &Path) -> p::Result<HostRuntimeConfig> {
         worker_config_path: config.worker_config_path,
         product_config_template_path: config.product_config_template_path,
         installed_file,
+        installed_desktop,
         release_stager,
         legacy_review_trust,
         release_updater,
@@ -539,6 +561,7 @@ pub(super) fn from_development_config(path: &Path) -> p::Result<HostRuntimeConfi
     runtime.managed = false;
     runtime.development_workers = false;
     runtime.installed_file = None;
+    runtime.installed_desktop = None;
     Ok(runtime)
 }
 

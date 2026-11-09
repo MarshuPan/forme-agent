@@ -40,8 +40,17 @@ test('Web network settings stage and recover without changing the live listener 
   const current = await product.request('/api/v1/product/config?schema_version=2');
   assert.deepEqual(current, saved.view);
   assert.equal(current.availability.features.find((item) => item.feature === 'channels').state, 'unavailable');
-  await product.request('/api/v1/product/config?schema_version=3', { expected: 426 });
-  const incompatible = { ...save, schema_version: 3, operation_id: 'network:unsupported', expected_revision: 1 };
+  const managed = await product.request('/api/v1/product/config?schema_version=3');
+  assert.equal(managed.schema_version, 3);
+  assert.equal(managed.active_revision, current.active_revision);
+  assert.deepEqual(managed.network, current.network);
+  assert.deepEqual(managed.managed_capabilities, {
+    schema_version: 1, mcp_servers: [], plugins: [], publisher_keys: [],
+    computer: { schema_version: 1, enabled: false, scope: 'workspace:default', surface_refs: [] },
+  });
+  assert.deepEqual(managed.channels, { schema_version: 1, channels: [] });
+  await product.request('/api/v1/product/config?schema_version=4', { expected: 426 });
+  const incompatible = { ...save, schema_version: 4, operation_id: 'network:unsupported', expected_revision: 1 };
   await product.request('/api/v1/product/config', { method: 'POST', key: incompatible.operation_id, body: incompatible, expected: 426 });
   const validation = await product.request('/api/v1/product/config/validate', { method: 'POST', key: 'network:process-validate',
     body: { schema_version: 1, revision: 1 } });

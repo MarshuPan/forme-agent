@@ -9,6 +9,7 @@ mod connections;
 #[path = "core.rs"]
 mod core_routes;
 mod data;
+mod desktop;
 mod error;
 mod legacy_release_recovery;
 mod maintenance;
@@ -233,6 +234,16 @@ fn router(state: Arc<WebState>) -> Router {
             get(configuration::read)
                 .post(configuration::write)
                 .layer(DefaultBodyLimit::max(256 * 1024)),
+        )
+        .route("/api/v1/desktop/sessions", get(desktop::sessions))
+        .route(
+            "/api/v1/desktop/consents",
+            post(desktop::consent).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route("/api/v1/desktop/consents/{id}", get(desktop::operation))
+        .route(
+            "/api/v1/desktop/revocations",
+            post(desktop::revoke).layer(DefaultBodyLimit::max(16 * 1024)),
         )
         .route("/api/v1/product/status", get(configuration::status))
         .route("/api/v1/product/network/health", get(network::health))

@@ -21,8 +21,9 @@ use windows_sys::Win32::System::JobObjects::{
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
 };
 use windows_sys::Win32::System::RemoteDesktop::{
-    WTSActive, WTSConnectState, WTSFreeMemory, WTSQuerySessionInformationW, WTSQueryUserToken,
-    WTSSessionInfoEx, WTSINFOEXW, WTS_CURRENT_SERVER_HANDLE, WTS_SESSIONSTATE_UNLOCK,
+    WTSActive, WTSConnectState, WTSEnumerateSessionsW, WTSFreeMemory, WTSQuerySessionInformationW,
+    WTSQueryUserToken, WTSSessionInfoEx, WTSINFOEXW, WTS_CURRENT_SERVER_HANDLE,
+    WTS_SESSIONSTATE_UNLOCK,
 };
 use windows_sys::Win32::System::Threading::{
     CreateProcessAsUserW, ResumeThread, TerminateProcess, CREATE_NO_WINDOW, CREATE_SUSPENDED,
@@ -31,7 +32,7 @@ use windows_sys::Win32::System::Threading::{
 
 use super::windows_appcontainer_support::{quote_windows_arg, wide};
 
-const DEFAULT_DESKTOP: &str = "desktop:winsta0\\default";
+const DEFAULT_DESKTOP: &str = "desktop:windows-default";
 const SESSION_PREFIX: &str = "os-session:";
 const USER_PREFIX: &str = "os-user:";
 const MAX_TOKEN_INFO_BYTES: usize = 1 << 20;
@@ -89,6 +90,18 @@ impl WindowsDesktopSessionHost {
                 "desktop grant does not select the fixed interactive desktop".into(),
             ));
         }
+        let snapshot = self.inspect_session(session_id)?;
+        if binding.os_user_ref != snapshot.os_user_ref
+            || binding.session_generation != snapshot.session_generation
+        {
+            return Err(p::Error(
+                "desktop grant does not match the live user and session generation".into(),
+            ));
+        }
+        Ok(snapshot)
+    }
+
+    fn inspect_session(&self, session_id: u32) -> p::Result<WindowsDesktopSessionSnapshot> {
         let state = query_u32(session_id, WTSConnectState)? as i32;
         if state != WTSActive {
             return Err(p::Error("Windows desktop session is not active".into()));
@@ -103,17 +116,12 @@ impl WindowsDesktopSessionHost {
         let token = query_user_token(session_id)?;
         let user_sid = token_user_sid(&token)?;
         let os_user_ref = format!("{USER_PREFIX}{user_sid}");
-        if binding.os_user_ref != os_user_ref {
-            return Err(p::Error(
-                "desktop grant user does not match the live token".into(),
-            ));
-        }
         let session_token_id = token_session_id(&token)?;
         if session_token_id != session_id {
             return Err(p::Error("desktop token belongs to another session".into()));
         }
         let session_generation = token_authentication_id(&token)?;
-        if session_generation == 0 || binding.session_generation != session_generation {
+        if session_generation == 0 {
             return Err(p::Error(
                 "desktop grant session generation does not match the live token".into(),
             ));
@@ -121,12 +129,37 @@ impl WindowsDesktopSessionHost {
         Ok(WindowsDesktopSessionSnapshot {
             session_id,
             os_user_ref,
-            os_session_ref: binding.os_session_ref.clone(),
+            os_session_ref: format!("{SESSION_PREFIX}{session_id}"),
             session_generation,
-            desktop_ref: binding.desktop_ref.clone(),
+            desktop_ref: DEFAULT_DESKTOP.into(),
             user_sid,
             token,
         })
+    }
+
+    pub(crate) fn catalog(&self) -> p::Result<Vec<super::ObservedDesktopSession>> {
+        let mut sessions = Vec::new();
+        for id in active_session_ids()? {
+            // Locked, disconnected, or unqueryable token sessions confer no
+            // choice authority. Rechecking a selected session never skips errors.
+            if let Ok(snapshot) = self.inspect_session(id) {
+                sessions.push(observed(&snapshot));
+            }
+        }
+        Ok(sessions)
+    }
+
+    pub(crate) fn recheck_observed(
+        &self,
+        original: &super::ObservedDesktopSession,
+    ) -> p::Result<()> {
+        let snapshot = self.inspect_session(parse_session_id(&original.os_session_ref)?)?;
+        if observed(&snapshot) != *original {
+            return Err(p::Error(
+                "desktop catalog session changed before admission".into(),
+            ));
+        }
+        Ok(())
     }
 
     pub(crate) fn helper_image(&self) -> &Path {
@@ -429,6 +462,58 @@ fn owned_handle(handle: HANDLE, message: &'static str) -> p::Result<OwnedHandle>
     Ok(unsafe { OwnedHandle::from_raw_handle(handle as RawHandle) })
 }
 
+fn observed(snapshot: &WindowsDesktopSessionSnapshot) -> super::ObservedDesktopSession {
+    super::ObservedDesktopSession {
+        schema_version: p::SchemaVersion(1),
+        helper_ref: "helper:installed-desktop".into(),
+        platform: p::DesktopPlatform::Windows,
+        label: "Windows 桌面会话".into(),
+        os_user_ref: snapshot.os_user_ref.clone(),
+        os_session_ref: snapshot.os_session_ref.clone(),
+        session_generation: snapshot.session_generation,
+        desktop_ref: snapshot.desktop_ref.clone(),
+        capabilities: [
+            p::DesktopCapability::PointerMove,
+            p::DesktopCapability::PointerClick,
+            p::DesktopCapability::KeyboardType,
+            p::DesktopCapability::KeyboardKey,
+            p::DesktopCapability::Scroll,
+        ]
+        .into_iter()
+        .collect(),
+    }
+}
+fn active_session_ids() -> p::Result<Vec<u32>> {
+    let mut sessions = null_mut();
+    let mut count = 0;
+    let succeeded = unsafe {
+        WTSEnumerateSessionsW(WTS_CURRENT_SERVER_HANDLE, 0, 1, &mut sessions, &mut count)
+    } != 0;
+    let result = if !succeeded
+        || count as usize > p::DESKTOP_CATALOG_MAX_ENTRIES
+        || (count > 0 && sessions.is_null())
+    {
+        Err(p::Error(
+            "Windows desktop session catalog is unavailable or exceeds its bound".into(),
+        ))
+    } else if count == 0 {
+        Ok(Vec::new())
+    } else {
+        // SAFETY: WTS owns this count-sized array until WTSFreeMemory below;
+        // count is bounded and only scalar session identifiers leave this scope.
+        let entries = unsafe { std::slice::from_raw_parts(sessions, count as usize) };
+        Ok(entries
+            .iter()
+            .filter(|entry| entry.State == WTSActive)
+            .map(|entry| entry.SessionId)
+            .collect())
+    };
+    if !sessions.is_null() {
+        unsafe { WTSFreeMemory(sessions.cast()) };
+    }
+    result
+}
+
 fn native_error(message: &str) -> p::Error {
     let _ = unsafe { GetLastError() };
     p::Error(message.into())
@@ -447,6 +532,7 @@ mod tests {
 
     #[test]
     fn desktop_reference_is_fixed() {
-        assert_eq!(DEFAULT_DESKTOP, "desktop:winsta0\\default");
+        assert_eq!(DEFAULT_DESKTOP, "desktop:windows-default");
+        forme_protocol::validate_product_id(DEFAULT_DESKTOP).unwrap();
     }
 }

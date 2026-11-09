@@ -369,6 +369,7 @@ fn legacy_fixture(mismatch: bool) -> (tempfile::TempDir, PathBuf, Vec<u8>, PathB
         proxy: None,
         release: None,
         worker: None,
+        desktop: None,
         managed_capabilities: None,
         channels: None,
         publisher_key_files: BTreeMap::new(),

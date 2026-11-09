@@ -33,6 +33,7 @@ fn managed(f: &Fixture) -> ManagedBrainConfig {
         channels: None,
         publisher_key_files: Default::default(),
         worker_binding: None,
+        desktop_placement: None,
         worker_file_roots: Default::default(),
         model_proxy: None,
         model_routing: Default::default(),

@@ -34,6 +34,7 @@ pub(super) fn reject_path(path: &Path) -> p::Result<()> {
 
 pub(crate) struct WorkerHostContext<'a> {
     pub managed_service_bound: bool,
+    pub desktop_authority: Option<Arc<forme_execution::installed::InstalledDesktopAuthority>>,
     pub protected_paths: &'a [PathBuf],
     pub active_release: Option<&'a forme_execution::installed::VerifiedStagedRelease>,
     pub initial_release_root: Option<&'a Path>,
@@ -71,12 +72,12 @@ pub(crate) fn load_worker_host(
                     .initial_release_root
                     .map(|root| root.join("bin/forme-executord.exe")),
             };
-            return Ok(Arc::new(
-                config.open_managed_windows_host_with_desktop_helper(
-                    digest,
-                    helper_image.as_deref(),
-                )?,
-            ));
+            let mut host = config
+                .open_managed_windows_host_with_desktop_helper(digest, helper_image.as_deref())?;
+            if let Some(authority) = context.desktop_authority {
+                host = host.with_installed_desktop_authority(authority);
+            }
+            return Ok(Arc::new(host));
         }
         #[cfg(target_os = "linux")]
         if context.managed_service_bound {
@@ -324,5 +325,58 @@ pub(crate) fn target_from_environment() -> p::Result<p::ProductTarget> {
         "ubuntu_2404_arm64" => Ok(p::ProductTarget::Ubuntu2404Arm64),
         "rocky9_x86_64" => Ok(p::ProductTarget::Rocky9X86_64),
         _ => Err(p::Error("FORME_PRODUCT_TARGET is unsupported".into())),
+    }
+}
+
+/// The owner may be claimed after Host startup. Journal opening is deferred by
+/// InstalledDesktopAuthority until an authenticated request sees that owner.
+pub(crate) fn load_desktop_authority(
+    journal: &Path,
+    installation: &str,
+    configuration: Option<Arc<std::sync::Mutex<forme_execution::installed::ProductConfigStore>>>,
+    worker_config: Option<&Path>,
+    managed: bool,
+    release: Option<&forme_execution::installed::VerifiedStagedRelease>,
+    initial_root: Option<&Path>,
+) -> p::Result<Option<Arc<forme_execution::installed::InstalledDesktopAuthority>>> {
+    #[cfg(windows)]
+    {
+        use forme_execution::installed::{InstalledDesktopAuthority, WindowsDesktopSessionCatalog};
+        if !managed {
+            return Ok(None);
+        }
+        let (Some(configuration), Some(worker_config)) = (configuration, worker_config) else {
+            return Ok(None);
+        };
+        let worker = WorkerRuntimeConfig::load(worker_config)?;
+        let helper = match release {
+            Some(release) => {
+                release.recheck()?;
+                release.content_root().join("bin/forme-executord.exe")
+            }
+            None => initial_root
+                .ok_or_else(|| p::Error("installed desktop helper root is unavailable".into()))?
+                .join("bin/forme-executord.exe"),
+        };
+        Ok(Some(Arc::new(InstalledDesktopAuthority::new(
+            journal.with_extension("desktop.jsonl"),
+            installation.into(),
+            worker.authority_epoch,
+            configuration,
+            Arc::new(WindowsDesktopSessionCatalog::new(helper)?),
+        )?)))
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (
+            journal,
+            installation,
+            configuration,
+            worker_config,
+            managed,
+            release,
+            initial_root,
+        );
+        Ok(None)
     }
 }

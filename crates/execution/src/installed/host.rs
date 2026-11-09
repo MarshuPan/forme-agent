@@ -9,6 +9,8 @@ mod host_backup_verification;
 mod host_bootstrap;
 #[path = "host_configuration.rs"]
 mod host_configuration;
+#[path = "host_desktop.rs"]
+mod host_desktop;
 #[path = "host_maintenance.rs"]
 mod host_maintenance;
 #[path = "host_managed_configuration.rs"]
@@ -167,6 +169,37 @@ impl HostAuth {
 
 pub trait HostManagement: Send + Sync {
     fn authenticate(&self, bearer: &str) -> p::Result<HostAuth>;
+    fn desktop_sessions(
+        &self,
+        _auth: &HostAuth,
+        _now: p::Timestamp,
+    ) -> p::Result<p::DesktopSessionCatalog> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
+    fn consent_desktop(
+        &self,
+        _auth: &HostAuth,
+        _request: p::DesktopConsentRequest,
+        _now: p::Timestamp,
+    ) -> p::Result<p::DesktopConsentView> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
+    fn desktop_consent(
+        &self,
+        _auth: &HostAuth,
+        _operation_id: &str,
+        _now: p::Timestamp,
+    ) -> p::Result<p::DesktopConsentView> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
+    fn revoke_desktop(
+        &self,
+        _auth: &HostAuth,
+        _request: p::DesktopRevokeRequest,
+        _now: p::Timestamp,
+    ) -> p::Result<p::DesktopConsentView> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
     fn status(&self, auth: &HostAuth) -> p::Result<p::HostStatus>;
     fn plan(
         &self,
@@ -192,6 +225,7 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     web_configuration_bearer: Option<String>,
     web_configuration_digest: Option<p::SchemaDigest>,
     product_config: Option<Arc<Mutex<ProductConfigStore>>>,
+    desktop_authority: Option<Arc<super::InstalledDesktopAuthority>>,
     release_stager: Option<Arc<ReleaseStager>>,
     release_worker: Option<Arc<dyn ReleaseWorkerProvider>>,
     release_updater: Option<Arc<super::InstalledReleaseUpdater>>,
@@ -295,6 +329,7 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             web_configuration_bearer: credentials.web_configuration().map(str::to_owned),
             web_configuration_digest,
             product_config,
+            desktop_authority: None,
             release_stager: None,
             release_worker: None,
             release_updater: None,
@@ -399,6 +434,38 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
 }
 
 impl<M: NativeServiceManager> HostManagement for ProductHostBroker<M> {
+    fn desktop_sessions(
+        &self,
+        auth: &HostAuth,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopSessionCatalog> {
+        self.desktop_owner_authority(auth)?.sessions(now)
+    }
+    fn consent_desktop(
+        &self,
+        auth: &HostAuth,
+        request: p::DesktopConsentRequest,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopConsentView> {
+        self.desktop_owner_authority(auth)?.consent(request, now)
+    }
+    fn desktop_consent(
+        &self,
+        auth: &HostAuth,
+        operation_id: &str,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopConsentView> {
+        self.desktop_owner_authority(auth)?
+            .consent_operation(operation_id, now)
+    }
+    fn revoke_desktop(
+        &self,
+        auth: &HostAuth,
+        request: p::DesktopRevokeRequest,
+        now: p::Timestamp,
+    ) -> p::Result<p::DesktopConsentView> {
+        self.desktop_owner_authority(auth)?.revoke(request, now)
+    }
     fn authenticate(&self, bearer: &str) -> p::Result<HostAuth> {
         let expected = self.maintenance_bearer.as_bytes();
         let actual = bearer.as_bytes();

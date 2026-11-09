@@ -2,7 +2,12 @@
 #![deny(unsafe_code)]
 
 pub mod bootstrap;
+mod desktop_authority;
 mod desktop_helper;
+mod desktop_provisioning;
+pub use desktop_provisioning::{
+    InstalledDesktopProvisioning, INSTALLED_DESKTOP_PROFILE, INSTALLED_DESKTOP_SURFACE,
+};
 mod file_provisioning;
 mod file_worker;
 #[cfg(windows)]
@@ -74,6 +79,12 @@ mod worker_result_crypto;
 mod worker_results;
 mod worker_socket;
 
+#[cfg(windows)]
+pub use desktop_authority::WindowsDesktopSessionCatalog;
+pub use desktop_authority::{
+    DesktopAuthority, DesktopSessionCatalogProvider, InstalledDesktopAuthority,
+    ObservedDesktopSession,
+};
 #[cfg(windows)]
 pub use desktop_helper::WindowsDesktopHelperAdapter;
 pub use desktop_helper::{DesktopHelperAdapter, UnavailableDesktopHelper};

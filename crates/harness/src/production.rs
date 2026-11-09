@@ -65,7 +65,9 @@ use super::{now_ms, GovernanceConfig, HarnessConfig, ReactiveHarness};
 
 mod builder;
 mod builtin_execution;
+mod managed_workers;
 pub use builder::ProductionRuntimeBuilder;
+use managed_workers::try_register_managed_worker_backend;
 mod composition;
 use composition::compose;
 mod context_source;
@@ -416,6 +418,7 @@ struct CapabilityAssembly {
     plugins: Arc<LocalPluginRegistry>,
     app_api: Arc<AppApiConnectorRegistry>,
     backends: Arc<ExecutionBackendRegistry>,
+    desktop_backend: Option<Arc<WorkerActionBackend>>,
     rechecker: Arc<dyn forme_capabilities::ExecutionCapabilityRechecker + Send + Sync>,
     bindings: BTreeMap<p::CapabilityRef, CapabilityBinding>,
     service_states: Vec<RuntimeServiceState>,
@@ -469,34 +472,6 @@ struct CompositeCapabilityRechecker {
 
 const BUILTIN_CAPABILITY_SOURCE: &str = "builtin:forme-runtime";
 
-fn try_register_managed_worker_backend(
-    managed_mode: bool,
-    binding: Option<&ManagedWorkerBinding>,
-    kind: p::BackendKind,
-    config: &ProductionRuntimeConfig,
-    budget: &OutputBudget,
-    timeout: p::DurationMs,
-    backends: &ExecutionBackendRegistry,
-) -> p::Result<bool> {
-    if !managed_mode {
-        return Ok(false);
-    }
-    let Some(binding) = binding else {
-        return Ok(false);
-    };
-    if !binding.supports(kind) {
-        return Ok(false);
-    }
-    let owner = p::VerifiedPrincipal(config.owner.0.clone());
-    let Ok(backend) =
-        WorkerActionBackend::from_binding(kind, binding, owner, budget.clone(), timeout)
-    else {
-        return Ok(false);
-    };
-    backends.register(Arc::new(backend))?;
-    Ok(true)
-}
-
 fn assemble_capabilities(
     config: &ProductionRuntimeConfig,
     workspace: &p::WorkspaceRef,
@@ -504,8 +479,12 @@ fn assemble_capabilities(
     protection: forme_store::StoreContentProtection,
     store: SqliteEventStore,
     managed_mode: bool,
-    worker_binding: Option<&ManagedWorkerBinding>,
+    worker_bindings: managed_workers::Bindings<'_>,
 ) -> p::Result<CapabilityAssembly> {
+    let managed_workers::Bindings {
+        worker: worker_binding,
+        desktop: desktop_binding,
+    } = worker_bindings;
     let capability_config = &config.capabilities;
     let capabilities = Arc::new(InMemoryCapabilityRegistry::default());
     // Inherited child variables are resolved here, at the composition
@@ -574,6 +553,7 @@ fn assemble_capabilities(
         mut service_states,
         browser_active,
         computer_active,
+        desktop_backend,
         pty_active,
     } = builtin_execution::assemble(builtin_execution::Inputs {
         config,
@@ -584,6 +564,7 @@ fn assemble_capabilities(
         contents: contents.clone(),
         managed_mode,
         worker_binding,
+        desktop_binding,
     })?;
 
     if !builtin_entries.is_empty() {
@@ -1204,6 +1185,7 @@ fn assemble_capabilities(
         plugins,
         app_api: app_api.clone(),
         backends,
+        desktop_backend,
         rechecker: Arc::new(CompositeCapabilityRechecker { mcp, app_api }),
         bindings,
         service_states,

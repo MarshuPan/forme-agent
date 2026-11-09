@@ -1,4 +1,6 @@
 import { isRecord, versioned } from '../types.ts';
+import { parseDesktopCatalog, parseDesktopConsent } from '../desktop.ts';
+import type { DesktopConsentRequest } from '../desktop.ts';
 import { parseBootstrapCatalog, parseBootstrapCandidate } from '../bootstrap.ts';
 import type { BootstrapCandidate } from '../bootstrap.ts';
 import type { ArtifactCatalogView } from '../types.ts';
@@ -259,6 +261,12 @@ export class WorkbenchClient {
   }
   answer(run: string) { return this.json<{ schema_version: 1; run: string; answer: string | null }>(`brain/runs/${id(run)}/answer`); }
   approvals(session: string) { return this.json<PendingApproval[]>(`brain/sessions/${id(session)}/approvals`); }
+  async desktopSessions() { return parseDesktopCatalog(await this.jsonValue('desktop/sessions')); }
+  async desktopConsent(pendingRef: string) { return parseDesktopConsent(await this.jsonValue(`desktop/consents/${id(pendingRef)}`),pendingRef); }
+  async consentDesktop(request: DesktopConsentRequest,password: string) {
+    return parseDesktopConsent(await this.jsonValue('desktop/consents','POST',{schema_version:1,request,password},request.operation_id),request.pending_ref,request.operation_id);
+  }
+
   async cancel(run: string, operation: string) {
     await this.request(`brain/runs/${id(run)}/control`, 'POST', { Cancel: { schema_version: 1, reason: 'reason:owner-web-cancel' } }, operation);
   }

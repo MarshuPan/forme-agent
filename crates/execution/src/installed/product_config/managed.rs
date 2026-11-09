@@ -8,7 +8,10 @@ pub(super) struct ManagedUpdate {
     pub(super) channels: Option<p::ProductChannelSettings>,
 }
 impl ManagedUpdate {
-    pub(super) fn validate(&self) -> p::Result<()> {
+    pub(super) fn validate(
+        &self,
+        desktop: Option<&super::super::InstalledDesktopProvisioning>,
+    ) -> p::Result<()> {
         if let Some(value) = &self.capabilities {
             value.validate().map_err(|_| rejected_patch())?;
             for key in &value.publisher_keys {
@@ -18,9 +21,16 @@ impl ManagedUpdate {
             // Declarative disabled entries can be staged before that binding exists.
             if value.mcp_servers.iter().any(|v| v.enabled)
                 || value.plugins.iter().any(|v| v.enabled)
-                || value.computer.enabled
             {
                 return Err(rejected_patch());
+            }
+        }
+        if let Some(value) = &self.capabilities {
+            if value.computer.enabled {
+                desktop
+                    .ok_or_else(rejected_patch)?
+                    .validate_settings(&value.computer)
+                    .map_err(|_| rejected_patch())?;
             }
         }
         if let Some(value) = &self.channels {
@@ -62,7 +72,7 @@ impl ManagedUpdate {
             state.channels = Some(value.clone());
         }
         if state.managed_capabilities.is_some() || state.channels.is_some() {
-            state.schema_version = p::SchemaVersion(10);
+            state.schema_version = p::SchemaVersion(state.schema_version.0.max(10));
         }
         Ok(())
     }
@@ -93,7 +103,7 @@ pub(super) fn validate_state(
     template: &p::ProductConfigTemplate,
 ) -> p::Result<()> {
     let added = state.managed_capabilities.is_some() || state.channels.is_some();
-    if (state.schema_version.0 == 10) != added {
+    if (added && state.schema_version.0 < 10) || (state.schema_version.0 == 10 && !added) {
         return Err(invalid());
     }
     let keys = state
@@ -166,7 +176,12 @@ impl ProductConfigStore {
             capabilities: patch.managed_capabilities,
             channels: patch.channels,
         };
-        update.validate()?;
+        update.validate(
+            self.state
+                .desktop
+                .as_ref()
+                .or(self.installed_desktop.as_ref()),
+        )?;
         let network = patch
             .network
             .as_ref()

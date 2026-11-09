@@ -26,6 +26,25 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The only operations a core driver may ask the AgentExecution broker to do.
 pub trait WorkerBrokerTransport: Send + Sync {
+    fn register_desktop_pending(
+        &self,
+        _request: p::DesktopPendingAction,
+    ) -> p::Result<p::DesktopPendingAction> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
+    fn desktop_pending_consent(&self, _pending_ref: &str) -> p::Result<p::DesktopConsentView> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
+    fn acquire_desktop_grant(
+        &self,
+        _request: p::DesktopGrantRequest,
+    ) -> p::Result<p::DesktopGrantView> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
+    fn desktop_grant(&self, _operation_id: &str) -> p::Result<p::DesktopGrantView> {
+        Err(p::Error("desktop authority is unavailable".into()))
+    }
+
     fn dispatch(&self, request: p::WorkerDispatchRequest) -> p::Result<p::WorkerObservation>;
     fn probe(&self, job_id: &str) -> p::Result<p::WorkerObservation>;
     fn cancel(&self, job_id: &str) -> p::Result<p::WorkerCancelReceipt>;
@@ -198,6 +217,83 @@ impl WorkerBrokerClient {
 }
 
 impl WorkerBrokerTransport for WorkerBrokerClient {
+    fn desktop_pending_consent(&self, pending_ref: &str) -> p::Result<p::DesktopConsentView> {
+        p::validate_product_id(pending_ref)?;
+        let bytes = self.json(
+            "GET",
+            &format!("/v1/agent/workers/desktop/consents/{pending_ref}"),
+            None::<&()>,
+            Operation::Desktop,
+        )?;
+        let response: p::DesktopConsentView = decode(&bytes, Operation::Desktop)?;
+        if response.schema_version != p::SchemaVersion(1)
+            || response.pending_ref != pending_ref
+            || response.consent_ref != p::desktop_consent_ref(pending_ref)?
+            || response.revision == 0
+        {
+            return Err(Operation::Desktop.transport_error());
+        }
+        Ok(response)
+    }
+    fn register_desktop_pending(
+        &self,
+        request: p::DesktopPendingAction,
+    ) -> p::Result<p::DesktopPendingAction> {
+        request.validate()?;
+        let bytes = self.json(
+            "POST",
+            "/v1/agent/workers/desktop/pending",
+            Some(&request),
+            Operation::Desktop,
+        )?;
+        let response: p::DesktopPendingAction = decode(&bytes, Operation::Desktop)?;
+        if response != request {
+            return Err(Operation::Desktop.transport_error());
+        }
+        Ok(response)
+    }
+    fn acquire_desktop_grant(
+        &self,
+        request: p::DesktopGrantRequest,
+    ) -> p::Result<p::DesktopGrantView> {
+        request.validate_at(now_ms())?;
+        let bytes = self.json(
+            "POST",
+            "/v1/agent/workers/desktop/grants",
+            Some(&request),
+            Operation::Desktop,
+        )?;
+        let response: p::DesktopGrantView = decode(&bytes, Operation::Desktop)?;
+        if response.schema_version != p::SchemaVersion(1)
+            || response.operation_id != request.operation_id
+            || response.revision == 0
+        {
+            return Err(Operation::Desktop.transport_error());
+        }
+        response
+            .binding
+            .validate_for(&request.job, &request.permit, now_ms())?;
+        Ok(response)
+    }
+    fn desktop_grant(&self, operation_id: &str) -> p::Result<p::DesktopGrantView> {
+        p::validate_product_id(operation_id)?;
+        let bytes = self.json(
+            "GET",
+            &format!("/v1/agent/workers/desktop/grants/{operation_id}"),
+            None::<&()>,
+            Operation::Desktop,
+        )?;
+        let response: p::DesktopGrantView = decode(&bytes, Operation::Desktop)?;
+        if response.schema_version != p::SchemaVersion(1)
+            || response.operation_id != operation_id
+            || response.revision == 0
+        {
+            return Err(Operation::Desktop.transport_error());
+        }
+        response.binding.validate()?;
+        Ok(response)
+    }
+
     fn dispatch(&self, request: p::WorkerDispatchRequest) -> p::Result<p::WorkerObservation> {
         request.validate_at(now_ms())?;
         let job_id = request.job.job_id.clone();
@@ -308,6 +404,7 @@ impl WorkerBrokerTransport for WorkerBrokerClient {
 
 #[derive(Clone, Copy)]
 enum Operation {
+    Desktop,
     Dispatch,
     Probe,
     Cancel,
@@ -318,6 +415,9 @@ enum Operation {
 impl Operation {
     fn transport_error(self) -> p::Error {
         match self {
+            Self::Desktop => p::Error(
+                "desktop operation outcome is unknown; query the original operation".into(),
+            ),
             Self::Dispatch => p::Error(
                 "agent execution dispatch outcome is unknown; probe the original job".into(),
             ),

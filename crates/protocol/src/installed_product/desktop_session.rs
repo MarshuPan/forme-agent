@@ -11,6 +11,10 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 
+#[path = "desktop_authority.rs"]
+mod authority;
+pub use authority::*;
+
 pub const DESKTOP_SESSION_SCHEMA_VERSION: SchemaVersion = SchemaVersion(1);
 pub const MAX_DESKTOP_SESSION_TTL_MS: i64 = 15 * 60 * 1000;
 

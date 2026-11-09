@@ -2,6 +2,7 @@
 #[cfg(test)]
 mod activation_tests;
 mod bootstrap;
+mod desktop;
 mod journal;
 #[cfg(test)]
 mod legacy_journal_tests;
@@ -51,6 +52,7 @@ pub struct ProductConfigStore {
     state: ConfigState,
     journal: ConfigJournal,
     installed_file: Option<super::InstalledFileProvisioning>,
+    installed_desktop: Option<super::InstalledDesktopProvisioning>,
 }
 
 impl ProductConfigStore {
@@ -89,6 +91,7 @@ impl ProductConfigStore {
             template,
             journal,
             installed_file,
+            installed_desktop: None,
         };
         if let Some(reference) = store.journal.current() {
             store.state = store.load_state(reference)?;
@@ -151,7 +154,12 @@ impl ProductConfigStore {
     ) -> p::Result<p::ProductConfigResponse> {
         patch.validate().map_err(|_| rejected_patch())?;
         if let Some(update) = &managed {
-            update.validate()?;
+            update.validate(
+                self.state
+                    .desktop
+                    .as_ref()
+                    .or(self.installed_desktop.as_ref()),
+            )?;
         }
         if let Some(proxy) = &proxy_update {
             materialize::validate_proxy(proxy).map_err(|_| rejected_patch())?;
@@ -209,8 +217,15 @@ impl ProductConfigStore {
             .worker
             .clone()
             .or_else(|| self.installed_file.clone());
+        let desktop = self
+            .state
+            .desktop
+            .clone()
+            .or_else(|| self.installed_desktop.clone());
         let mut state = ConfigState {
-            schema_version: p::SchemaVersion(if self.state.schema_version.0 >= 10 {
+            schema_version: p::SchemaVersion(if desktop.is_some() {
+                11
+            } else if self.state.schema_version.0 >= 10 {
                 10
             } else if worker.is_some() {
                 9
@@ -239,6 +254,7 @@ impl ProductConfigStore {
             proxy,
             release: self.state.release.clone(),
             worker,
+            desktop,
             managed_capabilities: self.state.managed_capabilities.clone(),
             channels: self.state.channels.clone(),
             publisher_key_files: self.state.publisher_key_files.clone(),
