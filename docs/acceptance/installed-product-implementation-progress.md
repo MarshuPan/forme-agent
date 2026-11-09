@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 普通 MCP 发现与调用 I/O 通过，受管接入仍开放
+
+`320d0b0` / `a372499` 修复既有 stdio 的阻塞写入、无界帧和 reader 所有权：调用共用 deadline/cancel，发现共用全流程 deadline；发布/终态前显式清理，原 child/worker 未确认结束时保留材料并阻止新 admission。真实有限子进程分别覆盖大输入超时/取消、超长帧、输出预算与后代持管；发现端不发布不确定 metadata，调用端清理不明保留唯一 Unknown。
+
+最终八阶段门全部 exit 0，workspace 为 187 targets、1,337 passed / 0 failed / 22 默认 ignored，调用/发现专项分别 9/5。六份源码、八份日志、计数及资源报告另行核验 PASS；先行空间门拒绝与 65 份缓存摘要保持压缩原件保留，删除 0 文件。精确绑定、采样与尚未验证的副作用/继承管道边界见[MCP I/O 组件验收](installed-mcp-stdio-io-acceptance-20261109.md)。本次没有安装版 managed MCP、该组件部署或完整 Final/IP 通过声明；三份冻结提案继续开放，没有改动系统安全策略。原 UAC 请求已在 10:29:58 启动独立的 `7b13529` 本机窗口，10:34:47 在正式升级原操作未结算时停止；只检查原号，不重跑。详见[原生状态更新](installed-product-remaining-obligations-audit-20261109.md#7-原生窗口取得回执后的状态更新)。
+
 ## 2026-11-09 隔离 PTY 的八项 I/O 组合通过，生产接线仍开放
 
 `e9da708` 让现有 `PtyBackend` 实际运行在测试专用 Low AppContainer/Job 中，补上此前两个组件分开取证的接缝。输入超时/取消、持续输出、严格预算、正文 append 拒绝、尾部、截断和 exit 7 均核对准确结果；外层独立检查原 runner/conhost/child 的 token/Job，原进程退出、Job 清空和 ACL/profile 清理全部 PASS。最终二进制显式执行 4 tests、11 个独立实验，包含原文件派生限制和两个原终端场景，不把默认 ignored 计入通过。
