@@ -1,218 +1,195 @@
 # forme
 
-A persistent, governed personal agent written in Rust.
+forme is an open-source agent runtime for complex, ongoing work.
 
-forme brings memory, cognition, coordination, and proactive work into one
-owner's persistent runtime. It learns from task results and feedback, keeps
-project context across sessions, and makes actions subject to explicit scope,
-permissions, approval, and verification.
+It combines proactive cognition, persistent memory, coordination, execution,
+verification, and governed autonomy in one evolving runtime. It is designed for
+work that must be understood over time, revisited as conditions change, and
+carried through to a verified result.
 
-The product and architecture contracts live under [docs/](docs/README.md).
+## Why forme
 
-## Capabilities
+Most agent interactions are bounded by one prompt and one response. Complex
+work is different: goals change, useful context is distributed across time and
+projects, decisions depend on experience, and a result is not complete until it
+has been checked.
 
-- **Persistent memory and cognition:** event-backed memory, UserModel,
-  AgentSelfModel, PartnershipModel, and scoped cognitive maps. New understanding
-  passes through candidates, evidence review, promotion, and retraction.
-- **Long-running projects:** workspaces, project charters, goals, intentions,
-  restart recovery, and coordinated child runs share the same authoritative brain.
-- **Governed proactivity:** background observation, reflection, and consolidation
-  can produce suggestions and follow-up work. Value, competence, and permission
-  checks govern when they become actions.
-- **Tools and extensions:** file, shell, browser, computer, MCP, skills, plugins,
-  and App API adapters use the common execution and audit path. Availability
-  depends on configured providers, grants, and platform support.
-- **Owner control:** trace inspection, approvals, cancellation, candidate review,
-  data lifecycle controls, and a browser workbench expose the runtime's state
-  through authenticated interfaces.
-
-## Current status
-
-Status as of **2026-11-03**:
-
-| Area | State and evidence |
-|---|---|
-| Core runtime | M0-M5 and V1 core-brain closure are implemented and merged into `main`. Recorded technical Final runs cover S1-S99, C1-C24, configured-model workflows, and release audits. Exact inputs and limits are in the [closure report](docs/acceptance/core-brain-closure-acceptance-report.md). |
-| Installed product | Service hosting, authenticated setup and configuration, managed workers, release maintenance, packaging, and the React workbench have component implementations. Windows also has local installation and service observations. Joint product acceptance remains in progress; see the [implementation record](docs/acceptance/installed-product-implementation-progress.md). |
-| Distribution | Windows development bundles, native installer candidates, and local signing evidence exist. Candidates remain `release_ready=false`; native release acceptance for Linux/macOS remains open. See the [platform acceptance strategy](docs/requirements/18-installed-product-verification-strategy.md). |
-
-The installed Windows workflow has recorded owner login, configuration
-acknowledgement, and signed-release staging. An upgrade interrupted before
-backup or switching remains under explicit recovery work; see the
-[upgrade and recovery record](docs/acceptance/installed-product-windows-upgrade-20261102-db96ec2-plan.md).
-BrainReady, real provider execution through the installed product, installed
-worker/helper behavior, upgrade/rollback, and complete IP01-IP24 acceptance still
-need joint evidence. A successful source check or an available Web page does not
-close those items.
-
-Core technical acceptance is also distinct from owner daily-use acceptance and
-months-long cognitive benefit. Reports retain their tested commit and evidence
-scope rather than asserting that every later revision has passed every gate.
-
-## Architecture
-
-forme keeps **one owner, one authoritative brain, and one event store** across
-CLI, Gateway, scheduler, and workspace activity. Child agents are execution
-units; they do not own independent cognitive state.
-
-The existing 18-crate workspace contains three cooperating kernels:
-
-| Kernel | Responsibility |
-|---|---|
-| Cognitive evolution | Turn observations, verified results, and feedback into reviewed memory and cognition. |
-| Coordination | Select resources and execution routes against goals, context, capabilities, and completion criteria. |
-| Proactivity | Notice relevant changes, manage intentions, and propose useful work within the owner's authority. |
-
-All formal runtime entry points compose the same `ProductionRuntime` and enforce
-governance through the Harness. Permissions are rechecked before execution;
-trust does not grant permission, and an unknown side effect is never blindly
-retried. The browser uses authenticated APIs rather than calling models, tools,
-or the brain database directly. Installation and service management have their
-own journal and authorization domain.
-
-Start with the [canonical contract](docs/architecture/canonical-contract.md),
-[core runtime architecture](docs/architecture/09-v1-core-brain-runtime-closure-architecture.md),
-and [installed-product architecture](docs/architecture/10-installed-product-and-web-workbench-architecture.md).
-
-## Build from source
-
-The current local development workflow uses Windows PowerShell and the GNU
-Windows Rust toolchain. Platform release targets are tracked separately in the
-[product scope](docs/requirements/17-installed-product-scope-decisions.md).
-
-Requirements:
-
-- Rust stable with `rustfmt` and Clippy. `rust-toolchain.toml` selects
-  `stable-x86_64-pc-windows-gnu` for this checkout.
-- MinGW-w64: `gcc` and `ar` on `PATH` for bundled SQLite.
-- Python 3 (`py -3` on Windows), PowerShell, and Bash for repository checks.
-- Node.js **22.12 or newer** and npm for frontend development and verification.
-  Installed products serve embedded static assets and do not require Node.js.
-- `cargo-audit 0.22.2` for the milestone release audits.
-
-From the repository root:
-
-```powershell
-py -3 tools/build_resources.py check
-cargo check --locked --workspace --all-targets
-```
-
-Run the unified source-quality gate:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools/verify-code-quality.ps1
-```
-
-It checks crate boundaries and file-size rules, Rust formatting, all workspace
-targets and tests, strict Clippy, frontend dependencies/types/tests, embedded
-assets, packaging boundaries, release verification, and originality/license
-compliance. Native installation and IP acceptance are separate gates.
-Contribution rules and required implementation checks are in [AGENTS.md](AGENTS.md)
-and the [code-quality guide](docs/engineering/code-quality.md).
-
-### Build space
-
-Development and test builds use `debug = "line-tables-only"` and
-`incremental = false`. Reuse the fixed `target` directory for each worktree;
-avoid creating a new timestamped cache for each check.
-
-```powershell
-py -3 tools/build_resources.py check
-py -3 tools/build_resources.py report --all-worktrees --json
-```
-
-The default pre-build free-space requirement is 20 GiB, and the per-worktree
-cache reporting budget is 64 GiB. Reporting does not delete artifacts. Cache
-maintenance uses an explicit target preview and an idle maintenance window;
-preserve runtime data, release packages, and acceptance evidence. See the
-[build-resource guide](docs/engineering/build-resources.md).
-
-### Frontend development
-
-The workbench uses React, TypeScript, and Vite. Build it into the exact embedded
-asset set with the repository tool:
-
-```powershell
-npm ci --prefix frontend --ignore-scripts
-node tools/build-web.mjs
-npm --prefix frontend run verify
-```
-
-Frontend changes must include the generated asset inventory, manifest, and
-license metadata. Reuse is limited to the reviewed files and terms in the
-[frontend reuse policy](docs/compliance/frontend-reuse-policy.md).
-
-## Development CLI and Gateway
-
-The source-development CLI uses a Chat Completions-compatible HTTPS endpoint.
-Supply credentials through the local environment or a secret manager rather
-than committing them to repository files. Required settings are:
+forme keeps that whole loop together. It can remember what happened, form a
+working understanding of why it matters, notice what deserves attention, plan
+an appropriate route, coordinate the work, verify the outcome, and use the
+evidence to improve the next decision.
 
 ```text
-FORME_MODEL_BASE_URL=https://provider.example/v1
-FORME_MODEL_NAME=model-id
-FORME_MODEL_API_KEY=your-local-secret
-FORME_OWNER_ID=owner-id
+observations and requests
+            |
+            v
+   memory -> understanding -> judgment
+            |                    |
+            +--> active agenda --+--> coordination
+                                           |
+                                           v
+                                      execution
+                                           |
+                                           v
+                         verification, feedback, and failure evidence
+                                           |
+                                           +------> next judgment
 ```
 
-Optional settings include `FORME_MODEL_PROVIDER`, `FORME_MODEL_CONTEXT_WINDOW`,
-`FORME_MODEL_TIMEOUT_MS`, and `FORME_STORE_PATH`. `FORME_CAPABILITY_CONFIG` names
-a schema-versioned JSON document with `skills`, `mcp`, `plugins`, and `app_api`
-lists; it references credential environment-variable names, not secret values.
-Capabilities require explicit owner trust and grant bindings.
+## The core design
 
-One runtime owns a store at a time. Start the development Gateway, which owns
-that runtime and its scheduler:
+### Proactive cognition and memory
 
-```powershell
-cargo run -p forme-gateway --bin forme-gatewayd
-```
+Memory in forme is more than a transcript archive. Events, outcomes, feedback,
+and corrections are connected into scoped understanding that can guide future
+work. The cognitive layer can maintain judgment frames, quality expectations,
+and known blind spots, while keeping new conclusions as evidence-backed
+candidates until they have earned a more stable place.
 
-It prints `FORME_GATEWAY_URL` and the bearer-token file path. With
-`FORME_GATEWAY_URL` set, and either `FORME_GATEWAY_TOKEN` or the printed token
-file available, the CLI sends work to that daemon:
+Proactivity is not a timer that blindly fires. forme watches authorized
+observations, changes, unresolved gaps, goal pressure, contradictions, and
+commitments. It gives those signals a bounded attention space, evaluates their
+value and urgency, and chooses whether to observe, ask a focused question,
+suggest a next step, prepare work, or act within an explicit authority.
 
-```powershell
-cargo run -p forme-cli -- "your question"
-```
+Unfinished work can become a commitment or a prospective intention. Time,
+events, conditions, or new evidence can bring it back to attention, with the
+current situation checked again before anything proceeds.
 
-When the daemon is stopped, `--embedded` composes the same runtime in-process.
-`--manifest` prints its composition manifest digest:
+### Two models that grow together
 
-```powershell
-cargo run -p forme-cli -- --embedded "your question"
-cargo run -p forme-cli -- --manifest
-```
+forme develops two complementary layers of attributes through use:
 
-These are source-development entry points. Installed services use protected,
-versioned configuration and the authenticated product UI. Model configuration,
-backup/restore, deletion, and evidence operations are described in the
-[core data and evidence runbook](docs/runbooks/v1-core-brain-data-and-evidence.md).
+- **User model:** an evolving understanding of the user's goals, preferences,
+  habits, risk boundaries, working style, and standards for a good result.
+- **Agent self-model:** an evolving understanding of what the agent can do,
+  where it is reliable, where it has gaps or blind spots, and which approaches
+  have or have not worked.
 
-## Milestones and evidence
+Together they form a partnership model: a practical description of how the user
+and the agent complement one another, correct one another, and gradually share
+judgment. These models are not fully specified at startup. They grow from task
+outcomes, verification, failure, feedback, and repeated correction. Different
+people and different working rhythms therefore produce different paths of
+development.
 
-| Stage | Delivered scope | Acceptance record |
-|---|---|---|
-| M0 | Governed core loop, event sourcing, policy, memory, and execution. | [M0](docs/acceptance/m0-acceptance-report.md) |
-| M1 | Gateway, scheduler, proactive follow-up, compaction, and capability lifecycle. | [M1](docs/acceptance/m1-acceptance-report.md) |
-| M2 | Browser/computer/PTY, connectors, resource graph, long-term goals, and hot/cold memory. | [M2](docs/acceptance/m2-acceptance-report.md) |
-| M3 | Controlled evolution, replay/evaluation, trust, promotion, activation, and rollback. | [M3](docs/acceptance/m3-acceptance-report.md) |
-| M4 | Single-authority federation, remote execution, read-only replicas, and checkpoint handoff. | [M4](docs/acceptance/m4-acceptance-report.md) |
-| M5 | Signed declarative packages, governed lifecycle, and authority-bound distribution. | [M5](docs/acceptance/m5-acceptance-report.md) |
-| V1 core closure | Default persistent composition, continuous cognition, workspace orchestration, and model/data closure. | [V1 closure](docs/acceptance/core-brain-closure-acceptance-report.md) |
-| Installed product | Native services, setup/authentication, browser workbench, workers, and release maintenance; in progress. | [Product progress](docs/acceptance/installed-product-implementation-progress.md) |
+As the evidence becomes stronger, forme can take responsibility for a bounded
+part of a decision. When the evidence is weak, the stakes are high, or the
+context is unclear, it lowers its intervention level and asks, prepares, or
+waits instead.
 
-V1 closure and installed-product work do not introduce an M6. The frozen graph
-remains 18 crates and 99 brain EventKinds; installation, authentication, and
-service facts remain separate from brain events.
+### Complex work needs coordination
 
-Milestone and closure gates are maintained in `tools/verify-m0.ps1` through
-`tools/verify-m5.ps1` and `tools/verify-core-brain-closure.ps1`. Some gates require
-configured models, browsers, and clean-tree release evidence; follow their
-reports and runbook rather than treating them as ordinary offline tests.
+A complex request is not necessarily a list of subtasks. forme first frames the
+goal and the situation, then selects resources, execution routes, completion
+criteria, and checkpoints that fit the available capabilities and the current
+evidence.
 
-## License
+The route can change as the work reveals new information. A task may stay in one
+run, use a specialized tool, or create several bounded execution units for
+research, construction, evaluation, or integration. Those units return results
+and evidence to the coordinating runtime; they do not create separate stable
+brains or independent long-term memory.
 
-forme is licensed under the [MIT License](LICENSE). Project and third-party
-attributions are retained in [NOTICE](NOTICE); dependencies retain their own
-license terms.
+Long-running workspaces retain their charter, active goals, open loops,
+decisions, and review points. The runtime can revisit a project, add or remove
+work as evidence changes, and re-coordinate instead of treating a first plan as
+permanent.
+
+## From request to verified progress
+
+1. **Understand.** Relevant history, memory, cognitive references, project
+   constraints, and available capabilities are assembled for the current scope.
+2. **Assess.** The runtime evaluates value, competence, risk, policy, and the
+   authority available for the next intervention.
+3. **Coordinate.** It chooses a route, resources, completion contract, and
+   verification strategy. It can ask for the missing information that would
+   change that decision.
+4. **Execute.** Tools, skills, connectors, and execution units operate through
+   the same governed harness.
+5. **Verify.** The result is checked against the completion contract. Success,
+   failure, rejection, uncertainty, and unknown side effects remain distinct
+   outcomes.
+6. **Learn and continue.** Evidence and feedback update candidates, judgment,
+   the user model, and the agent self-model. The next step can then be chosen
+   from a better understanding of the work.
+
+## Governed autonomy
+
+Autonomy in forme is earned through evidence and remains bounded by explicit
+authority. A useful intervention must pass three questions:
+
+1. Is it valuable enough to deserve attention or action?
+2. Is the agent competent and sufficiently informed for this scope and risk?
+3. Does policy and the current autonomy envelope allow it?
+
+Depending on those answers, the same idea may be observed, suggested, prepared,
+carried out with approval, or carried out within a previously granted boundary.
+High-impact actions still require an explicit boundary. Trust can inform a
+decision, but it never replaces permission. Permissions are checked again at
+the execution boundary, and an unknown side effect is not blindly retried.
+
+## One runtime across many surfaces
+
+CLI, Gateway, scheduler, workspace activity, and background cognition compose
+the same persistent runtime. They share one authoritative event history so that
+memory, coordination, proactivity, approvals, and recovery describe the same
+work.
+
+The runtime is organized around three cooperating kernels:
+
+| Kernel | Role |
+| --- | --- |
+| **Cognitive evolution** | Turn observations, outcomes, feedback, and corrections into reviewed memory, models, and judgment. |
+| **Coordination** | Turn goals and context into resource choices, execution routes, completion criteria, and replanning. |
+| **Proactivity** | Notice relevant changes, manage attention and intentions, and propose useful next work. |
+
+Capabilities such as files, shell commands, browser and computer adapters, MCP
+servers, skills, plugins, and application APIs enter through a common capability
+and execution boundary. The boundary keeps the source of a capability, its
+permissions, its risk, and its evidence visible to the rest of the runtime.
+
+## What forme is built to handle
+
+- Research and analysis that accumulate evidence and need to be revisited.
+- Software, product, and operational projects with goals, dependencies, and
+  changing constraints.
+- Workflows that span multiple tools, models, people, or execution units.
+- Monitoring and follow-up where a useful next step depends on a later event or
+  condition.
+- Decisions that benefit from learning the working style, standards, and
+  reliable boundaries of the people involved.
+
+## Design principles
+
+- **Memory becomes understanding.** History is connected to judgment, not only
+  retrieved as text.
+- **Candidates come before stable conclusions.** New beliefs and attributes need
+  evidence, review, and a path for retraction.
+- **Autonomy follows demonstrated competence.** The agent can become more useful
+  without becoming less accountable.
+- **Verification is part of completion.** A fluent final response is not proof
+  that the work succeeded.
+- **Failure is usable evidence.** Rejections, mistakes, uncertainty, and
+  unexpected effects shape the next route.
+- **Delegation stays bounded.** Execution units receive the minimum scope they
+  need and return results to the coordinating runtime.
+- **The user remains in control.** Authority, approvals, data scope, and
+  lifecycle decisions remain explicit and inspectable.
+
+## Explore the design
+
+- [Project documentation](docs/README.md)
+- [Vision and scope](docs/requirements/01-vision-and-scope.md)
+- [Capability requirements](docs/requirements/02-capability-requirements.md)
+- [Canonical contract](docs/architecture/canonical-contract.md)
+- [Proactive cognitive kernel](docs/architecture/02-proactive-cognitive-kernel.md)
+- [Temporal memory and user model](docs/prd/11-temporal-memory-and-user-model.md)
+- [Coordination and orchestration](docs/prd/12-coordination-orchestration-subagent.md)
+- [Core runtime architecture](docs/architecture/09-v1-core-brain-runtime-closure-architecture.md)
+
+## Project
+
+forme is implemented as a Rust workspace and released under the [MIT License](LICENSE).
+Engineering and contribution guidance lives in [AGENTS.md](AGENTS.md) and the
+[code quality guide](docs/engineering/code-quality.md).
