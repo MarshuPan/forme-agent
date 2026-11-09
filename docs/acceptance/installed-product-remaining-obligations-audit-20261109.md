@@ -1,6 +1,8 @@
 # 安装产品剩余实施与原生验收义务审计（2026-11-09）
 
-本清单以当前 `shu/closure-inventory@6899f56` 和真实安装状态区分实现、源码回归、安装验收。本轮完整源码 Final 已取得 exit 0，详见[核心终验记录](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。本审计不是安装或发布声明，不把局部成功提升成整个场景 PASS。原始范围保持为 requirements/17 P01–P16、requirements/18 IP01–IP24、PRD23 C1–C24 与历史 S1–S99，以及工程维护规则。
+本清单的原始审计以 `shu/closure-inventory@6899f56` 和当时真实安装状态区分实现、源码回归、安装验收。本轮完整源码 Final 已取得 exit 0，详见[核心终验记录](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。本审计不是安装或发布声明，不把局部成功提升成整个场景 PASS。原始范围保持为 requirements/17 P01–P16、requirements/18 IP01–IP24、PRD23 C1–C24 与历史 S1–S99，以及工程维护规则。
+
+后续实施状态：owner 已明确批准受管 MCP/插件/渠道、桌面授权与截图输出三项协议并要求实施，同范围不再等待确认。安装恢复和签名升级已推进到 `36f8662-dev`，详见[现场启动修复](installed-startup-reconciliation-20261109.md)；受管配置和桌面授权分别见[设置组件](installed-managed-settings-20261109.md)与[授权组件](installed-desktop-authority-20261109.md)。下列原始窗口与 Final 回执保留其历史源码绑定，不代表这些后续实现或整组 IP 已通过。
 
 ## 1. 已有证据及正在执行的原号
 
@@ -21,8 +23,8 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 
 | 义务 | 当前缺口及下一项可执行交付 | 决策状态 |
 | --- | --- | --- |
-| 既有能力的受管配置及消费者 | settings v3、Host 注册来源/程序/包公钥，MCP 隔离 discovery/call、插件贡献、已有渠道 adapter 与 typed M5 Web 控制。`320d0b0` / `a372499` 已修复普通 stdio 的有界 I/O 与原 cleanup 监督，详见[MCP 组件验收](installed-mcp-stdio-io-acceptance-20261109.md)；不替代受管接入或隔离。 | `docs/architecture/proposals/installed-managed-consumers-closure.md` 已可审查；等待明确契约批准，未改冻结 DTO/trait。 |
-| 桌面授权及主脑接线 | Host OS 会话目录、pending/consent/issue/revoke journal，exact grant 消费、正式 planner/backend 与 Web 会话选择。 | `docs/architecture/proposals/installed-desktop-authority-closure.md` 已可审查；等待明确契约批准。 |
+| 既有能力的受管配置及消费者 | settings v3、Host 注册来源/程序/包公钥，MCP 隔离 discovery/call、插件贡献、已有渠道 adapter 与 typed M5 Web 控制。`320d0b0` / `a372499` 已修复普通 stdio 的有界 I/O 与原 cleanup 监督，详见[MCP 组件验收](installed-mcp-stdio-io-acceptance-20261109.md)；不替代受管接入或隔离。 | 已批准并实施。settings v3、公钥装配与有限 Web 路由已完成组件验证；隔离 discovery/call、插件贡献和渠道实际消费者继续实施。 |
+| 桌面授权及主脑接线 | Host OS 会话目录、pending/consent/issue/revoke journal，exact grant 消费、正式 planner/backend 与 Web 会话选择。 | 已批准并实施。`7e4b7ce` 已接通 Host 授权、主脑等待/恢复、Web 会话选择；独立桌面设置和原生联合验收继续推进。 |
 | 截图、引用输入和真实 PTY | helper 当前拒绝截图和 ContentRef/SecretRef Type，只处理 Computer；desktop 结果 source=None。`1207740` 证明三个隔离机制，`451f3b4` 修复普通 I/O；后续 `e9da708` 将同一真实 backend 放入隔离 fixture，八项 I/O 组合和三个原场景共 11 个独立实验全部通过。初始化/OS 关闭异常矩阵与生产接线仍未完成。 | 证据见[PTY 机制验收](installed-isolated-pty-mechanism-acceptance-20261109.md)、[I/O 组件验收](installed-pty-io-lifecycle-acceptance-20261109.md)和[组合验收](installed-isolated-pty-io-composition-acceptance-20261109.md)。仍须闭合受保护输入/结果、Host grant、生产 placement 和真实安装证据；组合机制不授权新增冻结协议，也不关闭完整 IP。 |
 | 其他安装版执行 placement | Shell、Browser、AppApi、Notification 逐项核对实际消费者、隔离 profile、凭据/输入/结果与取消。 | 有通用 broker/factory 分支不等于实际安装能力；不得统一启用 flag 或回退 brain 进程内 driver。 |
 
@@ -75,8 +77,8 @@ Final 为原 `target/closure-inventory-evidence/run-current-final.ps1` 会话，
 ## 5. 下一步顺序
 
 1. 保存已结束的 Final 原始回执；回填本轮状态后只按现有规则刷新文档所影响的发布审计，不重复完整 workspace/Final，也不扩大审计排除集。
-2. 已写好的三份冻结提案待明确答复；批准后先回填正式文档，再按依赖实现，模块各自验证/提交。
-3. 原生窗口已经取得 OS 管理员令牌并停止，后续只读核实原 upgrade operation、journal、服务及原数据状态；不重跑入口、不叠加 RunAs、不重新派发旧 Unknown，不把启动回执当作完成。
+2. 三份冻结提案已获批准；正式文档与代码按依赖继续实施、验证和分别提交，不再要求同范围批准。
+3. §7 的原失败窗口作为历史证据保留；后续授权重置测试安装与正式升级见现场启动修复记录。继续核验最新活动发布和原事务，不重派历史 Unknown，也不把组件回归当作已部署。
 4. 完成剩余真实消费者和安装包后，按上述 IP 判据补齐原生联合证据及所需平台条件；环境不足保留未验证，不宣告整体完成。
 
 ## 6. 截图工件接线的追加源码证据

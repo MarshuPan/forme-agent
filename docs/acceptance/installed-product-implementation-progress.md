@@ -648,3 +648,5 @@ execution 直接复用已有 `ed25519-dalek =2.2.0`（关闭 default features，
 ## 2026-11-09 集成与现场启动修复
 
 分支整合和本机测试安装恢复已实际推进。36f8662 已通过完整工作区检查，并经正式签名开发包升级；当前 product/core Ready、配置 3/ack 3，既有身份和任务事件保留。详见[原生回执与边界](installed-startup-reconciliation-20261109.md)。三项消费者/桌面协议已获 owner 批准，继续实施；不得继续标作“等待协议确认”，也不得标作已完成。
+
+随后 `4dc1550` 完成受管设置 v3 和 publisher 材料装配，`7e4b7ce` 接通 Host 桌面授权、主脑恢复及 Web 会话选择，`84e0406` 完成[独立桌面开关与原保存回执核验](installed-computer-settings-20261109.md)。最后一批完整源码回归为 190 suites、1,394 passed / 0 failed / 22 ignored，前端 126 tests、4 个真实产品配置进程场景及 required checks 均 PASS。`9dc0481` 已冻结截图交换实施细节；截图原件传输/保护/预览与受管 MCP/插件/渠道实际消费者继续推进。以上后续源码尚未替换现场安装，不据此新增 IP 通过结论。
