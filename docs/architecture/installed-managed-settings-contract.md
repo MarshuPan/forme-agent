@@ -41,3 +41,7 @@ ProductHostBroker 新增 `configuration_view_v3(&HostAuth) -> Result<ProductConf
 不支持 schema 返回原 UnsupportedVersion；未知字段/超限/无效引用/key 返回原 InvalidRequest；CAS/异义 operation 返回 Conflict；无认证/CSRF 失败沿原语义。缺 program/source/connector/placement 或实际消费者时不得保存 enabled=true，不创建进程，不发布配置。禁用项可保存为待配置，并明确 unavailable 原因。feature 的 configurable 只在实际持久配置和运行消费者均接通后生效。
 
 动态撤销和变更在下一次执行出口重查；不借重启自动重发历史 Unknown。测试必须覆盖 v1/v2 bytes 与摘要、state 2–9 重开、v3 CAS/幂等、错 key/source/schema、未知字段、超限早拒绝、旧客户端保留新字段、重启公钥重建和零隐式 discovery。
+
+## 5. Publisher 材料预置接缝
+
+Host 发布的 ManagedBrainConfig 增加 optional managed_capabilities/channels 和 publisher_key_files（publisher_ref → 受保护绝对路径）；该路径投影仅供 Host→Brain，不返回 Web。每个公钥文件恰为 32 字节，启动时同时验证 key digest、非弱 Ed25519 点和对应配置，缺失/多余/替换/链接拒绝启动。ProductionRuntimeBuilder 在创建 runtime 前装配 InMemoryPublisherKeyring，并通过私有 ManagedCompositionInputs 传入 compose；在首次 EcosystemHarnessRuntime::new_with_keyring/rebuild_registry 之前提供全部公钥。ReactiveHarness 的私有 new_without_recovery_and_ecosystem 构造接缝接受这个原 runtime；既有公开构造形状不变，避免先用空 keyring 构造再事后补 key 导致已安装包无法重启。仍使用原包事件及包 registry，不把 lifecycle 复制进配置。
