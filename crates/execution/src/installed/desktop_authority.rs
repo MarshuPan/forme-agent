@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex};
 mod journal;
 mod managed;
 pub use managed::InstalledDesktopAuthority;
+mod output;
 mod transitions;
 #[cfg(windows)]
 mod windows;

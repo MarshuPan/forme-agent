@@ -15,6 +15,20 @@ use super::windows_desktop_session_native::WindowsDesktopSessionHost;
 /// The desktop helper is an execution placement only. It receives an exact,
 /// already-authorized action and cannot create a grant or choose a session.
 pub trait DesktopHelperAdapter: Send + Sync {
+    fn supports_output(&self) -> bool {
+        false
+    }
+    fn execute_with_output(
+        &self,
+        request: &p::DesktopActionRequest,
+        intent: &p::ActionIntent,
+        _sink: &mut dyn super::DesktopOutputSink,
+    ) -> p::Result<p::DesktopActionReceipt> {
+        if request.capability == p::DesktopCapability::Screenshot {
+            return Err(p::Error("desktop output is unavailable".into()));
+        }
+        self.execute(request, intent)
+    }
     fn observe(
         &self,
         binding: &p::DesktopSessionBinding,
@@ -193,8 +207,7 @@ impl DesktopHelperAdapter for Option<WindowsDesktopHelperAdapter> {
     }
 }
 
-#[cfg(windows)]
-fn now_ms() -> p::Result<p::Timestamp> {
+pub(super) fn now_ms() -> p::Result<p::Timestamp> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| p::Error("desktop helper clock is unavailable".into()))

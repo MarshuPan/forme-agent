@@ -4,6 +4,11 @@
 pub mod bootstrap;
 mod desktop_authority;
 mod desktop_helper;
+#[cfg(test)]
+mod desktop_output_fixture;
+mod desktop_output_sink;
+mod desktop_output_storage;
+pub use desktop_output_sink::DesktopOutputSink;
 mod desktop_provisioning;
 pub use desktop_provisioning::{
     InstalledDesktopProvisioning, INSTALLED_DESKTOP_PROFILE, INSTALLED_DESKTOP_SURFACE,

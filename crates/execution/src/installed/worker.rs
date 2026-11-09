@@ -11,6 +11,10 @@ use super::{reject_linked_ancestors, worker_binding::WorkerExecutionBinding};
 
 #[path = "worker_admission.rs"]
 mod admission;
+#[path = "worker_output_journal.rs"]
+mod output;
+#[path = "worker_projection.rs"]
+mod projection;
 #[path = "worker_recovery.rs"]
 mod recovery;
 
@@ -28,6 +32,8 @@ enum WorkerFact {
         at: p::Timestamp,
         #[serde(default)]
         execution_binding: Option<WorkerExecutionBinding>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        output_transfer: Option<Box<p::DesktopOutputTransfer>>,
     },
     DesktopObservation {
         job_id: String,
@@ -44,6 +50,9 @@ enum WorkerFact {
     },
     Receipt {
         receipt: p::WorkerReceipt,
+    },
+    DesktopOutput {
+        descriptor: Box<p::DesktopOutputDescriptor>,
     },
     ResultManifest {
         manifest: p::WorkerResultManifest,
@@ -70,11 +79,12 @@ struct WorkerEnvelope {
 
 impl WorkerEnvelope {
     fn calculate(
+        version: p::SchemaVersion,
         seq: u64,
         previous: &p::SchemaDigest,
         fact: &WorkerFact,
     ) -> p::Result<p::SchemaDigest> {
-        p::canonical_digest(&(p::SchemaVersion(1), seq, previous, fact))
+        p::canonical_digest(&(version, seq, previous, fact))
     }
 }
 
@@ -88,207 +98,20 @@ struct WorkerRecord {
     state: p::WorkerState,
     receipt: Option<p::WorkerReceipt>,
     result_manifest: Option<p::WorkerResultManifest>,
+    output_transfer: Option<p::DesktopOutputTransfer>,
+    desktop_output: Option<p::DesktopOutputDescriptor>,
     cancel_receipt: Option<p::WorkerCancelReceipt>,
     reason_ref: Option<String>,
 }
 
 #[derive(Clone, Default)]
 struct WorkerProjection {
+    uses_output: bool,
     sequence: u64,
     head: Option<p::SchemaDigest>,
     jobs: BTreeMap<String, WorkerRecord>,
     nonces: BTreeSet<p::Nonce>,
     permits: BTreeSet<String>,
-}
-
-impl WorkerProjection {
-    fn head(&self) -> p::Result<p::SchemaDigest> {
-        self.head
-            .clone()
-            .map_or_else(|| p::canonical_digest(&"forme-worker-journal-v1"), Ok)
-    }
-
-    fn fold(&mut self, envelope: &WorkerEnvelope) -> p::Result<()> {
-        if envelope.schema_version != p::SchemaVersion(1)
-            || envelope.worker_seq != self.sequence.checked_add(1).ok_or_else(invalid_journal)?
-            || envelope.previous != self.head()?
-            || envelope.digest
-                != WorkerEnvelope::calculate(
-                    envelope.worker_seq,
-                    &envelope.previous,
-                    &envelope.fact,
-                )?
-        {
-            return Err(invalid_journal());
-        }
-
-        match &envelope.fact {
-            WorkerFact::Admitted {
-                job,
-                permit,
-                at,
-                execution_binding,
-            } => {
-                job.validate()?;
-                permit.validate_for(job, *at)?;
-                if let Some(binding) = execution_binding {
-                    binding.validate_for(job, permit, *at)?;
-                }
-                if self.jobs.contains_key(&job.job_id)
-                    || !self.nonces.insert(job.nonce.clone())
-                    || !self.permits.insert(job.permit_ref.clone())
-                {
-                    return Err(invalid_journal());
-                }
-                self.jobs.insert(
-                    job.job_id.clone(),
-                    WorkerRecord {
-                        job: *job.clone(),
-                        permit: *permit.clone(),
-                        execution_binding: execution_binding.clone(),
-                        desktop_binding: None,
-                        desktop_observation: None,
-                        state: p::WorkerState::Pending,
-                        receipt: None,
-                        result_manifest: None,
-                        cancel_receipt: None,
-                        reason_ref: None,
-                    },
-                );
-            }
-            WorkerFact::DesktopObservation {
-                job_id,
-                binding,
-                observation,
-            } => {
-                validate_worker_id(job_id)?;
-                let record = self.jobs.get_mut(job_id).ok_or_else(invalid_journal)?;
-                if !matches!(
-                    record.state,
-                    p::WorkerState::Pending | p::WorkerState::Running
-                ) {
-                    return Err(invalid_journal());
-                }
-                binding.validate_for(&record.job, &record.permit, observation.observed_at)?;
-                observation.validate()?;
-                if observation.state == p::DesktopSessionState::Ready {
-                    observation.validate_for(binding)?;
-                } else if observation.helper_ref != binding.helper_ref
-                    || observation.platform != binding.platform
-                {
-                    return Err(invalid_journal());
-                }
-                record.desktop_binding = Some(*binding.clone());
-                record.desktop_observation = Some(*observation.clone());
-            }
-            WorkerFact::Started { job_id, at } => {
-                validate_worker_id(job_id)?;
-                let record = self.jobs.get_mut(job_id).ok_or_else(invalid_journal)?;
-                if *at <= 0 || record.state != p::WorkerState::Pending {
-                    return Err(invalid_journal());
-                }
-                record.state = p::WorkerState::Running;
-            }
-            WorkerFact::CancelRequested { job_id, at } => {
-                validate_worker_id(job_id)?;
-                let record = self.jobs.get_mut(job_id).ok_or_else(invalid_journal)?;
-                if *at <= 0
-                    || !matches!(
-                        record.state,
-                        p::WorkerState::Pending | p::WorkerState::Running
-                    )
-                {
-                    return Err(invalid_journal());
-                }
-                record.state = p::WorkerState::CancelRequested;
-            }
-            WorkerFact::Receipt { receipt } => {
-                let record = self
-                    .jobs
-                    .get_mut(&receipt.job_id)
-                    .ok_or_else(invalid_journal)?;
-                receipt.validate_for(&record.job)?;
-                if !matches!(
-                    record.state,
-                    p::WorkerState::Running | p::WorkerState::CancelRequested
-                ) || receipt.finished_at.is_none()
-                {
-                    return Err(invalid_journal());
-                }
-                record.state = match receipt.observed_outcome {
-                    p::WorkerOutcome::Completed => p::WorkerState::Completed,
-                    p::WorkerOutcome::Failed => p::WorkerState::Failed,
-                    p::WorkerOutcome::Cancelled => p::WorkerState::Cancelled,
-                    p::WorkerOutcome::Unknown => p::WorkerState::Unknown,
-                };
-                record.receipt = Some(receipt.clone());
-                record.reason_ref = None;
-            }
-            WorkerFact::CancelReceipt { receipt } => {
-                let record = self
-                    .jobs
-                    .get_mut(&receipt.job_id)
-                    .ok_or_else(invalid_journal)?;
-                receipt.validate_for(&record.job)?;
-                if !matches!(
-                    record.state,
-                    p::WorkerState::Pending
-                        | p::WorkerState::Running
-                        | p::WorkerState::CancelRequested
-                ) {
-                    return Err(invalid_journal());
-                }
-                record.state = match receipt.outcome {
-                    p::WorkerOutcome::Cancelled => p::WorkerState::Cancelled,
-                    p::WorkerOutcome::Unknown => p::WorkerState::Unknown,
-                    _ => return Err(invalid_journal()),
-                };
-                record.reason_ref = receipt.reason_ref.clone();
-                record.cancel_receipt = Some(receipt.clone());
-            }
-            WorkerFact::ResultManifest { manifest } => {
-                let record = self
-                    .jobs
-                    .get_mut(&manifest.binding.job_id)
-                    .ok_or_else(invalid_journal)?;
-                manifest.validate_for(&record.job, &record.permit)?;
-                if !matches!(
-                    record.state,
-                    p::WorkerState::Pending
-                        | p::WorkerState::Running
-                        | p::WorkerState::CancelRequested
-                ) || record.result_manifest.is_some()
-                {
-                    return Err(invalid_journal());
-                }
-                record.result_manifest = Some(manifest.clone());
-            }
-            WorkerFact::Unknown {
-                job_id,
-                reason_ref,
-                at,
-            } => {
-                validate_worker_id(job_id)?;
-                validate_worker_ref(reason_ref, "worker unknown reason")?;
-                let record = self.jobs.get_mut(job_id).ok_or_else(invalid_journal)?;
-                if *at <= 0
-                    || !matches!(
-                        record.state,
-                        p::WorkerState::Pending
-                            | p::WorkerState::Running
-                            | p::WorkerState::CancelRequested
-                    )
-                {
-                    return Err(invalid_journal());
-                }
-                record.state = p::WorkerState::Unknown;
-                record.reason_ref = Some(reason_ref.clone());
-            }
-        }
-        self.sequence = envelope.worker_seq;
-        self.head = Some(envelope.digest.clone());
-        Ok(())
-    }
 }
 
 struct WorkerWriter {
@@ -748,10 +571,23 @@ fn append_fact(writer: &mut WorkerWriter, fact: WorkerFact) -> p::Result<()> {
         .checked_add(1)
         .ok_or_else(invalid_journal)?;
     let previous = writer.projection.head()?;
+    let output_fact = matches!(
+        &fact,
+        WorkerFact::DesktopOutput { .. }
+            | WorkerFact::Admitted {
+                output_transfer: Some(_),
+                ..
+            }
+    );
+    let version = p::SchemaVersion(if writer.projection.uses_output || output_fact {
+        2
+    } else {
+        1
+    });
     let envelope = WorkerEnvelope {
-        schema_version: p::SchemaVersion(1),
+        schema_version: version,
         worker_seq,
-        digest: WorkerEnvelope::calculate(worker_seq, &previous, &fact)?,
+        digest: WorkerEnvelope::calculate(version, worker_seq, &previous, &fact)?,
         previous,
         fact,
     };

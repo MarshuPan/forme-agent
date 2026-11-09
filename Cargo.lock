@@ -1222,6 +1222,7 @@ name = "forme-execution"
 version = "0.0.1"
 dependencies = [
  "chacha20poly1305",
+ "crc32fast",
  "ed25519-dalek",
  "enigo",
  "forme-policy",
@@ -1229,6 +1230,7 @@ dependencies = [
  "getrandom 0.4.3",
  "headless_chrome",
  "httparse",
+ "png",
  "portable-pty",
  "rcgen",
  "rustls",

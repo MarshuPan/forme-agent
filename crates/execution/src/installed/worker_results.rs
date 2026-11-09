@@ -15,6 +15,9 @@ use super::worker_host::{WorkerExecutorHost, WorkerIsolation};
 use super::worker_result_crypto::{ResultKeys, ENVELOPE_OVERHEAD};
 use super::{reject_linked_ancestors, set_private_directory};
 
+#[path = "worker_output_store.rs"]
+mod output;
+
 const MAX_RESULT_FILE_BYTES: u64 = p::WORKER_RESULT_MAX_BYTES;
 
 struct ManifestInput {

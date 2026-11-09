@@ -11,6 +11,16 @@ pub(super) fn route(
     if !request.path.starts_with("/v1/agent/workers/") {
         return None;
     }
+    if request.method == "GET" && request.path.ends_with("/desktop-output") {
+        return Some(
+            worker_id(&request.path, "/v1/agent/workers/", "/desktop-output")
+                .and_then(|job_id| worker.desktop_output(auth, job_id, now))
+                .and_then(|descriptor| {
+                    serde_json::to_vec(&descriptor)
+                        .map_err(|_| p::Error("desktop descriptor encoding failed".into()))
+                }),
+        );
+    }
     if request.method == "GET" && request.path.ends_with("/result") {
         return Some(
             worker_id(&request.path, "/v1/agent/workers/", "/result")

@@ -26,6 +26,9 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The only operations a core driver may ask the AgentExecution broker to do.
 pub trait WorkerBrokerTransport: Send + Sync {
+    fn desktop_output(&self, _job_id: &str) -> p::Result<p::DesktopOutputDescriptor> {
+        Err(p::Error("desktop output descriptor is unavailable".into()))
+    }
     fn register_desktop_pending(
         &self,
         _request: p::DesktopPendingAction,
@@ -217,6 +220,23 @@ impl WorkerBrokerClient {
 }
 
 impl WorkerBrokerTransport for WorkerBrokerClient {
+    fn desktop_output(&self, job_id: &str) -> p::Result<p::DesktopOutputDescriptor> {
+        p::validate_product_id(job_id)?;
+        let body = self.request(
+            "GET",
+            &format!("/v1/agent/workers/{job_id}/desktop-output"),
+            b"",
+            Operation::Desktop,
+        )?;
+        let response: p::DesktopOutputDescriptor = decode(&body, Operation::Desktop)?;
+        response.binding.validate()?;
+        if response.schema_version != p::DESKTOP_OUTPUT_SCHEMA_VERSION
+            || response.binding.job_id != job_id
+        {
+            return Err(Operation::Desktop.transport_error());
+        }
+        Ok(response)
+    }
     fn desktop_pending_consent(&self, pending_ref: &str) -> p::Result<p::DesktopConsentView> {
         p::validate_product_id(pending_ref)?;
         let bytes = self.json(

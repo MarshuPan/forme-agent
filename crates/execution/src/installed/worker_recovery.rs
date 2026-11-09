@@ -62,7 +62,7 @@ impl WorkerJournal {
     }
 }
 
-fn recheck_writer(writer: &mut WorkerWriter) -> p::Result<()> {
+pub(super) fn recheck_writer(writer: &mut WorkerWriter) -> p::Result<()> {
     let actual = read_locked_projection(&mut writer.file)?;
     if actual.sequence != writer.projection.sequence
         || actual.head()? != writer.projection.head()?

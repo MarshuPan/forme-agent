@@ -36,6 +36,7 @@ impl WorkerIsolation for UnavailableWorkerIsolation {
 
 mod contract;
 mod desktop;
+mod output;
 pub use contract::IsolatedExecutorHost;
 
 pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDesktopHelper> {
@@ -460,6 +461,17 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
             return Err(p::Error("worker receipt authority epoch is stale".into()));
         }
         self.journal.confirm_receipt(&receipt, now)
+    }
+
+    fn desktop_output(
+        &self,
+        auth: &HostAuth,
+        job_id: &str,
+        _now: p::Timestamp,
+    ) -> p::Result<p::DesktopOutputDescriptor> {
+        self.verify(auth)?;
+        let _operation = self.operations.lock().map_err(|_| storage_error())?;
+        self.journal.desktop_output(job_id)
     }
 
     fn result_manifest(

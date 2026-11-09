@@ -5,6 +5,8 @@ mod app_api;
 mod artifact;
 mod browser;
 mod computer;
+mod desktop_png;
+pub use desktop_png::validate_desktop_png;
 mod external;
 mod file;
 pub mod installed;

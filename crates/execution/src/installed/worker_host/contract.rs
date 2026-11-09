@@ -3,6 +3,14 @@ use crate::installed::HostAuth;
 use forme_protocol as p;
 
 pub trait IsolatedExecutorHost: Send + Sync {
+    fn desktop_output(
+        &self,
+        _auth: &HostAuth,
+        _job_id: &str,
+        _now: p::Timestamp,
+    ) -> p::Result<p::DesktopOutputDescriptor> {
+        Err(p::Error("desktop output descriptor is unavailable".into()))
+    }
     /// Internal Host-only check. Hold worker admission/observation exclusion
     /// through the callback; external implementations fail closed by default.
     fn with_quiescent_workers(

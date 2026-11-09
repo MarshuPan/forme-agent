@@ -13,6 +13,8 @@ ed25519-dalek = { version = "=2.2.0", default-features = false, features = ["std
 getrandom = "=0.4.3"
 headless_chrome = "=1.0.22"
 portable-pty = "=0.9.0"
+png = "=0.18.1"
+crc32fast = "=1.5.0"
 httparse = "=1.10.1"
 rustls = { version = "=0.23.46", default-features = false, features = ["ring", "std"] }
 rustls-pki-types = "=1.15.0"

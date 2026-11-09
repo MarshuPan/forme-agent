@@ -41,12 +41,42 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
                 Some(execution) => self.prepare_desktop_action(&job, &permit, execution, now)?,
                 None => None,
             };
-            let admitted = self.journal.admit_with_execution(
-                job.clone(),
-                permit.clone(),
-                execution.as_ref(),
-                now,
-            )?;
+            let admitted = if let (Some((request, _)), Some(execution)) = (&desktop, &execution) {
+                if request.capability == p::DesktopCapability::Screenshot {
+                    let binding = p::DesktopExchangeBinding::from_request(
+                        self.installation_ref.clone(),
+                        &job,
+                        &permit,
+                        request,
+                    )?;
+                    let transfer = p::DesktopOutputTransfer::new(
+                        binding,
+                        &execution.intent,
+                        execution.output_budget_bytes,
+                    )?;
+                    self.journal.admit_with_desktop_output(
+                        job.clone(),
+                        permit.clone(),
+                        execution,
+                        transfer,
+                        now,
+                    )?
+                } else {
+                    self.journal.admit_with_execution(
+                        job.clone(),
+                        permit.clone(),
+                        Some(execution),
+                        now,
+                    )?
+                }
+            } else {
+                self.journal.admit_with_execution(
+                    job.clone(),
+                    permit.clone(),
+                    execution.as_ref(),
+                    now,
+                )?
+            };
             Ok((desktop, admitted))
         };
         let (desktop, (fresh, observation)) = match execution.as_ref() {
@@ -101,6 +131,16 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
                 .as_ref()
                 .map(|execution| &execution.intent)
                 .ok_or_else(|| p::Error("desktop execution binding is missing".into()))?;
+            if request.capability == p::DesktopCapability::Screenshot {
+                return self.complete_desktop_output(
+                    &job,
+                    &permit,
+                    execution.as_ref().ok_or_else(storage_error)?,
+                    &request,
+                    desktop_authority.as_deref().ok_or_else(storage_error)?,
+                    now,
+                );
+            }
             let receipt = match self.desktop_helper.execute(&request, intent) {
                 Ok(receipt) => receipt,
                 Err(error) => {
@@ -175,6 +215,15 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         let capability = required_capability(&execution.intent)?;
         if !binding.capabilities.contains(&capability) {
             return Err(p::Error("desktop capability is outside the grant".into()));
+        }
+        if capability == p::DesktopCapability::Screenshot {
+            if !self.desktop_helper.supports_output() {
+                return Err(p::Error("desktop output is unavailable".into()));
+            }
+            p::desktop_output_dimensions(&execution.intent)?;
+            super::super::desktop_output_storage::OutputStage::available(
+                &self.result_store.desktop_staging_root(),
+            )?;
         }
         let observation = self.desktop_helper.observe(binding, now)?;
         validate_live_observation(binding, &observation, now)?;
