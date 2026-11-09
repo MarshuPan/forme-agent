@@ -71,6 +71,16 @@ pub trait McpRegistry {
 - **Plugin(D5)**:manifest 声明贡献 → `PluginContributionRegistered` → enable/disable(`PluginToggled`)→ enabled 贡献进 registry(受 policy);**plugin hook 贡献的工具仍经 `ToolPolicyEvaluated`**(执行前重查,不绕过)。
 - **CapabilityEvidence**:从使用结果记可靠性证据,喂 `CompetenceGate`(prd/13)。
 
+### 5.1 MCP discovery 的有界 I/O 与发布前清理
+
+本小节细化 §5 的既有进程生命周期和 timeout，不改变 McpRegistry、StdioMcpServer 或 McpDiscovery 的公开形状，不开启安装版受管 discovery。
+
+- 一次 discovery 使用同一个 deadline，覆盖 initialize、initialized notification、tools/list、resources/list 及本次 metadata 解析；阶段之间不续期。一个受控 I/O worker 持有原 stdin/stdout，主调用通过容量为一的命令/回执通道等待，不能卡在同步管道读写内。
+- JSON 逐行传输，编码与读取单帧均限制为 8 MiB（含换行），无界 `lines()` 不可作为接入入口。错误、无效帧和不匹配 id 不重置 deadline；超长帧按 schema 错误拒绝。公开工具/资源 allowlist、延迟 schema 解析、来源/trust/grant 和错误分类保持原规则。
+- discovery 最多同时持有八个进程/I/O 槽位。发布 metadata 前，关闭命令通道、停止并 wait 原 child、join 原 I/O worker，主调用清理等待最多两秒。不能确认清理时返回带明确 unverified 说明的 ServerError，不发布或缓存本次 discovery，不伪造大脑动作终态。
+- 有限 supervisor 保留原 child/worker 清理句柄，包括清理线程创建失败而尚未执行的材料；存在未结束清理或已确认的清理失败时拒绝新的 discovery admission。原清理结束后只能处理新请求，不重做原次 discovery，也不迟到发布原 metadata。Drop 仅兜底；成功必须经显式清理确认。
+- 此实现不宣称后代隔离或 Host 授权已闭合。正式安装版的受管 program/source、隔离 discovery/call、受保护输入/结果、配置消费者与 IP 验收仍按 PRD24/25 及对应待审契约推进。
+
 ## 6. 错误/安全/权限/审批
 
 - **错误 → FailureTaxonomy**:`resource_selection_failure`(选错/不明来源)、`execution_failure`(MCP 调用)、`safety_policy_failure`(plugin 试图绕过 re-check)。
@@ -96,6 +106,7 @@ pub trait McpRegistry {
 ## 9. 测试
 
 - **S3(总纲 §7.6)**:MCP discovery/allowlist/call/timeout/schema/server 错误/禁用后不暴露。
+- **discovery I/O**:真实自建 stdio fixture 发送超长无换行帧，断言 schema 错误、零 metadata/零 McpDiscovered；后代持有原管道时断言清理未确认、原 metadata 不发布、新 discovery 零启动，原 worker join 后只允许不同 provider 的新请求正常发布。有限 fixture 不替代安装版后代隔离或原生验收。
 - **S4(总纲 §7.7)**:默认只 metadata;选中才 `SkillBodyLoaded`;未选正文不进上下文。
 - **S5(总纲 §7.8)**:manifest 贡献;disabled 不可见;enabled 进 registry 受 policy;plugin hook 经 re-check。
 - **CapabilityRegistry 行**:统一索引;能力证据;来源不明/风险未知不暴露。
