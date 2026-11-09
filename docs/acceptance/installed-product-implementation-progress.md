@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-09 隔离 PTY 三项机制通过，生产与故障矩阵仍开放
+
+`1207740` 在测试专用入口中证明 Low AppContainer 内的真实 ConPTY、runner/conhost/child/grandchild 的独立 token/Job 核验及原树取消；生产派生限制反例继续由 OS 拒绝。两份先行实验的退出观察清理不明已仅沿原 Job/lease 恢复，零程序重启，原失败记录保持。完整组件检查为 186 targets、1,319 passed / 0 failed / 20 默认 ignored，strict Clippy、结构质量与完整合规均通过。
+
+最终 all-targets 构建与先行显式实验的 fixture 二进制不同；在已提交干净源码上重新绑定最终 fixture 后，仅显式运行三个机制场景，3/3 及各自清理 PASS，并实际设置父进程自建代理/凭据标记核对隔离。不是重复整仓回归，也不把 ignored 默认计为通过。完整证据、两份原件恢复与仍未执行的 I/O 故障矩阵见[本轮验收](installed-isolated-pty-mechanism-acceptance-20261109.md)。本次未部署，未启用生产 PTY、未刷新完整 Final；三份冻结提案、原生窗口和 IP01–IP24 继续开放。
+
 ## 2026-11-09 PTY 启动接纳修复通过，原生机制仍待验证
 
 `0e6dccf` 修复普通 PTY driver 先创建程序、后接纳 Started/检查取消的缺口。强化回归用真实 CIM 进程观察复现旧实现三项失败；修复后新四项与原 M2 四项通过。最终 workspace 为 185 targets、1,317 passed / 0 failed / 16 默认 ignored，fmt/check、strict Clippy、结构质量与完整合规通过。原流程在完整测试后因空间门停止的回执保持；93 个闲置主缓存程序逐份摘要保持压缩后，只续跑尚未执行的三项检查，无删除或阈值放宽。细节及原件摘要见[本轮验收](installed-pty-admission-correction-20261109.md)。
