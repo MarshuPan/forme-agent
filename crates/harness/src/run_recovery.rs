@@ -2,6 +2,28 @@
 use crate::*;
 
 impl ReactiveHarness {
+    pub(super) fn suspend_unknown_action(
+        &self,
+        run: &p::RunId,
+        handle: &Arc<RunHandle>,
+        record: &mut RunRecord,
+        action: p::ActionId,
+    ) -> p::Result<()> {
+        let pending = PendingKind::ToolInterrupt(action.clone());
+        let waiting = self.append_waiting(run, record, "unknown_action_outcome", &pending)?;
+        record.loop_ctx.suspend(pending.clone());
+        record.resume_state = Some(ResumeState {
+            schema_version: p::SchemaVersion(1),
+            run: run.clone(),
+            at: LoopState::Suspended(pending.clone()),
+            pending,
+            snapshot_ref: waiting,
+        });
+        record.recovered_unknown = Some(action);
+        handle.changed.notify_all();
+        Ok(())
+    }
+
     pub fn recover_unknown_outcomes(&self) -> p::Result<Vec<p::RunId>> {
         let mut recovered = Vec::new();
         for run in self.store.run_ids()? {

@@ -3420,6 +3420,16 @@ impl ReactiveHarness {
                 &intent.capability_ref,
             ),
             Err(error) => {
+                // EventSink records only events accepted by the store observer.
+                // A persisted Unknown takes precedence over errors and cancel:
+                // neither permits another model turn or retries the real effect.
+                if sink.events().iter().any(|event| {
+                    matches!(event,
+                        p::EventPayload::ActionOutcomeUnknown(p) if p.intent_id == intent.intent_id
+                    )
+                }) {
+                    return self.suspend_unknown_action(run, handle, record, intent.intent_id);
+                }
                 self.append_failure(
                     run,
                     record,
@@ -3533,21 +3543,7 @@ impl ReactiveHarness {
                         "unknown action result has no adjudication boundary".into(),
                     ));
                 }
-                let action = receipt.action;
-                let pending = PendingKind::ToolInterrupt(action.clone());
-                let waiting =
-                    self.append_waiting(run, record, "unknown_action_outcome", &pending)?;
-                record.loop_ctx.suspend(pending.clone());
-                record.resume_state = Some(ResumeState {
-                    schema_version: p::SchemaVersion(1),
-                    run: run.clone(),
-                    at: LoopState::Suspended(pending.clone()),
-                    pending,
-                    snapshot_ref: waiting,
-                });
-                record.recovered_unknown = Some(action);
-                handle.changed.notify_all();
-                Ok(())
+                self.suspend_unknown_action(run, handle, record, receipt.action)
             }
         }
     }

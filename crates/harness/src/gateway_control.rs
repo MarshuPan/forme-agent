@@ -65,7 +65,10 @@ impl AgentHarness for ReactiveHarness {
         handle.cancel_token.cancel();
         self.cancel_child_runs(&run)?;
         if let Ok(mut record) = handle.record.try_lock() {
-            if record.loop_ctx.state.is_suspended() && record.result.is_none() {
+            if record.loop_ctx.state.is_suspended()
+                && record.result.is_none()
+                && record.recovered_unknown.is_none()
+            {
                 record
                     .loop_ctx
                     .terminate(p::RunStatus::Aborted, StopReason::UserCancel);
