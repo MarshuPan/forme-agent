@@ -21,7 +21,7 @@
 
 ## 3. 自建夹具与独立观察
 
-使用 execution crate 内独立的测试二进制；runner 只依赖既有 `portable-pty` 与必要的原协议类型，不导入桌面 driver 或实际模型/配置。子程序由仓库自建，源文件、编译程序和依赖版本均记摘要，不复制上游 fixture。
+使用 execution crate 内独立的测试二进制；基础 runner 使用既有 `portable-pty` 与必要的原协议类型。追加的 I/O 故障分支复用同 crate 已有 `PtyBackend`，用于证明普通 backend 与 Low AppContainer/Job 的组合行为，不另写一份看起来相同的生产 I/O 算法。两条分支均不调用桌面 driver、实际模型或真实配置。子程序由仓库自建，源文件、编译程序和依赖版本均记摘要，不复制上游 fixture。
 
 测试根固定在当前工作树的证据区域中，以独占临时目录承载可写副本、空 profile、两份不可读 sentinel 目录和有界结果。不得访问已安装实例、真实脑目录、keys、浏览器会话或 owner 文件。测试外层保留原 Job/lease 资源所有权；普通权限不能完成时如实停止，不发起新的 RunAs。
 
@@ -45,6 +45,14 @@
 | 清理与再准入 | 原 Job 为空、查询句柄释放、profile/ACL 按原 lease 收回；不确定时保留证据与阻断，不删除现场后报成功。 |
 
 任何 Started 后的终态或清理不明都保留原号，不重复启动该动作。独立单元场景不替代 Host worker journal 或 core ActionOutcomeUnknown；本验证不向脑写事件。
+
+### 4.1 普通 backend 与隔离机制的组合验证
+
+`451f3b4` 的八项普通 Windows I/O 场景已经通过，但它们没有运行在本设计的 Low AppContainer 中。追加固定 fixture 的八个封闭测试模式：输入不读超时、启动后取消、连续输出、严格预算、输出 append 拒绝、正常尾部、截断预算与错误 exit。它们只调用既有公开 backend 和进程内 EventSink，不创建 Harness/模型/脑写者，不改任何产品 DTO/trait 或生产派生限制。
+
+子程序先报告 terminal/PID/边界并等待测试 gate；外层独立核对 runner/conhost/child 的原句柄、token 与 Job 后才打开 gate。取消还须等待程序进入输入测试正文。backend 的 3500 ms 期限包括这段观察时间，外层继续强制原 10 秒界限，不通过延长期限隐藏阻塞。输出拒绝在 gate 后才激活，保证与初始化前失败区分。所有结果同时记录事件种类、真实 outcome、有限输出状态及独立树终止/清理；正文只含自建内容，不包含真实输入或秘密。
+
+fixture 的新固定模式及 case-result 是测试内部对象，不是新的 worker wire 协议。每个 case 创建新 experiment 并保留独立回执；失败停止后续 case，清理只处理原 Job/lease。组合通过仍不关闭 PTY 初始化/线程资源/OS 关闭异常的完整注入矩阵、生产 placement 或 IP10/IP11/IP24。
 
 ## 5. 执行和证据
 
