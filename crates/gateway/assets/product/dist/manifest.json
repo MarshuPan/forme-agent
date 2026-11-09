@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "5422265d33f79a9108991099f66442e7490e5eadf90058dab8af7b2f02288343",
+  "source_digest": "0a046a4d3ddefbc1ef4f2ec66ccabff6e527f0d97c69555795439baa0475b460",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,11 +20,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "c7bbf7d176f1608b02fe4b0257e3765eaad52def540cd85a0373a96723520f62"
+      "sha256": "2f945855fe345f819a0a0674bdcf8fd7bc70ed499cb7d6ff3079f5b0af86ac9b"
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "a9f9f100f228f7e5af9901835c59526eafc56c7b17b8a458766131abadd56657"
+      "sha256": "0864c0cfb3f774db50526295bd51d6056d67c8529b1bd2b9caad84761393b591"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -68,7 +68,7 @@
     },
     {
       "path": "frontend/src/components/Conversation.tsx",
-      "sha256": "a4697c10d9abea9cf1243e5a2af61fbbbe45baf76abb828b1c4174d4bfe9258d"
+      "sha256": "28dadb45b756a88c4b3c7c7de81e0ece21fb3e2cda67a6bc4ddc350b572b8558"
     },
     {
       "path": "frontend/src/components/DataManagement.tsx",
@@ -129,6 +129,10 @@
     {
       "path": "frontend/src/components/SkillSettings.tsx",
       "sha256": "e2f302d0623f41c595813fe320457ac4b35e3f681c7127a956e91fb73aa87b8e"
+    },
+    {
+      "path": "frontend/src/components/ToolArtifacts.tsx",
+      "sha256": "0400a94dc12a4a6b0ca861feca3c2bc18bdd0326d3c377bb5f4636a17a54699a"
     },
     {
       "path": "frontend/src/components/Views.tsx",
@@ -240,7 +244,7 @@
     },
     {
       "path": "frontend/src/styles/layout.css",
-      "sha256": "db0cdce98396162a1b21f888f94a0dedd88c1cf600992018714a698d21cf69ff"
+      "sha256": "99e41ba31d06f7f8c486529913c7a1f23bbc1ae4f5ba05d35399073ff5512686"
     },
     {
       "path": "frontend/src/tests/auth-sync.test.ts",
@@ -335,8 +339,16 @@
       "sha256": "b64b3b63f625ccd3a4cbc9215966a0dbab809d6e1dfa16182a8ef185c66794e0"
     },
     {
+      "path": "frontend/src/tests/tool-artifacts.test.ts",
+      "sha256": "82285c6157566d7cc636c1fa9c834399a0efdb77c22c4c9c7adf46fdd507d32a"
+    },
+    {
       "path": "frontend/src/tests/workspace-charter.test.ts",
       "sha256": "beb09871271b582979044cc18945f39143a47bd47a53110a8a980bb487bbbcdb"
+    },
+    {
+      "path": "frontend/src/tool-artifacts.ts",
+      "sha256": "865e7da87f64bda492b3301bc716427a197efe93518fa2d27f95b7d64693d748"
     },
     {
       "path": "frontend/src/types.ts",
@@ -365,14 +377,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-Dds3W8Ko.js",
-      "sha256": "69b422451a378e6ff6b1861a7828cd8322a858d26e35f1078af5bb109ace595a",
-      "bytes": 418539
+      "path": "assets/index-By_MCe4J.css",
+      "sha256": "3eb32afdac22e48949d25f2dfaf21a35742f246ca5c1781526a1e6d13aefec5b",
+      "bytes": 15032
     },
     {
-      "path": "assets/index-kab-1l06.css",
-      "sha256": "e0bf7a6dd285cc682ad275af149a592c35278ab4fa309552b10c89d855a1e4e6",
-      "bytes": 14904
+      "path": "assets/index-gooi_IKv.js",
+      "sha256": "5fa8b6e0ec698d54aa1b0925ead73ade5f63aa2d48dd40eddc7b771d424617ab",
+      "bytes": 426369
     },
     {
       "path": "dependencies.json",
@@ -386,7 +398,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "dda9ca81bf093503ec30fe91821e6e7447fcf9fb798800ce44e3e0dea37a43f2",
+      "sha256": "5de8738103ab5047a570ebc0372904eb972cd87e2982e5e62e30182fe38b5811",
       "bytes": 595
     },
     {

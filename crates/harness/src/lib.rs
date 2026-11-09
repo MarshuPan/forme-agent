@@ -90,6 +90,7 @@ mod production_artifact_store;
 mod production_artifacts;
 mod production_config;
 mod production_data;
+mod production_tool_artifacts;
 
 use action_policy::{
     apply_policy_floors, delivery_disclosure_is_bound, is_external_action,

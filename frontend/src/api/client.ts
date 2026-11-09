@@ -1,4 +1,6 @@
 import { isRecord, versioned } from '../types.ts';
+import { toolArtifactCatalog, readToolArtifact } from '../tool-artifacts.ts';
+import type { ToolArtifactEntry } from '../tool-artifacts.ts';
 import { parseDesktopCatalog, parseDesktopConsent } from '../desktop.ts';
 import type { DesktopConsentRequest } from '../desktop.ts';
 import { parseBootstrapCatalog, parseBootstrapCandidate } from '../bootstrap.ts';
@@ -42,18 +44,19 @@ const id = (value: string) => encodeURIComponent(value);
 export class WorkbenchClient {
   private csrf: string | null = null;
   private generation = 0;
+  private artifactReads = new AbortController();
   private readonly transport: typeof fetch;
   private readonly expired: () => void;
   constructor(transport = fetch, expired = () => {}) {
     // Browser fetch checks its receiver. Keep it detached from this client.
     this.transport = (...args) => transport(...args); this.expired = expired;
   }
-  clear() { this.csrf = null; this.generation++; }
+  clear() { this.csrf = null; this.generation++; this.artifactReads.abort(); this.artifactReads = new AbortController(); }
   private current(generation: number) {
     if (generation !== this.generation) throw new ApiError(401, 'SessionChanged', '登录状态已变化，请重新读取当前页面。');
   }
 
-  private async request(path: string, method = 'GET', body?: unknown, key?: string): Promise<Response> {
+  private async request(path: string, method = 'GET', body?: unknown, key?: string, options: { version?: 1 | 2; signal?: AbortSignal } = {}): Promise<Response> {
     const generation = this.generation;
     const headers = new Headers({ Accept: 'application/json' });
     if (method !== 'GET') {
@@ -64,11 +67,12 @@ export class WorkbenchClient {
     }
     let response: Response;
     try {
-      response = await this.transport(`/api/v1/${path}`, {
+      response = await this.transport(`/api/v${options.version ?? 1}/${path}`, {
         method, headers, credentials: 'same-origin', cache: 'no-store',
-        body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path === 'bootstrap/claim-v2' ? 140_000 : path.startsWith('bootstrap/') ? 50_000 : 28_000),
+        body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.any([AbortSignal.timeout(path === 'bootstrap/claim-v2' ? 140_000 : path.startsWith('bootstrap/') ? 50_000 : 28_000), ...(options.signal ? [options.signal] : [])]),
       });
     } catch {
+      options.signal?.throwIfAborted();
       // Mutation outcomes are unknown. Never create a new key or retry here.
       throw new ApiError(0, 'ConnectionLost', '连接中断；操作结果尚未确认，请使用原操作继续核实。');
     }
@@ -107,6 +111,18 @@ export class WorkbenchClient {
     } else if (isRecord(value)) versioned(value);
     if (Array.isArray(value)) for (const item of value) if (isRecord(item)) versioned(item);
     return value as T;
+  }
+  async toolArtifacts(session: string, run: string, offset: number, snapshot: string | null, signal: AbortSignal) {
+    const generation = this.generation;
+    const bound = AbortSignal.any([signal, this.artifactReads.signal]);
+    const result = await toolArtifactCatalog((path, signal) => this.request(path, 'GET', undefined, undefined, { version: 2, signal }), session, run, offset, snapshot, bound);
+    this.current(generation); return result;
+  }
+  async toolArtifact(session: string, run: string, entry: ToolArtifactEntry, signal: AbortSignal) {
+    const generation = this.generation;
+    const bound = AbortSignal.any([signal, this.artifactReads.signal]);
+    const result = await readToolArtifact((path, signal) => this.request(path, 'GET', undefined, undefined, { version: 2, signal }), session, run, entry, bound);
+    this.current(generation); return result;
   }
   bootstrap() { return this.json<{ schema_version: 1; claimed: boolean; setup_needed: boolean }>('bootstrap/status'); }
   async session(): Promise<SessionResponse> {

@@ -25,6 +25,7 @@ export function App() {
   const [sessions, setSessions] = useState<WorkbenchSessionRecord[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [conversationPending, setConversationPending] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
   const [tab, setTab] = useState<Tab>('conversation');
   const [menu, setMenu] = useState(false);
@@ -144,13 +145,18 @@ export function App() {
     return () => { clearInterval(timer); window.removeEventListener('pagehide', hide); window.removeEventListener('pageshow', show); document.removeEventListener('visibilitychange', visibility); guard.close(); };
   }, [api, clear, entry]);
 
-  async function logout() { try { await api.logout(); clear(); } catch (problem) { setIssue(problem instanceof Error ? problem.message : '退出结果未确认。'); } }
+  async function logout() {
+    setLoggingOut(true);
+    try { await api.logout(); clear(); }
+    catch (problem) { setIssue(problem instanceof Error ? problem.message : '退出结果未确认。'); }
+    finally { setLoggingOut(false); }
+  }
   function open(run: string) { if (!conversationPending) setSelected(run); setTab('conversation'); setMenu(false); }
   const serviceLabel = runtime ? '主脑已连接' : coreConnecting ? '主脑启动中' : productStatus ? productStatusLabel(productStatus) : '已登录 · 主脑离线';
 
   return <><a href="#main-content" className="skip-link">跳到主要内容</a><header className="topbar"><a className="brand" href="/" aria-label="forme 首页">forme<span className="brand-dot">.</span></a>
     <span className="service-state"><i data-ready={Boolean(runtime)} />{entry === 'ready' ? serviceLabel : entry === 'checking' ? '连接本机服务' : '个人 Agent 工作台'}</span>
-    {entry === 'ready' && <><button ref={mobileMenuButton} className="mobile-menu secondary-button" aria-expanded={menu} aria-controls="main-navigation" onClick={() => setMenu((v) => !v)}>{menu ? '关闭导航' : '导航'}</button><button className="text-button" onClick={() => void logout()}>退出登录</button></>}
+    {entry === 'ready' && <><button ref={mobileMenuButton} className="mobile-menu secondary-button" aria-expanded={menu} aria-controls="main-navigation" onClick={() => setMenu((v) => !v)}>{menu ? '关闭导航' : '导航'}</button><button className="text-button" disabled={loggingOut} onClick={() => void logout()}>退出登录</button></>}
   </header>
     {['unclaimed', 'login'].includes(entry) && <Entry key={entry} api={api} unclaimed={entry === 'unclaimed'} authenticated={authenticated} />}
     {entry === 'checking' && <main id="main-content" className="entry-status" role="status">正在确认本机服务与登录状态…</main>}
@@ -160,7 +166,7 @@ export function App() {
       <p className="section-label">最近运行</p><div className="recent-runs">{runs.slice(-12).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small>{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">还没有运行记录</p>}</div>
       <p className="sidebar-footnote">一个主脑，持续协同。</p>
     </aside><main id="main-content" className="main-content" tabIndex={-1} key={session.account_ref}>
-      <div hidden={tab !== 'conversation'}><Conversation api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} observed={observeRun} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
+      <div hidden={tab !== 'conversation'}><Conversation active={tab === 'conversation' && !loggingOut} api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} observed={observeRun} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
       <div hidden={tab !== 'workspace'}><WorkspaceView api={api} runtime={runtime} open={open} /></div>
       {tab === 'inbox' && <BrainInbox api={api} open={open} />}
       {tab === 'cognition' && <CognitionView api={api} open={open} prepareForgetting={(target) => { setMaterialTarget(target); setTab('settings'); setMenu(false); }} />}

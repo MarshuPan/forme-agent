@@ -11,17 +11,17 @@ use std::{
     },
 };
 
-pub(super) fn now() -> i64 {
+pub(crate) fn now() -> i64 {
     crate::now_ms()
 }
-pub(super) fn owner() -> p::VerifiedPrincipal {
+pub(crate) fn owner() -> p::VerifiedPrincipal {
     p::VerifiedPrincipal("owner:worker-material".into())
 }
-pub(super) fn scope() -> p::Scope {
+pub(crate) fn scope() -> p::Scope {
     p::Scope("workspace:worker-material".into())
 }
 
-pub(super) struct Directory(pub PathBuf);
+pub(crate) struct Directory(pub PathBuf);
 impl Directory {
     pub fn new() -> Arc<Self> {
         static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -41,7 +41,7 @@ impl Drop for Directory {
     }
 }
 
-pub(super) struct FaultKeys {
+pub(crate) struct FaultKeys {
     inner: FileContentKeyResolver,
     pub allocations: AtomicUsize,
     pub fail_at: AtomicUsize,
@@ -69,7 +69,7 @@ impl ContentKeyResolver for FaultKeys {
         self.inner.subject_key(binding, subject)
     }
 }
-pub(super) struct Fixture {
+pub(crate) struct Fixture {
     pub sink: Arc<ProtectedRuntimeArtifacts>,
     pub store: SqliteEventStore,
     pub protection: StoreContentProtection,
@@ -153,7 +153,7 @@ impl Fixture {
     }
 }
 
-pub(super) fn intent() -> p::ActionIntent {
+pub(crate) fn intent() -> p::ActionIntent {
     p::ActionIntent {
         schema_version: p::SchemaVersion(1),
         intent_id: p::ActionId("action:worker-material".into()),
@@ -186,7 +186,7 @@ pub(super) fn intent() -> p::ActionIntent {
         }),
     }
 }
-pub(super) fn material() -> p::WorkerArtifactBinding {
+pub(crate) fn material() -> p::WorkerArtifactBinding {
     let at = now();
     let digest = p::sha256_content_digest(&png());
     let exchange = p::DesktopExchangeBinding {
@@ -258,7 +258,7 @@ pub(super) fn material() -> p::WorkerArtifactBinding {
 }
 
 // Self-authored two-pixel RGBA PNG, generated from one filter-0 row.
-pub(super) fn png() -> Vec<u8> {
+pub(crate) fn png() -> Vec<u8> {
     vec![
         137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 1, 8, 6,
         0, 0, 0, 244, 34, 127, 138, 0, 0, 0, 17, 73, 68, 65, 84, 120, 156, 99, 144, 48, 240, 248,

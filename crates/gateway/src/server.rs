@@ -12,6 +12,7 @@ use observability::*;
 mod artifacts;
 mod data;
 mod data_workbench;
+mod tool_artifacts;
 use data::*;
 mod project_controls;
 mod projects;
@@ -239,6 +240,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/brain/learning/answer", post(answer_learning))
         .route("/v1/brain/learning/resolve", post(resolve_learning))
         .merge(artifacts::routes())
+        .merge(tool_artifacts::routes())
         .route("/v1/profile", get(control_profile))
         .route("/v1/workbench/runs", post(submit_workbench_run))
         .route("/v1/runs", get(list_runs).post(submit_run))

@@ -9,6 +9,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 mod tests;
 #[path = "production_worker_artifacts.rs"]
 mod worker;
+#[cfg(test)]
+#[path = "production_worker_artifact_fixture.rs"]
+pub(crate) mod worker_fixture;
 
 pub(super) struct ProtectedRuntimeArtifacts {
     pub(super) inner: FileArtifactStore,
@@ -299,4 +302,69 @@ pub(super) fn read_material(
         Err(_) => body.state = p::WorkbenchMaterialState::NonText,
     }
     Ok(body)
+}
+
+/// A deterministic protected companion is only publishable together with the
+/// original body and the existing lifecycle-aware material registration.
+pub(super) fn verified_worker_material(
+    store: &SqliteEventStore,
+    id: &p::ContentRef,
+    owner: &p::VerifiedPrincipal,
+) -> p::Result<Option<(p::WorkerArtifactBinding, ProtectedContentRecord)>> {
+    let protection = store
+        .content_protection()?
+        .ok_or_else(|| p::Error("tool material protection is unavailable".into()))?;
+    let Some(metadata) = worker::read_worker_metadata(store, &protection, id)? else {
+        return Ok(None);
+    };
+    let scope = &metadata.binding.manifest.binding.workspace_scope;
+    let Some((receipt, Some(body))) = registered_material(store, id, scope)? else {
+        return Ok(None);
+    };
+    if metadata.binding.manifest.binding.owner_ref != *owner
+        || body.owner_digest != p::sha256_content_digest(owner.0.as_bytes())
+        || body.envelope.ciphertext.len() as u64
+            != metadata.binding.descriptor.bytes.saturating_add(16)
+        || receipt.content_digest != metadata.binding.descriptor.content_digest
+        || receipt.bytes != metadata.binding.descriptor.bytes
+    {
+        return Err(p::Error(
+            "tool material registration binding is inconsistent".into(),
+        ));
+    }
+    Ok(Some((metadata.binding, body)))
+}
+
+/// Catalog reads only bounded companions. Body presence comes from the same
+/// owner/scope lifecycle-aware presence query; decoding is deferred to reads.
+pub(super) fn verified_worker_metadata(
+    store: &SqliteEventStore,
+    id: &p::ContentRef,
+    owner: &p::VerifiedPrincipal,
+    scope: &p::Scope,
+) -> p::Result<Option<p::WorkerArtifactBinding>> {
+    let invalid = || p::Error("tool material registration binding is inconsistent".into());
+    let protection = store.content_protection()?.ok_or_else(invalid)?;
+    let Some(metadata) = worker::read_worker_metadata(store, &protection, id)? else {
+        return Ok(None);
+    };
+    let Some(record) = store.protected_content_for_current_owner(&receipt_ref(id))? else {
+        return Ok(None);
+    };
+    let receipt = decode_receipt(&protection, &record)?;
+    let binding = &metadata.binding;
+    if binding.manifest.binding.owner_ref != *owner
+        || binding.manifest.binding.workspace_scope != *scope
+        || receipt.content_ref != *id
+        || receipt.scope != *scope
+        || receipt.subject != p::sha256_content_digest(scope.0.as_bytes())
+        || receipt.content_digest != binding.descriptor.content_digest
+        || receipt.bytes != binding.descriptor.bytes
+    {
+        return Err(invalid());
+    }
+    if !store.protected_content_available_for_current_owner(id, scope, &receipt.subject)? {
+        return Ok(None);
+    }
+    Ok(Some(metadata.binding))
 }

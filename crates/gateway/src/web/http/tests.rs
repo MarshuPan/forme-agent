@@ -15,6 +15,7 @@ mod bootstrap_legacy;
 mod desktop;
 mod proposals;
 mod release_recovery;
+mod tool_artifacts;
 
 const PASSWORD: &str = "web HTTP fixture password 15";
 

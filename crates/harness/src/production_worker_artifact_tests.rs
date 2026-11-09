@@ -3,11 +3,9 @@ use forme_execution::{
     ActionBackend, ActionStatus, CancelToken, EventSink, ExecutionPlanner, OutputBudget,
 };
 use std::sync::{atomic::Ordering, Arc};
-#[path = "production_worker_artifact_fixture.rs"]
-mod fixture;
 #[path = "production_worker_artifact_host.rs"]
 mod host;
-use fixture::*;
+use crate::production_artifact_store::worker_fixture::*;
 use host::HostFixture;
 
 fn id(binding: &p::WorkerArtifactBinding) -> p::ContentRef {

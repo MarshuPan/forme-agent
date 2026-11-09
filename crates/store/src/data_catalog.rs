@@ -5,6 +5,32 @@ use rusqlite::{params, OptionalExtension};
 use std::collections::{BTreeMap, BTreeSet};
 
 impl SqliteEventStore {
+    /// Bounded metadata-only presence check for an already authenticated
+    /// material receipt. The caller must verify the encrypted body before
+    /// disclosure. Pending and completed object/subject deletion stay hidden.
+    pub fn protected_content_available_for_current_owner(
+        &self,
+        id: &p::ContentRef,
+        scope: &p::Scope,
+        subject: &p::SchemaDigest,
+    ) -> p::Result<bool> {
+        let protection = self
+            .content_protection()?
+            .ok_or_else(|| p::Error("content protection unavailable".into()))?;
+        let connection = self
+            .core_connection()
+            .map_err(|_| p::Error("protected content unavailable".into()))?;
+        connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM protected_content c
+             WHERE c.content_ref=?1 AND c.owner_digest=?2 AND c.scope=?3 AND c.subject_digest=?4
+               AND NOT EXISTS (SELECT 1 FROM data_lifecycle_subjects s
+                   WHERE s.scope=c.scope AND s.subject_digest=c.subject_digest AND s.state IN ('pending','deleted'))
+               AND NOT EXISTS (SELECT 1 FROM data_lifecycle_deleted_objects d WHERE d.object_ref=c.content_ref))",
+            params![id.0,protection.owner_digest().0,scope.0,subject.0],
+            |row| row.get(0),
+        ).map_err(|_| p::Error("protected content presence unavailable".into()))
+    }
+
     /// Reads an encrypted companion for the owner configured on this store.
     /// The returned record remains ciphertext; callers must enforce the
     /// authenticated owner boundary before attempting decryption.

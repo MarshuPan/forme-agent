@@ -1,5 +1,5 @@
 //! Real Host, authority, result store and core driver; only the OS source is a fixture.
-use super::{fixture::*, *};
+use super::*;
 use forme_execution::{
     installed::*, ActionBackend, CancelToken, EventSink, ExecutionPlan, OutputBudget,
 };

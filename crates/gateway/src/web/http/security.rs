@@ -147,7 +147,7 @@ pub(super) async fn boundary(
     }
     for (name, value) in [
         ("cache-control", "no-store"),
-        ("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"),
+        ("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"),
         ("x-content-type-options", "nosniff"), ("x-frame-options", "DENY"),
         ("referrer-policy", "no-referrer"), ("cross-origin-resource-policy", "same-origin"),
         ("cross-origin-opener-policy", "same-origin"),

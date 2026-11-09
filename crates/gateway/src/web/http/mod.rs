@@ -19,6 +19,7 @@ mod proposal_controls;
 mod release_recovery;
 mod security;
 mod sessions;
+mod tool_artifacts;
 
 #[cfg(test)]
 mod tests;
@@ -338,6 +339,7 @@ fn router(state: Arc<WebState>) -> Router {
             Duration::from_secs(30),
         ))
         .merge(bootstrap_legacy::routes())
+        .merge(tool_artifacts::routes())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             security::boundary,

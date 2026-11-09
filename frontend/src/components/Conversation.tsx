@@ -9,13 +9,14 @@ import type { PendingApproval, RunPendingView, RunSummary, RuntimeView, Workbenc
 import { Approval } from './Approval.tsx';
 import { ConversationCommands } from '../conversation.ts';
 import { SessionArtifacts } from './SessionArtifacts.tsx';
+import { ToolArtifacts } from './ToolArtifacts.tsx';
 import { RunPendingControls } from './RunPendingControls.tsx';
 import { runStatusMessage } from '../run-status.ts';
 import { acceptedUserInput } from '../conversation-view.ts';
 import { SessionActions } from './SessionActions.tsx';
 
 interface Props {
-  api: WorkbenchClient; runtime: RuntimeView | null; runs: RunSummary[];
+  active: boolean; api: WorkbenchClient; runtime: RuntimeView | null; runs: RunSummary[];
   sessions: WorkbenchSessionRecord[]; selected: string | null; select: (run: string | null) => void;
   refresh: () => Promise<void>; refreshSessions: () => Promise<void>;
   observed: (run: RunSummary) => void;
@@ -25,7 +26,7 @@ interface Props {
 
 type WorkspaceChange = { session: string; expectedUpdatedAt: number; workspace: string | null; key: string };
 
-export function Conversation({ api, runtime, runs, sessions, selected, select, refresh, refreshSessions, observed, workspaceRevision, onPendingChange }: Props) {
+export function Conversation({ active, api, runtime, runs, sessions, selected, select, refresh, refreshSessions, observed, workspaceRevision, onPendingChange }: Props) {
   const [draft, setDraft] = useState('');
   const [session, setSession] = useState(() => sessions[0]?.session ?? newKey('session'));
   const [sessionTitle, setSessionTitle] = useState('新对话');
@@ -211,6 +212,7 @@ export function Conversation({ api, runtime, runs, sessions, selected, select, r
         {approvals.map((item) => <Approval key={item.approval_id} api={api} item={item} changed={() => { setRevision((v) => v + 1); void refresh(); }} />)}
         <RunPendingControls api={api} view={pendingView} changed={() => { setRevision((v) => v + 1); void refresh(); }} />
       </div>
+      {active && <ToolArtifacts api={api} session={summary?.session ?? null} run={summary?.run === selected ? selected : null} revision={events.events.filter((event) => ['ActionCompleted', 'ActionOutcomeUnknown', 'ActionFailed', 'ActionCancelled'].includes(event.kind)).length} />}
       <SessionArtifacts api={api} session={savedSession()} revision={artifactRevision} />
       {pending === 'upload' && <p className="notice" role="status">正在核实附件：{commands.pendingFilename}<button type="button" className="secondary-button" disabled={busy || !runtime} onClick={() => void upload()}>核实原上传</button></p>}
       <form className="composer" onSubmit={submit}>
