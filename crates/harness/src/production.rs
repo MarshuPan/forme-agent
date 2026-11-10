@@ -487,9 +487,7 @@ fn assemble_capabilities(
     } = worker_bindings;
     let capability_config = &config.capabilities;
     let capabilities = Arc::new(InMemoryCapabilityRegistry::default());
-    // Inherited child variables are resolved here, at the composition
-    // boundary. A server whose declared environment is unavailable is not
-    // registered at all, so it can never be discovered half-configured.
+    // Resolve declared environments before registering development servers.
     let mut unresolved_mcp = BTreeSet::new();
     let mut resolved_mcp_servers = Vec::new();
     for entry in &capability_config.mcp {
@@ -507,7 +505,11 @@ fn assemble_capabilities(
             unresolved_mcp.insert(entry.server.provider_id.clone());
         }
     }
-    let mcp = Arc::new(StdioMcpRegistry::with_servers(resolved_mcp_servers)?);
+    let mcp = Arc::new(if managed_mode {
+        StdioMcpRegistry::with_managed_servers(resolved_mcp_servers, None)?
+    } else {
+        StdioMcpRegistry::with_servers(resolved_mcp_servers)?
+    });
     let plugins = Arc::new(LocalPluginRegistry::with_plugins(
         capability_config
             .plugins
@@ -597,14 +599,6 @@ fn assemble_capabilities(
             ));
             continue;
         }
-        if managed_mode && entry.discover_on_start {
-            service_states.push(RuntimeServiceState::unavailable(
-                format!("mcp:{}", id.0),
-                RuntimeServiceStatus::Blocking,
-                "managed MCP discovery requires a worker-owned discovery path",
-            ));
-            continue;
-        }
         let (Some(trust), Some(grant)) = (entry.trust, entry.grant.clone()) else {
             service_states.push(RuntimeServiceState::unavailable(
                 format!("mcp:{}", id.0),
@@ -633,6 +627,7 @@ fn assemble_capabilities(
             ));
             continue;
         }
+        // Managed discovery here only reads completed originals; it cannot launch a process.
         if entry.discover_on_start {
             match mcp.discover_detailed(id.clone()) {
                 Ok(discovery) => {

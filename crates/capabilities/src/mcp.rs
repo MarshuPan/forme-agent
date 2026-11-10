@@ -1,4 +1,9 @@
+mod discovery;
+mod managed;
 mod transport;
+
+pub use managed::ManagedMcpCatalogSource;
+use managed::{remove_catalog, CatalogMode};
 
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
@@ -150,6 +155,8 @@ pub struct StdioMcpRegistry {
     providers: p::InMemoryProviderRegistry<StdioMcpServer>,
     state: Mutex<McpState>,
     search_limit: usize,
+    catalog_mode: CatalogMode,
+    catalog_access: Mutex<()>,
 }
 
 #[derive(Default)]
@@ -160,6 +167,7 @@ struct McpState {
     failures: Vec<McpFailure>,
     events: Vec<p::EventPayload>,
     next_call_sequence: u64,
+    managed_digests: BTreeMap<p::ProviderId, p::SchemaDigest>,
 }
 
 impl StdioMcpRegistry {
@@ -175,10 +183,13 @@ impl StdioMcpRegistry {
             providers: p::InMemoryProviderRegistry::with_discovered(servers)?,
             state: Mutex::new(McpState::default()),
             search_limit,
+            catalog_mode: CatalogMode::Development,
+            catalog_access: Mutex::new(()),
         })
     }
 
     pub fn configure(&self, id: p::ProviderId) -> p::Result<()> {
+        let _access = self.catalog_access()?;
         let server = self
             .servers()
             .into_iter()
@@ -201,106 +212,34 @@ impl StdioMcpRegistry {
     }
 
     pub fn enable(&self, id: p::ProviderId) -> p::Result<()> {
+        let _access = self.catalog_access()?;
         p::ProviderRegistry::set_enabled(&self.providers, id, true)
     }
 
     pub fn disable(&self, id: p::ProviderId) -> p::Result<()> {
+        let _access = self.catalog_access()?;
         p::ProviderRegistry::set_enabled(&self.providers, id.clone(), false)?;
         let mut state = self.lock_state()?;
-        state.discoveries.remove(&id);
-        state.tools.retain(|_, tool| tool.server != id);
-        let retained = state.tools.keys().cloned().collect::<BTreeSet<_>>();
-        state
-            .deferred_schemas
-            .retain(|tool, _| retained.contains(tool));
+        remove_catalog(&mut state, &id);
         Ok(())
     }
 
     pub fn bind_trust(&self, id: p::ProviderId, tier: p::TrustTier, by: p::Actor) -> p::Result<()> {
+        let _access = self.catalog_access()?;
         p::ProviderRegistry::bind_trust(&self.providers, id, tier, by)
     }
 
     pub fn grant(&self, id: p::ProviderId, envelope: p::AutonomyEnvelope) -> p::Result<()> {
+        let _access = self.catalog_access()?;
         p::ProviderRegistry::grant(&self.providers, id, envelope)
     }
 
     pub fn discovery(&self, id: &p::ProviderId) -> Option<McpDiscovery> {
+        let _access = self.catalog_access().ok()?;
+        self.require_current_catalog(id).ok()?;
         self.lock_state()
             .ok()
             .and_then(|state| state.discoveries.get(id).cloned())
-    }
-
-    pub fn discover_detailed(&self, id: p::ProviderId) -> Result<McpDiscovery, McpFailure> {
-        let record = self
-            .providers
-            .record(&id)
-            .map_err(|error| failure(id.clone(), McpErrorClass::ServerError, error.to_string()))?;
-        if !matches!(
-            record.state,
-            p::ProviderLifecycle::Trusted(tier) if tier != p::TrustTier::Untrusted
-        ) || record.grant.is_none()
-        {
-            return Err(failure(
-                id,
-                McpErrorClass::ServerError,
-                "MCP server is not active and granted",
-            ));
-        }
-
-        match discover_over_stdio(&record.provider) {
-            Ok(catalog) => {
-                let discovery = catalog.discovery;
-                let mut state = self.lock_state().map_err(|error| {
-                    failure(
-                        record.provider.provider_id.clone(),
-                        McpErrorClass::ServerError,
-                        error.to_string(),
-                    )
-                })?;
-                state
-                    .tools
-                    .retain(|_, tool| tool.server != record.provider.provider_id);
-                let retained = state.tools.keys().cloned().collect::<BTreeSet<_>>();
-                state
-                    .deferred_schemas
-                    .retain(|tool, _| retained.contains(tool));
-                for tool in &discovery.tools {
-                    state.tools.insert(tool.tool_ref.clone(), tool.clone());
-                }
-                state.deferred_schemas.extend(catalog.schemas);
-                state
-                    .events
-                    .push(p::EventPayload::McpDiscovered(p::McpDiscoveredPayload {
-                        server: p::McpServerRef(discovery.server.0.clone()),
-                        tools: discovery
-                            .tools
-                            .iter()
-                            .map(|tool| p::ToolRef(tool.name.clone()))
-                            .collect(),
-                        resources: discovery
-                            .resources
-                            .iter()
-                            .map(|resource| p::ResourceRef(resource.uri.clone()))
-                            .collect(),
-                    }));
-                state
-                    .discoveries
-                    .insert(discovery.server.clone(), discovery.clone());
-                Ok(discovery)
-            }
-            Err(failure) => {
-                if let Ok(mut state) = self.lock_state() {
-                    state.discoveries.remove(&failure.server);
-                    state.tools.retain(|_, tool| tool.server != failure.server);
-                    let retained = state.tools.keys().cloned().collect::<BTreeSet<_>>();
-                    state
-                        .deferred_schemas
-                        .retain(|tool, _| retained.contains(tool));
-                    state.failures.push(failure.clone());
-                }
-                Err(failure)
-            }
-        }
     }
 
     pub fn refresh(&self, id: p::ProviderId) -> Result<McpDiscovery, McpFailure> {
@@ -308,6 +247,7 @@ impl StdioMcpRegistry {
     }
 
     pub fn search(&self, query: McpSearchQuery) -> p::Result<Vec<McpSearchHit>> {
+        let _access = self.catalog_access()?;
         if query.schema_version.0 == 0
             || query.text.trim().is_empty()
             || query.limit == 0
@@ -325,6 +265,7 @@ impl StdioMcpRegistry {
             .providers
             .into_iter()
             .map(|provider| provider.provider.provider_id)
+            .filter(|id| self.require_current_catalog(id).is_ok())
             .collect::<BTreeSet<_>>();
         let query_text = query.text.to_lowercase();
         let state = self.lock_state()?;
@@ -340,6 +281,15 @@ impl StdioMcpRegistry {
     }
 
     pub fn resolve_schema_detailed(&self, tool_ref: p::McpToolRef) -> Result<McpTool, McpFailure> {
+        let map_error = |error: p::Error| {
+            failure(
+                p::ProviderId("unknown".into()),
+                McpErrorClass::ServerError,
+                error.to_string(),
+            )
+        };
+        let _access = self.catalog_access().map_err(map_error)?;
+        self.require_current_tool(&tool_ref).map_err(map_error)?;
         let (mut tool, raw_schema) = {
             let state = self.lock_state().map_err(|error| {
                 failure(
@@ -427,6 +377,8 @@ impl StdioMcpRegistry {
         tool_ref: p::McpToolRef,
         arguments: serde_json::Value,
     ) -> p::Result<p::ActionIntent> {
+        let _access = self.catalog_access()?;
+        self.require_current_tool(&tool_ref)?;
         let (tool, sequence) = {
             let mut state = self.lock_state()?;
             let tool = state
@@ -469,8 +421,16 @@ impl StdioMcpRegistry {
             capability_ref: tool.capability_ref,
             action_type: p::ActionType::Execute,
             scope: grant.scope,
-            risk_hint: p::Risk::Low,
-            expected_effect: p::ExpectedEffect::Internal,
+            risk_hint: if matches!(self.catalog_mode, CatalogMode::Managed(_)) {
+                p::Risk::High
+            } else {
+                p::Risk::Low
+            },
+            expected_effect: if matches!(self.catalog_mode, CatalogMode::Managed(_)) {
+                p::ExpectedEffect::Outward
+            } else {
+                p::ExpectedEffect::Internal
+            },
             rollback_expectation: p::RollbackBoundary("none".into()),
             parameters: p::ActionParameters::Mcp {
                 server: p::McpServerRef(tool.server.0),
@@ -498,12 +458,20 @@ impl StdioMcpRegistry {
         capabilities: &InMemoryCapabilityRegistry,
         context: &p::ResolveContext,
     ) -> p::Result<()> {
+        let _access = self.catalog_access()?;
         for server in self.servers() {
             capabilities.remove_source(&server.source_ref())?;
         }
-        let active = p::ProviderRegistry::resolve(&self.providers, context);
+        let active = p::ProviderRegistry::resolve(&self.providers, context)
+            .providers
+            .into_iter()
+            .filter(|provider| {
+                self.require_current_catalog(&provider.provider.provider_id)
+                    .is_ok()
+            })
+            .collect::<Vec<_>>();
         let state = self.lock_state()?;
-        for provider in active.providers {
+        for provider in active {
             let Some(discovery) = state.discoveries.get(&provider.provider.provider_id) else {
                 continue;
             };
@@ -520,7 +488,11 @@ impl StdioMcpRegistry {
                         capability: Capability::McpTool(tool.tool_ref.clone()),
                         scope: provider.grant.scope.clone(),
                         permissions: provider.grant.capability.permissions.clone(),
-                        risk: Some(p::Risk::Low),
+                        risk: Some(if matches!(self.catalog_mode, CatalogMode::Managed(_)) {
+                            p::Risk::High
+                        } else {
+                            p::Risk::Low
+                        }),
                         enabled: true,
                     })
                     .collect(),
@@ -571,6 +543,7 @@ impl McpRegistry for StdioMcpRegistry {
 
 impl ExecutionCapabilityRechecker for StdioMcpRegistry {
     fn recheck(&self, intent: &p::ActionIntent, context: &PolicyContext) -> p::Result<()> {
+        let _access = self.catalog_access()?;
         let p::ActionParameters::Mcp {
             server,
             tool,
@@ -587,6 +560,7 @@ impl ExecutionCapabilityRechecker for StdioMcpRegistry {
                 Ok(())
             };
         };
+        self.require_current_catalog(&p::ProviderId(server.0.clone()))?;
         let tool_ref = p::McpToolRef(format!("{}/{}", server.0, tool.0));
         let (indexed, current_schema) = {
             let state = self.lock_state()?;
@@ -616,6 +590,7 @@ impl ExecutionCapabilityRechecker for StdioMcpRegistry {
             .grant
             .as_ref()
             .ok_or_else(|| p::Error("MCP server is disabled or no longer granted".into()))?;
+        self.require_managed_call(intent, &record.provider, &grant.scope)?;
         let now = system_timestamp();
         if !scope_contains(&grant.scope, &intent.scope)
             || !grant
