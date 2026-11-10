@@ -103,7 +103,11 @@ impl WorkerActionBackend {
             binding.connect()?,
             owner,
             binding.authority_epoch,
-            binding.sandbox_profile_ref.clone(),
+            if kind == BackendKind::Mcp {
+                p::MANAGED_MCP_PROGRAM_PROFILE.into()
+            } else {
+                binding.sandbox_profile_ref.clone()
+            },
             budget,
             timeout,
         )

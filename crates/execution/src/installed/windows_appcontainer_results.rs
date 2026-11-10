@@ -16,13 +16,13 @@ fn binding(job: &p::WorkerJob) -> p::Result<p::SchemaDigest> {
     p::canonical_digest(&("forme-native-result-handoff-v1", job))
 }
 
-pub(super) fn begin_handoff(run_dir: &Path, job: &p::WorkerJob) -> p::Result<()> {
+pub(in crate::installed) fn begin_handoff(run_dir: &Path, job: &p::WorkerJob) -> p::Result<()> {
     write_private_json(&run_dir.join(PENDING), &binding(job)?)
 }
 
 /// Startup and Drop may revoke capabilities and terminate the original tree,
 /// but must retain source bytes whose Host seal has not been acknowledged.
-pub(super) fn verify_cleanup_allowed(run_dir: &Path) -> p::Result<()> {
+pub(in crate::installed) fn verify_cleanup_allowed(run_dir: &Path) -> p::Result<()> {
     let pending = run_dir.join(PENDING);
     super::super::reject_linked_ancestors(&pending)?;
     let sealed = run_dir.join(SEALED);
@@ -50,6 +50,27 @@ pub(super) fn verify_cleanup_allowed(run_dir: &Path) -> p::Result<()> {
         }
         Err(_) => Err(p::Error("worker result handoff cannot be verified".into())),
     }
+}
+
+pub(in crate::installed) fn acknowledge_handoff(
+    run_dir: &Path,
+    job: &p::WorkerJob,
+) -> p::Result<()> {
+    let expected = serde_json::to_vec(&binding(job)?)
+        .map_err(|_| p::Error("worker result handoff cannot be encoded".into()))?;
+    if fs::read(run_dir.join(PENDING)).ok().as_ref() != Some(&expected) {
+        return Err(p::Error("worker result handoff binding changed".into()));
+    }
+    let sealed = run_dir.join(SEALED);
+    if sealed
+        .try_exists()
+        .map_err(|_| p::Error("result handoff is unavailable".into()))?
+    {
+        verify_cleanup_allowed(run_dir)?;
+    } else {
+        write_private_json(&sealed, &binding(job)?)?;
+    }
+    Ok(())
 }
 
 impl WindowsAppContainerWorkerIsolation {
@@ -143,20 +164,7 @@ impl WindowsAppContainerWorkerIsolation {
         if worker.native.terminal_state()? != (true, 0) {
             return Err(p::Error("worker result handoff is not terminal".into()));
         }
-        let expected = serde_json::to_vec(&binding(job)?)
-            .map_err(|_| p::Error("worker result handoff cannot be encoded".into()))?;
-        if fs::read(worker.run_dir.join(PENDING)).ok().as_ref() != Some(&expected) {
-            return Err(p::Error("worker result handoff binding changed".into()));
-        }
-        let sealed = worker.run_dir.join(SEALED);
-        if sealed
-            .try_exists()
-            .map_err(|_| p::Error("result handoff is unavailable".into()))?
-        {
-            verify_cleanup_allowed(&worker.run_dir)?;
-        } else {
-            write_private_json(&sealed, &binding(job)?)?;
-        }
+        acknowledge_handoff(&worker.run_dir, job)?;
         if let Err(error) = recovery::cleanup_lease(
             &self.journal,
             &worker.lease_id,

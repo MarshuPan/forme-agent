@@ -263,15 +263,17 @@ fn run_host(
         None
     };
     #[cfg(windows)]
-    if let Some(programs) = mcp_programs::load(
+    let installed_mcp = mcp_programs::load(
         &journal,
         &install_id,
         product_config.clone(),
         runtime.worker_config_path.as_deref(),
         &runtime.worker_protected_paths,
         managed_service_bound,
-    )? {
-        broker = broker.with_mcp_programs(programs)?;
+    )?;
+    #[cfg(windows)]
+    if let Some(programs) = &installed_mcp {
+        broker = broker.with_mcp_programs(programs.clone())?;
     }
     let desktop_authority = load_desktop_authority(
         &journal,
@@ -293,6 +295,8 @@ fn run_host(
         runtime.worker_config_path.as_deref(),
         runtime.development_workers,
         WorkerHostContext {
+            #[cfg(windows)]
+            managed_mcp: installed_mcp,
             managed_service_bound,
             desktop_authority,
             protected_paths: &runtime.worker_protected_paths,

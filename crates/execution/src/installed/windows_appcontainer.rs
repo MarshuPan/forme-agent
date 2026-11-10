@@ -15,15 +15,16 @@ use super::sandbox_lease::{SandboxLeaseBinding, SandboxLeaseJournal, SandboxTarg
 use super::windows_appcontainer_acl as acl;
 use super::windows_appcontainer_native as native;
 #[cfg(test)]
-use super::windows_appcontainer_support::{environment_block, WorkerEnvironment};
+use super::windows_appcontainer_support::environment_block;
+use super::windows_appcontainer_support::WorkerEnvironment;
 use super::windows_appcontainer_support::{job_object_name, profile_name_for, recovery_timestamp};
 use super::windows_workspace_overlay::PreparedOverlay;
 use super::{reject_linked_ancestors, WorkerIsolation};
 
 #[path = "windows_appcontainer_recovery.rs"]
-mod recovery;
+pub(super) mod recovery;
 #[path = "windows_appcontainer_results.rs"]
-mod results;
+pub(super) mod results;
 
 /// Windows AppContainer worker isolation with typed lifecycle and recovery.
 /// Win32 calls remain behind the audited native adapters.
@@ -244,12 +245,15 @@ impl WindowsAppContainerWorkerIsolation {
             resources.launch(native::LaunchRequest {
                 spec: &spec,
                 workspace: &workspace,
-                job_path: &job_path,
-                permit_path: &permit_path,
-                execution_path: execution.as_ref().map(|_| execution_path.as_path()),
-                file_target_path: file_target.as_ref().map(|_| file_target_path.as_path()),
-                workspace_scope: &job.workspace_scope.0,
-                deadline: job.deadline,
+                input: native::LaunchInput::Worker(WorkerEnvironment {
+                    workspace: &workspace,
+                    job_path: &job_path,
+                    permit_path: &permit_path,
+                    execution_path: execution.as_ref().map(|_| execution_path.as_path()),
+                    file_target_path: file_target.as_ref().map(|_| file_target_path.as_path()),
+                    workspace_scope: &job.workspace_scope.0,
+                    deadline: job.deadline,
+                }),
                 #[cfg(test)]
                 pty_mechanism_probe: false,
             })?;

@@ -3,6 +3,9 @@ use super::*;
 use crate::installed::ProductConfigStore;
 use std::sync::Arc;
 
+#[path = "admission.rs"]
+pub(crate) mod admission;
+
 pub struct InstalledManagedMcpPrograms {
     journal: PathBuf,
     installation: String,
@@ -56,10 +59,18 @@ impl InstalledManagedMcpPrograms {
     ) -> p::Result<T> {
         let mut config = self.configuration.lock().map_err(|_| invalid())?;
         let snapshot = config.snapshot()?;
+        let registry = self.registry_for(&snapshot)?;
+        action(&registry)
+    }
+
+    fn registry_for(
+        &self,
+        snapshot: &p::ProductConfigView,
+    ) -> p::Result<Arc<ManagedMcpProgramRegistry>> {
         if snapshot.install_ref != self.installation {
             return Err(invalid());
         }
-        let owner = snapshot.owner.ok_or_else(invalid)?;
+        let owner = snapshot.owner.as_ref().ok_or_else(invalid)?;
         let mut initialized = self.registry.lock().map_err(|_| invalid())?;
         if initialized.is_none() {
             *initialized = Some(Arc::new(ManagedMcpProgramRegistry::open(
@@ -73,7 +84,7 @@ impl InstalledManagedMcpPrograms {
             )?));
         }
         let registry = initialized.as_ref().ok_or_else(invalid)?;
-        registry.identity_matches(&self.installation, &owner, self.epoch)?;
-        action(registry)
+        registry.identity_matches(&self.installation, owner, self.epoch)?;
+        Ok(registry.clone())
     }
 }

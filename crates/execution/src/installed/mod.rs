@@ -33,6 +33,8 @@ mod mac_worker_sandbox;
 mod maintenance_pipe;
 #[cfg(windows)]
 mod managed_mcp_program;
+#[cfg(windows)]
+mod managed_mcp_stdio;
 mod managed_worker;
 #[cfg(windows)]
 pub use managed_mcp_program::{

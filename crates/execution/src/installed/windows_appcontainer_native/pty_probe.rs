@@ -454,12 +454,18 @@ fn experiment(tree: bool, allow_terminal: bool, io_case: Option<io_cases::Case>)
         worker.launch(LaunchRequest {
             spec: &spec,
             workspace: &workspace,
-            job_path: &input,
-            permit_path: &permit,
-            execution_path: None,
-            file_target_path: None,
-            workspace_scope: "workspace:pty-mechanism-test",
-            deadline: super::super::windows_appcontainer_support::recovery_timestamp() + 10_000,
+            input: super::LaunchInput::Worker(
+                super::super::windows_appcontainer_support::WorkerEnvironment {
+                    workspace: &workspace,
+                    job_path: &input,
+                    permit_path: &permit,
+                    execution_path: None,
+                    file_target_path: None,
+                    workspace_scope: "workspace:pty-mechanism-test",
+                    deadline: super::super::windows_appcontainer_support::recovery_timestamp()
+                        + 10_000,
+                },
+            ),
             pty_mechanism_probe: allow_terminal,
         })?;
         run_probe(

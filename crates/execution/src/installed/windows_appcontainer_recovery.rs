@@ -16,7 +16,7 @@ use super::super::windows_appcontainer_support::{
     job_object_name, recovery_timestamp, same_target,
 };
 
-pub(super) fn recover_pending(journal: &SandboxLeaseJournal) -> p::Result<()> {
+pub(in crate::installed) fn recover_pending(journal: &SandboxLeaseJournal) -> p::Result<()> {
     for lease in journal.pending_cleanup()? {
         let profile = acl::resolve_profile(&lease.binding.appcontainer_identity)?;
         if lease.process_tree_termination.is_none() {
@@ -46,7 +46,7 @@ pub(super) fn recover_pending(journal: &SandboxLeaseJournal) -> p::Result<()> {
     journal.verify_startup_recovery_complete()
 }
 
-pub(super) fn cleanup_lease(
+pub(in crate::installed) fn cleanup_lease(
     journal: &SandboxLeaseJournal,
     lease_id: &str,
     run_dir: &Path,

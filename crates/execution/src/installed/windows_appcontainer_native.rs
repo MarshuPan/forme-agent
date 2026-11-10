@@ -3,15 +3,15 @@
 
 use std::ffi::c_void;
 use std::mem::{size_of, size_of_val};
-use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
+use std::os::windows::io::{FromRawHandle, OwnedHandle, RawHandle};
 use std::ptr::{null, null_mut};
 use std::time::Duration;
 
 use forme_protocol as p;
 use windows_sys::Win32::Foundation::{
-    GetLastError, SetLastError, ERROR_ALREADY_EXISTS, ERROR_FILE_NOT_FOUND,
-    ERROR_INSUFFICIENT_BUFFER, HANDLE, INVALID_HANDLE_VALUE, LUID, WAIT_FAILED, WAIT_OBJECT_0,
-    WAIT_TIMEOUT,
+    DuplicateHandle, GetLastError, SetLastError, DUPLICATE_SAME_ACCESS, ERROR_ALREADY_EXISTS,
+    ERROR_FILE_NOT_FOUND, ERROR_INSUFFICIENT_BUFFER, HANDLE, INVALID_HANDLE_VALUE, LUID,
+    WAIT_FAILED, WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Security::{
     AdjustTokenPrivileges, EqualSid, GetSidIdentifierAuthority, GetSidSubAuthority,
@@ -31,20 +31,24 @@ use windows_sys::Win32::System::SystemServices::{
     JOB_OBJECT_QUERY, JOB_OBJECT_TERMINATE, SECURITY_MANDATORY_LOW_RID,
 };
 use windows_sys::Win32::System::Threading::{
-    CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
+    CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess, GetExitCodeProcess,
     InitializeProcThreadAttributeList, OpenProcessToken, ResumeThread, TerminateProcess,
     UpdateProcThreadAttribute, WaitForSingleObject, CREATE_SUSPENDED, CREATE_UNICODE_ENVIRONMENT,
     DETACHED_PROCESS, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
     PROCESS_INFORMATION, PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY,
-    PROC_THREAD_ATTRIBUTE_JOB_LIST, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, STARTUPINFOEXW,
+    PROC_THREAD_ATTRIBUTE_HANDLE_LIST, PROC_THREAD_ATTRIBUTE_JOB_LIST,
+    PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, STARTF_USESTDHANDLES, STARTUPINFOEXW,
 };
 
 use super::windows_appcontainer_acl::Profile;
 use super::windows_appcontainer_support::wide;
 
 mod runtime;
-use runtime::wait_for_job_empty;
-pub(crate) use runtime::{CancelState, LaunchRequest, NativeWorker, SetupResources};
+pub(crate) use runtime::stdio_handles;
+use runtime::{native_error, raw, wait_for_job_empty};
+pub(crate) use runtime::{
+    CancelState, LaunchInput, LaunchRequest, NativeCancellation, NativeWorker, SetupResources,
+};
 
 #[cfg(test)]
 mod probe_recovery_tests;
@@ -142,70 +146,88 @@ pub(super) fn terminate_process_if_active(process: HANDLE) -> p::Result<()> {
     wait_for_process(process)
 }
 
+// Own the aligned, initialized attribute list until CreateProcessW returns.
+struct Attributes(Vec<usize>);
+impl Attributes {
+    fn new(count: u32) -> p::Result<Self> {
+        let mut bytes = 0;
+        unsafe { InitializeProcThreadAttributeList(null_mut(), count, 0, &mut bytes) };
+        if bytes == 0 {
+            return Err(native_error("worker attribute size is unavailable"));
+        }
+        let mut storage = vec![0; bytes.div_ceil(size_of::<usize>())];
+        let raw = storage.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST;
+        if unsafe { InitializeProcThreadAttributeList(raw, count, 0, &mut bytes) } == 0 {
+            return Err(native_error("worker attributes could not be initialized"));
+        }
+        Ok(Self(storage))
+    }
+    fn raw(&mut self) -> LPPROC_THREAD_ATTRIBUTE_LIST {
+        self.0.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST
+    }
+    fn set<T>(&mut self, kind: u32, value: &T) -> p::Result<()> {
+        if unsafe {
+            UpdateProcThreadAttribute(
+                self.raw(),
+                0,
+                kind as usize,
+                value as *const T as *const c_void,
+                size_of_val(value),
+                null_mut(),
+                null(),
+            )
+        } == 0
+        {
+            return Err(native_error(
+                "worker process attribute could not be attached",
+            ));
+        }
+        Ok(())
+    }
+}
+impl Drop for Attributes {
+    fn drop(&mut self) {
+        unsafe { DeleteProcThreadAttributeList(self.raw()) };
+    }
+}
+
+fn duplicate_inheritable(handle: RawHandle) -> p::Result<OwnedHandle> {
+    let process = unsafe { GetCurrentProcess() };
+    let mut copied = null_mut();
+    if unsafe {
+        DuplicateHandle(
+            process,
+            handle,
+            process,
+            &mut copied,
+            0,
+            1,
+            DUPLICATE_SAME_ACCESS,
+        )
+    } == 0
+    {
+        return Err(native_error("worker stdio endpoint could not be inherited"));
+    }
+    owned_handle(copied, "worker stdio endpoint is invalid")
+}
+
 fn launch_suspended(
     request: &LaunchRequest<'_>,
     profile: &Profile,
     job: HANDLE,
 ) -> p::Result<(OwnedHandle, OwnedHandle)> {
     let mut buffers = runtime::LaunchBuffers::prepare(request)?;
-    let mut capabilities = SECURITY_CAPABILITIES {
+    let capabilities = SECURITY_CAPABILITIES {
         AppContainerSid: profile.raw_sid(),
         Capabilities: null_mut::<SID_AND_ATTRIBUTES>(),
         CapabilityCount: 0,
         Reserved: 0,
     };
-    let mut attribute_bytes = 0usize;
-    unsafe {
-        InitializeProcThreadAttributeList(null_mut(), 3, 0, &mut attribute_bytes);
-    }
-    if attribute_bytes == 0 {
-        return Err(native_error(
-            "AppContainer process attribute size is unavailable",
-        ));
-    }
-    let word_count = attribute_bytes.div_ceil(size_of::<usize>());
-    let mut attribute_storage = vec![0usize; word_count];
-    let attributes = attribute_storage.as_mut_ptr() as LPPROC_THREAD_ATTRIBUTE_LIST;
-    if unsafe { InitializeProcThreadAttributeList(attributes, 3, 0, &mut attribute_bytes) } == 0 {
-        return Err(native_error(
-            "AppContainer process attributes could not be initialized",
-        ));
-    }
-    let update = unsafe {
-        UpdateProcThreadAttribute(
-            attributes,
-            0,
-            PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES as usize,
-            &mut capabilities as *mut _ as *const c_void,
-            size_of::<SECURITY_CAPABILITIES>(),
-            null_mut(),
-            null(),
-        )
-    };
-    if update == 0 {
-        unsafe { DeleteProcThreadAttributeList(attributes) };
-        return Err(native_error(
-            "AppContainer security capabilities could not be attached",
-        ));
-    }
+    let stdio = request.stdio();
+    let mut attributes = Attributes::new(if stdio.is_some() { 4 } else { 3 })?;
+    attributes.set(PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, &capabilities)?;
     let job_list = [job];
-    let update = unsafe {
-        UpdateProcThreadAttribute(
-            attributes,
-            0,
-            PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
-            job_list.as_ptr() as *const c_void,
-            size_of_val(&job_list),
-            null_mut(),
-            null(),
-        )
-    };
-    if update == 0 {
-        unsafe { DeleteProcThreadAttributeList(attributes) };
-        return Err(native_error(
-            "worker could not be atomically assigned to its Job Object",
-        ));
-    }
+    attributes.set(PROC_THREAD_ATTRIBUTE_JOB_LIST, &job_list)?;
     // PROCESS_CREATION_CHILD_PROCESS_RESTRICTED. A file creator can choose its
     // own DACL, so an inheritable execute-deny ACE alone is not an execution
     // boundary for a writable copy. Block child creation in the OS instead.
@@ -216,26 +238,18 @@ fn launch_suspended(
     } else {
         child_policy
     };
-    if unsafe {
-        UpdateProcThreadAttribute(
-            attributes,
-            0,
-            PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY as usize,
-            &child_policy as *const _ as *const c_void,
-            size_of_val(&child_policy),
-            null_mut(),
-            null(),
-        )
-    } == 0
-    {
-        unsafe { DeleteProcThreadAttributeList(attributes) };
-        return Err(native_error(
-            "worker child-process restriction could not be applied",
-        ));
-    }
+    attributes.set(PROC_THREAD_ATTRIBUTE_CHILD_PROCESS_POLICY, &child_policy)?;
     let mut startup = STARTUPINFOEXW::default();
     startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
-    startup.lpAttributeList = attributes;
+    startup.lpAttributeList = attributes.raw();
+    let inherited = stdio.map(|pipes| [raw(&pipes.input), raw(&pipes.output), raw(&pipes.error)]);
+    if let Some(handles) = &inherited {
+        attributes.set(PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles)?;
+        startup.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+        startup.StartupInfo.hStdInput = handles[0];
+        startup.StartupInfo.hStdOutput = handles[1];
+        startup.StartupInfo.hStdError = handles[2];
+    }
     let mut info = PROCESS_INFORMATION::default();
     let created = unsafe {
         CreateProcessW(
@@ -243,7 +257,7 @@ fn launch_suspended(
             buffers.command.as_mut_ptr(),
             null(),
             null(),
-            0,
+            i32::from(stdio.is_some()),
             CREATE_SUSPENDED
                 | EXTENDED_STARTUPINFO_PRESENT
                 | CREATE_UNICODE_ENVIRONMENT
@@ -255,7 +269,6 @@ fn launch_suspended(
         )
     };
     let creation_error = unsafe { GetLastError() };
-    unsafe { DeleteProcThreadAttributeList(attributes) };
     if created == 0 {
         return Err(p::Error(format!(
             "AppContainer worker process could not be created suspended (Win32 {creation_error})"
@@ -504,14 +517,6 @@ fn owned_handle(handle: HANDLE, message: &'static str) -> p::Result<OwnedHandle>
     }
     // SAFETY: only a successful, uniquely owned Win32 handle reaches this point.
     Ok(unsafe { OwnedHandle::from_raw_handle(handle as RawHandle) })
-}
-
-fn raw(handle: &OwnedHandle) -> HANDLE {
-    handle.as_raw_handle() as HANDLE
-}
-
-fn native_error(message: &str) -> p::Error {
-    p::Error(message.into())
 }
 
 #[cfg(test)]

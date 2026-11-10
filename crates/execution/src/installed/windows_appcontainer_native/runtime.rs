@@ -1,7 +1,7 @@
 #![cfg(windows)]
 #![forbid(unsafe_code)]
 
-use std::os::windows::io::OwnedHandle;
+use std::os::windows::io::{AsRawHandle, OwnedHandle};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -11,10 +11,10 @@ use windows_sys::Win32::Foundation::HANDLE;
 use super::super::process::WorkerLaunchSpec;
 use super::super::windows_appcontainer_acl::{self as acl, Profile};
 use super::super::windows_appcontainer_support::{
-    environment_block, quote_windows_arg, wide, WorkerEnvironment,
+    environment_block, managed_mcp_environment, quote_windows_arg, wide, WorkerEnvironment,
 };
 use super::{
-    active_processes, create_job, exit_code, launch_suspended, process_exited, raw,
+    active_processes, create_job, exit_code, launch_suspended, process_exited,
     terminate_job_if_active, terminate_process_if_active, verify_worker_token, wait_for_process,
 };
 
@@ -41,19 +41,24 @@ impl LaunchBuffers {
             command.push(' ');
             command.push_str(&quote_windows_arg(arg));
         }
-        let environment = environment_block(
-            WorkerEnvironment {
-                job_path: request.job_path,
-                permit_path: request.permit_path,
-                workspace: request.workspace,
-                execution_path: request.execution_path,
-                file_target_path: request.file_target_path,
-                workspace_scope: request.workspace_scope,
-                deadline: request.deadline,
-            },
-            &super::system_windows_directory()?,
-            &acl::local_app_data()?,
-        )?;
+        let stdio = request.stdio().is_some();
+        if stdio != (request.spec.sandbox_profile_ref == p::MANAGED_MCP_PROGRAM_PROFILE) {
+            return Err(p::Error("worker stdio mode is not profile-bound".into()));
+        }
+        #[cfg(test)]
+        if stdio && request.pty_mechanism_probe {
+            return Err(p::Error("managed MCP cannot enable child processes".into()));
+        }
+        let environment = match request.input {
+            LaunchInput::Worker(input) => environment_block(
+                input,
+                &super::system_windows_directory()?,
+                &acl::local_app_data()?,
+            )?,
+            LaunchInput::ManagedMcp(_) => {
+                managed_mcp_environment(request.workspace, &super::system_windows_directory()?)?
+            }
+        };
         Ok(Self {
             application: wide(program),
             command: wide(&command),
@@ -73,14 +78,46 @@ pub(crate) struct SetupResources {
 pub(crate) struct LaunchRequest<'a> {
     pub(crate) spec: &'a WorkerLaunchSpec,
     pub(crate) workspace: &'a Path,
-    pub(crate) job_path: &'a Path,
-    pub(crate) permit_path: &'a Path,
-    pub(crate) execution_path: Option<&'a Path>,
-    pub(crate) file_target_path: Option<&'a Path>,
-    pub(crate) workspace_scope: &'a str,
-    pub(crate) deadline: p::Timestamp,
+    pub(crate) input: LaunchInput<'a>,
     #[cfg(test)]
     pub(crate) pty_mechanism_probe: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum LaunchInput<'a> {
+    Worker(WorkerEnvironment<'a>),
+    ManagedMcp(&'a NativeStdio),
+}
+impl LaunchRequest<'_> {
+    pub(super) fn stdio(&self) -> Option<&NativeStdio> {
+        match self.input {
+            LaunchInput::Worker(_) => None,
+            LaunchInput::ManagedMcp(pipes) => Some(pipes),
+        }
+    }
+}
+pub(crate) struct NativeStdio {
+    pub(super) input: OwnedHandle,
+    pub(super) output: OwnedHandle,
+    pub(super) error: OwnedHandle,
+}
+/// The parent-side pipe endpoints remain noninheritable.
+pub(crate) fn stdio_handles(
+    input: &std::io::PipeReader,
+    output: &std::io::PipeWriter,
+    error: &std::io::PipeWriter,
+) -> p::Result<NativeStdio> {
+    Ok(NativeStdio {
+        input: super::duplicate_inheritable(input.as_raw_handle())?,
+        output: super::duplicate_inheritable(output.as_raw_handle())?,
+        error: super::duplicate_inheritable(error.as_raw_handle())?,
+    })
+}
+pub(super) fn raw(handle: &OwnedHandle) -> HANDLE {
+    handle.as_raw_handle()
+}
+pub(super) fn native_error(message: &str) -> p::Error {
+    p::Error(message.into())
 }
 
 impl SetupResources {
@@ -209,6 +246,16 @@ pub(crate) struct NativeWorker {
 }
 
 impl NativeWorker {
+    #[cfg(test)]
+    pub(crate) fn verify_observed_process(&self, pid: u32) -> p::Result<()> {
+        let process = super::observe_process(pid, raw(&self.job), self.profile.raw_sid())?;
+        let (_, exited, _) = super::process_identity(&process)?;
+        if exited {
+            return Err(native_error("observed MCP process is already terminal"));
+        }
+        Ok(())
+    }
+
     pub(crate) fn profile(&self) -> &Profile {
         &self.profile
     }
@@ -240,8 +287,43 @@ impl NativeWorker {
         }
     }
 
+    /// Independent original-object handles let a deadline supervisor terminate
+    /// blocked I/O without acquiring configuration, worker or registry locks.
+    pub(crate) fn cancellation(&self) -> p::Result<NativeCancellation> {
+        Ok(NativeCancellation {
+            process: self
+                .process
+                .try_clone()
+                .map_err(|_| native_error("worker process could not be pinned for cancellation"))?,
+            job: self
+                .job
+                .try_clone()
+                .map_err(|_| native_error("worker Job could not be pinned for cancellation"))?,
+        })
+    }
+
     pub(crate) fn terminate_for_drop(&self) {
         let _ = self.cancel();
+    }
+}
+
+pub(crate) struct NativeCancellation {
+    process: OwnedHandle,
+    job: OwnedHandle,
+}
+impl NativeCancellation {
+    pub(crate) fn terminal_state(&self) -> p::Result<(bool, u32)> {
+        Ok((
+            process_exited(raw(&self.process))?,
+            active_processes(raw(&self.job))?,
+        ))
+    }
+    pub(crate) fn exit_code(&self) -> p::Result<u32> {
+        exit_code(raw(&self.process))
+    }
+    pub(crate) fn cancel(&self) -> p::Result<()> {
+        terminate_job_if_active(raw(&self.job))?;
+        wait_for_process(raw(&self.process))
     }
 }
 

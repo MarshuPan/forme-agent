@@ -9,7 +9,8 @@ use forme_protocol as p;
 
 use super::sandbox_lease::SandboxAclMutation;
 
-pub(super) struct WorkerEnvironment<'a> {
+#[derive(Clone, Copy)]
+pub(crate) struct WorkerEnvironment<'a> {
     pub job_path: &'a Path,
     pub permit_path: &'a Path,
     pub workspace: &'a Path,
@@ -166,4 +167,26 @@ pub(super) fn recovery_timestamp() -> p::Timestamp {
         .map(|duration| duration.as_millis().min(i64::MAX as u128) as i64)
         .unwrap_or_default()
         .max(1)
+}
+
+pub(super) fn managed_mcp_environment(workspace: &Path, system_root: &Path) -> p::Result<Vec<u16>> {
+    let root = path_string(system_root, "Windows system directory")?;
+    let work = path_string(workspace, "MCP working directory")?;
+    let values = BTreeMap::from([
+        ("LOCALAPPDATA", work.clone()),
+        ("SystemRoot", root.clone()),
+        ("TEMP", work.clone()),
+        ("TMP", work),
+        ("WINDIR", root),
+    ]);
+    let mut block = Vec::new();
+    for (key, value) in values {
+        if value.contains('\0') {
+            return Err(p::Error("MCP environment path is invalid".into()));
+        }
+        block.extend(std::ffi::OsStr::new(&format!("{key}={value}")).encode_wide());
+        block.push(0);
+    }
+    block.push(0);
+    Ok(block)
 }

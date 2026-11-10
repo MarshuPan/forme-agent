@@ -9,6 +9,8 @@ use std::{
 mod journal;
 mod journal_binding;
 mod managed;
+
+pub(crate) use managed::admission::DiscoveryAdmission;
 pub use managed::InstalledManagedMcpPrograms;
 mod sources;
 use journal::{Fact, Writer};
@@ -227,8 +229,8 @@ impl ManagedMcpProgramRegistry {
         })
     }
     /// Linearize each subsequent RPC egress with revocation. The callback may
-    /// only enqueue bounded I/O; it must not acquire configuration/worker locks
-    /// or wait for a server response while this registry exclusion is held.
+    /// perform deadline-supervised I/O; it must not acquire configuration/worker
+    /// locks or wait for a server response while this exclusion is held.
     pub fn with_active<T>(
         &self,
         lease: &ManagedMcpProgramLease,

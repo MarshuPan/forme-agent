@@ -529,3 +529,19 @@ fn restored_binding_survives_model_save_reopen_and_rejects_stale_ack() {
         serde_json::to_value(binding.execution_fence_digest).unwrap()
     );
 }
+
+// Explicit component fixture only. The public save gate continues to reject
+// enabled MCP until the metadata/owner ingress chain is implemented.
+#[cfg(windows)]
+pub(crate) fn stage_mcp_fixture(store: &mut ProductConfigStore, server: p::ProductMcpServerConfig) {
+    let mut state = store.state.clone();
+    state.schema_version = p::SchemaVersion(10);
+    let digest = p::canonical_digest(&server).unwrap();
+    state.managed_capabilities = Some(p::ProductManagedCapabilitySettings {
+        mcp_servers: vec![server],
+        ..Default::default()
+    });
+    store
+        .commit_state(format!("fixture:{}", &digest.0[7..]), digest, state)
+        .unwrap();
+}

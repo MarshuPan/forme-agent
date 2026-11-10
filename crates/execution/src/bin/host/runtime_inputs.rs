@@ -33,6 +33,8 @@ pub(super) fn reject_path(path: &Path) -> p::Result<()> {
 }
 
 pub(crate) struct WorkerHostContext<'a> {
+    #[cfg(windows)]
+    pub managed_mcp: Option<Arc<forme_execution::installed::InstalledManagedMcpPrograms>>,
     pub managed_service_bound: bool,
     pub desktop_authority: Option<Arc<forme_execution::installed::InstalledDesktopAuthority>>,
     pub protected_paths: &'a [PathBuf],
@@ -76,6 +78,9 @@ pub(crate) fn load_worker_host(
             };
             if let Some(authority) = context.desktop_authority {
                 host = host.with_installed_desktop_authority(authority);
+            }
+            if let Some(programs) = context.managed_mcp {
+                host = host.with_managed_mcp_programs(programs, config.runtime_root.join("mcp"))?;
             }
             return Ok(Arc::new(host));
         }

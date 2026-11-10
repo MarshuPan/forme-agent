@@ -36,6 +36,7 @@ impl WorkerIsolation for UnavailableWorkerIsolation {
 
 mod contract;
 mod desktop;
+mod mcp;
 mod output;
 pub use contract::IsolatedExecutorHost;
 
@@ -49,6 +50,8 @@ pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDes
     authority_epoch: p::AuthorityEpoch,
     allowed_scopes: BTreeSet<p::Scope>,
     isolation: I,
+    #[cfg(windows)]
+    managed_mcp: Option<super::managed_mcp_stdio::ManagedMcpIsolation>,
     desktop_helper: D,
     desktop_authority: Option<std::sync::Arc<super::DesktopAuthority>>,
     installed_desktop_authority: Option<std::sync::Arc<super::InstalledDesktopAuthority>>,
@@ -129,6 +132,8 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             authority_epoch,
             allowed_scopes,
             isolation,
+            #[cfg(windows)]
+            managed_mcp: None,
             desktop_helper,
             desktop_authority: None,
             installed_desktop_authority: None,
@@ -199,9 +204,9 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             p::WorkerState::Pending | p::WorkerState::Running
         ) {
             let job = self.journal.job(job_id)?;
-            if let Some(receipt) = self.isolation.observe(&job, now)? {
+            if let Some(receipt) = self.isolation_for(&job)?.observe(&job, now)? {
                 receipt.validate_for(&job)?;
-                let source = self.isolation.result_path(&job)?;
+                let source = self.isolation_for(&job)?.result_path(&job)?;
                 self.seal_result(WorkerResultSealRequest {
                     job: &job,
                     receipt_ref: Some(receipt.receipt_ref.clone()),
@@ -211,7 +216,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
                     evidence_refs: receipt.ground_truth_refs.clone(),
                     now,
                 })?;
-                self.isolation.result_sealed(&job, now)?;
+                self.isolation_for(&job)?.result_sealed(&job, now)?;
                 self.journal.record_receipt(receipt, now)?;
             }
         }
@@ -280,8 +285,9 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         action: &mut dyn FnMut(p::SchemaDigest) -> p::Result<()>,
     ) -> p::Result<()> {
         let _operation = self.operations.lock().map_err(|_| storage_error())?;
-        self.isolation
-            .with_quiescent_resources(&mut || action(self.journal.quiescent_digest()?))
+        self.isolation.with_quiescent_resources(&mut || {
+            self.with_mcp_quiescent(&mut || action(self.journal.quiescent_digest()?))
+        })
     }
     fn dispatch(
         &self,
@@ -301,6 +307,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         execution: Option<p::WorkerExecutionSpec>,
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation> {
+        let entered = std::time::Instant::now();
         self.verify(auth)?;
         self.validate_admission(&job, &permit, now)?;
         if let Some(spec) = &execution {
@@ -332,6 +339,12 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
             permit,
             execution,
         };
+        if request.execution.as_ref().is_some_and(|spec| {
+            matches!(spec.intent.parameters, p::ActionParameters::McpDiscovery(_))
+        }) || request.job.sandbox_profile_ref == p::MANAGED_MCP_PROGRAM_PROFILE
+        {
+            return self.dispatch_mcp(auth, request, now, entered);
+        }
         if desktop {
             if let Some(installed) = &self.installed_desktop_authority {
                 // Match maintenance's config -> worker -> authority lock order.
@@ -341,11 +354,11 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
                         .execution
                         .as_ref()
                         .ok_or_else(|| p::Error("desktop execution is missing".into()))?,
-                    || self.dispatch_authorized(auth, request.clone(), now, authority),
+                    || self.dispatch_authorized(auth, request.clone(), now, authority, None),
                 );
             }
         }
-        self.dispatch_authorized(auth, request, now, authority)
+        self.dispatch_authorized(auth, request, now, authority, None)
     }
 
     fn probe(
@@ -416,7 +429,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
             p::WorkerState::Pending | p::WorkerState::Running => {}
         }
         self.journal.request_cancel(job_id, now)?;
-        let receipt = match self.isolation.cancel_at(&job, now) {
+        let receipt = match self.isolation_for(&job)?.cancel_at(&job, now) {
             Ok(receipt) => receipt,
             Err(error) => {
                 let reason = p::canonical_digest(&("worker-cancel-unknown", job_id))?.0;
@@ -426,7 +439,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         };
         let finalized = (|| {
             receipt.validate_for(&job)?;
-            let source = self.isolation.result_path(&job)?;
+            let source = self.isolation_for(&job)?.result_path(&job)?;
             let result_digest =
                 p::canonical_digest(&("forme-worker-cancel-result-v1", &job, &receipt))?;
             self.seal_result(WorkerResultSealRequest {
@@ -438,7 +451,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
                 evidence_refs: Vec::new(),
                 now,
             })?;
-            self.isolation.result_sealed(&job, now)?;
+            self.isolation_for(&job)?.result_sealed(&job, now)?;
             self.journal.record_cancel_receipt(receipt.clone(), now)
         })();
         if let Err(error) = finalized {

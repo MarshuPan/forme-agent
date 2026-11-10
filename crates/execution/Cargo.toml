@@ -90,3 +90,9 @@ bench = false
 
 [dev-dependencies]
 rcgen = "=0.14.8"
+
+[[bin]]
+name = "forme-mcp-stdio-fixture"
+path = "tests/fixtures/mcp_stdio_fixture.rs"
+test = false
+bench = false

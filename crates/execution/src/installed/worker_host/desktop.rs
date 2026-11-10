@@ -8,6 +8,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         request: p::WorkerDispatchRequest,
         now: p::Timestamp,
         desktop_authority: Option<std::sync::Arc<super::super::DesktopAuthority>>,
+        admit_override: Option<&dyn Fn() -> p::Result<()>>,
     ) -> p::Result<p::WorkerObservation> {
         let p::WorkerDispatchRequest {
             job,
@@ -185,10 +186,16 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         // were attempted afterwards, a storage failure could leave a side
         // effect without a recoverable state boundary.
         let started = self.journal.start(&job.job_id, now)?;
-        if let Err(error) =
-            self.isolation
-                .admit_with_execution(&job, &permit, execution.as_ref(), now)
-        {
+        let effect = match admit_override {
+            Some(admit) => admit(),
+            None => self.isolation_for(&job)?.admit_with_execution(
+                &job,
+                &permit,
+                execution.as_ref(),
+                now,
+            ),
+        };
+        if let Err(error) = effect {
             let reason = p::canonical_digest(&("worker-admission-unknown", &job.job_id))?.0;
             self.journal.mark_unknown(&job.job_id, reason, now)?;
             return Err(error);
