@@ -41,3 +41,13 @@ Host 必须核对当前 server/program/settings、原已完成 discovery job、�
 会话测试验证实际出站方法/顺序、分页、重复/错序/错误帧、恶意 schema、累计 stdout/stderr 与最终结果预算、原 deadline、失败后零后续请求。原生组件使用自建 exe，经正式 AppContainer adapter 独立验证 token/Job、三个 pipe、环境、文件/密钥/网络/派生拒绝、阻塞读写、取消、树退出、ACL 恢复、结果封存及 Unknown 零重派。
 
 还需正式 Host/Core/Web 联调：owner 显式提出发现、原 Harness exact-plan 审批、禁用/撤销与实际写入竞争、原结果丢响应查询、真实重启零 rediscovery、删除和 schema 漂移拒绝。注册、解析或非安装身份的组件结果都不代替 IP01–IP24；插件、渠道、后续 profile、桌面和完整安装验收继续按原范围完成。
+
+## 6. Core 原件消费的实现分工
+
+本节细化已批准 §4 的结果保护与恢复，不改既有 ArtifactStore 截图接口、Worker wire 对象、脑 EventKind 或权限范围。
+
+- WorkerActionBackend 可绑定一个 Core 拥有的窄 discovery consumer，实现内接口只传原 WorkerDispatchRequest、WorkerObservation、WorkerResultManifest 与完整有界 bytes。发现缺 consumer 时在计划/派发前拒绝；consumer 不启动程序，也不发布 registry metadata。
+- consumer 先独立核对原请求、Completed 观察、manifest、正文与 catalog。保护材料用原 job/permit/manifest 派生的确定性地址，写入同一个 StoreContentProtection/lifecycle 服务；私有版本化 companion 绑定原请求/观察/manifest，另沿既有 material receipt 登记原文。正文、companion 和登记全部可重读后才能产生 ActionCompleted 的原件引用。
+- 同一原件的重复保存只补全中断的保护材料；不创建新作业、不改原内容。观察时刻可以在原号查询时前进，不能改变终态和原 receipt/binding。body、metadata 或 material receipt 冲突立即拒绝。pending/完成删除 fence 使保存和读取均拒绝，不复活已删除来源。
+- 完成事件仅返回有界摘要与受保护引用；目录正文仍为 UntrustedData。Core 的后续 registry 发布必须另外核对原 run 的 RunAccepted/SessionBound/ActionPlanned/Started/Completed 与当前配置/allowlist。单独存好材料不表示工具可用，不能提前放开 enabled 保护。
+- 核验覆盖同原件重放/重启、三处写入中断、owner/原件/摘要替换、原件删除与部分 key 清理、consumer 缺失/失败/伪造引用时无可信完成，以及 completion append 失败不追加矛盾终态。真实安装身份与完整 Web 联合证据继续独立取得。

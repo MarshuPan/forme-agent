@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 受管 MCP 普通调用及原生回归通过，Core 与入口继续接通
+
+`c0a0bde` 将普通 tools/call 绑定到 Host 独立核验的原 completed discovery、受保护 catalog、当前程序/配置和工具 schema。调用不重新发现；实际写入前重查，调用后取消/失联保留原 Unknown，原号重放不重复执行。最终整仓 199 targets、1,509 passed / 0 failed / 32 默认 ignored；九项门、原生 MCP 10/10、原结果 1/1 与 PTY 4/4（11 份回执）通过，1,067 项源码及日志/原件独立核验一致。
+
+详见[普通调用组件验收](installed-managed-mcp-call-20261110.md)。Core metadata/删除/恢复、owner/Harness 与 Web 发现入口继续实施；公开 enabled 保护保持，插件/渠道及完整安装验收未关闭。缓存阶段采样约 70.52 GiB，超过 64 GiB 报告阈值，后续空闲维护另留回执。以下保留各批历史状态。
+
 ## 2026-11-10 受管 MCP 原生发现与结果封存通过，普通调用继续接通
 
 `587d0ad` 使注册程序通过原 Worker journal 成为 Low AppContainer 根进程，补上明确 pipe/环境、实际写入前配置与注册重查、独立期限监督、树与 I/O 收束、Host AEAD 封存及清理顺序。新增 9 项常规与 4 项显式原生测试通过；原文件结果 1/1、PTY 4/4（11 个实验）同时通过。
