@@ -1,6 +1,6 @@
 # 受管 MCP 发现动作的冻结类型补充
 
-状态：待 owner 确认这一项具体类型增量。受管 MCP/插件/渠道、桌面授权及截图输出三项原方案已经批准，继续有效；本文件不重新申请那三项整体范围。确认前不修改下列冻结类型，也不启用受管 MCP。
+状态：2026-11-10 owner 明确回复“批准”，本项具体类型增量生效，按本文实施与验证。受管 MCP/插件/渠道、桌面授权及截图输出三项原方案的授权继续有效。本文件不是实现、部署或验收完成证明。
 
 ## 1. 已验证的缺口
 
@@ -8,7 +8,7 @@
 
 `WorkerExecutionSpec` 必须携带真实 ActionIntent，并按同一规范化摘要、affected_resources、job/permit/plan 校验。因此不能把发现伪装为一个并不存在的 MCP 工具、用 shell 参数编码 RPC，或在配置读取/启动期间直接创建进程。这里需要补充原方案中尚未明确的 ActionParameters 分支；不需要新增 crate、依赖边、BackendKind、EventKind 或 unsafe 边界。
 
-本文件提出的变化触及根 AGENTS.md 第 3 条冻结对象，因此作为独立差异提交确认；不是因 Windows UAC 或测试条件而扩张原授权。
+本文件涉及根 AGENTS.md 第 3 条冻结对象，已作为独立差异取得 owner 确认；Windows UAC 和原生验证状态仍独立记录。
 
 ## 2. 唯一动作增量
 
@@ -60,6 +60,6 @@
 - 保存原有效 metadata 后真实重启，使用绑定原件而无第二次发现；变更来源/allowlist、删除原件、替换摘要和重放旧批准均拒绝。metadata 文本不能授予权限或改 Host 程序。
 - 实施分协议、Host 注册/隔离执行、Core metadata 消费和 Web 入口联调；文档与代码分开提交，按现有整仓/永久门及原生 IP 要求取证。单个组件通过不代表受管 MCP 或三项方案整体完成。
 
-## 6. 本次需要确认的决定
+## 6. 已确认的实施边界
 
-是否允许上述唯一 additive 动作分支及其 closed spec/catalog，作为已批准受管 MCP 隔离发现的承载协议。确认不授权新的依赖边、事件、unsafe 文件、进程内 fallback、任意 shell、自动发现或新增操作系统权限；Windows 原生升级仍需完成既有系统 UAC 步骤。
+上述唯一 additive 动作分支及其 closed spec/catalog 已批准，作为受管 MCP 隔离发现的承载协议。同范围不再等待确认；批准不授权新的依赖边、事件、unsafe 文件、进程内 fallback、任意 shell、自动发现或新增操作系统权限；Windows 原生升级仍需完成既有系统 UAC 步骤。

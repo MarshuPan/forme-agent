@@ -120,3 +120,8 @@ pub trait McpRegistry {
 
 - capability registry / plugin manifest 是通用模式。**MCP 是公开协议**(Model Context Protocol):**协议兼容允许**,但须记 `source=MCP spec, license, copy_risk, implementation_rule(仅实现协议、不抄 SDK 源码), notice`(canonical §12)。
 - **不复制**第三方能力注册表/skill/plugin 的源码、manifest schema、prompt 或命名体系。
+
+
+## 安装版受管 MCP 发现增量（2026-11-10）
+
+owner 已批准[显式发现动作契约](../architecture/proposals/installed-managed-mcp-discovery-action.md)。`ActionParameters::McpDiscovery(ManagedMcpDiscoverySpec)` 单独表示受管 metadata discovery，复用原 BackendKind::Mcp、job/permit、审批与恢复；旧 Mcp 工具调用形状不变。Host 来源和当前设置绑定、有限 catalog、保护原件及重启恢复按该契约执行。安装版不使用 Brain 进程内 discovery，未配置或缺原生隔离时保持 unavailable；不新增依赖边、EventKind 或 unsafe 边界。开发 stdio 的既有协议保持，不能作为受管 fallback。

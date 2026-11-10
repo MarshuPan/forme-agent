@@ -333,3 +333,8 @@ Markdown/HTML、附件、产物预览按不可信内容渲染。严格 CSP、无
 ## 13. 已批准的截图原件输出
 
 原 Screenshot 的 v2 有界输出、Host AEAD/descriptor、core 幂等保护登记及认证工具产物目录按[截图结果实施契约](installed-desktop-output-contract.md)执行。旧桌面/worker/上传协议保持；未完成正式消费者和原生验证前不得报告截图可用或 IP 通过。
+
+
+## 14. 受管 MCP 的显式发现动作
+
+owner 已批准[显式发现动作契约](proposals/installed-managed-mcp-discovery-action.md)。`ActionParameters::McpDiscovery(ManagedMcpDiscoverySpec)` 单独表示受管 metadata discovery，复用原 BackendKind::Mcp、job/permit、审批与恢复；旧 Mcp 工具调用形状不变。Host 来源和当前设置绑定、有限 catalog、保护原件及重启恢复按该契约执行。安装版不使用 Brain 进程内 discovery，未配置或缺原生隔离时保持 unavailable；不新增依赖边、EventKind 或 unsafe 边界。开发 stdio 的既有协议保持，不能作为受管 fallback。
