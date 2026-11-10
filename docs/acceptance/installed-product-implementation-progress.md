@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 Core 当前来源组件通过，首次装配继续修复
+
+`ed2e20d` 已接通 Core 原事件链/保护原件与 Host 当前注册、配置及 admission 次序核对。十项组件门通过，整仓 200 targets、1,538 passed / 0 failed / 35 默认 ignored，原生 MCP 13/13；1,082 份源码及原件独立核验一致。完整 M5 的测试/合规通过，最后仓库审计回执比较因旧树不匹配退出 1，未记完整 M5 PASS。
+
+空闲压缩 72 个缓存 exe，内容摘要保持，回收 14.44 GiB，最终 55.96 GiB。详见[来源组件记录](installed-managed-mcp-source-20261110.md)。首次发现装配与 owner/Harness/Web 接线继续实施；生产能力门与显式发现的冲突有[独立窄范围补充](../architecture/proposals/installed-owner-directed-discovery-competence.md)待确认。原三项方案的批准有效，公开启用与完整 IP 状态未提前开放。以下保留历史状态。
+
 ## 2026-11-10 受管 registry 读取边界通过，最终缓存 55.84 GiB
 
 `c1010a1` 将正式 managed composition 与开发 stdio discovery 分开：受管来源缺失或失效时不可用，不创建本地进程；目录/schema/调用/索引/执行重查都会复核来源，禁用与读取有明确排他顺序。普通调用保留 opaque program_ref，并拒绝程序、参数、环境和作用域替换。Core 原事件链读取器尚未装配，来源明确为 None，公开 enabled 保护保持。

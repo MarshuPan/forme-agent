@@ -75,3 +75,13 @@ Host 在配置排他区间核对当前 owner/epoch、settings、scope、注册 l
 Core 用既有事件 kind 索引筛选带 McpDiscovered 的 run，再从当前 owner 的原事件读取发现：RunAccepted 的显式 OwnerControl、SessionBound 的 scope/composition、原 ActionPlanned/Started/Completed 与加密 companion 的 request/manifest 全部一致；审批请求/已批准解析必须先于原计划；控制事实保留 OwnerControl/System/VerifiedProcess，ActionCompleted 则必须沿 Harness 现有外部观察路径保持 Internal/System/Untrusted，不能因摘要合法而提升来源信任。完成后必须已有精确 allowlist 范围的 McpDiscovered，引用缺失、远端/矛盾终态拒绝。每条 run 用 stream_seq 和未变化的 run head 校验，不以 run ID 或时钟决定跨 run 的新旧。候选必须通过上述 Host 当前性核对；没有且仅有一个匹配的完整原件时保持 unavailable。
 
 筛选索引只提供候选，不决定真假或跨 run 排序，不扫描无发现事实的历史任务。原件读取上限为 20,000 个候选 run、100,000 条候选事件，超界明确不可用，不返回部分目录。读取结果仍受 lifecycle 删除 fence 与有界原件校验保护。读取器不追加 McpDiscovered、不恢复/执行动作；owner 完成发布和重启恢复在既有 Harness 路径中另外接通。受管 composition 可先绑定该读取器，公开 enabled 保护在 owner/Web 全链完成前继续保持。核验应覆盖真实 Host 原件/撤销/较新未知遮蔽、Core 原事件链替换/缺失/矛盾、删除与重启零发现；这些组件证据不提升 IP 状态。
+
+## 9. 首次发现前的装配准备
+
+已配置、启用、OwnerInput 信任且 grant/budget 有效的 server，可以在尚无目录时装配已有的受管 MCP executor；“executor 已装配”和“普通工具目录可用”独立判断。前者只提供原 Harness 计划/执行接缝，不生成 owner 请求或审批、不启动程序、不授予发现权限，也不把 server 标作工具就绪。
+
+managed 模式始终只读 Core 已核验原件；开发 discover_on_start=false 不能绕过读取直接把 server 设为 active。没有原件时保留已绑定的 provider 生命周期，允许今后 owner 完成发现后明确刷新原目录；普通 schema/call 仍拒绝。disabled、非 OwnerInput、缺 grant、budget 不符及不能解析的配置均不装配。native binding 缺失时即便已有目录，也不发布正式工具绑定。
+
+受管程序只保留 opaque program_ref；args、显式 env 和 inherit_env 在读取进程环境前即拒绝。受管 executor 使用严格输出预算；超过预算不得截断成目录。已验证目录中的普通 MCP formal binding 保持 High/Outward，与 Host 和 registry 的实际调用规则一致。
+
+本节只修复装配依赖循环，不调整现有 Policy、CompetenceGate、审批或恢复语义；owner 入口、pending 持久恢复、完成发布/动态 toolset 与 Web 接线仍必须另行完成，公开 enabled 保护保持。新发现路径遇到现有能力门无法到达 L5 的冲突，按独立治理补充记录处理，不能以本节默示放行。
