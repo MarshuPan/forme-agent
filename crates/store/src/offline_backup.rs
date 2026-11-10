@@ -362,7 +362,7 @@ fn copy_database(source: &Path, target: &Path) -> p::Result<()> {
     }
     let file = options.open(target).map_err(|_| invalid())?;
     immutable_source(source)?
-        .backup(rusqlite::MAIN_DB, target, None)
+        .backup(rusqlite::MAIN_DB, target, rusqlite::backup::NO_PROGRESS)
         .map_err(|_| invalid())?;
     file.sync_all().map_err(|_| invalid())
 }

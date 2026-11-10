@@ -102,7 +102,7 @@ impl BackupService {
             .core_connection()
             .map_err(|error| p::Error(error.to_string()))?;
         connection
-            .backup(rusqlite::MAIN_DB, target, None)
+            .backup(rusqlite::MAIN_DB, target, rusqlite::backup::NO_PROGRESS)
             .map_err(|error| p::Error(format!("SQLite online backup failed: {error}")))?;
         drop(connection);
 
@@ -292,7 +292,11 @@ pub(crate) fn replay_backup(
     let result = (|| {
         let source = read_only_connection(path)?;
         source
-            .backup(rusqlite::MAIN_DB, &replay_path, None)
+            .backup(
+                rusqlite::MAIN_DB,
+                &replay_path,
+                rusqlite::backup::NO_PROGRESS,
+            )
             .map_err(|error| p::Error(format!("SQLite replay copy failed: {error}")))?;
         drop(source);
 

@@ -48,7 +48,7 @@ impl BackupService {
         prepare_new_target(&target)?;
         let connection = read_only_connection(&source)?;
         connection
-            .backup(rusqlite::MAIN_DB, &target, None)
+            .backup(rusqlite::MAIN_DB, &target, rusqlite::backup::NO_PROGRESS)
             .map_err(|_| p::Error("restore copy failed; inspect the original operation".into()))?;
         drop(connection);
         let before = self.manifest_for(&target)?;
