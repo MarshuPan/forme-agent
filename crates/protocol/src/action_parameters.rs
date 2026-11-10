@@ -36,4 +36,5 @@ pub enum ActionParameters {
     Pty(PtyActionSpec),
     AppApi(AppApiActionSpec),
     Remote(Box<crate::RemoteActionSpec>),
+    McpDiscovery(ManagedMcpDiscoverySpec),
 }

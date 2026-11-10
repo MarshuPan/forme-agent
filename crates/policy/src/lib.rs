@@ -1,6 +1,7 @@
 //! Runtime policy, approval routing, and delegated-envelope enforcement (prd/04).
 #![forbid(unsafe_code)]
 
+mod managed_mcp;
 mod matchers;
 pub use matchers::{ActionMatcher, ArgMatcher};
 
@@ -398,6 +399,11 @@ fn execution_recheck(context: &PolicyContext, intent: &p::ActionIntent) -> Optio
                 .any(|root| path_within(root, path))
             {
                 return Some("file path is outside permitted roots");
+            }
+        }
+        (p::BackendKind::Mcp, p::ActionParameters::McpDiscovery(spec)) => {
+            if let Some(reason) = managed_mcp::recheck(context, intent, spec) {
+                return Some(reason);
             }
         }
         (p::BackendKind::Mcp, p::ActionParameters::Mcp { server, tool, .. }) => {

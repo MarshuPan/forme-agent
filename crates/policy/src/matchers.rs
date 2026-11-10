@@ -41,6 +41,13 @@ pub enum ArgMatcher {
     ShellProgram(String),
     ShellArgsPrefix(Vec<String>),
     FilePathPrefix(String),
+    /// An authenticated owner ingress inserts this request-specific Session
+    /// matcher with effect Ask. It cannot grant a discovery without approval.
+    McpDiscoveryTarget {
+        server: p::McpServerRef,
+        program_ref: String,
+        action_digest: p::SchemaDigest,
+    },
     McpTarget {
         server: p::McpServerRef,
         tool: p::ToolRef,
@@ -51,6 +58,19 @@ impl ArgMatcher {
     pub fn matches(&self, intent: &p::ActionIntent) -> bool {
         match (self, &intent.parameters) {
             (Self::Any, _) => true,
+            (
+                Self::McpDiscoveryTarget {
+                    server,
+                    program_ref,
+                    action_digest,
+                },
+                p::ActionParameters::McpDiscovery(spec),
+            ) => {
+                spec.server == *server
+                    && spec.program_ref == *program_ref
+                    && p::normalized_action_digest(intent)
+                        .is_ok_and(|digest| digest == *action_digest)
+            }
             (Self::ShellProgram(expected), p::ActionParameters::Shell { program, .. }) => {
                 expected == program
             }

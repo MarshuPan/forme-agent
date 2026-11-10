@@ -1835,7 +1835,7 @@ fn contains_secret(parameters: &ActionParameters) -> bool {
                     }
                 }
         }
-        ActionParameters::Mcp { .. } => false,
+        ActionParameters::Mcp { .. } | ActionParameters::McpDiscovery(_) => false,
         ActionParameters::Remote(spec) => contains_secret(&spec.placement.operation.parameters),
     }
 }

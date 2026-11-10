@@ -223,6 +223,7 @@ impl ActionBackend for McpBackend {
     }
 
     fn plan(&self, intent: &p::ActionIntent) -> p::Result<ExecutionPlan> {
+        reject_discovery(intent)?;
         plan_with(intent, self.budget.clone(), self.timeout)
     }
 
@@ -232,6 +233,7 @@ impl ActionBackend for McpBackend {
         sink: &EventSink,
         token: CancelToken,
     ) -> p::Result<ActionResult> {
+        reject_discovery(&plan.intent)?;
         validate_plan_for(&plan, p::BackendKind::Mcp)?;
         let output = BoundedOutput::new(plan.budget.clone());
         if token.is_cancelled() {
@@ -247,6 +249,15 @@ impl ActionBackend for McpBackend {
     fn cancel(&self, action: p::ActionId) -> p::Result<()> {
         self.active.cancel(&action)
     }
+}
+
+fn reject_discovery(intent: &p::ActionIntent) -> p::Result<()> {
+    if matches!(intent.parameters, p::ActionParameters::McpDiscovery(_)) {
+        return Err(p::Error(
+            "managed MCP discovery requires an isolated worker".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

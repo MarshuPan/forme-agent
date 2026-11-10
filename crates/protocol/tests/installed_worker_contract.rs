@@ -129,3 +129,20 @@ fn transport_delay_preserves_the_fixed_timeout_and_never_extends_the_deadline() 
     request.execution.as_mut().unwrap().timeout = p::DurationMs(5_001);
     assert!(request.validate_at(10_025).is_err());
 }
+
+#[test]
+fn legacy_worker_wire_digests_remain_exact() {
+    let req = request(10_000);
+    assert_eq!(
+        p::sha256_content_digest(&serde_json::to_vec(&req.job).unwrap()).0,
+        "sha256:888f5b0126e1d9f3580e807daf31a64f7229dfd157a193c324e6fca2cd288ed7"
+    );
+    assert_eq!(
+        p::sha256_content_digest(&serde_json::to_vec(&req.permit).unwrap()).0,
+        "sha256:255007e89edfdb4d840ca25f06269686e34dbc0401ff7407bfef3dbe29a87117"
+    );
+    assert_eq!(
+        p::sha256_content_digest(&serde_json::to_vec(&req.execution.as_ref().unwrap()).unwrap()).0,
+        "sha256:099a982cf81b54ba0324b9c207989cdd03ddb149697b970fde1e4c2772785c3d"
+    );
+}

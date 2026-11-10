@@ -4,6 +4,9 @@ use forme_models::ModelToolCall;
 use forme_protocol as p;
 use forme_store::EventStore;
 
+#[cfg(test)]
+mod discovery_tests;
+
 #[derive(Clone)]
 pub(crate) struct FormalToolBinding {
     pub capability: p::CapabilityRef,
@@ -113,7 +116,7 @@ impl ReactiveHarness {
             p::ActionParameters::Computer(_) => (p::BackendKind::Computer, p::ActionType::Execute),
             p::ActionParameters::Pty(_) => (p::BackendKind::Pty, p::ActionType::Execute),
             p::ActionParameters::AppApi(_) => (p::BackendKind::AppApi, p::ActionType::Execute),
-            p::ActionParameters::Remote(_) => return None,
+            p::ActionParameters::Remote(_) | p::ActionParameters::McpDiscovery(_) => return None,
         };
         if backend != binding.backend {
             return None;

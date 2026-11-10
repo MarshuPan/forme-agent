@@ -35,6 +35,10 @@ fn affected_resources_for_parameters(parameters: &ActionParameters) -> Vec<Resou
         ActionParameters::Mcp { server, tool, .. } => {
             vec![ResourceRef(format!("mcp:{}:{}", server.0, tool.0))]
         }
+        ActionParameters::McpDiscovery(spec) => vec![
+            ResourceRef(format!("mcp-discovery:{}", spec.server.0)),
+            ResourceRef(format!("program-registration:{}", spec.program_ref)),
+        ],
         ActionParameters::Notification {
             surface, target, ..
         } => vec![

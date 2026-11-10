@@ -49,6 +49,7 @@ pub struct ExecutionPlan {
 
 impl ExecutionPlan {
     pub fn validate_digest(&self) -> p::Result<()> {
+        validate_discovery_bounds(&self.intent, &self.budget, self.timeout)?;
         let normalized_action_digest = p::normalized_action_digest(&self.intent)?;
         if normalized_action_digest != self.normalized_action_digest {
             return Err(p::Error(
@@ -285,6 +286,7 @@ pub(crate) fn plan_with(
         ));
     }
     validate_backend_parameters(intent)?;
+    validate_discovery_bounds(intent, &budget, timeout)?;
     let rollback_boundary = rollback_boundary(intent);
     let mut plan = ExecutionPlan {
         schema_version: p::SchemaVersion(1),
@@ -318,12 +320,32 @@ pub(crate) fn validate_plan_for(plan: &ExecutionPlan, backend: BackendKind) -> p
     validate_backend_parameters(&plan.intent)
 }
 
+fn validate_discovery_bounds(
+    intent: &p::ActionIntent,
+    budget: &OutputBudget,
+    timeout: p::DurationMs,
+) -> p::Result<()> {
+    if let p::ActionParameters::McpDiscovery(spec) = &intent.parameters {
+        spec.validate_intent(intent)?;
+        if budget.truncate
+            || spec.output_budget_bytes > budget.max_bytes
+            || spec.timeout.0 > timeout.0
+        {
+            return Err(p::Error(
+                "discovery requires complete output within the execution bounds".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn validate_backend_parameters(intent: &p::ActionIntent) -> p::Result<()> {
     let matches = matches!(
         (&intent.backend_hint, &intent.parameters),
         (p::BackendKind::Shell, p::ActionParameters::Shell { .. })
             | (p::BackendKind::File, p::ActionParameters::File { .. })
             | (p::BackendKind::Mcp, p::ActionParameters::Mcp { .. })
+            | (p::BackendKind::Mcp, p::ActionParameters::McpDiscovery(_))
             | (
                 p::BackendKind::Notification,
                 p::ActionParameters::Notification { .. }

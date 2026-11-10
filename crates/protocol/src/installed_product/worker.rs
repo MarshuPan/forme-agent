@@ -258,6 +258,16 @@ impl WorkerExecutionSpec {
         if now >= job.deadline || now >= permit.deadline {
             return Err(Error("worker execution spec has expired".into()));
         }
+        if let crate::ActionParameters::McpDiscovery(spec) = &self.intent.parameters {
+            spec.validate_intent(&self.intent)?;
+            let remaining = job.deadline.min(permit.deadline).saturating_sub(now);
+            if spec.timeout.0 > self.timeout.0
+                || spec.timeout.0 > u64::try_from(remaining).unwrap_or(0)
+                || spec.output_budget_bytes > self.output_budget_bytes
+            {
+                return Err(Error("discovery exceeds the original worker bounds".into()));
+            }
+        }
         if let Some(binding) = &self.desktop_session {
             binding.validate_for(job, permit, now)?;
             if !matches!(self.backend, BackendKind::Computer | BackendKind::Pty) {
