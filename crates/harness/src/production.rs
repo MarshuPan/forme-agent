@@ -558,8 +558,8 @@ fn assemble_capabilities(
     } = builtin_execution::assemble(builtin_execution::Inputs {
         config,
         workspace,
-        protection,
-        store,
+        protection: protection.clone(),
+        store: store.clone(),
         backends: backends.clone(),
         contents: contents.clone(),
         managed_mode,
@@ -671,14 +671,14 @@ fn assemble_capabilities(
             },
         ));
     } else if managed_mode {
-        let ready = try_register_managed_worker_backend(
-            managed_mode,
+        let ready = managed_workers::register_mcp(
             worker_binding,
-            p::BackendKind::Mcp,
             config,
             &output_budget,
             timeout,
             &backends,
+            protection,
+            store,
         )?;
         if ready {
             for id in &active_mcp {

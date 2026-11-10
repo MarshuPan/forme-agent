@@ -87,3 +87,37 @@ pub(super) fn register_computer(
     backends.register(backend.clone())?;
     Ok(Some(backend))
 }
+
+/// The managed discovery path requires the same protected Core lifecycle as
+/// other retained tool material. No catalog is published by this consumer.
+pub(super) fn register_mcp(
+    binding: Option<&ManagedWorkerBinding>,
+    config: &ProductionRuntimeConfig,
+    budget: &OutputBudget,
+    timeout: p::DurationMs,
+    backends: &ExecutionBackendRegistry,
+    protection: forme_store::StoreContentProtection,
+    store: SqliteEventStore,
+) -> p::Result<bool> {
+    let Some(binding) = binding.filter(|binding| binding.supports(p::BackendKind::Mcp)) else {
+        return Ok(false);
+    };
+    let owner = p::VerifiedPrincipal(config.owner.0.clone());
+    let Ok(backend) = WorkerActionBackend::from_binding(
+        p::BackendKind::Mcp,
+        binding,
+        owner.clone(),
+        budget.clone(),
+        timeout,
+    ) else {
+        return Ok(false);
+    };
+    let consumer = Arc::new(ProtectedRuntimeArtifacts {
+        inner: FileArtifactStore::new(config.data.artifact_root.clone())?,
+        protection,
+        store,
+        owner,
+    });
+    backends.register(Arc::new(backend.with_discovery_consumer(consumer)))?;
+    Ok(true)
+}

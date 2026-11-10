@@ -43,6 +43,7 @@ pub use managed_mcp_program::{
     InstalledManagedMcpPrograms, ManagedMcpProgramLease, ManagedMcpProgramRegistry,
     ManagedMcpProgramSource,
 };
+mod managed_mcp_material;
 mod management_repair;
 mod paths;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -118,6 +119,7 @@ pub use journal::*;
 pub use linux_worker::*;
 #[cfg(target_os = "macos")]
 pub use mac_worker::*;
+pub use managed_mcp_material::*;
 pub use managed_worker::*;
 pub use management_repair::{ManagementReaderRepairEvidence, ManagementReaderRepairInspection};
 pub use paths::*;

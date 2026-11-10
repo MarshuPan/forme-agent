@@ -5,6 +5,7 @@ use forme_store::{ProtectedContentRecord, SqliteEventStore, StoreContentProtecti
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+mod mcp;
 #[cfg(test)]
 mod tests;
 #[path = "production_worker_artifacts.rs"]

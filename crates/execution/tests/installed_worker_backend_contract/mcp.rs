@@ -1,5 +1,6 @@
 //! Managed call facts remain brain events; discovery is not a tool call.
 use super::*;
+use forme_execution::ExecutionPlanner;
 use serde_json::json;
 
 fn mcp(
@@ -60,7 +61,16 @@ fn mcp(
             timeout: p::DurationMs(100),
         }
     };
-    let plan = worker.plan(&intent).unwrap();
+    let plan = if discovery {
+        forme_execution::DefaultExecutionPlanner::new(
+            OutputBudget::strict(8192),
+            p::DurationMs(1000),
+        )
+        .plan(&intent)
+        .unwrap()
+    } else {
+        worker.plan(&intent).unwrap()
+    };
     (worker, transport, plan)
 }
 
@@ -97,10 +107,12 @@ fn managed_mcp_call_emits_original_call_fact_for_success_and_unverifiable_result
 }
 
 #[test]
-fn managed_mcp_discovery_never_fabricates_a_tool_call_fact() {
-    let (worker, _, plan) = mcp(FailureMode::None, true);
+fn managed_mcp_discovery_without_protected_consumer_never_dispatches_or_fabricates_a_call() {
+    let (worker, transport, plan) = mcp(FailureMode::None, true);
     let sink = EventSink::default();
-    worker.execute(plan, &sink, CancelToken::default()).unwrap();
+    assert!(worker.plan(&plan.intent).is_err());
+    assert!(worker.execute(plan, &sink, CancelToken::default()).is_err());
+    assert_eq!(transport.snapshot().0, 0);
     assert!(!sink
         .events()
         .iter()

@@ -8,6 +8,13 @@ impl WorkerActionBackend {
         self
     }
     pub(super) fn require_output_consumer(&self, plan: &ExecutionPlan) -> p::Result<()> {
+        if matches!(plan.intent.parameters, p::ActionParameters::McpDiscovery(_))
+            && self.discovery_consumer.is_none()
+        {
+            return Err(p::Error(
+                "protected MCP discovery consumer is unavailable".into(),
+            ));
+        }
         if is_screenshot(plan)
             && !self
                 .artifacts

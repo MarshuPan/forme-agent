@@ -19,9 +19,10 @@ use crate::{
     ActionBackend, ActionResult, BackendKind, CancelToken, EventSink, ExecutionPlan, OutputBudget,
 };
 
-use super::{ManagedWorkerBinding, WorkerBrokerTransport};
+use super::{ManagedMcpDiscoveryConsumer, ManagedWorkerBinding, WorkerBrokerTransport};
 
 mod desktop;
+mod discovery;
 mod output;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
@@ -47,6 +48,7 @@ pub struct WorkerActionBackend {
     timeout: p::DurationMs,
     attempts: Mutex<BTreeMap<p::ActionId, WorkerAttempt>>,
     artifacts: Option<Arc<dyn crate::ArtifactStore>>,
+    discovery_consumer: Option<Arc<dyn ManagedMcpDiscoveryConsumer>>,
 }
 
 impl WorkerActionBackend {
@@ -84,6 +86,7 @@ impl WorkerActionBackend {
             timeout,
             attempts: Mutex::new(BTreeMap::new()),
             artifacts: None,
+            discovery_consumer: None,
         })
     }
 
@@ -208,6 +211,11 @@ impl WorkerActionBackend {
             Ok(bytes) => bytes,
             Err(_) => return unknown_result(plan, sink, &self.budget, &attempt.job.job_id),
         };
+        if matches!(plan.intent.parameters, p::ActionParameters::McpDiscovery(_))
+            && observation.outcome == Some(p::WorkerOutcome::Completed)
+        {
+            return self.complete_discovery(plan, attempt, observation, &manifest, &bytes, sink);
+        }
         let mut output = BoundedOutput::new(self.budget.clone());
         if output.push(&bytes, plan, sink).is_err() {
             return unknown_result(plan, sink, &self.budget, &attempt.job.job_id);
