@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 受管 MCP 原生发现与结果封存通过，普通调用继续接通
+
+`587d0ad` 使注册程序通过原 Worker journal 成为 Low AppContainer 根进程，补上明确 pipe/环境、实际写入前配置与注册重查、独立期限监督、树与 I/O 收束、Host AEAD 封存及清理顺序。新增 9 项常规与 4 项显式原生测试通过；原文件结果 1/1、PTY 4/4（11 个实验）同时通过。
+
+最终整仓 199 targets、1,503 passed / 0 failed / 26 默认 ignored；十阶段检查及 1,057 项源码、全部日志和原生原件独立核验通过。缓存在空闲窗口做摘要保持压缩，回收约 14.01 GiB，实际分配降至 55.87 GiB。详见[原生发现组件验收](installed-managed-mcp-stdio-discovery-20261110.md)。普通 tools/call、Core metadata/删除/恢复及 owner/Web 发现入口仍待接通，公开 enabled 保护继续拒绝。组件未部署，M5/D/Final/IP 未由本批提升；原三项方案及安装义务继续开放。
+
 ## 2026-11-10 受管 MCP 程序注册接通 Host，实际隔离执行继续实施
 
 `bcd2055` 接通版本化注册/撤销、固定预置来源、文件身份 custody、持久 journal/binding、Host 配置管理域与认证 Web API。新增 20 项场景逐名通过；最终 workspace 为 198 targets、1,494 passed / 0 failed / 22 默认 ignored，fmt/check、strict Clippy、产品构建、结构质量和完整合规全部通过，1,046 项源码与七份日志独立核验通过。原 C14 编排失败在单测、整编排目标和最终整仓未复现，根因未确定；新增诊断而未放宽断言，原失败证据保留。
