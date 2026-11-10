@@ -136,6 +136,9 @@ impl ReactiveHarness {
         if !matches_pending(&resume.pending, &input) {
             return Err(invalid_resolution());
         }
+        if matches!(&input, ResumeInput::ToolOutcome(_, _)) {
+            Self::require_manual_outcome_allowed(&record)?;
+        }
         if !matches!(&input, ResumeInput::Approval(_)) {
             let target = checkpoint_digest(&run, &input, &events)?;
             let replay_command = claim

@@ -24,6 +24,82 @@ impl ReactiveHarness {
         Ok(())
     }
 
+    pub(crate) fn require_manual_outcome_allowed(record: &RunRecord) -> p::Result<()> {
+        // Discovery success requires the original Host receipt and protected
+        // catalog. The public marker only denies here; it grants no authority.
+        if record.owner_discovery_bound
+            || (record.request.source == p::Source::OwnerControl
+                && record.request.input.0.starts_with("managed-mcp-discovery:"))
+        {
+            return Err(p::Error(
+                "managed discovery requires verification of the original worker job".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub(super) fn resume_unknown(
+        &self,
+        run: &p::RunId,
+        handle: &Arc<RunHandle>,
+        record: &mut RunRecord,
+        action: p::ActionId,
+        outcome: ResolvedOutcome,
+    ) -> p::Result<()> {
+        if record.recovered_unknown.as_ref() != Some(&action) {
+            return Err(p::Error("tool adjudication targets another action".into()));
+        }
+        Self::require_manual_outcome_allowed(record)?;
+        self.append(
+            run.clone(),
+            None,
+            internal_provenance(p::Source::Internal),
+            p::EventPayload::RunResumed(p::RunResumedPayload {
+                wait_reason: p::WaitReason("unknown_action_outcome".into()),
+                resume_ref: p::ResumeRef(format!("manual-outcome:{}", action.0)),
+            }),
+        )?;
+        let (payload, status, reason) = match outcome {
+            ResolvedOutcome::Completed(result_ref, _) => (
+                p::EventPayload::ActionCompleted(p::ActionCompletedPayload {
+                    intent_id: action,
+                    result_ref,
+                    receipt: None,
+                    remote_receipt: None,
+                }),
+                p::RunStatus::Complete,
+                StopReason::FinalOutput,
+            ),
+            ResolvedOutcome::Failed(failure_ref, _) => (
+                p::EventPayload::ActionFailed(p::ActionFailedPayload {
+                    intent_id: action,
+                    failure_ref,
+                    remote_lease: None,
+                }),
+                p::RunStatus::Failed,
+                StopReason::RetryExhausted,
+            ),
+            ResolvedOutcome::Cancelled(reason_ref) => (
+                p::EventPayload::ActionCancelled(p::ActionCancelledPayload {
+                    intent_id: action,
+                    reason: reason_ref,
+                }),
+                p::RunStatus::Aborted,
+                StopReason::UserCancel,
+            ),
+        };
+        self.append(
+            run.clone(),
+            None,
+            internal_provenance(p::Source::Internal),
+            payload,
+        )?;
+        record.loop_ctx.terminate(status, reason);
+        record.resume_state = None;
+        record.recovered_unknown = None;
+        self.finish_terminal(run, handle, record)
+    }
+
     pub fn recover_unknown_outcomes(&self) -> p::Result<Vec<p::RunId>> {
         let mut recovered = Vec::new();
         for run in self.store.run_ids()? {
@@ -207,7 +283,7 @@ impl ReactiveHarness {
         self.insert_recovered(run, Arc::new(RunHandle::new(record)))
     }
 
-    fn insert_recovered(&self, run: &p::RunId, handle: Arc<RunHandle>) -> p::Result<()> {
+    pub(crate) fn insert_recovered(&self, run: &p::RunId, handle: Arc<RunHandle>) -> p::Result<()> {
         self.runs
             .lock()
             .map_err(|_| p::Error("recovery registry is unavailable".into()))?
@@ -245,7 +321,7 @@ impl ReactiveHarness {
             && b.federation_snapshot.is_none()
     }
 
-    fn recovered_record(
+    pub(crate) fn recovered_record(
         &self,
         run: &p::RunId,
         events: &[p::Event],
@@ -328,6 +404,7 @@ impl ReactiveHarness {
             approval: InMemoryApprovalBroker::default(),
             mode: RunMode::Loop,
             direct_intent: None,
+            owner_discovery_bound: false,
             bound_envelope: None,
             effect_mode: bound.and_then(|b| b.effect_mode),
             evolution_snapshot: bound.and_then(|b| b.evolution_snapshot.clone()),

@@ -146,6 +146,13 @@ impl ReactiveHarness {
             ),
         };
         if let Err(error) = execution {
+            // Completion is an immutable fact. A later publication/verification
+            // error cannot turn it into a contradictory denied action.
+            if matches!(pending.intent.parameters, p::ActionParameters::McpDiscovery(_))
+                && self.store.read_run(run.clone()).collect::<p::Result<Vec<_>>>()?.iter().any(|event|
+                    matches!(&event.payload, p::EventPayload::ActionCompleted(value) if value.intent_id == pending.intent.intent_id)) {
+                return Err(error);
+            }
             if !record.loop_ctx.state.is_terminal() {
                 self.deny_action(
                     run,

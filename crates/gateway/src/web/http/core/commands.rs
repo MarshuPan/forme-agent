@@ -51,6 +51,27 @@ pub(super) fn bind_body(
             Err(WebError::invalid())
         };
     }
+    if path == "mcp/discovery" {
+        let request: crate::managed_discovery::DiscoveryRequest =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        request.validate().map_err(|_| WebError::invalid())?;
+        if Some(request.command.0.as_str()) != key {
+            return Err(WebError::invalid());
+        }
+        return serde_json::to_vec(&request).map_err(|_| WebError::invalid());
+    }
+    if matches!(
+        path.split('/').collect::<Vec<_>>().as_slice(),
+        ["mcp", "discovery", _, "publish"]
+    ) {
+        let request: crate::managed_discovery::PublicationRequest =
+            serde_json::from_slice(body).map_err(|_| WebError::invalid())?;
+        request.validate().map_err(|_| WebError::invalid())?;
+        if Some(request.command.0.as_str()) != key {
+            return Err(WebError::invalid());
+        }
+        return serde_json::to_vec(&request).map_err(|_| WebError::invalid());
+    }
     if path == "runs" {
         let request: p::RunRequest =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;

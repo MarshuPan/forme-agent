@@ -1,5 +1,6 @@
 mod maintenance_admission;
 mod managed_config;
+mod managed_discovery;
 mod release_admission;
 mod release_health;
 mod runtime;
@@ -226,6 +227,7 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .route("/v1/data/lifecycle", post(data_lifecycle))
         .merge(data_workbench::routes())
         .merge(project_controls::routes())
+        .merge(managed_discovery::routes())
         .route(
             "/v1/brain/projects",
             get(project_ledger).post(project_command),

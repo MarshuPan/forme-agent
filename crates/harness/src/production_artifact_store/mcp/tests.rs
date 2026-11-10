@@ -3,7 +3,7 @@ use crate::production_artifact_store::worker_fixture::{now, owner, Fixture};
 use forme_execution::{ActionBackend, ActionStatus, CancelToken, EventSink};
 use std::sync::{atomic::Ordering, Arc};
 #[path = "fixture.rs"]
-mod fixture;
+pub(crate) mod fixture;
 use fixture::*;
 
 #[test]

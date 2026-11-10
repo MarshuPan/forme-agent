@@ -67,7 +67,7 @@ impl ManagedMcpCatalogSource for ProtectedMcpCatalogSource {
                 let Ok(settings) = self.authority.verify_source(&material.manifest) else {
                     continue;
                 };
-                verify_run(run, *head, &events, &material, &settings, &catalog)?;
+                verify_run(run, *head, &events, &material, &settings, &catalog, true)?;
                 catalog
                     .spec
                     .validate_settings(&settings, &material.request.job.workspace_scope)?;
@@ -100,13 +100,14 @@ impl ManagedMcpCatalogSource for ProtectedMcpCatalogSource {
     }
 }
 
-fn verify_run(
+pub(super) fn verify_run(
     run: &p::RunId,
     head: u64,
     events: &[p::Event],
     original: &DiscoveryMaterial,
     settings: &p::ProductMcpServerConfig,
     catalog: &p::ManagedMcpDiscoveryCatalogV1,
+    require_published: bool,
 ) -> p::Result<()> {
     let job = &original.request.job;
     let execution = original.request.execution.as_ref().ok_or_else(invalid)?;
@@ -261,6 +262,9 @@ fn verify_run(
                 }
                 published = true;
             }
+            p::EventPayload::ActionDenied(v) if v.intent_id == job.action_ref => {
+                return Err(invalid())
+            }
             p::EventPayload::ActionFailed(v) if v.intent_id == job.action_ref => {
                 return Err(invalid())
             }
@@ -273,7 +277,7 @@ fn verify_run(
             _ => (),
         }
     }
-    if !completed || !published || last != head {
+    if !completed || (require_published && !published) || last != head {
         return Err(invalid());
     }
     Ok(())

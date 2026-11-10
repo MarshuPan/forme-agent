@@ -183,7 +183,11 @@ pub(crate) fn complete_external(
             remote_receipt: None,
         },
     ))?;
-    emit_evidence(&result, sink)?;
+    // Explicit metadata discovery is a configuration operation, not evidence
+    // that the Agent has learned to execute the discovered capabilities.
+    if !matches!(plan.intent.parameters, p::ActionParameters::McpDiscovery(_)) {
+        emit_evidence(&result, sink)?;
+    }
     Ok(result)
 }
 

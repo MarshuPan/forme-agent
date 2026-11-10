@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) struct ManagedCompositionInputs {
     pub(super) managed_mode: bool,
+    pub(super) managed_mcp: Vec<p::ProductMcpServerConfig>,
     pub(super) worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
     pub(super) desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     pub(super) worker_file_roots: BTreeMap<String, PathBuf>,
@@ -19,6 +20,7 @@ pub(super) fn compose(
 ) -> p::Result<ProductionRuntime> {
     let ManagedCompositionInputs {
         managed_mode,
+        managed_mcp,
         worker_binding,
         desktop_placement,
         worker_file_roots,
@@ -197,6 +199,12 @@ pub(super) fn compose(
     .with_authority_guard(guard.clone());
 
     harness.desktop_backend = capability_assembly.desktop_backend.clone();
+    if let Some(binding) = worker_binding.as_ref().filter(|b| {
+        b.supports(p::BackendKind::Mcp) && b.sandbox_profile_ref == p::MANAGED_MCP_PROGRAM_PROFILE
+    }) {
+        harness.owner_discovery =
+            crate::owner_discovery::DiscoveryRuntime::new(managed_mcp, binding).ok();
+    }
     harness.formal_tool_bindings = capability_assembly
         .bindings
         .values()
@@ -342,6 +350,7 @@ pub(super) fn compose(
             services.authority_guard.clone(),
             config.authority_lease,
         )?);
+    harness.recover_owner_discoveries()?;
     let harness = Arc::new(harness);
     // The production guard is also held by the harness, so the lease remains
     // alive for compatibility callers that unwrap the runtime into a harness.

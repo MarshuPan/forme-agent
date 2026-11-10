@@ -74,7 +74,7 @@ pub(crate) struct Fixture {
     pub store: SqliteEventStore,
     pub protection: StoreContentProtection,
     pub keys: Arc<FaultKeys>,
-    _guard: AuthorityLeaseGuard,
+    pub(crate) _guard: AuthorityLeaseGuard,
     pub root: Arc<Directory>,
 }
 impl Fixture {

@@ -58,6 +58,7 @@ impl ProductionRuntime {
                     approval: forme_approval::InMemoryApprovalBroker::default(),
                     mode: crate::RunMode::Loop,
                     direct_intent: None,
+                    owner_discovery_bound: false,
                     bound_envelope: None,
                     effect_mode: None,
                     evolution_snapshot: None,

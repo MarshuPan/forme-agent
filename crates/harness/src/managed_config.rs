@@ -10,6 +10,7 @@ use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 mod desktop;
+mod mcp;
 mod publishers;
 mod skills;
 mod worker;

@@ -74,6 +74,7 @@ impl ReactiveHarness {
             coordination: None,
             capability_rechecker: None,
             desktop_backend: None,
+            owner_discovery: None,
             skill_registry: None,
             skill_runtime_lock: Mutex::new(()),
             runs: Mutex::new(BTreeMap::new()),

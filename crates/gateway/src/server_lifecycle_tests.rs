@@ -20,6 +20,8 @@ mod installed_bootstrap;
 mod installed_release;
 #[path = "server_lifecycle_tests/installed_restore.rs"]
 mod installed_restore;
+#[path = "server_lifecycle_tests/managed_discovery.rs"]
+mod managed_discovery;
 #[path = "server_lifecycle_tests/web_workbench.rs"]
 mod web_workbench;
 

@@ -8,6 +8,7 @@ pub struct ProductionRuntimeBuilder {
     credential_files: Option<ManagedModelSources>,
     managed_key_directory: Option<PathBuf>,
     managed_mode: bool,
+    managed_mcp: Vec<p::ProductMcpServerConfig>,
     worker_binding: Option<ManagedWorkerBinding>,
     desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     worker_file_roots: BTreeMap<String, PathBuf>,
@@ -34,6 +35,7 @@ impl ProductionRuntimeBuilder {
             credential_files: None,
             managed_key_directory: None,
             managed_mode: false,
+            managed_mcp: Vec::new(),
             worker_binding: None,
             desktop_placement: None,
             worker_file_roots: BTreeMap::new(),
@@ -60,6 +62,11 @@ impl ProductionRuntimeBuilder {
             None => None,
         };
         let publisher_keyring = config.publisher_keyring()?;
+        let managed_mcp = config
+            .managed_capabilities
+            .as_ref()
+            .map(|v| v.mcp_servers.clone())
+            .unwrap_or_default();
         let worker_binding = config.worker_binding.clone();
         let desktop_placement = config.desktop_placement.clone();
         let worker_file_roots = config.worker_file_roots.clone();
@@ -80,6 +87,7 @@ impl ProductionRuntimeBuilder {
             }),
             managed_key_directory: Some(key_directory),
             managed_mode: true,
+            managed_mcp,
             worker_binding,
             desktop_placement,
             worker_file_roots,
@@ -156,6 +164,7 @@ impl ProductionRuntimeBuilder {
             access,
             composition::ManagedCompositionInputs {
                 managed_mode: self.managed_mode,
+                managed_mcp: self.managed_mcp,
                 worker_binding: self.worker_binding,
                 desktop_placement: self.desktop_placement,
                 worker_file_roots: self.worker_file_roots,

@@ -8,14 +8,14 @@ use std::sync::{
 };
 
 #[derive(Clone)]
-pub(super) struct Original {
+pub(crate) struct Original {
     pub request: p::WorkerDispatchRequest,
     pub observation: p::WorkerObservation,
     pub manifest: p::WorkerResultManifest,
     pub bytes: Vec<u8>,
 }
 #[derive(Default)]
-pub(super) struct Transport {
+pub(crate) struct Transport {
     original: Mutex<Option<Original>>,
     pub calls: AtomicUsize,
 }
@@ -128,7 +128,7 @@ impl WorkerBrokerTransport for Transport {
         })
     }
 }
-pub(super) fn intent() -> p::ActionIntent {
+pub(crate) fn intent() -> p::ActionIntent {
     let mut intent = crate::production_artifact_store::worker_fixture::intent();
     intent.backend_hint = p::BackendKind::Mcp;
     intent.source = p::Source::OwnerControl;
@@ -145,7 +145,7 @@ pub(super) fn intent() -> p::ActionIntent {
     });
     intent
 }
-pub(super) fn backend(
+pub(crate) fn backend(
     consumer: Arc<dyn ManagedMcpDiscoveryConsumer>,
 ) -> (WorkerActionBackend, Arc<Transport>) {
     let transport = Arc::new(Transport::default());
@@ -176,7 +176,7 @@ impl ManagedMcpDiscoveryConsumer for Capture {
         ))
     }
 }
-pub(super) fn original() -> Original {
+pub(crate) fn original() -> Original {
     let (worker, transport) = backend(Arc::new(Capture));
     let plan = worker.plan(&intent()).unwrap();
     assert_eq!(
@@ -188,7 +188,7 @@ pub(super) fn original() -> Original {
     );
     transport.original()
 }
-pub(super) fn save(f: &Fixture, original: &Original) -> p::Result<ArtifactRecord> {
+pub(crate) fn save(f: &Fixture, original: &Original) -> p::Result<ArtifactRecord> {
     f.sink.persist_discovery(
         &original.request,
         &original.observation,
@@ -196,6 +196,6 @@ pub(super) fn save(f: &Fixture, original: &Original) -> p::Result<ArtifactRecord
         &original.bytes,
     )
 }
-pub(super) fn id(original: &Original) -> p::ContentRef {
+pub(crate) fn id(original: &Original) -> p::ContentRef {
     content_ref(&managed_mcp_material_object(&original.request, &original.manifest).unwrap())
 }

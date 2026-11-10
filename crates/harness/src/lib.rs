@@ -46,8 +46,10 @@ use forme_store::{
 };
 
 mod action_admission;
+mod action_flow;
 mod action_policy;
 mod approval_flow;
+mod owner_discovery;
 use approval_flow::{approval_request, pending_approval};
 mod brain_charter;
 mod brain_evolution;
@@ -665,6 +667,7 @@ struct RunRecord {
     approval: InMemoryApprovalBroker,
     mode: RunMode,
     direct_intent: Option<p::ActionIntent>,
+    owner_discovery_bound: bool,
     bound_envelope: Option<p::AutonomyEnvelope>,
     effect_mode: Option<p::EffectMode>,
     evolution_snapshot: Option<p::EvolutionSnapshotRef>,
@@ -737,6 +740,7 @@ pub struct ReactiveHarness {
     coordination: Option<Arc<dyn coordination::CoordinationReasoner + Send + Sync>>,
     capability_rechecker: Option<Arc<dyn ExecutionCapabilityRechecker + Send + Sync>>,
     desktop_backend: Option<Arc<forme_execution::installed::WorkerActionBackend>>,
+    owner_discovery: Option<owner_discovery::DiscoveryRuntime>,
     skill_registry: Option<Arc<InMemorySkillRegistry>>,
     skill_runtime_lock: Mutex<()>,
     runs: Mutex<BTreeMap<p::RunId, Arc<RunHandle>>>,
@@ -1486,6 +1490,7 @@ impl ReactiveHarness {
             approval: InMemoryApprovalBroker::default(),
             mode: RunMode::Loop,
             direct_intent: None,
+            owner_discovery_bound: false,
             bound_envelope: None,
             effect_mode: None,
             evolution_snapshot: None,
@@ -2923,198 +2928,6 @@ impl ReactiveHarness {
         }
     }
 
-    fn handle_tool(
-        &self,
-        run: &p::RunId,
-        handle: &Arc<RunHandle>,
-        record: &mut RunRecord,
-        tool: forme_models::ModelToolCall,
-    ) -> p::Result<Flow> {
-        let turn = Some(current_turn(run, record.loop_ctx.turn_index));
-        let provenance = internal_provenance(record.request.source);
-        self.append(
-            run.clone(),
-            turn.clone(),
-            provenance.clone(),
-            p::EventPayload::ToolCallProposed(p::ToolCallProposedPayload {
-                call_id: tool.call_id.clone(),
-                tool: tool.tool.clone(),
-                args: tool.arguments.clone(),
-            }),
-        )?;
-        let Some(mut intent) = tool
-            .intent
-            .clone()
-            .or_else(|| self.resolve_formal_tool(run, &record.workspace, &tool))
-        else {
-            self.append(
-                run.clone(),
-                turn,
-                provenance,
-                p::EventPayload::ActionDenied(p::ActionDeniedPayload {
-                    intent_id: p::ActionId(tool.call_id.0),
-                    reason: p::ReasonRef(
-                        "tool proposal could not resolve to an action intent".into(),
-                    ),
-                }),
-            )?;
-            record
-                .loop_ctx
-                .terminate(p::RunStatus::Aborted, StopReason::HandoffNoTargetOrLoop);
-            self.finish_terminal(run, handle, record)?;
-            return Ok(Flow::Terminal);
-        };
-        intent.source = record.request.source;
-        record.competence_inputs =
-            self.refresh_competence(&intent.scope, Some(&intent.capability_ref))?;
-        let context = self.governance.policy_context(
-            record.loop_ctx.session.clone(),
-            self.config.toolset_ref.clone(),
-            &self.policy,
-            record.bound_envelope.as_ref(),
-        );
-        let mut evaluation = self.policy.evaluate_detailed(&context, &intent);
-        if let Err(error) = self
-            .check_project_action(run, &intent)
-            .and_then(|_| self.check_workspace_action(&record.workspace, &intent))
-        {
-            evaluation.decision = p::PolicyDecision::Deny;
-            evaluation.reason = p::ReasonRef(error.0);
-        }
-        if let Some(charter) = self.store.workspace_charter(
-            self.charter_workspace_override
-                .as_ref()
-                .unwrap_or(&record.workspace),
-        )? {
-            let rules = p::CharterRules::parse(&charter)?;
-            if let Err(error) = rules.check_action(&intent) {
-                evaluation.decision = p::PolicyDecision::Deny;
-                evaluation.reason = p::ReasonRef(error.0);
-            } else if rules.require_review && evaluation.decision == p::PolicyDecision::Allow {
-                evaluation.decision = p::PolicyDecision::Ask;
-                evaluation.reason = p::ReasonRef("workspace charter requires owner review".into());
-            }
-        }
-        if record.effect_mode == Some(p::EffectMode::CounterfactualDeny) {
-            self.append(run.clone(), turn, provenance, evaluation.event_payload())?;
-            record.loop_ctx.mark_policy(p::PolicyDecision::Deny);
-            if record.evolution_simulation.is_some() {
-                self.complete_evolution_simulation(run, handle, record, &intent)?;
-            } else {
-                self.deny_action(
-                    run,
-                    handle,
-                    record,
-                    &intent,
-                    p::ReasonRef("simulation_effect_denied".into()),
-                    StopReason::ApprovalDenied,
-                )?;
-            }
-            return Ok(Flow::Terminal);
-        }
-        let plan = if evaluation.decision == p::PolicyDecision::Deny {
-            None
-        } else {
-            Some(self.backends.backend(intent.backend_hint)?.plan(&intent)?)
-        };
-        evaluation = apply_policy_floors(
-            evaluation,
-            &intent,
-            plan.as_ref(),
-            &context,
-            &record.competence_inputs,
-            self.competence.as_ref(),
-        );
-        if intent.backend_hint == p::BackendKind::Computer
-            && self.desktop_backend.is_some()
-            && evaluation.decision == p::PolicyDecision::Allow
-        {
-            evaluation.decision = p::PolicyDecision::Ask;
-            evaluation.reason = p::ReasonRef(
-                "managed desktop action requires session consent and owner approval".into(),
-            );
-        }
-        let effective_decision = evaluation.decision;
-        self.append(
-            run.clone(),
-            turn.clone(),
-            provenance.clone(),
-            evaluation.event_payload(),
-        )?;
-        record.loop_ctx.mark_policy(effective_decision);
-        match effective_decision {
-            p::PolicyDecision::Deny => {
-                self.deny_action(
-                    run,
-                    handle,
-                    record,
-                    &intent,
-                    evaluation.reason,
-                    StopReason::ApprovalDenied,
-                )?;
-                Ok(Flow::Terminal)
-            }
-            p::PolicyDecision::Allow | p::PolicyDecision::Ask => {
-                let plan = plan.ok_or_else(|| {
-                    p::Error("allowed action is missing its immutable execution plan".into())
-                })?;
-                if effective_decision == p::PolicyDecision::Ask {
-                    let approval_id =
-                        p::ApprovalId(format!("approval:{}:{}", run.0, record.loop_ctx.turn_index));
-                    let request = approval_request(
-                        approval_id.clone(),
-                        &record.loop_ctx.session,
-                        &intent,
-                        &plan,
-                        &self.config,
-                    )?;
-                    if intent.backend_hint == p::BackendKind::Computer {
-                        if let Some(backend) = &self.desktop_backend {
-                            backend.register_desktop_pending(
-                                &plan,
-                                run.clone(),
-                                approval_id.clone(),
-                                self.config.policy_version,
-                                self.config.tool_schema_version,
-                                request.expires_at,
-                            )?;
-                        }
-                    }
-                    let ticket = record.approval.request(request)?;
-                    for payload in record.approval.take_events() {
-                        self.append(run.clone(), turn.clone(), provenance.clone(), payload)?;
-                    }
-                    let pending = PendingKind::ApprovalWait(approval_id);
-                    let waiting = self.append_waiting(run, record, "approval", &pending)?;
-                    record.loop_ctx.suspend(pending.clone());
-                    record.resume_state = Some(ResumeState {
-                        schema_version: p::SchemaVersion(1),
-                        run: run.clone(),
-                        at: LoopState::ApprovalWait,
-                        pending,
-                        snapshot_ref: waiting,
-                    });
-                    record.pending_action = Some(PendingAction {
-                        intent,
-                        plan,
-                        ticket,
-                    });
-                    handle.changed.notify_all();
-                    Ok(Flow::Suspended)
-                } else {
-                    self.execute_action(run, handle, record, intent, plan, None)?;
-                    Ok(if record.loop_ctx.state.is_terminal() {
-                        Flow::Terminal
-                    } else if record.loop_ctx.state.is_suspended() {
-                        Flow::Suspended
-                    } else {
-                        Flow::Continue
-                    })
-                }
-            }
-        }
-    }
-
     fn execute_action(
         &self,
         run: &p::RunId,
@@ -3255,6 +3068,9 @@ impl ReactiveHarness {
     ) -> p::Result<()> {
         match result.status {
             ActionStatus::Completed => {
+                if self.finish_owner_discovery(run, handle, record)? {
+                    return Ok(());
+                }
                 let verified = self.verify(run, record)?;
                 self.append(
                     run.clone(),
@@ -3340,6 +3156,9 @@ impl ReactiveHarness {
             .as_ref()
             .and_then(|binding| binding.model_scaffold.as_ref())
             .map_or(1, |plan| plan.scaffold.verification_passes);
+        let passes = self
+            .discovery_verification_passes(run, record)?
+            .unwrap_or(passes);
         for pass in 0..passes {
             if !self.verify_once(run, record, pass, passes)? {
                 return Ok(false);
@@ -3434,12 +3253,9 @@ impl ReactiveHarness {
         &self,
         intent: &p::ActionIntent,
         approved: bool,
-        runtime_envelope: Option<&p::AutonomyEnvelope>,
+        context: &PolicyContext,
     ) -> p::Result<()> {
-        let (Some(grant), Some(envelope)) = (
-            &self.governance.delegation,
-            runtime_envelope.or(self.governance.envelope.as_ref()),
-        ) else {
+        let (Some(grant), Some(envelope)) = (&context.delegation, &context.envelope) else {
             return Err(p::Error(
                 "action has no active delegation and autonomy envelope".into(),
             ));
@@ -3716,67 +3532,6 @@ impl ReactiveHarness {
         }
         handle.changed.notify_all();
         Ok(())
-    }
-
-    fn resume_unknown(
-        &self,
-        run: &p::RunId,
-        handle: &Arc<RunHandle>,
-        record: &mut RunRecord,
-        action: p::ActionId,
-        outcome: ResolvedOutcome,
-    ) -> p::Result<()> {
-        if record.recovered_unknown.as_ref() != Some(&action) {
-            return Err(p::Error("tool adjudication targets another action".into()));
-        }
-        self.append(
-            run.clone(),
-            None,
-            internal_provenance(p::Source::Internal),
-            p::EventPayload::RunResumed(p::RunResumedPayload {
-                wait_reason: p::WaitReason("unknown_action_outcome".into()),
-                resume_ref: p::ResumeRef(format!("manual-outcome:{}", action.0)),
-            }),
-        )?;
-        let (payload, status, reason) = match outcome {
-            ResolvedOutcome::Completed(result_ref, _) => (
-                p::EventPayload::ActionCompleted(p::ActionCompletedPayload {
-                    intent_id: action,
-                    result_ref,
-                    receipt: None,
-                    remote_receipt: None,
-                }),
-                p::RunStatus::Complete,
-                StopReason::FinalOutput,
-            ),
-            ResolvedOutcome::Failed(failure_ref, _) => (
-                p::EventPayload::ActionFailed(p::ActionFailedPayload {
-                    intent_id: action,
-                    failure_ref,
-                    remote_lease: None,
-                }),
-                p::RunStatus::Failed,
-                StopReason::RetryExhausted,
-            ),
-            ResolvedOutcome::Cancelled(reason_ref) => (
-                p::EventPayload::ActionCancelled(p::ActionCancelledPayload {
-                    intent_id: action,
-                    reason: reason_ref,
-                }),
-                p::RunStatus::Aborted,
-                StopReason::UserCancel,
-            ),
-        };
-        self.append(
-            run.clone(),
-            None,
-            internal_provenance(p::Source::Internal),
-            payload,
-        )?;
-        record.loop_ctx.terminate(status, reason);
-        record.resume_state = None;
-        record.recovered_unknown = None;
-        self.finish_terminal(run, handle, record)
     }
 }
 

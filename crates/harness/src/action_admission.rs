@@ -15,12 +15,9 @@ impl ReactiveHarness {
             self.refresh_competence(&intent.scope, Some(&intent.capability_ref))?;
         let turn = Some(current_turn(run, record.loop_ctx.turn_index));
         let provenance = internal_provenance(record.request.source);
-        let policy_context = self.governance.policy_context(
-            record.loop_ctx.session.clone(),
-            self.config.toolset_ref.clone(),
-            &self.policy,
-            record.bound_envelope.as_ref(),
-        );
+        let policy_context = self.action_policy_context(run, record, &intent)?;
+        let owner_discovery =
+            self.owner_discovery_admitted(run, record, &intent, &plan, approval.as_ref())?;
         let mut recheck = self.policy.evaluate_detailed(&policy_context, &intent);
         recheck = apply_policy_floors(
             recheck,
@@ -75,18 +72,22 @@ impl ReactiveHarness {
                 )
                 .map(|()| None);
         }
-        let capability_recheck = match &self.capability_rechecker {
-            Some(rechecker) => rechecker.recheck(&intent, &policy_context),
-            None if matches!(
-                intent.backend_hint,
-                p::BackendKind::Mcp | p::BackendKind::AppApi
-            ) =>
-            {
-                Err(p::Error(
-                    "external capability execution has no registry rechecker".into(),
-                ))
+        let capability_recheck = if owner_discovery {
+            Ok(())
+        } else {
+            match &self.capability_rechecker {
+                Some(rechecker) => rechecker.recheck(&intent, &policy_context),
+                None if matches!(
+                    intent.backend_hint,
+                    p::BackendKind::Mcp | p::BackendKind::AppApi
+                ) =>
+                {
+                    Err(p::Error(
+                        "external capability execution has no registry rechecker".into(),
+                    ))
+                }
+                None => Ok(()),
             }
-            None => Ok(()),
         };
         if let Err(error) = capability_recheck {
             self.append(
@@ -109,7 +110,7 @@ impl ReactiveHarness {
                 .terminate(p::RunStatus::Aborted, StopReason::RetryExhausted);
             return self.finish_terminal(run, handle, record).map(|()| None);
         }
-        self.enforce_envelope(&intent, approval.is_some(), record.bound_envelope.as_ref())?;
+        self.enforce_envelope(&intent, approval.is_some(), &policy_context)?;
         if requires_competence_gate(&intent) {
             let ceiling = self.competence.ceiling(
                 intent.scope.clone(),
@@ -127,7 +128,9 @@ impl ReactiveHarness {
                     reads: record.competence_inputs.protocol_reads(),
                 }),
             )?;
-            if ceiling < required_intervention_level(&intent, &plan.rollback_boundary) {
+            if !owner_discovery
+                && ceiling < required_intervention_level(&intent, &plan.rollback_boundary)
+            {
                 return self
                     .deny_action(
                         run,

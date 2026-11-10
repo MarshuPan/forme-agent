@@ -140,5 +140,7 @@ fn managed_config_rejects_unknown_fields_relative_paths_and_oversize_files() {
     assert!(CoreServiceConfig::load(&path).is_err());
 }
 
+#[path = "discovery_tests.rs"]
+mod discovery;
 #[path = "publisher_tests.rs"]
 mod publishers;

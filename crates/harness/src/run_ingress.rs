@@ -155,6 +155,7 @@ impl ReactiveHarness {
             approval: InMemoryApprovalBroker::default(),
             mode: RunMode::Loop,
             direct_intent: None,
+            owner_discovery_bound: false,
             bound_envelope: None,
             effect_mode: None,
             evolution_snapshot: None,
