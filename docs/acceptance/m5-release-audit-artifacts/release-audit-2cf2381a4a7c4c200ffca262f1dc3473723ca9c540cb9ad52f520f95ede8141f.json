@@ -7,7 +7,7 @@
         "blocking": false,
         "check_id": "release_tree",
         "findings": [],
-        "input_digest": "sha256:d861e8c7b296c65da86b846b6c55ed4531887fed3e1fbfcb9638393f502f5202",
+        "input_digest": "sha256:0a7a3751e42b14503188efe1db6b3b96f482fab354f258fcfea0b4f346862b31",
         "observations": [],
         "outcome": "pass",
         "tool": "git",
@@ -47,7 +47,7 @@
         "blocking": false,
         "check_id": "upstream_copy",
         "findings": [],
-        "input_digest": "sha256:58bf93ff29fe98488312894d3ff949133006d1cef77aca542ee524fac56b4c06",
+        "input_digest": "sha256:eb75291f15cb8ba79878f88f73f2d91a3a92a360c7a7c51f976aee6f94455567",
         "observations": [],
         "outcome": "pass",
         "tool": "compliance-doctor",
@@ -118,7 +118,7 @@
         "blocking": false,
         "check_id": "ecosystem_threat_profile",
         "findings": [],
-        "input_digest": "sha256:bd0f3ef7dad2b85a1f59ffe95b77192852e73e018fc1586b4203715c00721512",
+        "input_digest": "sha256:12608777aff36bb9de5e9a431becb3a76fad3ce38e78ff9381d0d66b5fe264aa",
         "observations": [
           {
             "code": "ECOSYSTEM_THREAT_FIXTURE_PASSED",
@@ -162,10 +162,10 @@
       }
     ],
     "outcome": "pass",
-    "root_digest": "sha256:fa93c27ae4599225edf24655f3edaafddf94d3c4e3cca515c9b6ebe267219d7a",
+    "root_digest": "sha256:0dc1b184d2e224f3698c24370a7c30b8228d00790fe12529320a5f7570ce77a8",
     "schema_version": 1,
     "tool_version": "forme-release-audit/5"
   },
-  "digest": "sha256:694a2f92ebad40bec17d263b1347f4296b3e8ada2c8ef1dded448b5c79692837",
+  "digest": "sha256:2cf2381a4a7c4c200ffca262f1dc3473723ca9c540cb9ad52f520f95ede8141f",
   "schema_version": 1
 }
