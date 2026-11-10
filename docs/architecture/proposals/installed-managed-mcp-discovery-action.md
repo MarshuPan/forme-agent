@@ -4,7 +4,7 @@
 
 ## 1. 已验证的缺口
 
-已批准的[受管接入方案](installed-managed-consumers-closure.md)要求 metadata discovery 与调用均通过隔离 worker，禁止 Brain 进程内 fallback。源码 `protocol/src/primitives.rs::ActionParameters::Mcp` 的字段是 server、tool、arguments、schema_digest、transport、stdio、timeout，描述一次具体工具调用。`capabilities/src/mcp.rs::discover_detailed` 当前直接进入本地 stdio 发现，不能装进受管 Brain。
+已批准的[受管接入方案](installed-managed-consumers-closure.md)要求 metadata discovery 与调用均通过隔离 worker，禁止 Brain 进程内 fallback。审计时的 `protocol/src/primitives.rs::ActionParameters::Mcp`（现已兼容迁移至 `protocol/src/action_parameters.rs`） 的字段是 server、tool、arguments、schema_digest、transport、stdio、timeout，描述一次具体工具调用。`capabilities/src/mcp.rs::discover_detailed` 当前直接进入本地 stdio 发现，不能装进受管 Brain。
 
 `WorkerExecutionSpec` 必须携带真实 ActionIntent，并按同一规范化摘要、affected_resources、job/permit/plan 校验。因此不能把发现伪装为一个并不存在的 MCP 工具、用 shell 参数编码 RPC，或在配置读取/启动期间直接创建进程。这里需要补充原方案中尚未明确的 ActionParameters 分支；不需要新增 crate、依赖边、BackendKind、EventKind 或 unsafe 边界。
 
@@ -63,3 +63,7 @@
 ## 6. 已确认的实施边界
 
 上述唯一 additive 动作分支及其 closed spec/catalog 已批准，作为受管 MCP 隔离发现的承载协议。同范围不再等待确认；批准不授权新的依赖边、事件、unsafe 文件、进程内 fallback、任意 shell、自动发现或新增操作系统权限；Windows 原生升级仍需完成既有系统 UAC 步骤。
+
+## 7. 基础层实施状态（2026-11-10）
+
+`2b4124c` / `a31ffbf` 已完成动作类型、catalog 校验、规范化资源/摘要、独立策略和普通/Remote/模型路径拒绝。SQLite 发布阻塞修复后的当前组件验证及 D RuntimeOnly 记录见[基础层验收](../../acceptance/installed-managed-mcp-discovery-foundation-20261110.md)。Host 程序注册、实际受管执行、Core metadata 消费和 Web 发现入口仍待接通；本提案和原三项方案均已批准，不重复等待确认，也不把基础层通过计为安装版 MCP 完成。

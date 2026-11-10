@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 受管 MCP 发现协议基础层通过，实际执行链仍待接通
+
+发现动作的独立批准已由 `2acc6cf` 激活，原三项方案的实施授权继续有效。`2b4124c` 保持兼容地拆分动作参数与策略匹配；`a31ffbf` 实现发现 spec/catalog、完整配置摘要、独立 owner Session Ask 规则、预算/期限和普通执行路径拒绝。Host 程序注册、实际隔离 discovery/call、metadata 消费与认证 Web 发现入口仍未完成，没有提前开放 MCP 启用。
+
+完整 M5 首次运行在 S99 发现两个依赖漏写 NOTICE 和可达的 SQLite 安全公告。`53322c2` 先记录修复范围与声明，`482b5d3` 升级 SQLite 依赖并适配四处备份调用；修复后 197 targets、1,474 passed / 0 failed / 22 ignored，七项检查及 1,030 项源码/七份日志独立核验通过。干净源码 D RuntimeOnly 73/73 及独立核验通过；完整 M5 最终结果由 [M5 记录](m5-acceptance-report.md) 单独记载，不以运行场景替代 Final/IP。
+
+固定 target 的大型程序缓存完成字节保持的可逆压缩，释放约 20.16 GiB，该阶段实际分配量由约 77.11 GiB 降至 56.95 GiB，未删除缓存或候选。精确原件、失败记录、版本、摘要、空间采样和剩余链路见[基础层验收](installed-managed-mcp-discovery-foundation-20261110.md)。本轮未部署，未重建或覆盖原桌面签名候选。
+
 ## 2026-11-10 桌面区域与升级/恢复配置修复通过
 
 `8635b65` 修复安装 surface 到唯一原生显示器的精确区域映射；`71cc476` 修复升级/恢复将桌面 schema 11 降成 10 的配置失效。最终整仓 1,456 passed / 0 failed / 22 默认 ignored，七项源码门及独立原件核验通过；干净提交 D RuntimeOnly 73/73 通过。签名开发候选已验证；一次 UAC 启动未获确认，随后只读核对仍为旧版 Ready，本次 stage/upgrade 未出现在正式维护投影中。尚未部署。详见[修复与候选记录](installed-desktop-surface-and-lifecycle-20261110.md)。
