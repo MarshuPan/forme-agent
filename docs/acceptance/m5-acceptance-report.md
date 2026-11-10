@@ -305,3 +305,18 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 本节属于审计器既有的自指排除项，只补验收事实，不更改排除集或源码审计根；记录后仅执行本次文档提交所需的完整合规，不为纯记录重复整套门。当前仍为 18 crates、99 EventKinds；脚本终线中的 97 是历史 M5 分类口径，不回退 V1 additive 事件。
 
 这证明该源码的 M5 工程门通过，不表示 Host 受管程序注册、实际隔离 discovery/call、Core metadata 消费、Web 发现入口或三项方案整体完成，也不替代完整 D/Final 或 IP01–IP24。没有部署、推送、UAC 或服务修改。旧桌面候选仍含 libsqlite3-sys 0.38.1，不能继承本次修复后回执；后续原生升级须生成独立新候选。
+
+
+## 22. 原生受管 MCP 发现后的完整 M5 与 D 运行时回归（2026-11-10）
+
+干净 `shu/product-integration@64114f65810d469f89404d1ac112d50266c95ef2` 的完整 `tools/verify-m5.ps1` 于 2026-11-10 07:48:29 UTC 记录 exit 0，唯一 `M5 FINAL ACCEPTANCE: PASS` 终线成立。S1–S99、M4/M5 多进程 golden、fmt/check、strict Clippy、完整 workspace/Python、完整合规、当前发布审计及仓库回执 compare 均通过；没有跳过共享检查。
+
+本次唯一 workspace 段为 **199 targets、1503 passed / 0 failed / 26 默认 ignored**；Python 为 **94 passed / 1 skipped**。原日志 `target/product-integration-evidence/managed-mcp-stdio-m5.log` 的 SHA-256 为 `2582a234b7a5922f3677e1ad77fd049ba7d28a5baa880a8087a801d80e43b723`；调用回执与独立核验分别为同目录 `managed-mcp-stdio-m5-result.json`、`managed-mcp-stdio-m5-independent.json`。独立核验确认 source HEAD/clean、日志摘要、完整段计数、唯一终线与仓库回执 compare。当前发布审计摘要为 `sha256:694a2f92ebad40bec17d263b1347f4296b3e8ada2c8ef1dded448b5c79692837`，生成和规范回执一致。
+
+同一干净提交的 `tools/verify-core-brain-closure.ps1 -Wave D -RuntimeOnly` 于 07:51:53 UTC 记录 exit 0，**73 个场景**的运行时回执独立核验 PASS。原日志 `managed-mcp-stdio-clean-d.log` SHA-256 为 `413c9301e35c14afc3275323ea54830b4f39eb4ea61aa2f3b373987b47da60f6`；`managed-mcp-stdio-clean-d/runtime.json` SHA-256 为 `164e84d86db81d6cb20cb86f539e53e2ac9f7645d2086a60e750f7b54089bfdd`。独立核验使用 Windows inventory；该结果只证明 D RuntimeOnly，完整 D/Final 与安装 IP 继续开放。
+
+原生 discovery 组件与此前失败原件见[独立组件记录](installed-managed-mcp-stdio-discovery-20261110.md)。其中显式原生 MCP 4/4、原文件结果 1/1 和原 PTY 4/4（11 份原生实验回执）不重复加入上述默认 workspace 总数。此次 M5/D 未重新派发这些已完成的组件试验。
+
+结束时资源报告 `managed-mcp-stdio-m5-build-resources.json` 的 SHA-256 为 `7888be91d910eb6d4ceab871a80e9422b181dd3c480a6a361a0891c645b6f3c6`；缓存逻辑长度 99,144,978,380 bytes，硬链接去重实际分配 **64,316,608,903 bytes（约 59.90 GiB）**，低于 64 GiB 预算，errors 和 over_budget 均为空。此前空闲窗口对 72 个 exe 做摘要保持的可逆 NTFS 压缩，实际回收 15,046,605,875 bytes；方案、逐项证据与前后报告保留在同目录 `managed-mcp-stdio-cache-*`。M5/D 新产生的缓存计入当前终态，没有逐测试清理或删除原始证据。
+
+本节属于原审计器既有自指排除项，只记录实际结果；记录后运行文档提交所需完整合规，不因纯记录重复整套门。当前仍为 18 crates、99 EventKinds、5 个已审计 unsafe 文件。普通受管 MCP 调用、Core metadata/owner/Harness/Web 接线、插件和渠道的剩余接入，以及安装版桌面、升级和 IP01–IP24 继续按原范围推进；本轮没有部署、推送、UAC 或系统服务修改。
