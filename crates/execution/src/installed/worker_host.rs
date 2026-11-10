@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use forme_protocol as p;
 
@@ -45,7 +45,7 @@ pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDes
     // critical section. Journal locking alone cannot prevent probe/cancel
     // from observing the gap between Started and process creation.
     pub(super) operations: Mutex<()>,
-    pub(super) journal: WorkerJournal,
+    pub(super) journal: Arc<WorkerJournal>,
     agent_credential_digest: p::SchemaDigest,
     authority_epoch: p::AuthorityEpoch,
     allowed_scopes: BTreeSet<p::Scope>,
@@ -55,7 +55,7 @@ pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDes
     desktop_helper: D,
     desktop_authority: Option<std::sync::Arc<super::DesktopAuthority>>,
     installed_desktop_authority: Option<std::sync::Arc<super::InstalledDesktopAuthority>>,
-    pub(super) result_store: WorkerResultStore,
+    pub(super) result_store: Arc<WorkerResultStore>,
     pub(super) installation_ref: String,
 }
 
@@ -127,7 +127,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         let result_root = journal_path.with_extension("results");
         Ok(Self {
             operations: Mutex::new(()),
-            journal: WorkerJournal::open(journal_path)?,
+            journal: Arc::new(WorkerJournal::open(journal_path)?),
             agent_credential_digest,
             authority_epoch,
             allowed_scopes,
@@ -137,7 +137,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             desktop_helper,
             desktop_authority: None,
             installed_desktop_authority: None,
-            result_store: WorkerResultStore::open(&result_root)?,
+            result_store: Arc::new(WorkerResultStore::open(&result_root)?),
             installation_ref,
         })
     }

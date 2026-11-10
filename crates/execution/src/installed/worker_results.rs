@@ -15,6 +15,9 @@ use super::worker_host::{WorkerExecutorHost, WorkerIsolation};
 use super::worker_result_crypto::{ResultKeys, ENVELOPE_OVERHEAD};
 use super::{reject_linked_ancestors, set_private_directory};
 
+#[cfg(windows)]
+#[path = "worker_result_original.rs"]
+mod original;
 #[path = "worker_output_store.rs"]
 mod output;
 

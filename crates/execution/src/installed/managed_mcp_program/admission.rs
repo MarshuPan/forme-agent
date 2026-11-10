@@ -11,7 +11,15 @@ pub(crate) struct DiscoveryAdmission {
     pub(crate) lease: Arc<ManagedMcpProgramLease>,
     pub(crate) deadline: Instant,
     pub(crate) job: p::WorkerJob,
-    registry: Arc<ManagedMcpProgramRegistry>,
+    pub(super) registry: Arc<ManagedMcpProgramRegistry>,
+    pub(crate) call: Option<Arc<super::call_admission::ManagedCall>>,
+}
+impl DiscoveryAdmission {
+    pub(crate) fn output_budget(&self) -> u64 {
+        self.call
+            .as_ref()
+            .map_or(self.spec.output_budget_bytes, |call| call.output_budget)
+    }
 }
 impl InstalledManagedMcpPrograms {
     pub(crate) fn with_discovery<T>(
@@ -59,6 +67,7 @@ impl InstalledManagedMcpPrograms {
             deadline,
             job: request.job.clone(),
             registry,
+            call: None,
         });
         drop(config);
         result
@@ -71,6 +80,9 @@ impl InstalledManagedMcpPrograms {
     ) -> p::Result<T> {
         let mut config = self.configuration_until(admission.deadline, cancelled)?;
         self.check_discovery(&mut config, &admission.job, &admission.spec)?;
+        if let Some(call) = &admission.call {
+            call.recheck(&mut config, &admission.job)?;
+        }
         admission.registry.with_active(&admission.lease, || {
             live(admission.deadline, cancelled)?;
             let result = write()?;
@@ -78,7 +90,7 @@ impl InstalledManagedMcpPrograms {
             Ok(result)
         })
     }
-    fn check_discovery(
+    pub(super) fn check_discovery(
         &self,
         config: &mut ProductConfigStore,
         job: &p::WorkerJob,
@@ -99,7 +111,7 @@ impl InstalledManagedMcpPrograms {
             .ok_or_else(invalid)?;
         spec.validate_settings(settings, &job.workspace_scope)
     }
-    fn configuration_until(
+    pub(super) fn configuration_until(
         &self,
         deadline: Instant,
         cancelled: &crate::CancelToken,
@@ -114,7 +126,7 @@ impl InstalledManagedMcpPrograms {
         }
     }
 }
-fn live(deadline: Instant, cancelled: &crate::CancelToken) -> p::Result<()> {
+pub(super) fn live(deadline: Instant, cancelled: &crate::CancelToken) -> p::Result<()> {
     if cancelled.is_cancelled() || Instant::now() >= deadline {
         return Err(invalid());
     }

@@ -28,7 +28,7 @@ fn main() {
         if input.read_line(&mut line).unwrap() == 0 {
             break;
         }
-        assert!(line.len() <= 8192);
+        assert!(line.len() <= 1_048_576);
         trace.write_all(line.as_bytes()).unwrap();
         trace.sync_all().unwrap();
         let request: Value = serde_json::from_str(&line).unwrap();
@@ -37,6 +37,11 @@ fn main() {
         let id = request.get("id").cloned();
         if method == "notifications/initialized" {
             assert!(id.is_none());
+            if mode == "call-no-read" {
+                while !std::path::Path::new("continue").exists() {
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+            }
             continue;
         }
         if mode == "hang" {
@@ -78,6 +83,35 @@ fn main() {
             }
             "resources/list" => json!({"resources":[{"uri":"fixture://methods","name":"trace",
                 "description":serde_json::to_string(&methods).unwrap()}]}),
+            "tools/call" => {
+                assert_eq!(request["params"]["name"], "fixture.inspect");
+                fs::write("effect.json", request["params"].to_string()).unwrap();
+                if mode == "call-hang" {
+                    std::thread::sleep(Duration::from_secs(20));
+                    return;
+                }
+                if mode == "call-held-result" {
+                    while !std::path::Path::new("continue").exists() {
+                        std::thread::sleep(Duration::from_millis(2));
+                    }
+                }
+                if mode == "call-malformed" {
+                    println!("untrusted invalid call output");
+                    io::stdout().flush().unwrap();
+                    continue;
+                }
+                if mode == "call-error" {
+                    println!(
+                        "{}",
+                        json!({"jsonrpc":"2.0","id":id,"error":{"code":-32602,"message":"fixture rejection"}})
+                    );
+                    io::stdout().flush().unwrap();
+                    continue;
+                }
+                json!({"content":[{"type":"text","text":serde_json::to_string(&methods).unwrap()}],
+                    "structuredContent":{"arguments":request["params"]["arguments"]},
+                    "isError":mode == "call-tool-error"})
+            }
             _ => panic!("unexpected method"),
         };
         let id = if mode == "wrong-id" {
@@ -97,10 +131,14 @@ fn main() {
         }
         io::stdout().flush().unwrap();
     }
-    if mode == "tail" {
+    if mode == "tail"
+        || (mode == "call-tail" && methods.iter().any(|method| method == "tools/call"))
+    {
         println!("{{}}");
     }
-    if mode == "nonzero" {
+    if mode == "nonzero"
+        || (mode == "call-nonzero" && methods.iter().any(|method| method == "tools/call"))
+    {
         std::process::exit(7);
     }
 }

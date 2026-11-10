@@ -214,13 +214,18 @@ impl WorkerActionBackend {
         }
         match observation.outcome {
             Some(p::WorkerOutcome::Completed) => {
+                emit_managed_call(plan, sink, None)?;
                 let receipt = external_receipt(plan, &manifest, p::EffectStatus::Committed);
                 complete_external(plan, sink, &output, receipt)
             }
             Some(p::WorkerOutcome::Failed) => {
+                emit_managed_call(plan, sink, Some("server_error"))?;
                 Err(failed(plan, sink, "managed worker reported failure"))
             }
-            Some(p::WorkerOutcome::Cancelled) => cancelled(plan, sink, &output),
+            Some(p::WorkerOutcome::Cancelled) => {
+                emit_managed_call(plan, sink, None)?;
+                cancelled(plan, sink, &output)
+            }
             Some(p::WorkerOutcome::Unknown) | None => {
                 unknown_result(plan, sink, &self.budget, &attempt.job.job_id)
             }
@@ -358,7 +363,10 @@ impl ActionBackend for WorkerActionBackend {
             }
         };
         match self.settle(&attempt, observation, &token) {
-            Settlement::Cancelled => cancelled(&plan, sink, &empty),
+            Settlement::Cancelled => {
+                emit_managed_call(&plan, sink, None)?;
+                cancelled(&plan, sink, &empty)
+            }
             Settlement::Unknown => unknown_result(&plan, sink, &self.budget, &attempt.job.job_id),
             Settlement::Terminal(observation) => {
                 self.result_for(&plan, &attempt, &observation, sink)
@@ -535,6 +543,7 @@ fn unknown_result(
     budget: &OutputBudget,
     job_id: &str,
 ) -> p::Result<ActionResult> {
+    emit_managed_call(plan, sink, Some("server_error"))?;
     outcome_unknown(
         plan,
         sink,
@@ -559,4 +568,16 @@ fn now_ms() -> p::Timestamp {
         .ok()
         .and_then(|duration| i64::try_from(duration.as_millis()).ok())
         .unwrap_or(i64::MAX)
+}
+
+fn emit_managed_call(plan: &ExecutionPlan, sink: &EventSink, error: Option<&str>) -> p::Result<()> {
+    if let p::ActionParameters::Mcp { server, tool, .. } = &plan.intent.parameters {
+        sink.emit(p::EventPayload::McpCallEvent(p::McpCallEventPayload {
+            server: server.clone(),
+            tool: tool.clone(),
+            timeout: false,
+            error_class: error.map(|class| p::McpErrorClass(class.into())),
+        }))?;
+    }
+    Ok(())
 }

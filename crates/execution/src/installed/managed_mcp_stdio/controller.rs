@@ -5,14 +5,15 @@ use super::super::{
     InstalledManagedMcpPrograms,
 };
 use super::{
-    exchange::ManagedMcpDiscoveryExchange,
+    call_exchange::CallResult,
     invalid,
+    session::Session,
     wire::{ReadEvent, Wire},
 };
 use forme_protocol as p;
 use std::{
     sync::{
-        atomic::{AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicU8, Ordering},
         Arc,
     },
     thread::JoinHandle,
@@ -25,11 +26,12 @@ pub(super) struct Controller {
     completion: Option<Completion>,
     pub(super) cancelled: crate::CancelToken,
     state: Arc<AtomicU8>,
+    call_attempted: Arc<AtomicBool>,
     supervision_confirmed: bool,
 }
 struct Completion {
     wire: Wire,
-    result: p::Result<Vec<u8>>,
+    result: p::Result<CallResult>,
     finished_at: p::Timestamp,
 }
 impl Controller {
@@ -40,6 +42,7 @@ impl Controller {
             completion: None,
             cancelled: crate::CancelToken::default(),
             state: Arc::new(AtomicU8::new(0)),
+            call_attempted: Arc::new(AtomicBool::new(false)),
             supervision_confirmed: false,
         }
     }
@@ -67,12 +70,15 @@ impl Controller {
         );
         let cancelled = self.cancelled.clone();
         let state = self.state.clone();
+        let attempted = self.call_attempted.clone();
         self.thread = match std::thread::Builder::new()
             .name("forme-mcp-controller".into())
             .spawn(move || {
                 let mut wire = wire;
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    exchange(&mut wire, &programs, &admission, &cancelled, &handles)
+                    exchange(
+                        &mut wire, &programs, &admission, &cancelled, &handles, &attempted,
+                    )
                 }))
                 .unwrap_or_else(|_| Err(invalid()));
                 if result.is_err() {
@@ -135,11 +141,14 @@ impl Controller {
             .as_mut()
             .is_none_or(|done| done.wire.join_finished()))
     }
-    pub(super) fn result(&self) -> p::Result<(&[u8], p::Timestamp)> {
+    pub(super) fn call_attempted(&self) -> bool {
+        self.call_attempted.load(Ordering::SeqCst)
+    }
+    pub(super) fn result(&self) -> p::Result<(&[u8], p::WorkerOutcome, p::Timestamp)> {
         let done = self.completion.as_ref().ok_or_else(invalid)?;
         done.wire.healthy()?;
         let bytes = done.result.as_ref().map_err(|_| invalid())?;
-        Ok((bytes, done.finished_at))
+        Ok((&bytes.bytes, bytes.outcome, done.finished_at))
     }
     pub(super) fn cancel(&self) {
         self.cancelled.cancel();
@@ -176,17 +185,23 @@ fn exchange(
     admission: &DiscoveryAdmission,
     cancelled: &crate::CancelToken,
     handles: &NativeCancellation,
-) -> p::Result<Vec<u8>> {
+    attempted: &AtomicBool,
+) -> p::Result<CallResult> {
     wire.start()?;
-    let mut exchange =
-        ManagedMcpDiscoveryExchange::new(admission.spec.clone(), admission.deadline)?;
+    let mut exchange = Session::new(admission)?;
     while let Some(frame) = exchange.next_frame()? {
-        wire.send(&frame, |write| {
-            programs.with_discovery_egress(admission, cancelled, write)
+        wire.send(&frame.bytes, |write| {
+            programs.with_discovery_egress(admission, cancelled, || {
+                // A partial or failed OS write may already have invoked the tool.
+                if frame.tool_call {
+                    attempted.store(true, Ordering::SeqCst);
+                }
+                write()
+            })
         })?;
-        if exchange.awaiting_reply() {
+        if frame.reply {
             match wire.next(admission.deadline, cancelled)? {
-                ReadEvent::Frame(frame) => exchange.accept_frame(&frame)?,
+                ReadEvent::Frame(frame) => exchange.accept(&frame)?,
                 ReadEvent::Eof => return Err(invalid()),
             }
         }
@@ -208,9 +223,12 @@ fn exchange(
     if handles.exit_code()? != 0 {
         return Err(invalid());
     }
-    exchange.account_stderr(usize::try_from(wire.stderr_bytes()).map_err(|_| invalid())?)?;
-    let catalog = exchange.finish()?;
-    programs.with_discovery_egress(admission, cancelled, || {
-        serde_json::to_vec(&catalog).map_err(|_| invalid())
-    })
+    let result = exchange.finish(usize::try_from(wire.stderr_bytes()).map_err(|_| invalid())?)?;
+    if admission.call.is_some() {
+        // Revocation prevents new egress; it cannot erase a trustworthy result
+        // of an already attempted tool call. Original binding is preserved.
+        Ok(result)
+    } else {
+        programs.with_discovery_egress(admission, cancelled, || Ok(result))
+    }
 }

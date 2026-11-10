@@ -57,6 +57,10 @@ impl WorkerProjection {
                 self.jobs.insert(
                     job.job_id.clone(),
                     WorkerRecord {
+                        #[cfg(windows)]
+                        admitted_seq: envelope.worker_seq,
+                        #[cfg(windows)]
+                        admitted_at: *at,
                         job: *job.clone(),
                         permit: *permit.clone(),
                         execution_binding: execution_binding.clone(),

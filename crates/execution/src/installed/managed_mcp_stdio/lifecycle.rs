@@ -34,10 +34,17 @@ impl WorkerIsolation for ManagedMcpIsolation {
                         job_id: job.job_id.clone(),
                         plan_digest: job.plan_digest.clone(),
                         nonce: job.nonce.clone(),
-                        outcome: p::WorkerOutcome::Cancelled,
+                        outcome: if worker.controller.call_attempted() {
+                            p::WorkerOutcome::Unknown
+                        } else {
+                            p::WorkerOutcome::Cancelled
+                        },
                         observed_at: now,
                         receipt_ref: Some(format!("worker-cancel-{digest}")),
-                        reason_ref: None,
+                        reason_ref: worker
+                            .controller
+                            .call_attempted()
+                            .then(|| "managed-mcp-call-outcome-unknown".into()),
                     });
                 }
             }
@@ -65,22 +72,26 @@ impl WorkerIsolation for ManagedMcpIsolation {
             return Ok(None);
         }
         let digest = p::canonical_digest(&("forme-managed-mcp-result-v1", job))?.0;
-        let (outcome, finished_at) = match worker.controller.result() {
-            Ok((bytes, at)) => {
-                if bytes.len() as u64 > worker.admission.spec.output_budget_bytes {
-                    return Err(invalid());
-                }
-                let results = worker.dir.join("results");
-                if !worker.result_written {
-                    fs::create_dir(&results).map_err(|_| invalid())?;
-                    set_private_directory(&results)?;
-                    write_result(&results.join("result.bin"), bytes)?;
-                    worker.result_written = true;
-                }
-                (p::WorkerOutcome::Completed, at)
+        let (body, outcome, finished_at) = match worker.controller.result() {
+            Ok((bytes, outcome, at)) => (Some(bytes), outcome, at),
+            Err(_) if worker.controller.call_attempted() => (None, p::WorkerOutcome::Unknown, now),
+            Err(_) if worker.admission.call.is_some() => {
+                (Some(&[][..]), p::WorkerOutcome::Failed, now)
             }
-            Err(_) => (p::WorkerOutcome::Failed, now),
+            Err(_) => (None, p::WorkerOutcome::Failed, now),
         };
+        if let Some(bytes) = body {
+            if bytes.len() as u64 > worker.admission.output_budget() {
+                return Err(invalid());
+            }
+            let results = worker.dir.join("results");
+            if !worker.result_written {
+                fs::create_dir(&results).map_err(|_| invalid())?;
+                set_private_directory(&results)?;
+                write_result(&results.join("result.bin"), bytes)?;
+                worker.result_written = true;
+            }
+        }
         let receipt = p::WorkerReceipt {
             schema_version: p::SchemaVersion(1),
             receipt_ref: format!("worker-receipt-{digest}"),

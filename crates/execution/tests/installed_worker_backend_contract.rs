@@ -740,3 +740,6 @@ fn fragmented_or_late_results_stop_without_output_completion_or_redispatch() {
         assert_eq!(transport.state.lock().unwrap().reads, expected_reads);
     }
 }
+
+#[path = "installed_worker_backend_contract/mcp.rs"]
+mod mcp;

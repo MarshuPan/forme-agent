@@ -125,7 +125,7 @@ impl Wire {
         gate: impl FnOnce(&mut dyn FnMut() -> p::Result<()>) -> p::Result<()>,
     ) -> p::Result<()> {
         self.healthy()?;
-        if bytes.is_empty() || bytes.len() > 8192 || bytes.last() != Some(&b'\n') {
+        if bytes.is_empty() || bytes.len() > 1_048_576 || bytes.last() != Some(&b'\n') {
             return Err(invalid());
         }
         let writer = self.input.as_mut().ok_or_else(invalid)?;

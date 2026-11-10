@@ -529,3 +529,5 @@ fn native_managed_mcp_original_deadline_terminates_unresponsive_peer() {
     assert_eq!(methods(&dir), ["initialize"]);
     seal(&isolation, &fixture.request.job);
 }
+
+mod call;

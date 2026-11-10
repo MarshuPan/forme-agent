@@ -43,17 +43,34 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         #[cfg(windows)]
         {
             let isolation = self.managed_mcp.as_ref().ok_or_else(unavailable)?;
-            isolation
-                .programs
-                .with_discovery(&request, now, entered, |admission| {
-                    self.dispatch_authorized(
-                        auth,
-                        request.clone(),
-                        now,
-                        None,
-                        Some(&|| isolation.admit_authorized(admission.clone(), now)),
-                    )
-                })
+            let admit = |admission: super::super::managed_mcp_program::DiscoveryAdmission| {
+                self.dispatch_authorized(
+                    auth,
+                    request.clone(),
+                    now,
+                    None,
+                    Some(&|| isolation.admit_authorized(admission.clone(), now)),
+                )
+            };
+            if request.execution.as_ref().is_some_and(|execution| {
+                matches!(
+                    execution.intent.parameters,
+                    p::ActionParameters::McpDiscovery(_)
+                )
+            }) {
+                isolation
+                    .programs
+                    .with_discovery(&request, now, entered, admit)
+            } else {
+                let proof = super::super::managed_mcp_proof::DiscoveryProofReader::new(
+                    self.journal.clone(),
+                    self.result_store.clone(),
+                    self.installation_ref.clone(),
+                );
+                isolation
+                    .programs
+                    .with_call(&request, proof, now, entered, admit)
+            }
         }
         #[cfg(not(windows))]
         {

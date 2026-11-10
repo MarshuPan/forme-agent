@@ -16,9 +16,9 @@ pub(super) fn validate_workspace_scope(value: &p::Scope) -> p::Result<()> {
     Ok(())
 }
 
-/// The journal keeps only the immutable execution binding, not the full
-/// action parameters. This is enough to reject a changed duplicate request
-/// without copying potentially large payloads into the product journal.
+/// Ordinary actions keep only their immutable binding. Discovery adds a
+/// bounded original request in private binding v2 so later calls can prove
+/// their exact metadata source. No tool arguments or result bytes are copied.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct WorkerExecutionBinding {
@@ -30,18 +30,38 @@ pub(super) struct WorkerExecutionBinding {
     pub(super) output_budget_bytes: u64,
     #[serde(default)]
     pub(super) desktop_session: Option<p::DesktopSessionBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) discovery: Option<Box<p::WorkerExecutionSpec>>,
 }
 
 impl WorkerExecutionBinding {
     pub(super) fn from_spec(spec: &p::WorkerExecutionSpec) -> Self {
+        let discovery = matches!(spec.intent.parameters, p::ActionParameters::McpDiscovery(_))
+            .then(|| Box::new(spec.clone()));
         Self {
-            schema_version: spec.schema_version,
+            schema_version: if discovery.is_some() {
+                p::SchemaVersion(2)
+            } else {
+                spec.schema_version
+            },
             backend: spec.backend,
             scope: spec.scope.clone(),
             normalized_action_digest: spec.normalized_action_digest.clone(),
             timeout: spec.timeout,
             output_budget_bytes: spec.output_budget_bytes,
             desktop_session: spec.desktop_session.clone(),
+            discovery,
+        }
+    }
+
+    pub(super) fn matches_original(&self, other: &Self) -> bool {
+        if self.discovery.is_none() && self.schema_version == p::SchemaVersion(1) {
+            let mut legacy = other.clone();
+            legacy.discovery = None;
+            legacy.schema_version = p::SchemaVersion(1);
+            *self == legacy
+        } else {
+            self == other
         }
     }
 
@@ -51,7 +71,7 @@ impl WorkerExecutionBinding {
         permit: &p::WorkerPermit,
         at: p::Timestamp,
     ) -> p::Result<()> {
-        if self.schema_version != p::SchemaVersion(1)
+        if self.schema_version != p::SchemaVersion(if self.discovery.is_some() { 2 } else { 1 })
             || self.scope != job.workspace_scope
             || p::validate_product_digest(&self.normalized_action_digest).is_err()
             || self.timeout.0 == 0
@@ -70,6 +90,21 @@ impl WorkerExecutionBinding {
             return Err(p::Error(
                 "worker journal execution binding is invalid".into(),
             ));
+        }
+        if let Some(request) = &self.discovery {
+            request.validate_for(job, permit, at)?;
+            if !matches!(
+                request.intent.parameters,
+                p::ActionParameters::McpDiscovery(_)
+            ) || job.sandbox_profile_ref != p::MANAGED_MCP_PROGRAM_PROFILE
+                || Self::from_spec(request) != *self
+                || serde_json::to_vec(request)
+                    .map_err(|_| p::Error("discovery request is invalid".into()))?
+                    .len()
+                    > 16_384
+            {
+                return Err(p::Error("original discovery binding is invalid".into()));
+            }
         }
         if let Some(binding) = &self.desktop_session {
             binding.validate_for(job, permit, at)?;

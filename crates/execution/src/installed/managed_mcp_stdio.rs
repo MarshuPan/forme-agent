@@ -17,9 +17,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod call_exchange;
 mod controller;
 mod exchange;
 mod lifecycle;
+mod session;
 mod wire;
 use controller::Controller;
 
@@ -155,7 +157,7 @@ impl ManagedMcpIsolation {
             profile,
         )?;
         worker.setup.create_job(&job_object_name(name)?)?;
-        let (wire, child) = wire::Wire::prepare(worker.admission.spec.output_budget_bytes)?;
+        let (wire, child) = wire::Wire::prepare(worker.admission.output_budget())?;
         let pipes = native::stdio_handles(&child.input, &child.output, &child.error)?;
         if Instant::now() >= worker.admission.deadline {
             return Err(invalid());

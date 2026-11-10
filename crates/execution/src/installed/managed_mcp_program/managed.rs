@@ -5,6 +5,8 @@ use std::sync::Arc;
 
 #[path = "admission.rs"]
 pub(crate) mod admission;
+#[path = "call_admission.rs"]
+mod call_admission;
 
 pub struct InstalledManagedMcpPrograms {
     journal: PathBuf,

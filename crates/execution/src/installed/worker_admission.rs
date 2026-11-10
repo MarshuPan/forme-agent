@@ -51,7 +51,11 @@ impl WorkerJournal {
         if let Some(record) = writer.projection.jobs.get(&job.job_id) {
             if record.job != job
                 || record.permit != permit
-                || record.execution_binding != execution_binding
+                || match (&record.execution_binding, &execution_binding) {
+                    (Some(original), Some(proposed)) => !original.matches_original(proposed),
+                    (None, None) => false,
+                    _ => true,
+                }
             {
                 return Err(p::Error(
                     "worker job id conflicts with its original admission".into(),

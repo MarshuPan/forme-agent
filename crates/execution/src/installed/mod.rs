@@ -34,6 +34,8 @@ mod maintenance_pipe;
 #[cfg(windows)]
 mod managed_mcp_program;
 #[cfg(windows)]
+mod managed_mcp_proof;
+#[cfg(windows)]
 mod managed_mcp_stdio;
 mod managed_worker;
 #[cfg(windows)]
