@@ -195,6 +195,29 @@ pub fn events(runtime: &ProductionRuntime) -> Vec<p::Event> {
         .flat_map(|run| store.read_run(run).map(Result::unwrap))
         .collect()
 }
+
+/// Preserve the failed attempts' runtime evidence in the assertion output.
+/// Node summaries alone discard provider errors and terminal stop reasons.
+pub fn failed_route_events(
+    runtime: &ProductionRuntime,
+    route: &p::WorkRouteRecord,
+) -> Vec<p::Event> {
+    route
+        .nodes
+        .iter()
+        .filter(|(_, node)| node.status != p::WorkNodeStatus::Done)
+        .flat_map(|(id, node)| {
+            (1..=node.attempts).flat_map(move |attempt| {
+                runtime
+                    .services()
+                    .store
+                    .read_run(route.declaration.node_run_id(id, attempt))
+                    .map(Result::unwrap)
+            })
+        })
+        .collect()
+}
+
 pub fn knowledge(attribute: &str, impact: p::Impact) -> p::GoalKnowledge {
     p::GoalKnowledge {
         schema_version: p::SchemaVersion(1),

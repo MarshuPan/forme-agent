@@ -17,6 +17,8 @@ mod host_desktop;
 mod host_maintenance;
 #[path = "host_managed_configuration.rs"]
 mod host_managed_configuration;
+#[path = "host_mcp_programs.rs"]
+mod host_mcp_programs;
 #[path = "host_network.rs"]
 mod host_network;
 pub use host_network::PreparedOwnerNetwork;
@@ -228,6 +230,8 @@ pub struct ProductHostBroker<M = SystemServiceManager> {
     web_configuration_digest: Option<p::SchemaDigest>,
     product_config: Option<Arc<Mutex<ProductConfigStore>>>,
     desktop_authority: Option<Arc<super::InstalledDesktopAuthority>>,
+    #[cfg(windows)]
+    mcp_programs: Option<Arc<super::InstalledManagedMcpPrograms>>,
     release_stager: Option<Arc<ReleaseStager>>,
     release_worker: Option<Arc<dyn ReleaseWorkerProvider>>,
     release_updater: Option<Arc<super::InstalledReleaseUpdater>>,
@@ -332,6 +336,8 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
             web_configuration_digest,
             product_config,
             desktop_authority: None,
+            #[cfg(windows)]
+            mcp_programs: None,
             release_stager: None,
             release_worker: None,
             release_updater: None,

@@ -14,6 +14,7 @@ mod desktop;
 mod error;
 mod legacy_release_recovery;
 mod maintenance;
+mod mcp_programs;
 mod network;
 mod proposal_controls;
 mod release_recovery;
@@ -246,6 +247,15 @@ fn router(state: Arc<WebState>) -> Router {
         .route(
             "/api/v1/desktop/settings/operations/{id}",
             get(computer_settings::operation),
+        )
+        .route("/api/v1/product/mcp/programs", get(mcp_programs::catalog))
+        .route(
+            "/api/v1/product/mcp/programs/commands",
+            post(mcp_programs::command).layer(DefaultBodyLimit::max(16 * 1024)),
+        )
+        .route(
+            "/api/v1/product/mcp/programs/operations/{id}",
+            get(mcp_programs::operation),
         )
         .route("/api/v1/desktop/sessions", get(desktop::sessions))
         .route(

@@ -215,6 +215,10 @@ fn route(
     {
         return result.map(|body| (200, body));
     }
+    if let Some(result) = super::mcp_program_routes::route(request, broker, auth, domain, now_ms())
+    {
+        return result.map(|body| (200, body));
+    }
     if let Some(result) = worker_routes::route(request, worker, auth, now_ms()) {
         return result.map(|body| (200, body));
     }

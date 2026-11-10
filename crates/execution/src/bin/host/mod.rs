@@ -5,6 +5,9 @@ mod desktop_routes;
 pub(super) mod http;
 mod legacy_recovery_routes;
 mod lifecycle;
+mod mcp_program_routes;
+#[cfg(windows)]
+mod mcp_programs;
 mod recovery_capabilities;
 mod recovery_routes;
 #[cfg(windows)]
@@ -259,6 +262,17 @@ fn run_host(
     } else {
         None
     };
+    #[cfg(windows)]
+    if let Some(programs) = mcp_programs::load(
+        &journal,
+        &install_id,
+        product_config.clone(),
+        runtime.worker_config_path.as_deref(),
+        &runtime.worker_protected_paths,
+        managed_service_bound,
+    )? {
+        broker = broker.with_mcp_programs(programs)?;
+    }
     let desktop_authority = load_desktop_authority(
         &journal,
         &install_id,

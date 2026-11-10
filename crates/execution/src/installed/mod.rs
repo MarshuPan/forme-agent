@@ -31,7 +31,14 @@ mod mac_worker;
 #[cfg(target_os = "macos")]
 mod mac_worker_sandbox;
 mod maintenance_pipe;
+#[cfg(windows)]
+mod managed_mcp_program;
 mod managed_worker;
+#[cfg(windows)]
+pub use managed_mcp_program::{
+    InstalledManagedMcpPrograms, ManagedMcpProgramLease, ManagedMcpProgramRegistry,
+    ManagedMcpProgramSource,
+};
 mod management_repair;
 mod paths;
 #[cfg(any(target_os = "linux", target_os = "macos"))]

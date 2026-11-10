@@ -18,9 +18,10 @@ pub(super) fn is_configuration_path(path: &str) -> bool {
             | "/v1/host/configuration/desktop/sessions"
             | "/v1/host/configuration/desktop/consents"
             | "/v1/host/configuration/desktop/revocations"
-    ) || path
-        .strip_prefix("/v1/host/configuration/desktop/consents/")
-        .is_some_and(|id| forme_protocol::validate_product_id(id).is_ok())
+    ) || super::super::mcp_program_routes::is_path(path)
+        || path
+            .strip_prefix("/v1/host/configuration/desktop/consents/")
+            .is_some_and(|id| forme_protocol::validate_product_id(id).is_ok())
         || path
             .strip_prefix("/v1/host/configuration/desktop/settings/operations/")
             .is_some_and(|id| forme_protocol::validate_product_id(id).is_ok())

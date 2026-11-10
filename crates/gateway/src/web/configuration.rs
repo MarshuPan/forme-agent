@@ -12,6 +12,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use zeroize::Zeroizing;
 
 mod desktop;
+mod mcp_programs;
 
 const MAX_WIRE_BYTES: usize = 512 * 1024;
 const MAX_BODY_BYTES: usize = 256 * 1024;
@@ -260,6 +261,7 @@ impl LocalConfigurationClient {
         body: Option<&B>,
     ) -> p::Result<T> {
         if !desktop::allows_route(method, path)
+            && !mcp_programs::allows_route(method, path)
             && !matches!(
                 (method, path),
                 ("GET", "/v1/host/status")

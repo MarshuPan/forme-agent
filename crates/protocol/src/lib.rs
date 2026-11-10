@@ -29,6 +29,8 @@ mod m4;
 mod m5;
 mod managed_mcp_discovery;
 pub use managed_mcp_discovery::*;
+mod managed_mcp_program;
+pub use managed_mcp_program::*;
 mod normalization;
 mod primitives;
 mod product_bootstrap;

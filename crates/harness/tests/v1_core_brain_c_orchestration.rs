@@ -1284,7 +1284,7 @@ fn c14_all_eight_patterns_reach_the_formal_runtime_with_correct_child_counts() {
                 p::WorkRouteStatus::Completed,
                 "{} {:?}",
                 entry.pattern.reference.0,
-                out.nodes
+                (&out.nodes, failed_route_events(&runtime, &out))
             );
             assert_eq!(out.spent, route.nodes.len().max(1) as u64);
         }
