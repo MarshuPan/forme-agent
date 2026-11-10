@@ -8,7 +8,7 @@ used through their public APIs. Their own license terms continue to apply:
 
 serde 1.0.228 - MIT OR Apache-2.0 - https://crates.io/crates/serde
 serde_json 1.0.150 - MIT OR Apache-2.0 - https://crates.io/crates/serde_json
-rusqlite 0.40.1 - MIT - https://crates.io/crates/rusqlite
+rusqlite 0.41.1 - MIT - https://crates.io/crates/rusqlite
 sha2 0.10.9 - MIT OR Apache-2.0 - https://crates.io/crates/sha2
 chacha20poly1305 0.11.0 - MIT OR Apache-2.0 - https://crates.io/crates/chacha20poly1305
 axum 0.8.9 - MIT - https://crates.io/crates/axum
@@ -21,6 +21,8 @@ url 2.5.8 - MIT OR Apache-2.0 - https://crates.io/crates/url
 ureq 3.3.0 - MIT OR Apache-2.0 - https://crates.io/crates/ureq
 enigo 0.6.1 - MIT - https://crates.io/crates/enigo
 xcap 0.9.6 - Apache-2.0 - https://crates.io/crates/xcap
+png 0.18.1 - MIT OR Apache-2.0 - https://crates.io/crates/png
+crc32fast 1.5.0 - MIT OR Apache-2.0 - https://crates.io/crates/crc32fast
 httparse 1.10.1 - MIT OR Apache-2.0 - https://crates.io/crates/httparse
 rustls 0.23.46 - Apache-2.0 OR ISC OR MIT - https://crates.io/crates/rustls
 rustls-pki-types 1.15.0 - MIT OR Apache-2.0 - https://crates.io/crates/rustls-pki-types
