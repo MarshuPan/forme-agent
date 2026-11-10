@@ -289,3 +289,19 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 按内嵌 M5 的唯一 workspace 段统计为 **183 targets、1310 passed / 0 failed / 16 默认 ignored**；Python 为 **94 passed / 1 skipped**。不把 Final 外层的同组测试重复加进总数。M5 当次生成与仓库回执均为 `sha256:78eb9f2e29a19ddaac0abe638e082bdd1e871953b77b646a18a5acac4dabfb80`，compare PASS。整体 Final 的时段、原进程回执、日志 SHA-256 与空间报告见[核心终验 §7](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。
 
 本次说明与其他验收状态回填后，规范回执按原规则重新绑定；这里记录的是 `6899f56` 的已完成运行，不宣称文档提交又执行了一次完整 M5/Final。安装版、IP01–IP24、其他原生平台和整体目标继续按[剩余义务审计](installed-product-remaining-obligations-audit-20261109.md) 保留未完成项，没有修改冻结协议、安装现场或 UAC。
+
+## 21. 受管 MCP 发现基础层与 SQLite 修复后的完整 M5（2026-11-10）
+
+干净 `shu/product-integration@df60007b3e0fd54f8b80c140350036e9cbba976b` 实际运行完整 `tools/verify-m5.ps1`，于 2026-11-10 04:54:22 UTC 记录 exit 0，并取得唯一 `M5 FINAL ACCEPTANCE: PASS` 终线。S1–S99、M4/M5 多进程 golden、生成与仓库工件核验、fmt/check、strict Clippy、完整 workspace/Python、完整合规和最终发布审计均通过。未使用跳过共享检查的参数。
+
+仅按本次唯一 workspace 段计数：**197 targets、1474 passed / 0 failed / 22 默认 ignored**；完整 Python 为 **94 passed / 1 skipped**。不把前置单项、其他整仓调用或 D RuntimeOnly 再累加。原日志 `target/product-integration-evidence/discovery-protocol-repaired-m5.log` SHA-256 为 `24b687fb55e934b3edc1a0bb8bf2bf07c7b6feadf64520cbf00f3888d0e00971`，调用回执为同目录 `discovery-protocol-repaired-m5-result.json`；独立日志摘要、唯一段计数、source HEAD/clean 和终线核验为 `discovery-protocol-repaired-m5-independent.json`，PASS。
+
+当前审计 8 项 PASS、blocking=false。生成、仓库规范回执的独立校验以及当前树 compare 全部通过，摘要均为 `sha256:b9e237775f50f4243e282fee52bbe9c0cc481f7952b44125d4fe9341985ce751`；源码树摘要为 `sha256:0dec6d306babe5656a9cfc8d22ffa69ac710bf24ebdcdeeed53eaa39cd39ef89`。SQLite 公告已由 `482b5d3` 的实际依赖升级消除；非 Windows 发布目标的 advisory 等观察继续保留，不宣称全平台零漏洞。
+
+首次 `a31ffbf` 的完整 M5 在 S99 失败，原因是两项 NOTICE 漏列和 Windows 目标可达的 libsqlite3-sys 0.38.1 公告；当次尚未执行仓库回执比较，不能归因为 compare。失败日志及 SHA-256、修复提交、七项组件检查、D RuntimeOnly 与构建维护原件均保留在[发现基础层记录](installed-managed-mcp-discovery-foundation-20261110.md)。本节只记录修复后本次完整 M5，不覆盖失败原件。
+
+终态空间报告 `target/product-integration-evidence/discovery-protocol-repaired-m5-build-resources.json` 于 04:55:37 UTC 保存，SHA-256 为 `428c33a82e2d4cf808ce8c2022a86d37a93ccf021bdc381e0b4a8e2c7cbdef65`。本工作树缓存逻辑长度 94,132,086,242 bytes，硬链接去重分配量 **69,349,309,555 bytes（约 64.59 GiB）**，高于原 64 GiB 报告阈值；统计完整、errors 为空，工具的 PASS/exit 0 不表示低于预算。D/M5 产生的新缓存没有删除，没有把先前 56.95 GiB 阶段采样冒充本次终态，未改变预算或构建参数。
+
+本节属于审计器既有的自指排除项，只补验收事实，不更改排除集或源码审计根；记录后仅执行本次文档提交所需的完整合规，不为纯记录重复整套门。当前仍为 18 crates、99 EventKinds；脚本终线中的 97 是历史 M5 分类口径，不回退 V1 additive 事件。
+
+这证明该源码的 M5 工程门通过，不表示 Host 受管程序注册、实际隔离 discovery/call、Core metadata 消费、Web 发现入口或三项方案整体完成，也不替代完整 D/Final 或 IP01–IP24。没有部署、推送、UAC 或服务修改。旧桌面候选仍含 libsqlite3-sys 0.38.1，不能继承本次修复后回执；后续原生升级须生成独立新候选。
