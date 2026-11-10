@@ -66,6 +66,7 @@ use super::{now_ms, GovernanceConfig, HarnessConfig, ReactiveHarness};
 mod builder;
 mod builtin_execution;
 mod managed_workers;
+mod mcp_composition;
 pub use builder::ProductionRuntimeBuilder;
 use managed_workers::try_register_managed_worker_backend;
 mod composition;
@@ -557,79 +558,30 @@ fn assemble_capabilities(
         })?;
     }
 
-    let mut active_mcp = BTreeSet::new();
-    let mut discovered_mcp = Vec::new();
-    for entry in &capability_config.mcp {
-        let id = entry.server.provider_id.clone();
-        if unresolved_mcp.contains(&id) {
-            service_states.push(RuntimeServiceState::unavailable(
-                format!("mcp:{}", id.0),
-                RuntimeServiceStatus::Unsupported,
-                "MCP server environment is unavailable",
-            ));
-            continue;
-        }
-        mcp.configure(id.clone())?;
-        if !entry.enabled {
-            service_states.push(RuntimeServiceState::unavailable(
-                format!("mcp:{}", id.0),
-                RuntimeServiceStatus::Disabled,
-                "MCP server disabled by explicit configuration",
-            ));
-            continue;
-        }
-        let (Some(trust), Some(grant)) = (entry.trust, entry.grant.clone()) else {
-            service_states.push(RuntimeServiceState::unavailable(
-                format!("mcp:{}", id.0),
-                RuntimeServiceStatus::Disabled,
-                "MCP server has no explicit trust and grant binding",
-            ));
-            continue;
-        };
-        if grant.budget != capability_config.envelope_budget {
-            service_states.push(RuntimeServiceState::unavailable(
-                format!("mcp:{}", id.0),
-                RuntimeServiceStatus::Unsupported,
-                "MCP grant budget does not match the production capability envelope",
-            ));
-            continue;
-        }
-        if mcp.enable(id.clone()).is_err()
-            || mcp.bind_trust(id.clone(), trust, p::Actor::Owner).is_err()
-            || mcp.grant(id.clone(), grant).is_err()
-        {
-            let _ = mcp.disable(id.clone());
-            service_states.push(RuntimeServiceState::unavailable(
-                format!("mcp:{}", id.0),
-                RuntimeServiceStatus::Unsupported,
-                "MCP server lifecycle binding is invalid",
-            ));
-            continue;
-        }
-        // Managed discovery here only reads completed originals; it cannot launch a process.
-        if entry.discover_on_start {
-            match mcp.discover_detailed(id.clone()) {
-                Ok(discovery) => {
-                    active_mcp.insert(id.clone());
-                    discovered_mcp.extend(discovery.tools);
-                    service_states.push(RuntimeServiceState::ready(format!("mcp:{}", id.0)));
-                }
-                Err(_) => {
-                    let _ = mcp.disable(id.clone());
-                    service_states.push(RuntimeServiceState::unavailable(
-                        format!("mcp:{}", id.0),
-                        RuntimeServiceStatus::Unsupported,
-                        "MCP discovery is unavailable",
-                    ));
-                }
-            }
-        } else {
-            active_mcp.insert(id.clone());
-            if !managed_mode {
-                service_states.push(RuntimeServiceState::ready(format!("mcp:{}", id.0)));
-            }
-        }
-    }
+    let mcp_composition::PreparedMcp {
+        active: mut active_mcp,
+        tools: mut discovered_mcp,
+        needs_worker,
+    } = mcp_composition::prepare(
+        capability_config,
+        &mcp,
+        &unresolved_mcp,
+        managed_mode,
+        &mut service_states,
+    )?;
+    // First discovery needs an isolated executor before any catalog exists.
+    // This does not expose ordinary MCP tools or grant discovery authority.
+    let managed_mcp_ready = managed_mode
+        && needs_worker
+        && managed_workers::register_mcp(
+            worker_binding,
+            config,
+            &output_budget,
+            timeout,
+            &backends,
+            protection,
+            store,
+        )?;
     if active_mcp.is_empty() {
         service_states.push(RuntimeServiceState::unavailable(
             "mcp-registry",
@@ -645,16 +597,7 @@ fn assemble_capabilities(
             },
         ));
     } else if managed_mode {
-        let ready = managed_workers::register_mcp(
-            worker_binding,
-            config,
-            &output_budget,
-            timeout,
-            &backends,
-            protection,
-            store,
-        )?;
-        if ready {
+        if managed_mcp_ready {
             for id in &active_mcp {
                 service_states.push(RuntimeServiceState::ready(format!("mcp:{}", id.0)));
             }
@@ -676,6 +619,11 @@ fn assemble_capabilities(
     } else {
         backends.register(Arc::new(McpBackend::new(output_budget.clone(), timeout)?))?;
         service_states.push(RuntimeServiceState::ready("mcp-registry"));
+    }
+
+    if managed_mode && !managed_mcp_ready {
+        active_mcp.clear();
+        discovered_mcp.clear();
     }
 
     let mut active_plugins = BTreeSet::new();
@@ -995,7 +943,11 @@ fn assemble_capabilities(
                         Capability::McpTool(tool.tool_ref.clone()),
                         grant.capability.permissions.clone(),
                         grant.scope.clone(),
-                        p::Risk::Low,
+                        if managed_mode {
+                            p::Risk::High
+                        } else {
+                            p::Risk::Low
+                        },
                         p::BackendKind::Mcp,
                     );
                 }

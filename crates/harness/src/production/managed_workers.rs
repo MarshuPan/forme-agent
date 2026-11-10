@@ -107,7 +107,7 @@ pub(super) fn register_mcp(
         p::BackendKind::Mcp,
         binding,
         owner.clone(),
-        budget.clone(),
+        OutputBudget::strict(budget.max_bytes),
         timeout,
     ) else {
         return Ok(false);
@@ -129,25 +129,7 @@ pub(super) fn mcp_registry(
     binding: Option<&ManagedWorkerBinding>,
     store: SqliteEventStore,
 ) -> p::Result<(Arc<StdioMcpRegistry>, BTreeSet<p::ProviderId>)> {
-    let capability_config = &config.capabilities;
-    // Resolve declared environments before registering development servers.
-    let mut unresolved_mcp = BTreeSet::new();
-    let mut resolved_mcp_servers = Vec::new();
-    for entry in &capability_config.mcp {
-        let mut server = entry.server.clone();
-        let mut available = true;
-        for name in &entry.inherit_env {
-            match std::env::var(name) {
-                Ok(value) if !value.is_empty() => server.env.push((name.clone(), value)),
-                _ => available = false,
-            }
-        }
-        if available {
-            resolved_mcp_servers.push(server);
-        } else {
-            unresolved_mcp.insert(entry.server.provider_id.clone());
-        }
-    }
+    let (resolved_mcp_servers, unresolved_mcp) = resolve_mcp_servers(&config.capabilities, managed);
     if !managed {
         return Ok((
             Arc::new(StdioMcpRegistry::with_servers(resolved_mcp_servers)?),
@@ -172,4 +154,40 @@ pub(super) fn mcp_registry(
         )?),
         unresolved_mcp,
     ))
+}
+
+pub(super) fn resolve_mcp_servers(
+    capability_config: &CapabilityRuntimeConfig,
+    managed: bool,
+) -> (
+    Vec<forme_capabilities::StdioMcpServer>,
+    BTreeSet<p::ProviderId>,
+) {
+    // Resolve declared environments before registering development servers.
+    let mut unresolved_mcp = BTreeSet::new();
+    let mut resolved_mcp_servers = Vec::new();
+    for entry in &capability_config.mcp {
+        let mut server = entry.server.clone();
+        // Managed configuration names an opaque Host program. It cannot
+        // inherit Brain environment values or provide process parameters.
+        if managed
+            && (!entry.inherit_env.is_empty() || !server.env.is_empty() || !server.args.is_empty())
+        {
+            unresolved_mcp.insert(server.provider_id.clone());
+            continue;
+        }
+        let mut available = true;
+        for name in &entry.inherit_env {
+            match std::env::var(name) {
+                Ok(value) if !value.is_empty() => server.env.push((name.clone(), value)),
+                _ => available = false,
+            }
+        }
+        if available {
+            resolved_mcp_servers.push(server);
+        } else {
+            unresolved_mcp.insert(entry.server.provider_id.clone());
+        }
+    }
+    (resolved_mcp_servers, unresolved_mcp)
 }
