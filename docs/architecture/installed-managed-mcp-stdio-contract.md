@@ -63,3 +63,15 @@ discovery/search、schema 选择、准备调用、能力索引及执行重查都
 受管普通调用仍使用既有 Mcp 参数形状，只携带 opaque program_ref 和空 args/env，并作为 High/Outward 进入原 Harness；不能因 metadata 被读取而降为内部无副作用操作。受管来源检查、缓存消费和 provider 生命周期变更在 registry 内形成排他顺序，Core 来源不可回调同一 registry。真实 pipe 写入仍由 Host 独立重查，缓存不能代替 Host 准入。
 
 该边界可先于 Core 来源读取器和 owner/Web 接线完成；来源未接通时明确不可用，公开 enabled 保护继续保持。验证必须证明无来源/失败来源/缓存失效时零开发进程启动，并覆盖 allowlist、schema 漂移、禁用、重启读取和实际执行前重查；不能把受控来源测试当作 Core 或安装版完成。
+
+## 8. Core 来源与 Host 当前性核对
+
+本节实施已批准 §4/§7 的原件校验，不改变 WorkerBrokerTransport、IsolatedExecutorHost、Worker DTO、EventKind、权限或依赖边。独立只读 companion `ManagedMcpSourceVerifier::verify_source(&WorkerResultManifest) -> Result<ProductMcpServerConfig>` 只核对原已完成发现的当前性，不派发、刷新或登记程序。
+
+固定内部路径为 POST `/v1/agent/workers/{job_id}/mcp-source`，请求完整原 WorkerResultManifest，响应原 ProductMcpServerConfig；使用原 AgentExecution 身份和安装 named pipe，不暴露至 Web、不接受 Configuration/维护凭据。请求有界且 path/job 精确一致。历史 result/manifest 读取语义保持，撤销只使这个当前性接口拒绝，不抹除历史完成事实。
+
+Host 在配置排他区间核对当前 owner/epoch、settings、scope、注册 lease 和实际文件身份；从同一个 worker journal 按 admission seq 选择该来源的最新原发现，核对完整 manifest 和保护正文。较新 pending/failed/Unknown 均遮蔽旧结果。缺原 worker reader、原件或当前注册时不可用，不能新建 worker journal 或通过读取重做发现。reader 与正式 worker 共用原 journal/result store；重建 worker 时只可绑定同一实例的原件，不改变原 admission 顺序。
+
+Core 用既有事件 kind 索引筛选带 McpDiscovered 的 run，再从当前 owner 的原事件读取发现：RunAccepted 的显式 OwnerControl、SessionBound 的 scope/composition、原 ActionPlanned/Started/Completed 与加密 companion 的 request/manifest 全部一致；审批请求/已批准解析必须先于原计划；控制事实保留 OwnerControl/System/VerifiedProcess，ActionCompleted 则必须沿 Harness 现有外部观察路径保持 Internal/System/Untrusted，不能因摘要合法而提升来源信任。完成后必须已有精确 allowlist 范围的 McpDiscovered，引用缺失、远端/矛盾终态拒绝。每条 run 用 stream_seq 和未变化的 run head 校验，不以 run ID 或时钟决定跨 run 的新旧。候选必须通过上述 Host 当前性核对；没有且仅有一个匹配的完整原件时保持 unavailable。
+
+筛选索引只提供候选，不决定真假或跨 run 排序，不扫描无发现事实的历史任务。原件读取上限为 20,000 个候选 run、100,000 条候选事件，超界明确不可用，不返回部分目录。读取结果仍受 lifecycle 删除 fence 与有界原件校验保护。读取器不追加 McpDiscovered、不恢复/执行动作；owner 完成发布和重启恢复在既有 Harness 路径中另外接通。受管 composition 可先绑定该读取器，公开 enabled 保护在 owner/Web 全链完成前继续保持。核验应覆盖真实 Host 原件/撤销/较新未知遮蔽、Core 原事件链替换/缺失/矛盾、删除与重启零发现；这些组件证据不提升 IP 状态。
