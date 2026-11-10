@@ -85,3 +85,13 @@ managed 模式始终只读 Core 已核验原件；开发 discover_on_start=false
 受管程序只保留 opaque program_ref；args、显式 env 和 inherit_env 在读取进程环境前即拒绝。受管 executor 使用严格输出预算；超过预算不得截断成目录。已验证目录中的普通 MCP formal binding 保持 High/Outward，与 Host 和 registry 的实际调用规则一致。
 
 本节只修复装配依赖循环，不调整现有 Policy、CompetenceGate、审批或恢复语义；owner 入口、pending 持久恢复、完成发布/动态 toolset 与 Web 接线仍必须另行完成，公开 enabled 保护保持。新发现路径遇到现有能力门无法到达 L5 的冲突，按独立治理补充记录处理，不能以本节默示放行。
+
+## 10. 原发现 job 的显式只读恢复
+
+本节落实已批准的 Unknown 原号核实，不修改冻结 Worker DTO、trait、脑事件或执行权限。生产 MCP backend 在首次 dispatch 前，通过 Core 内部回调保存完整原 WorkerDispatchRequest；私有 owner request/pending、原计划、已批准解析、ActionPlanned、worker binding/epoch 和 scope 必须一致。保存受同一加密和删除生命周期约束，失败不得发送 worker 请求。旧版本未保存该原件的 Unknown 不靠重建 permit/issued_at 补齐。
+
+认证 owner 可显式 POST `/v1/managed/mcp/discovery/{run}/verify`，正文只含 schema_version=1 与 command；Web bridge 使用同一 command 绑定、认证、CSRF 与 8192 字节限额。该路径只读取原 job 的 probe、result_manifest 和原分块，不能调用 execute/claim_dispatch/dispatch/cancel，不能更新授权期限。当前 owner/configuration/worker/composition、policy Deny、删除 fence 和 Host 当前性继续限制导入。未取得完整可信 Completed 原件时保持 Unknown，不通过人工成功或新作业替代。
+
+保护材料持久化及完整原事件链校验先于 ActionCompleted；完成使用原 run 版本 CAS，重复请求最多一份完成事实。历史 Unknown 只在原 Started 后、Completed 前且原派发私有记录与结果 companion 的 request 完全一致时可接纳；完成后的矛盾 Unknown 继续拒绝。恢复不记录目录发现的学习成功，保留原未知结果事实。
+
+完成后沿既有目录发布路径核对 Host/current source、登记唯一 McpDiscovered，再履行原 verification passes 并结束运行。通用重启恢复不可提前将发现 run 标成成功；已写完成但发布未完成时仍由显式原号发布/核实续接。原 publish 入口仅恢复发布，不能暗中拉取或重派 worker；已完成的重复发布仍重查原件与当前性。
