@@ -121,3 +121,55 @@ pub(super) fn register_mcp(
     backends.register(Arc::new(backend.with_discovery_consumer(consumer)))?;
     Ok(true)
 }
+
+/// Loading metadata can only read protected originals through the Host verifier.
+pub(super) fn mcp_registry(
+    managed: bool,
+    config: &ProductionRuntimeConfig,
+    binding: Option<&ManagedWorkerBinding>,
+    store: SqliteEventStore,
+) -> p::Result<(Arc<StdioMcpRegistry>, BTreeSet<p::ProviderId>)> {
+    let capability_config = &config.capabilities;
+    // Resolve declared environments before registering development servers.
+    let mut unresolved_mcp = BTreeSet::new();
+    let mut resolved_mcp_servers = Vec::new();
+    for entry in &capability_config.mcp {
+        let mut server = entry.server.clone();
+        let mut available = true;
+        for name in &entry.inherit_env {
+            match std::env::var(name) {
+                Ok(value) if !value.is_empty() => server.env.push((name.clone(), value)),
+                _ => available = false,
+            }
+        }
+        if available {
+            resolved_mcp_servers.push(server);
+        } else {
+            unresolved_mcp.insert(entry.server.provider_id.clone());
+        }
+    }
+    if !managed {
+        return Ok((
+            Arc::new(StdioMcpRegistry::with_servers(resolved_mcp_servers)?),
+            unresolved_mcp,
+        ));
+    }
+    let source = binding
+        .and_then(|b| b.connect_mcp_source().ok())
+        .map(|authority| {
+            Arc::new(
+                crate::production_artifact_store::ProtectedMcpCatalogSource {
+                    store,
+                    owner: p::VerifiedPrincipal(config.owner.0.clone()),
+                    authority,
+                },
+            ) as Arc<dyn forme_capabilities::ManagedMcpCatalogSource>
+        });
+    Ok((
+        Arc::new(StdioMcpRegistry::with_managed_servers(
+            resolved_mcp_servers,
+            source,
+        )?),
+        unresolved_mcp,
+    ))
+}

@@ -448,3 +448,6 @@ fn native_managed_mcp_new_pending_discovery_shadows_old_completed_metadata() {
     assert!(dispatch(&host, &auth, &req).is_err());
     assert!(!directory(&fixture, &req).exists());
 }
+
+#[path = "source.rs"]
+mod source;

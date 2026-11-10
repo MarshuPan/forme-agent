@@ -1,6 +1,31 @@
-//! Authenticated program management has no AgentExecution endpoint.
+//! Program management stays in Configuration; source verification is read-only.
 use super::*;
 impl<M: NativeServiceManager> ProductHostBroker<M> {
+    /// Execution-domain read only: no program management or worker dispatch.
+    pub fn verify_mcp_source(
+        &self,
+        auth: &HostAuth,
+        manifest: &p::WorkerResultManifest,
+    ) -> p::Result<p::ProductMcpServerConfig> {
+        if auth.domain != HostCredentialDomain::AgentExecution
+            || self.agent_digest.as_ref() != Some(&auth.proof_ref)
+        {
+            return Err(unavailable());
+        }
+        manifest.validate()?;
+        #[cfg(windows)]
+        {
+            self.mcp_programs
+                .as_ref()
+                .ok_or_else(unavailable)?
+                .verify_source(manifest)
+        }
+        #[cfg(not(windows))]
+        {
+            Err(unavailable())
+        }
+    }
+
     #[cfg(windows)]
     pub fn with_mcp_programs(
         mut self,

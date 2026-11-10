@@ -487,29 +487,8 @@ fn assemble_capabilities(
     } = worker_bindings;
     let capability_config = &config.capabilities;
     let capabilities = Arc::new(InMemoryCapabilityRegistry::default());
-    // Resolve declared environments before registering development servers.
-    let mut unresolved_mcp = BTreeSet::new();
-    let mut resolved_mcp_servers = Vec::new();
-    for entry in &capability_config.mcp {
-        let mut server = entry.server.clone();
-        let mut available = true;
-        for name in &entry.inherit_env {
-            match std::env::var(name) {
-                Ok(value) if !value.is_empty() => server.env.push((name.clone(), value)),
-                _ => available = false,
-            }
-        }
-        if available {
-            resolved_mcp_servers.push(server);
-        } else {
-            unresolved_mcp.insert(entry.server.provider_id.clone());
-        }
-    }
-    let mcp = Arc::new(if managed_mode {
-        StdioMcpRegistry::with_managed_servers(resolved_mcp_servers, None)?
-    } else {
-        StdioMcpRegistry::with_servers(resolved_mcp_servers)?
-    });
+    let (mcp, unresolved_mcp) =
+        managed_workers::mcp_registry(managed_mode, config, worker_binding, store.clone())?;
     let plugins = Arc::new(LocalPluginRegistry::with_plugins(
         capability_config
             .plugins

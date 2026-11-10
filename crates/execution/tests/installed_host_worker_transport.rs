@@ -767,3 +767,73 @@ fn worker_action_backend_missing_real_result_has_no_completion_or_reexecution() 
         1
     );
 }
+
+#[test]
+fn mcp_source_route_is_execution_only_and_never_changes_a_historical_result() {
+    use forme_execution::installed::ManagedMcpSourceVerifier;
+    let daemon = Daemon::start(Vec::new());
+    let token = daemon.root.join("source-agent.token");
+    std::fs::write(&token, AGENT_TOKEN).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let client =
+        WorkerBrokerClient::connect(daemon.agent_address.parse().unwrap(), &token).unwrap();
+    let request = typed_execution_request("job-source-read", now_ms() + 30_000);
+    client.dispatch(request.clone()).unwrap();
+    observe_until_terminal(&daemon, &request.job.job_id);
+    let manifest = client.result_manifest(&request.job.job_id).unwrap();
+    let original_len = std::fs::metadata(daemon.root.join("worker.jsonl"))
+        .unwrap()
+        .len();
+    let path = format!("/v1/agent/workers/{}/mcp-source", request.job.job_id);
+    let bytes = serde_json::to_vec(&manifest).unwrap();
+    assert!(client.verify_source(&manifest).is_err());
+    assert_eq!(
+        daemon.request("POST", &path, MAINTENANCE_TOKEN, &bytes).0,
+        401
+    );
+    assert_eq!(
+        daemon
+            .request_at(&daemon.address, "POST", &path, MAINTENANCE_TOKEN, &bytes)
+            .0,
+        401
+    );
+    for (method, path, body) in [
+        ("GET", path.clone(), bytes.clone()),
+        ("POST", path.clone(), b"{}".to_vec()),
+        (
+            "POST",
+            "/v1/agent/workers/other/mcp-source".into(),
+            bytes.clone(),
+        ),
+        ("POST", path.clone(), vec![b' '; 32 * 1024 + 1]),
+    ] {
+        assert_eq!(daemon.request(method, &path, AGENT_TOKEN, &body).0, 400);
+    }
+    let mut unknown = serde_json::to_value(&manifest).unwrap();
+    unknown["execute"] = true.into();
+    assert_eq!(
+        daemon
+            .request(
+                "POST",
+                &path,
+                AGENT_TOKEN,
+                &serde_json::to_vec(&unknown).unwrap()
+            )
+            .0,
+        400
+    );
+    assert_eq!(
+        client.result_manifest(&request.job.job_id).unwrap(),
+        manifest
+    );
+    assert_eq!(
+        std::fs::metadata(daemon.root.join("worker.jsonl"))
+            .unwrap()
+            .len(),
+        original_len
+    );
+}

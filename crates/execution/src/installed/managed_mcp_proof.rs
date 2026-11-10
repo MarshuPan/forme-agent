@@ -19,6 +19,31 @@ pub(crate) struct DiscoveryOrigin {
 }
 
 impl DiscoveryProofReader {
+    pub(crate) fn verify_manifest(
+        &self,
+        manifest: &p::WorkerResultManifest,
+    ) -> p::Result<(p::WorkerJob, p::ManagedMcpDiscoveryCatalogV1)> {
+        manifest.validate()?;
+        let request = self.journal.discovery_request(&manifest.binding.job_id)?;
+        let p::ActionParameters::McpDiscovery(spec) = &request
+            .execution
+            .as_ref()
+            .ok_or_else(invalid)?
+            .intent
+            .parameters
+        else {
+            return Err(invalid());
+        };
+        let (origin, catalog) = self.verify(&request.job, &spec.server, None)?;
+        if origin.job_id != request.job.job_id
+            || origin.manifest_digest != manifest.manifest_digest
+            || self.journal.result_manifest(&request.job.job_id)?.as_ref() != Some(manifest)
+        {
+            return Err(invalid());
+        }
+        Ok((request.job, catalog))
+    }
+
     pub(crate) fn new(
         journal: Arc<WorkerJournal>,
         results: Arc<WorkerResultStore>,

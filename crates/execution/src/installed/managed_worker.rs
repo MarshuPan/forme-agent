@@ -65,6 +65,17 @@ impl ManagedWorkerBinding {
 
     /// Windows production cannot fall back to bearer-only TCP.
     pub fn connect(&self) -> p::Result<Arc<dyn WorkerBrokerTransport + Send + Sync>> {
+        Ok(self.connect_client()?)
+    }
+
+    pub fn connect_mcp_source(&self) -> p::Result<Arc<dyn super::ManagedMcpSourceVerifier>> {
+        if !self.supports(p::BackendKind::Mcp) {
+            return Err(p::Error("managed MCP source is not installed".into()));
+        }
+        Ok(self.connect_client()?)
+    }
+
+    fn connect_client(&self) -> p::Result<Arc<WorkerBrokerClient>> {
         self.validate()?;
         match &self.endpoint {
             ManagedWorkerEndpoint::LoopbackTcp { address } => {

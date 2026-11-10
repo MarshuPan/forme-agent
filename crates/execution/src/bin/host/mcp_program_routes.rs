@@ -1,4 +1,4 @@
-//! Finite Configuration-domain routes. No dispatch or arbitrary program input.
+//! Finite program management and execution-domain source reads. No dispatch.
 use super::{http::Request, EndpointDomain};
 use forme_execution::installed::{HostAuth, ProductHostBroker};
 use forme_protocol as p;
@@ -18,6 +18,9 @@ pub(super) fn route(
     domain: EndpointDomain,
     now: p::Timestamp,
 ) -> Option<p::Result<Vec<u8>>> {
+    if request.path.starts_with("/v1/agent/workers/") && request.path.ends_with("/mcp-source") {
+        return Some(source(request, broker, auth, domain));
+    }
     if !request.path.starts_with(ROOT) {
         return None;
     }
@@ -42,6 +45,31 @@ pub(super) fn route(
             _ => Err(invalid()),
         }
     })())
+}
+fn source(
+    request: &Request,
+    broker: &ProductHostBroker,
+    auth: &HostAuth,
+    domain: EndpointDomain,
+) -> p::Result<Vec<u8>> {
+    if !matches!(domain, EndpointDomain::AgentExecution)
+        || request.method != "POST"
+        || request.body.len() > 32 * 1024
+    {
+        return Err(invalid());
+    }
+    let id = request
+        .path
+        .strip_prefix("/v1/agent/workers/")
+        .and_then(|s| s.strip_suffix("/mcp-source"))
+        .ok_or_else(invalid)?;
+    p::validate_product_id(id)?;
+    let original: p::WorkerResultManifest =
+        serde_json::from_slice(&request.body).map_err(|_| invalid())?;
+    if original.binding.job_id != id {
+        return Err(invalid());
+    }
+    serde_json::to_vec(&broker.verify_mcp_source(auth, &original)?).map_err(|_| invalid())
 }
 fn invalid() -> p::Error {
     p::Error("managed MCP program route is invalid".into())

@@ -11,6 +11,36 @@ pub(in crate::installed) struct DiscoveryOriginal {
 }
 
 impl WorkerJournal {
+    pub(in crate::installed) fn discovery_request(
+        &self,
+        job_id: &str,
+    ) -> p::Result<p::WorkerDispatchRequest> {
+        let mut writer = self.writer.lock().map_err(|_| storage_error())?;
+        if writer.poisoned {
+            return Err(storage_error());
+        }
+        if let Err(error) = recovery::recheck_writer(&mut writer) {
+            writer.poisoned = true;
+            return Err(error);
+        }
+        let record = writer
+            .projection
+            .jobs
+            .get(job_id)
+            .ok_or_else(invalid_journal)?;
+        let execution = record
+            .execution_binding
+            .as_ref()
+            .and_then(|binding| binding.discovery.as_deref())
+            .ok_or_else(invalid_journal)?;
+        Ok(p::WorkerDispatchRequest {
+            schema_version: p::SchemaVersion(1),
+            job: record.job.clone(),
+            permit: record.permit.clone(),
+            execution: Some(execution.clone()),
+        })
+    }
+
     pub(in crate::installed) fn discovery_original(
         &self,
         caller: &p::WorkerJob,

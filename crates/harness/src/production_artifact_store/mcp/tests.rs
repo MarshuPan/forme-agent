@@ -272,3 +272,6 @@ fn discovery_completion_append_failure_never_adds_a_contradictory_unknown() {
         .any(|event| matches!(event, p::EventPayload::ActionOutcomeUnknown(_))));
     assert!(f.body(&id(&transport.original())).is_some());
 }
+
+#[path = "source_tests.rs"]
+mod source_tests;

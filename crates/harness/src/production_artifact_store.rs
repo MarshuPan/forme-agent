@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 mod mcp;
+pub(crate) use mcp::source::ProtectedMcpCatalogSource;
 #[cfg(test)]
 mod tests;
 #[path = "production_worker_artifacts.rs"]

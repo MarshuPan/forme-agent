@@ -20,6 +20,7 @@ pub(crate) mod migration;
 mod projections;
 #[path = "sqlite/protected_companion.rs"]
 mod protected_companion;
+mod run_heads;
 
 use self::builtin_rebuild::{
     capture_rebuild_events, fold_builtin_projections, BuiltinRebuildSnapshot,
@@ -770,33 +771,6 @@ impl SqliteEventStore {
             )
             .map_err(|error| store_error("failed to read the run head", error))?;
         u64::try_from(head).map_err(|_| p::Error("stored stream sequence is invalid".into()))
-    }
-
-    /// The current `stream_seq` head of every run, read in one statement so
-    /// a tick can fix its event range against a single store snapshot.
-    pub fn run_heads(&self) -> p::Result<crate::TickEventCursor> {
-        let connection = self
-            .core
-            .connection
-            .lock()
-            .map_err(|_| p::Error("event database lock is poisoned".into()))?;
-        let mut statement = connection
-            .prepare("SELECT run_id, MAX(stream_seq) FROM events GROUP BY run_id")
-            .map_err(|error| store_error("failed to prepare run head scan", error))?;
-        let rows = statement
-            .query_map([], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-            })
-            .map_err(|error| store_error("failed to scan run heads", error))?;
-        let mut heads = BTreeMap::new();
-        for row in rows {
-            let (run, head) =
-                row.map_err(|error| store_error("failed to decode run head", error))?;
-            let head = u64::try_from(head)
-                .map_err(|_| p::Error("stored stream sequence is invalid".into()))?;
-            heads.insert(p::RunId(run), head);
-        }
-        Ok(crate::TickEventCursor(heads))
     }
 
     pub fn run_ids(&self) -> p::Result<Vec<p::RunId>> {

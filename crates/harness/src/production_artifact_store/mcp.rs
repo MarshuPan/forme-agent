@@ -182,5 +182,6 @@ fn invalid() -> p::Error {
     p::Error("protected MCP discovery material is unavailable or inconsistent".into())
 }
 
+pub(crate) mod source;
 #[cfg(test)]
 mod tests;

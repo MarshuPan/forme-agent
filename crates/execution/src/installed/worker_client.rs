@@ -19,6 +19,8 @@ use zeroize::Zeroizing;
 
 use super::reject_linked_ancestors;
 
+mod mcp_source;
+
 const MAX_BODY_BYTES: usize = 4 * 1024 * 1024;
 const MAX_WIRE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_HEADERS: usize = 16 * 1024;
@@ -424,6 +426,7 @@ impl WorkerBrokerTransport for WorkerBrokerClient {
 
 #[derive(Clone, Copy)]
 enum Operation {
+    McpSource,
     Desktop,
     Dispatch,
     Probe,
@@ -435,6 +438,7 @@ enum Operation {
 impl Operation {
     fn transport_error(self) -> p::Error {
         match self {
+            Self::McpSource => p::Error("managed MCP current source is unavailable".into()),
             Self::Desktop => p::Error(
                 "desktop operation outcome is unknown; query the original operation".into(),
             ),

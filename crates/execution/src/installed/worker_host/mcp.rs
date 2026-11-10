@@ -7,6 +7,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         programs: std::sync::Arc<super::super::InstalledManagedMcpPrograms>,
         runtime_root: std::path::PathBuf,
     ) -> p::Result<Self> {
+        programs.bind_source_reader(&self.journal, &self.result_store, &self.installation_ref)?;
         self.managed_mcp = Some(super::super::managed_mcp_stdio::ManagedMcpIsolation::open(
             runtime_root,
             programs,

@@ -7,6 +7,8 @@ use std::sync::Arc;
 pub(crate) mod admission;
 #[path = "call_admission.rs"]
 mod call_admission;
+#[path = "source.rs"]
+mod source;
 
 pub struct InstalledManagedMcpPrograms {
     journal: PathBuf,
@@ -17,6 +19,7 @@ pub struct InstalledManagedMcpPrograms {
     scopes: Vec<p::Scope>,
     protected: Vec<PathBuf>,
     registry: Mutex<Option<Arc<ManagedMcpProgramRegistry>>>,
+    source: Mutex<Option<source::SourceBinding>>,
 }
 impl InstalledManagedMcpPrograms {
     pub fn new(
@@ -43,6 +46,7 @@ impl InstalledManagedMcpPrograms {
             scopes,
             protected,
             registry: Mutex::new(None),
+            source: Mutex::new(None),
         })
     }
     pub(crate) fn matches_configuration(

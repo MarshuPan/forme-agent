@@ -44,6 +44,8 @@ pub use managed_mcp_program::{
     ManagedMcpProgramSource,
 };
 mod managed_mcp_material;
+mod managed_mcp_source;
+pub use managed_mcp_source::ManagedMcpSourceVerifier;
 mod management_repair;
 mod paths;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
