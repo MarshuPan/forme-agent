@@ -50,3 +50,5 @@ Host 私有来源结构 `ManagedMcpProgramSource{schema_version,source_ref,scope
 本模块通过不表示 AppContainer discovery/call、Core metadata、Web 设置界面、其他 profile 或完整 IP 已完成。现有 MCP enabled 消费者保护在实际链路接通前保持。
 
 请求窗口从 Host 接收命令时开始，配置锁、注册表锁及来源文件校验消耗同一窗口；使用单调耗时推进收到请求时的时间，追加原件前再次检查，绝不续期。未决维护只禁止新注册事实，仍允许同 key/digest 读取原回执。64 项注册上限包含已撤销原件，不能删除 tombstone 腾出可复活的旧身份。来源路径仅接受本机 Windows 盘符绝对路径及对应 verbatim disk 形式，拒绝 UNC、设备路径和相对路径。
+
+首次初始化使用 create-new 日志并持久化 Bound，然后创建独立只读 binding 原件，绑定安装/owner/epoch 摘要和真实日志文件身份。已有日志为空、binding 缺失/错误、binding 存在但日志缺失或日志被同字节替换时均拒绝；不能当新 registry 重建。binding 和全部祖先保持句柄 custody，防止运行中替换父目录打开第二个 writer。初始化中断留下的任一半成品保留并要求恢复，不自动删除或补写。两个原件都被外部删除属于本机管理域破坏，不提供自动重建旧注册身份的恢复流程。
