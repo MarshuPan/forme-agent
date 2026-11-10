@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 受管 MCP 程序注册接通 Host，实际隔离执行继续实施
+
+`bcd2055` 接通版本化注册/撤销、固定预置来源、文件身份 custody、持久 journal/binding、Host 配置管理域与认证 Web API。新增 20 项场景逐名通过；最终 workspace 为 198 targets、1,494 passed / 0 failed / 22 默认 ignored，fmt/check、strict Clippy、产品构建、结构质量和完整合规全部通过，1,046 项源码与七份日志独立核验通过。原 C14 编排失败在单测、整编排目标和最终整仓未复现，根因未确定；新增诊断而未放宽断言，原失败证据保留。
+
+空闲窗口对 79 个缓存程序做摘要保持的可逆压缩，回收约 15.59 GiB，实际分配降至约 55.93 GiB，回到 64 GiB 预算内。精确绑定、原件和边界见[注册组件验收](installed-managed-mcp-program-registration-20261110.md)。`8fd9ffe` 已单独提交[stdio 实施契约](../architecture/installed-managed-mcp-stdio-contract.md)；实际隔离 discovery/call、metadata 消费及 owner 发现入口仍待完成，MCP enabled 保护继续拒绝。注册组件未刷新 M5/D/Final/IP，未部署；原三项获批方案及整体安装义务继续开放。
+
 ## 2026-11-10 受管 MCP 发现协议基础层通过，实际执行链仍待接通
 
 发现动作的独立批准已由 `2acc6cf` 激活，原三项方案的实施授权继续有效。`2b4124c` 保持兼容地拆分动作参数与策略匹配；`a31ffbf` 实现发现 spec/catalog、完整配置摘要、独立 owner Session Ask 规则、预算/期限和普通执行路径拒绝。Host 程序注册、实际隔离 discovery/call、metadata 消费与认证 Web 发现入口仍未完成，没有提前开放 MCP 启用。
