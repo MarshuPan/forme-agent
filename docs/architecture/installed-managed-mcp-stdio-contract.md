@@ -51,3 +51,15 @@ Host 必须核对当前 server/program/settings、原已完成 discovery job、�
 - 同一原件的重复保存只补全中断的保护材料；不创建新作业、不改原内容。观察时刻可以在原号查询时前进，不能改变终态和原 receipt/binding。body、metadata 或 material receipt 冲突立即拒绝。pending/完成删除 fence 使保存和读取均拒绝，不复活已删除来源。
 - 完成事件仅返回有界摘要与受保护引用；目录正文仍为 UntrustedData。Core 的后续 registry 发布必须另外核对原 run 的 RunAccepted/SessionBound/ActionPlanned/Started/Completed 与当前配置/allowlist。单独存好材料不表示工具可用，不能提前放开 enabled 保护。
 - 核验覆盖同原件重放/重启、三处写入中断、owner/原件/摘要替换、原件删除与部分 key 清理、consumer 缺失/失败/伪造引用时无可信完成，以及 completion append 失败不追加矛盾终态。真实安装身份与完整 Web 联合证据继续独立取得。
+
+## 7. 受管 registry 的读取边界
+
+本节细化已批准 §4 的 registry 接线，不改变原 McpRegistry/ExecutionCapabilityRechecker 签名、协议对象或事件类型。开发 stdio 行为保留；正式 managed composition 必须选择独立受管模式。受管模式缺 Core 原件来源即 unavailable，不能落回 discover_over_stdio，即使 provider 已 enabled/trusted/granted。
+
+受管模式可以绑定一个 Core 拥有的窄目录来源；只返回当前 ProductMcpServerConfig 和已核验原事件链/保护材料的 ManagedMcpDiscoveryCatalogV1。来源的每次读取必须核对当前原件、注册/settings 与删除 fence，不能执行程序、自动发现、重派或发布脑事实。registry 另行核对 config/spec/catalog、provider grant scope、opaque program_ref、空 args/env、allowlist 和预算约束，再建立可丢弃的目录/延迟 schema 缓存。
+
+discovery/search、schema 选择、准备调用、能力索引及执行重查都重新验证来源与已装载 catalog 摘要。来源缺失、变更、撤销或校验失败即移除该来源的缓存；显式重新装载只能读取仍有效的原件。受管目录读取不产生新的 McpDiscovered；该事实由完成原动作与完整校验的 Core 路径负责发布，重启读取不能伪造第二次发现。
+
+受管普通调用仍使用既有 Mcp 参数形状，只携带 opaque program_ref 和空 args/env，并作为 High/Outward 进入原 Harness；不能因 metadata 被读取而降为内部无副作用操作。受管来源检查、缓存消费和 provider 生命周期变更在 registry 内形成排他顺序，Core 来源不可回调同一 registry。真实 pipe 写入仍由 Host 独立重查，缓存不能代替 Host 准入。
+
+该边界可先于 Core 来源读取器和 owner/Web 接线完成；来源未接通时明确不可用，公开 enabled 保护继续保持。验证必须证明无来源/失败来源/缓存失效时零开发进程启动，并覆盖 allowlist、schema 漂移、禁用、重启读取和实际执行前重查；不能把受控来源测试当作 Core 或安装版完成。

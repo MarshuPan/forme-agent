@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 Core 发现原件保护通过，缓存回收 14.60 GiB
+
+`f375506` 将发现结果的加密正文、原请求/回执 companion 和材料登记接入同一 Core lifecycle；保存和完整重读先于 ActionCompleted，重放补齐原件，冲突或删除 fence 拒绝，失败保持原 Unknown。新增八项正反场景通过；最终十项门、整仓 199 targets/1,517 passed/0 failed/32 默认 ignored、原生 MCP 10/10、原结果 1/1、PTY 4/4（11 份回执）通过，1,072 份源码独立核验一致。
+
+空闲且源码干净时对 73 个缓存 exe 做可逆压缩，逐文件摘要保持，实际回收 14.60 GiB；固定 target 分配从 70.54 GiB 降至 55.94 GiB，低于 64 GiB 预算。详见[Core 原件保护验收](installed-managed-mcp-material-20261110.md)。原事件链/registry、owner/Harness 与 Web 接线仍在实施，公开 enabled 保护保持，未计作 IP 完成。以下保留历史状态。
+
 ## 2026-11-10 受管 MCP 普通调用及原生回归通过，Core 与入口继续接通
 
 `c0a0bde` 将普通 tools/call 绑定到 Host 独立核验的原 completed discovery、受保护 catalog、当前程序/配置和工具 schema。调用不重新发现；实际写入前重查，调用后取消/失联保留原 Unknown，原号重放不重复执行。最终整仓 199 targets、1,509 passed / 0 failed / 32 默认 ignored；九项门、原生 MCP 10/10、原结果 1/1 与 PTY 4/4（11 份回执）通过，1,067 项源码及日志/原件独立核验一致。
