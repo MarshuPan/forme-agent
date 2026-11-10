@@ -320,3 +320,24 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 结束时资源报告 `managed-mcp-stdio-m5-build-resources.json` 的 SHA-256 为 `7888be91d910eb6d4ceab871a80e9422b181dd3c480a6a361a0891c645b6f3c6`；缓存逻辑长度 99,144,978,380 bytes，硬链接去重实际分配 **64,316,608,903 bytes（约 59.90 GiB）**，低于 64 GiB 预算，errors 和 over_budget 均为空。此前空闲窗口对 72 个 exe 做摘要保持的可逆 NTFS 压缩，实际回收 15,046,605,875 bytes；方案、逐项证据与前后报告保留在同目录 `managed-mcp-stdio-cache-*`。M5/D 新产生的缓存计入当前终态，没有逐测试清理或删除原始证据。
 
 本节属于原审计器既有自指排除项，只记录实际结果；记录后运行文档提交所需完整合规，不因纯记录重复整套门。当前仍为 18 crates、99 EventKinds、5 个已审计 unsafe 文件。普通受管 MCP 调用、Core metadata/owner/Harness/Web 接线、插件和渠道的剩余接入，以及安装版桌面、升级和 IP01–IP24 继续按原范围推进；本轮没有部署、推送、UAC 或系统服务修改。
+
+
+## 23. 显式 owner MCP 发现后的完整 M5 与缓存维护（2026-11-10）
+
+干净 `shu/product-integration@de11a5a82a87118ca1d5b7f5d745c95ed7e1f8f4` 完整运行 `tools/verify-m5.ps1`，于 2026-11-10 14:01:15–14:26:03 UTC 完成，exit 0，唯一 `M5 FINAL ACCEPTANCE: PASS` 终线成立。S1–S99、历史 golden、fmt/check、strict Clippy、完整 workspace/Python、完整合规、工件独立核验与当前发布回执 compare 全部通过，未跳过共享检查。显式 owner 准入、原 pending 恢复和目录发布的实现及边界见[组件记录](installed-managed-mcp-owner-discovery-20261110.md)。
+
+唯一 workspace 阶段按每个 Running 目标的最终结果统计为 **200 targets、1558 passed / 0 failed / 35 默认 ignored**，不将嵌套子测试重复累加。Python discover 为 **95 项、94 passed / 1 环境 skipped**。原始证据在本工作树 ignored `target/product-integration-evidence/`：
+
+| 证据 | SHA-256 / 内容地址 |
+| --- | --- |
+| `owner-discovery-permanent-m5.log` | `f29cab76f6e2fd5a98f2ad6263d074bd7d011f7a30fb7619d2c1f485797e9240` |
+| `owner-discovery-permanent-m5-independent.json` | `b61e00dee8ae883bb1aa79a351d8d1bb8fe7f64711b485e72e54719b00788aac`；独立核对原日志摘要、clean HEAD、源码未变、目标计数、Python、唯一终线及 compare。 |
+| 当前发布审计回执 | `sha256:2cf2381a4a7c4c200ffca262f1dc3473723ca9c540cb9ad52f520f95ede8141f`；实际生成、独立 verify、仓库原件与 M5 最终 compare 一致。 |
+| `owner-discovery-cache-compression.json` | `4c29fbdacc28755a3e076eddae15ccc298c832a14cbc789019fa3e5b58f04720`；75 个空闲 exe 的前后内容摘要一致。 |
+| `owner-discovery-after-compression-resources.json` | `8961c67db4f4fbbdb0ecba74b5df02d8692cd9eac9648de9d337734e7b575ad3`；实际分配低于预算、errors 和 over_budget 均为空。 |
+
+上一批 `ed2e20d` 的 `mcp-source-permanent-m5.json/.log` 仍为 exit 1，失败于陈旧仓库发布回执的最终比较，日志摘要 `22d01c06f0e1c27322181da6b2f7a10e089c4628aa35ade62a7085c06ffecfbb`。原 `694a2f…` 规范回执保存在 Git 历史及 `owner-discovery-previous-release-audit/`，替换记录为 `owner-discovery-audit-replacement.json`。本次独立新日志不覆盖或改称旧失败。owner 实现早期因学习成功事件反例主动中止的 `owner-discovery-final-*` 同样保留；提交前正式通过来自 `owner-discovery-verified-*`。
+
+M5 退出后的完整空间报告为 `owner-discovery-permanent-final-build-resources.json`：固定 target 缓存逻辑长度 **100,500,239,166 bytes**，硬链接去重实际分配 **75,905,974,314 bytes（约 70.69 GiB）**，超过原 64 GiB 报告预算。所有构建/测试退出、源码干净、无缓存程序占用后，先保存预览，再对其中 75 个大 exe 应用可逆 NTFS 压缩；逐文件前后 SHA-256、长度及返回码核验通过。末次重新扫描实际分配为 **60,042,222,812 bytes（约 55.92 GiB）**，本轮净回收 **15,863,751,502 bytes（约 14.77 GiB）**。前后逻辑长度、19,592 个文件及硬链接计数一致；没有删除缓存、安装包或验收原件，也不把历次压缩量累计成净节省。根构建参数与 64 GiB 预算保持。
+
+本节是审计器既有自指排除项，只回填真实结果；不调整排除集、不因纯记录重跑整门。当前仍为 18 crates、99 EventKinds 和五处已审计 unsafe 边界。此次没有部署、推送、UAC、系统服务变更或真实 owner 数据操作。原 job 的只读结果导入、新 run 的工具快照、Host placement/公开 enabled、设置 UI、插件/渠道及完整 IP01–IP24 仍开放；源码 M5 通过不替代这些安装产品义务。
