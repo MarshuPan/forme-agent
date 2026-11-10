@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 受管 registry 读取边界通过，最终缓存 55.84 GiB
+
+`c1010a1` 将正式 managed composition 与开发 stdio discovery 分开：受管来源缺失或失效时不可用，不创建本地进程；目录/schema/调用/索引/执行重查都会复核来源，禁用与读取有明确排他顺序。普通调用保留 opaque program_ref，并拒绝程序、参数、环境和作用域替换。Core 原事件链读取器尚未装配，来源明确为 None，公开 enabled 保护保持。
+
+最终十项门通过；整仓 **200 targets、1,527 passed / 0 failed / 32 默认 ignored**，新目标 10/10、旧 stdio 5/5、原生 MCP 10/10、原结果 1/1、PTY 4/4（11 份回执），1,075 份源码独立核验一致。重链接后另行空闲压缩 55 个缓存 exe，内容保持，最终分配 **55.84 GiB**、低于 64 GiB 预算。详见[受管 registry 验收](installed-managed-mcp-registry-20261110.md)。Core 来源、owner/Harness、Web 及安装联合验收继续开放；三项方案的授权保持，无需重复确认。以下保留历史状态。
+
 ## 2026-11-10 Core 发现原件保护通过，缓存回收 14.60 GiB
 
 `f375506` 将发现结果的加密正文、原请求/回执 companion 和材料登记接入同一 Core lifecycle；保存和完整重读先于 ActionCompleted，重放补齐原件，冲突或删除 fence 拒绝，失败保持原 Unknown。新增八项正反场景通过；最终十项门、整仓 199 targets/1,517 passed/0 failed/32 默认 ignored、原生 MCP 10/10、原结果 1/1、PTY 4/4（11 份回执）通过，1,072 份源码独立核验一致。
