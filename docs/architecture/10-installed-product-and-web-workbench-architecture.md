@@ -338,3 +338,6 @@ Markdown/HTML、附件、产物预览按不可信内容渲染。严格 CSP、无
 ## 14. 受管 MCP 的显式发现动作
 
 owner 已批准[显式发现动作契约](proposals/installed-managed-mcp-discovery-action.md)。`ActionParameters::McpDiscovery(ManagedMcpDiscoverySpec)` 单独表示受管 metadata discovery，复用原 BackendKind::Mcp、job/permit、审批与恢复；旧 Mcp 工具调用形状不变。Host 来源和当前设置绑定、有限 catalog、保护原件及重启恢复按该契约执行。安装版不使用 Brain 进程内 discovery，未配置或缺原生隔离时保持 unavailable；不新增依赖边、EventKind 或 unsafe 边界。开发 stdio 的既有协议保持，不能作为受管 fallback。
+
+
+受管程序来源、owner 注册/撤销、实际文件 custody 和 Host journal 按[程序注册实施契约](installed-managed-mcp-programs-contract.md)落实。该契约细化已批准的受管接入范围；缺实际执行消费者时仍不开放 MCP 启用。

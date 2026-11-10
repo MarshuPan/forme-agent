@@ -419,3 +419,8 @@ Host 核对已认领 owner、当前配置 revision 和安装身份后，使用�
 ## 12. 桌面选择的认证边界
 
 [桌面授权实施契约](../architecture/installed-desktop-authority-contract.md)固定 owner consent/revoke 的近期重新认证与原 operation 摘要绑定。session 目录只读，不启动 helper。配置启用、产品登录和 SuperAdmin 都不替代原动作审批与 exact desktop consent；AgentExecution grant 接口不向 Web configuration 凭据开放。
+
+
+## 13. 受管 MCP 程序注册
+
+[程序注册实施契约](../architecture/installed-managed-mcp-programs-contract.md)固定独立 owner 重新认证、不可变程序来源、原件身份/摘要、Host 单写者与撤销恢复。注册只接入固定来源，不启动进程；发现与工具调用仍走原 Harness 和独立 worker。原三项方案与发现动作的批准继续有效。
