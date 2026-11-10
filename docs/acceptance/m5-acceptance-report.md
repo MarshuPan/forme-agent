@@ -341,3 +341,24 @@ M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> u
 M5 退出后的完整空间报告为 `owner-discovery-permanent-final-build-resources.json`：固定 target 缓存逻辑长度 **100,500,239,166 bytes**，硬链接去重实际分配 **75,905,974,314 bytes（约 70.69 GiB）**，超过原 64 GiB 报告预算。所有构建/测试退出、源码干净、无缓存程序占用后，先保存预览，再对其中 75 个大 exe 应用可逆 NTFS 压缩；逐文件前后 SHA-256、长度及返回码核验通过。末次重新扫描实际分配为 **60,042,222,812 bytes（约 55.92 GiB）**，本轮净回收 **15,863,751,502 bytes（约 14.77 GiB）**。前后逻辑长度、19,592 个文件及硬链接计数一致；没有删除缓存、安装包或验收原件，也不把历次压缩量累计成净节省。根构建参数与 64 GiB 预算保持。
 
 本节是审计器既有自指排除项，只回填真实结果；不调整排除集、不因纯记录重跑整门。当前仍为 18 crates、99 EventKinds 和五处已审计 unsafe 边界。此次没有部署、推送、UAC、系统服务变更或真实 owner 数据操作。原 job 的只读结果导入、新 run 的工具快照、Host placement/公开 enabled、设置 UI、插件/渠道及完整 IP01–IP24 仍开放；源码 M5 通过不替代这些安装产品义务。
+
+
+## 24. 原发现任务只读恢复后的完整 M5 与缓存维护（2026-11-10）
+
+干净 `shu/product-integration@e51bb64c84932a25c058a903b777698f595968f2` 完整执行 `tools/verify-m5.ps1`，UTC 2026-11-10T15:11:53.5612326+00:00 至 2026-11-10T15:32:33.9543140+00:00，exit 0；唯一 `M5 FINAL ACCEPTANCE: PASS` 成立。S1–S99、历史及多进程 golden、fmt/check、strict Clippy、完整 workspace/Python、完整合规、独立工件校验与当前发布回执 compare 全部通过，未使用跳过共享检查参数。实现 `b78b276` 与明确边界见[原任务恢复组件记录](installed-managed-mcp-original-job-20261110.md)。
+
+仅统计本次唯一 workspace 阶段，按 libtest 自身的开始/结果配对排除嵌套子进程夹具，共 **200 targets、1,568 passed / 0 failed / 35 默认 ignored**。Python discover **95 项、94 passed / 1 环境 skipped**。新增十项恢复与 Web 入口场景已在提交前整仓逐名核验；同一实现的干净 A 波 **47/47** 通过并独立核对场景、源码与封存摘要。以下 ignored 本地原件均在本工作树 `target/product-integration-evidence/`：
+
+| 证据 | SHA-256 |
+| --- | --- |
+| original-job-permanent-m5.log | 14a1f822a7a3204953bfa826a4824b184b248c9b8d1d59df5707ff121ff54cbc |
+| original-job-permanent-m5-independent.json | 71d860f7323f40504770ea913afbaa77da621fbd3e419c4cc006c850379938fd |
+| original-job-clean-a-independent.json | 61ac08dd629cf6e91355db39a3a954364a7e4dc8a0dac4650e728fcca495094b |
+| original-job-cache-compression.json | 7e481e99d5c86a7154c8cd22a56336ffc3cea03f8a0f0db7add3993a0ee3fc67 |
+| original-job-after-compression-resources.json | 6a17a2706f85c7647e741a70b42128c2f3768a48442b71be22477861daa7ab57 |
+
+当前 M5 审计摘要 **`sha256:f1dc15cd7f07e02a71d794737a518da9f3ebe64e9553ed40b04a97377490f45b`**，实际生成、独立 verify、规范原件与最终 compare 一致。前批 `2cf2381…` 回执保存在 Git 历史和 `original-job-previous-release-audit/`；替换内容与摘要记录在 `original-job-audit-replacement.json`。此前编译/断言/Clippy 失败原件没有删除或改为通过；本次实际检查来自 `original-job-verified-r2-*` 与独立新的 `original-job-permanent-m5.*`。
+
+完整 M5 后重新扫描缓存逻辑长度 **100,518,234,063 bytes**、硬链接去重实际分配 **75,536,223,338 bytes（70.35 GiB）**。在全部构建和测试进程退出、源码干净且缓存无占用后，先保存预览，再对 **73** 个空闲大 exe 应用可逆 NTFS 压缩，逐文件核验内容 SHA-256 与长度保持。最终重新扫描实际分配 **60,048,724,073 bytes（55.92 GiB）**，本轮净回收 **15,487,499,265 bytes（14.42 GiB）**，低于原 64 GiB 预算；errors 与 over_budget 均为空。前后逻辑长度、19,592 个文件和硬链接计数一致，未删除缓存、安装包、证据或运行数据，不累计历史压缩量为净节省。
+
+本节属于审计器原有的自指排除项，只记录已经完成的验证与空间维护；文档提交仅追加所需完整合规，不重跑已通过的整套门。18 crates、99 EventKinds、五个已审计 unsafe 边界保持。此次未部署或推送，未触发 UAC、服务修改或真实 owner 数据操作。新 run 的一致工具快照、Host 公开启用、设置 UI、插件/渠道及完整 IP01–IP24 仍开放，完整源码 M5 不替代安装产品验收。
