@@ -166,6 +166,15 @@ impl ReactiveHarness {
                 recovered.push(run);
                 continue;
             }
+            // Discovery completion still needs verified catalog publication.
+            // Its public marker can only restrict generic recovery, never grant it.
+            if events.iter().any(|e| {
+                matches!(&e.payload, p::EventPayload::RunAccepted(v)
+                if v.source == p::Source::OwnerControl
+                    && v.input_ref.0.starts_with("managed-mcp-discovery:"))
+            }) {
+                continue;
+            }
             // Finish only a previously uncertain action, never an ordinary
             // completed tool whose loop still needed a model continuation.
             let adjudicated = events.iter().rev().find_map(|e| match &e.payload {

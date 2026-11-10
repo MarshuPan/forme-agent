@@ -67,7 +67,24 @@ impl ManagedMcpCatalogSource for ProtectedMcpCatalogSource {
                 let Ok(settings) = self.authority.verify_source(&material.manifest) else {
                     continue;
                 };
-                verify_run(run, *head, &events, &material, &settings, &catalog, true)?;
+                let retained = crate::owner_discovery::original_job::matches_retained(
+                    &self.store,
+                    &self.owner,
+                    run,
+                    &material.request,
+                )?;
+                verify_run(
+                    run,
+                    *head,
+                    &events,
+                    &material,
+                    &settings,
+                    &catalog,
+                    Checks {
+                        published: true,
+                        retained_dispatch: retained,
+                    },
+                )?;
                 catalog
                     .spec
                     .validate_settings(&settings, &material.request.job.workspace_scope)?;
@@ -100,6 +117,11 @@ impl ManagedMcpCatalogSource for ProtectedMcpCatalogSource {
     }
 }
 
+pub(super) struct Checks {
+    pub(super) published: bool,
+    pub(super) retained_dispatch: bool,
+}
+
 pub(super) fn verify_run(
     run: &p::RunId,
     head: u64,
@@ -107,7 +129,7 @@ pub(super) fn verify_run(
     original: &DiscoveryMaterial,
     settings: &p::ProductMcpServerConfig,
     catalog: &p::ManagedMcpDiscoveryCatalogV1,
-    require_published: bool,
+    checks: Checks,
 ) -> p::Result<()> {
     let job = &original.request.job;
     let execution = original.request.execution.as_ref().ok_or_else(invalid)?;
@@ -271,13 +293,22 @@ pub(super) fn verify_run(
             p::EventPayload::ActionCancelled(v) if v.intent_id == job.action_ref => {
                 return Err(invalid())
             }
-            p::EventPayload::ActionOutcomeUnknown(v) if v.intent_id == job.action_ref => {
-                return Err(invalid())
+            p::EventPayload::ActionOutcomeUnknown(v)
+                if v.intent_id == job.action_ref
+                    && (!started
+                        || completed
+                        || !checks.retained_dispatch
+                        || v.remote_lease.is_some()
+                        || (v.probe_hint.0 != format!("worker:{}", job.job_id)
+                            && v.probe_hint.0
+                                != "manual adjudication required; action was not retried")) =>
+            {
+                return Err(invalid());
             }
             _ => (),
         }
     }
-    if !completed || (require_published && !published) || last != head {
+    if !completed || (checks.published && !published) || last != head {
         return Err(invalid());
     }
     Ok(())

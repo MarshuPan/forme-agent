@@ -56,8 +56,24 @@ fn harness_with_consumer(
     consumer: Arc<dyn forme_execution::installed::ManagedMcpDiscoveryConsumer>,
 ) -> (ReactiveHarness, Arc<Transport>) {
     let (worker, transport) = backend(consumer);
+    harness_with_worker(f, worker, transport)
+}
+fn harness_with_worker(
+    f: &Fixture,
+    worker: forme_execution::installed::WorkerActionBackend,
+    transport: Arc<Transport>,
+) -> (ReactiveHarness, Arc<Transport>) {
+    let worker = Arc::new(
+        worker.with_discovery_dispatch_recorder(original_job::recorder(
+            f.store.clone(),
+            owner(),
+            scope(),
+            p::canonical_digest(&"owner-discovery-worker").unwrap(),
+            p::AuthorityEpoch(1),
+        )),
+    );
     let registry = Arc::new(ExecutionBackendRegistry::default());
-    registry.register(Arc::new(worker)).unwrap();
+    registry.register(worker.clone()).unwrap();
     let profile = action_only_model_profile().unwrap();
     let model = Arc::new(ScriptedModelProvider::new(profile.clone(), vec![]).unwrap());
     let mut config = HarnessConfig::for_model(&profile);
@@ -78,6 +94,7 @@ fn harness_with_consumer(
         settings: vec![settings()],
         worker_digest: p::canonical_digest(&"owner-discovery-worker").unwrap(),
         authority: Arc::new(Authority(transport.clone())),
+        backend: worker,
     });
     (harness, transport)
 }
@@ -478,3 +495,6 @@ fn rejected_discovery_is_not_reported_as_a_successful_publication() {
     assert_eq!(events(&h, &run), before);
     assert_eq!(transport.calls.load(Ordering::SeqCst), 0);
 }
+
+#[path = "verification_tests.rs"]
+mod verification_tests;

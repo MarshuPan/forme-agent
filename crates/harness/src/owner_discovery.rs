@@ -3,24 +3,28 @@ use crate::*;
 use forme_execution::installed::ManagedWorkerBinding;
 use serde::{Deserialize, Serialize};
 
+pub(crate) mod original_job;
 mod persistence;
 mod policy;
 mod publication;
 mod recovery;
 #[cfg(test)]
 mod tests;
+mod verification;
 use persistence::{read, write, PendingDiscovery};
 
 pub(super) struct DiscoveryRuntime {
     pub(super) settings: Vec<p::ProductMcpServerConfig>,
     pub(super) worker_digest: p::SchemaDigest,
     pub(super) authority: Arc<dyn forme_execution::installed::ManagedMcpSourceVerifier>,
+    pub(super) backend: Arc<forme_execution::installed::WorkerActionBackend>,
 }
 
 impl DiscoveryRuntime {
     pub(crate) fn new(
         settings: Vec<p::ProductMcpServerConfig>,
         binding: &ManagedWorkerBinding,
+        backend: Arc<forme_execution::installed::WorkerActionBackend>,
     ) -> p::Result<Self> {
         binding.validate()?;
         if !binding.supports(p::BackendKind::Mcp)
@@ -35,6 +39,7 @@ impl DiscoveryRuntime {
             settings,
             worker_digest: p::canonical_digest(binding)?,
             authority: binding.connect_mcp_source()?,
+            backend,
         })
     }
 

@@ -66,18 +66,18 @@ impl ReactiveHarness {
         }
         let lock = self.session_lock(&pending.approval.session)?;
         let _lock = lock.lock().map_err(|_| invalid())?;
+        self.check_discovery_read(&run, owner, &pending)?;
         let events = self
             .store
             .read_run(run.clone())
             .collect::<p::Result<Vec<_>>>()?;
-        if let Some(result) = run_summary_from_events(run.clone(), &events)?.result {
-            return if result.status == p::RunStatus::Complete
-                && events.iter().any(|e| e.kind == p::EventKind::McpDiscovered)
-            {
-                Ok(())
-            } else {
-                Err(invalid())
-            };
+        let terminal = run_summary_from_events(run.clone(), &events)?.result;
+        if terminal
+            .as_ref()
+            .is_some_and(|result| result.status != p::RunStatus::Complete)
+            || (terminal.is_some() && !events.iter().any(|e| e.kind == p::EventKind::McpDiscovered))
+        {
+            return Err(invalid());
         }
         let completed = events.iter().find(|e| matches!(&e.payload, p::EventPayload::ActionCompleted(v) if v.intent_id == pending.original.intent.intent_id)).ok_or_else(invalid)?;
         // Validate the completed material before creating any transient state.
@@ -89,6 +89,9 @@ impl ReactiveHarness {
             &run,
             &pending.original.intent,
         )?;
+        if terminal.is_some() {
+            return Ok(());
+        }
         let handle = match self.run_handle(&run) {
             Ok(handle) => handle,
             Err(_) => {
@@ -98,10 +101,10 @@ impl ReactiveHarness {
                     PendingKind::Handoff(p::HandoffTargetRef(format!("mcp-publication:{}", run.0))),
                     completed.event_id.clone(),
                 )?;
-                record.request = pending.original.request;
+                record.request = pending.original.request.clone();
                 record.mode = RunMode::DirectAction;
                 record.owner_discovery_bound = true;
-                record.bound_envelope = Some(pending.original.envelope);
+                record.bound_envelope = Some(pending.original.envelope.clone());
                 record.resume_state = None;
                 let handle = Arc::new(RunHandle::new(record));
                 self.insert_recovered(&run, handle.clone())?;
@@ -109,6 +112,12 @@ impl ReactiveHarness {
             }
         };
         let mut record = handle.record.lock().map_err(|_| invalid())?;
+        record.request = pending.original.request;
+        record.mode = RunMode::DirectAction;
+        record.owner_discovery_bound = true;
+        record.bound_envelope = Some(pending.original.envelope);
+        record.resume_state = None;
+        record.recovered_unknown = None;
         if !self.finish_owner_discovery(&run, &handle, &mut record)? {
             return Err(invalid());
         }

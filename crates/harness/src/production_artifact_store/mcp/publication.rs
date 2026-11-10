@@ -3,6 +3,63 @@ use super::*;
 use forme_execution::installed::ManagedMcpSourceVerifier;
 use forme_store::{EventStore, VersionedEventStore};
 
+/// Validate a prospective completion before it becomes a brain fact. Historical
+/// Unknown is acceptable only with the immutable pre-dispatch private original.
+pub(crate) fn validate_recovery(
+    store: &SqliteEventStore,
+    owner: &p::VerifiedPrincipal,
+    authority: &dyn ManagedMcpSourceVerifier,
+    request: &p::WorkerDispatchRequest,
+    events: &[p::Event],
+    completion: &p::Event,
+) -> p::Result<()> {
+    let p::EventPayload::ActionCompleted(value) = &completion.payload else {
+        return Err(invalid());
+    };
+    let run = &completion.run_id;
+    store.require_current_execution(run)?;
+    let id = value
+        .receipt
+        .as_ref()
+        .and_then(|r| r.content_ref.as_ref())
+        .ok_or_else(invalid)?;
+    let (original, bytes) = read_material_original(store, id, owner)?.ok_or_else(invalid)?;
+    if original.request != *request
+        || !crate::owner_discovery::original_job::matches_retained(store, owner, run, request)?
+    {
+        return Err(invalid());
+    }
+    let catalog =
+        validate_managed_mcp_material(request, &original.observation, &original.manifest, &bytes)?;
+    let settings = authority.verify_source(&original.manifest)?;
+    catalog
+        .spec
+        .validate_settings(&settings, &request.job.workspace_scope)?;
+    let mut prospective = events.to_vec();
+    prospective.push(completion.clone());
+    source::verify_run(
+        run,
+        completion.stream_seq,
+        &prospective,
+        &original,
+        &settings,
+        &catalog,
+        source::Checks {
+            published: false,
+            retained_dispatch: true,
+        },
+    )?;
+    if authority.verify_source(&original.manifest)? != settings
+        || read_material_original(store, id, owner)?
+            .map(|v| v.0)
+            .as_ref()
+            != Some(&original)
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
 pub(crate) fn publish(
     store: &SqliteEventStore,
     owner: &p::VerifiedPrincipal,
@@ -47,7 +104,15 @@ pub(crate) fn publish(
         &original,
         &settings,
         &catalog,
-        false,
+        source::Checks {
+            published: false,
+            retained_dispatch: crate::owner_discovery::original_job::matches_retained(
+                store,
+                owner,
+                run,
+                &original.request,
+            )?,
+        },
     )?;
     if events.iter().any(|e| matches!(&e.payload, p::EventPayload::McpDiscovered(v) if v.server == catalog.spec.server)) {
         return Ok(());

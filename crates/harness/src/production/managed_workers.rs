@@ -98,9 +98,9 @@ pub(super) fn register_mcp(
     backends: &ExecutionBackendRegistry,
     protection: forme_store::StoreContentProtection,
     store: SqliteEventStore,
-) -> p::Result<bool> {
+) -> p::Result<Option<Arc<WorkerActionBackend>>> {
     let Some(binding) = binding.filter(|binding| binding.supports(p::BackendKind::Mcp)) else {
-        return Ok(false);
+        return Ok(None);
     };
     let owner = p::VerifiedPrincipal(config.owner.0.clone());
     let Ok(backend) = WorkerActionBackend::from_binding(
@@ -110,16 +110,28 @@ pub(super) fn register_mcp(
         OutputBudget::strict(budget.max_bytes),
         timeout,
     ) else {
-        return Ok(false);
+        return Ok(None);
     };
+    let recorder = crate::owner_discovery::original_job::recorder(
+        store.clone(),
+        owner.clone(),
+        p::Scope(config.workspace.0.clone()),
+        p::canonical_digest(binding)?,
+        binding.authority_epoch,
+    );
     let consumer = Arc::new(ProtectedRuntimeArtifacts {
         inner: FileArtifactStore::new(config.data.artifact_root.clone())?,
         protection,
         store,
         owner,
     });
-    backends.register(Arc::new(backend.with_discovery_consumer(consumer)))?;
-    Ok(true)
+    let backend = Arc::new(
+        backend
+            .with_discovery_consumer(consumer)
+            .with_discovery_dispatch_recorder(recorder),
+    );
+    backends.register(backend.clone())?;
+    Ok(Some(backend))
 }
 
 /// Loading metadata can only read protected originals through the Host verifier.

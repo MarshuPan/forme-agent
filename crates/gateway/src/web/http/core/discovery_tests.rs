@@ -112,3 +112,34 @@ fn discovery_routes_and_publication_are_finite_and_never_forward_worker_manageme
     )
     .is_err());
 }
+
+#[test]
+fn original_verification_bridge_accepts_only_a_bound_command_without_worker_parameters() {
+    let path = "mcp/discovery/run:original/verify";
+    assert_eq!(
+        allowlisted_core_path("POST", path, None).unwrap(),
+        "/v1/managed/mcp/discovery/run:original/verify"
+    );
+    assert!(allowlisted_core_path("GET", path, None).is_err());
+    assert!(allowlisted_core_path("POST", path, Some("retry=true")).is_err());
+    let request = serde_json::json!({"schema_version":1,"command":"command:verify"});
+    let body = serde_json::to_vec(&request).unwrap();
+    assert!(commands::bind_body("POST", path, &body, &owner(), Some("command:verify")).is_ok());
+    for key in [None, Some("command:other")] {
+        assert!(commands::bind_body("POST", path, &body, &owner(), key).is_err());
+    }
+    for field in [
+        "owner", "job", "permit", "spec", "deadline", "nonce", "execute",
+    ] {
+        let mut forged = request.clone();
+        forged[field] = "forged".into();
+        assert!(commands::bind_body(
+            "POST",
+            path,
+            &serde_json::to_vec(&forged).unwrap(),
+            &owner(),
+            Some("command:verify")
+        )
+        .is_err());
+    }
+}

@@ -426,8 +426,8 @@ fn allowlisted_core_path(
         ["projects"] => ("/v1/brain/projects".to_owned(), RouteMethods::GetPost),
         ["projects", "status"] => ("/v1/brain/projects/status".to_owned(), RouteMethods::Get),
         ["mcp", "discovery"] => ("/v1/managed/mcp/discovery".to_owned(), RouteMethods::Post),
-        ["mcp", "discovery", run, "publish"] => (
-            format!("/v1/managed/mcp/discovery/{run}/publish"),
+        ["mcp", "discovery", run, action @ ("publish" | "verify")] => (
+            format!("/v1/managed/mcp/discovery/{run}/{action}"),
             RouteMethods::Post,
         ),
         ["projects", "supervision"] => (

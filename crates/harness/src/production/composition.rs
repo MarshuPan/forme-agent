@@ -199,11 +199,12 @@ pub(super) fn compose(
     .with_authority_guard(guard.clone());
 
     harness.desktop_backend = capability_assembly.desktop_backend.clone();
-    if let Some(binding) = worker_binding.as_ref().filter(|b| {
-        b.supports(p::BackendKind::Mcp) && b.sandbox_profile_ref == p::MANAGED_MCP_PROGRAM_PROFILE
-    }) {
+    if let (Some(binding), Some(backend)) = (
+        worker_binding.as_ref(),
+        capability_assembly.mcp_backend.clone(),
+    ) {
         harness.owner_discovery =
-            crate::owner_discovery::DiscoveryRuntime::new(managed_mcp, binding).ok();
+            crate::owner_discovery::DiscoveryRuntime::new(managed_mcp, binding, backend).ok();
     }
     harness.formal_tool_bindings = capability_assembly
         .bindings

@@ -62,7 +62,7 @@ pub(super) fn bind_body(
     }
     if matches!(
         path.split('/').collect::<Vec<_>>().as_slice(),
-        ["mcp", "discovery", _, "publish"]
+        ["mcp", "discovery", _, "publish" | "verify"]
     ) {
         let request: crate::managed_discovery::PublicationRequest =
             serde_json::from_slice(body).map_err(|_| WebError::invalid())?;

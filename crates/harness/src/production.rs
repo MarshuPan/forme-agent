@@ -420,6 +420,7 @@ struct CapabilityAssembly {
     app_api: Arc<AppApiConnectorRegistry>,
     backends: Arc<ExecutionBackendRegistry>,
     desktop_backend: Option<Arc<WorkerActionBackend>>,
+    mcp_backend: Option<Arc<WorkerActionBackend>>,
     rechecker: Arc<dyn forme_capabilities::ExecutionCapabilityRechecker + Send + Sync>,
     bindings: BTreeMap<p::CapabilityRef, CapabilityBinding>,
     service_states: Vec<RuntimeServiceState>,
@@ -571,9 +572,8 @@ fn assemble_capabilities(
     )?;
     // First discovery needs an isolated executor before any catalog exists.
     // This does not expose ordinary MCP tools or grant discovery authority.
-    let managed_mcp_ready = managed_mode
-        && needs_worker
-        && managed_workers::register_mcp(
+    let mcp_backend = if managed_mode && needs_worker {
+        managed_workers::register_mcp(
             worker_binding,
             config,
             &output_budget,
@@ -581,7 +581,11 @@ fn assemble_capabilities(
             &backends,
             protection,
             store,
-        )?;
+        )?
+    } else {
+        None
+    };
+    let managed_mcp_ready = mcp_backend.is_some();
     if active_mcp.is_empty() {
         service_states.push(RuntimeServiceState::unavailable(
             "mcp-registry",
@@ -1112,6 +1116,7 @@ fn assemble_capabilities(
         app_api: app_api.clone(),
         backends,
         desktop_backend,
+        mcp_backend,
         rechecker: Arc::new(CompositeCapabilityRechecker { mcp, app_api }),
         bindings,
         service_states,

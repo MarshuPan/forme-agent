@@ -23,6 +23,7 @@ use super::{ManagedMcpDiscoveryConsumer, ManagedWorkerBinding, WorkerBrokerTrans
 
 mod desktop;
 mod discovery;
+mod discovery_recovery;
 mod output;
 
 const POLL_INTERVAL: Duration = Duration::from_millis(25);
@@ -49,6 +50,7 @@ pub struct WorkerActionBackend {
     attempts: Mutex<BTreeMap<p::ActionId, WorkerAttempt>>,
     artifacts: Option<Arc<dyn crate::ArtifactStore>>,
     discovery_consumer: Option<Arc<dyn ManagedMcpDiscoveryConsumer>>,
+    discovery_dispatch: Option<discovery_recovery::Recorder>,
 }
 
 impl WorkerActionBackend {
@@ -87,6 +89,7 @@ impl WorkerActionBackend {
             attempts: Mutex::new(BTreeMap::new()),
             artifacts: None,
             discovery_consumer: None,
+            discovery_dispatch: None,
         })
     }
 
@@ -349,13 +352,14 @@ impl ActionBackend for WorkerActionBackend {
             return cancelled(&plan, sink, &empty);
         }
         let observation = if fresh {
-            emit_started(&plan, sink)?;
             let request = p::WorkerDispatchRequest {
                 schema_version: p::SchemaVersion(1),
                 job: attempt.job.clone(),
                 permit: attempt.permit.clone(),
                 execution: Some(execution_spec(&plan)),
             };
+            self.record_discovery_dispatch(&request)?;
+            emit_started(&plan, sink)?;
             match self.transport.dispatch(request) {
                 Ok(observation) if validate_observation(&observation, &attempt.job).is_ok() => {
                     observation

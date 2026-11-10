@@ -19,27 +19,13 @@ pub(super) fn read<T: DeserializeOwned>(
     run: &p::RunId,
     stage: &str,
 ) -> p::Result<Option<T>> {
-    let owner = harness.configured_owner.as_ref().ok_or_else(invalid)?;
-    let Some(record) = harness
-        .store
-        .protected_content_for_current_owner(&reference(run, stage))?
-    else {
-        return Ok(None);
-    };
-    if record.owner_digest != p::sha256_content_digest(owner.0.as_bytes())
-        || record.scope.0 != harness.config.workspace.0
-        || record.subject_digest != p::sha256_content_digest(record.scope.0.as_bytes())
-        || record.envelope.ciphertext.len() > MAX_BYTES + 16
-    {
-        return Err(invalid());
-    }
-    let protection = harness.store.content_protection()?.ok_or_else(invalid)?;
-    let bytes = protection
-        .content_service()
-        .decrypt(&record.envelope.binding(), &record.envelope)?;
-    serde_json::from_slice(&bytes)
-        .map(Some)
-        .map_err(|_| invalid())
+    read_from(
+        &harness.store,
+        harness.configured_owner.as_ref().ok_or_else(invalid)?,
+        &p::Scope(harness.config.workspace.0.clone()),
+        run,
+        stage,
+    )
 }
 
 pub(super) fn write<T: Serialize + DeserializeOwned + PartialEq>(
@@ -49,15 +35,58 @@ pub(super) fn write<T: Serialize + DeserializeOwned + PartialEq>(
     scope: &p::Scope,
     value: &T,
 ) -> p::Result<()> {
-    if let Some(prior) = read::<T>(harness, run, stage)? {
+    write_to(
+        &harness.store,
+        harness.configured_owner.as_ref().ok_or_else(invalid)?,
+        scope,
+        run,
+        stage,
+        value,
+    )
+}
+
+pub(super) fn read_from<T: DeserializeOwned>(
+    store: &SqliteEventStore,
+    owner: &p::VerifiedPrincipal,
+    scope: &p::Scope,
+    run: &p::RunId,
+    stage: &str,
+) -> p::Result<Option<T>> {
+    let Some(record) = store.protected_content_for_current_owner(&reference(run, stage))? else {
+        return Ok(None);
+    };
+    if record.owner_digest != p::sha256_content_digest(owner.0.as_bytes())
+        || record.scope.0 != scope.0
+        || record.subject_digest != p::sha256_content_digest(record.scope.0.as_bytes())
+        || record.envelope.ciphertext.len() > MAX_BYTES + 16
+    {
+        return Err(invalid());
+    }
+    let protection = store.content_protection()?.ok_or_else(invalid)?;
+    let bytes = protection
+        .content_service()
+        .decrypt(&record.envelope.binding(), &record.envelope)?;
+    serde_json::from_slice(&bytes)
+        .map(Some)
+        .map_err(|_| invalid())
+}
+
+pub(super) fn write_to<T: Serialize + DeserializeOwned + PartialEq>(
+    store: &SqliteEventStore,
+    owner: &p::VerifiedPrincipal,
+    scope: &p::Scope,
+    run: &p::RunId,
+    stage: &str,
+    value: &T,
+) -> p::Result<()> {
+    if let Some(prior) = read_from::<T>(store, owner, scope, run, stage)? {
         return if prior == *value {
             Ok(())
         } else {
             Err(invalid())
         };
     }
-    let owner = harness.configured_owner.as_ref().ok_or_else(invalid)?;
-    let protection = harness.store.content_protection()?.ok_or_else(invalid)?;
+    let protection = store.content_protection()?.ok_or_else(invalid)?;
     let bytes = serde_json::to_vec(value).map_err(|_| invalid())?;
     if bytes.len() > MAX_BYTES {
         return Err(invalid());
@@ -72,9 +101,9 @@ pub(super) fn write<T: Serialize + DeserializeOwned + PartialEq>(
         return Err(invalid());
     }
     protection
-        .lifecycle_service(harness.store.clone())
+        .lifecycle_service(store.clone())
         .put_protected_content(owner, sealed)?;
-    if read::<T>(harness, run, stage)?.as_ref() != Some(value) {
+    if read_from::<T>(store, owner, scope, run, stage)?.as_ref() != Some(value) {
         return Err(invalid());
     }
     Ok(())
@@ -83,7 +112,7 @@ pub(super) fn write<T: Serialize + DeserializeOwned + PartialEq>(
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct PlanOriginal {
-    execution: p::WorkerExecutionSpec,
+    pub(super) execution: p::WorkerExecutionSpec,
     budget_version: p::SchemaVersion,
     truncate: bool,
     verify_ref: Option<p::VerifyRef>,

@@ -45,6 +45,10 @@ async fn discovery_http_rejects_untrusted_requests_without_runs_or_model_calls()
             "/v1/managed/mcp/discovery/run:original/publish",
             serde_json::json!({"schema_version":1,"command":"command:publish"}),
         ),
+        (
+            "/v1/managed/mcp/discovery/run:original/verify",
+            serde_json::json!({"schema_version":1,"command":"command:verify"}),
+        ),
     ];
     for (path, body) in paths {
         let wire = body.to_string();

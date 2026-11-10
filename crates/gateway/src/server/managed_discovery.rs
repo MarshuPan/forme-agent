@@ -6,6 +6,7 @@ pub(super) fn routes() -> Router<Arc<HttpState>> {
     Router::new()
         .route("/v1/managed/mcp/discovery", post(discover))
         .route("/v1/managed/mcp/discovery/{run}/publish", post(publish))
+        .route("/v1/managed/mcp/discovery/{run}/verify", post(verify))
         .layer(DefaultBodyLimit::max(8192))
 }
 fn owner(state: &HttpState, headers: &HeaderMap) -> Result<p::VerifiedPrincipal, ApiError> {
@@ -58,6 +59,30 @@ async fn publish(
     let harness = state.runtime.harness();
     state
         .blocking(move || harness.publish_managed_mcp(&owner, run))
+        .await?;
+    Ok(Json(response))
+}
+
+async fn verify(
+    State(state): State<Arc<HttpState>>,
+    headers: HeaderMap,
+    Path(run): Path<String>,
+    Json(body): Json<PublicationRequest>,
+) -> Result<Json<p::RunId>, ApiError> {
+    let owner = owner(&state, &headers)?;
+    body.validate()
+        .and_then(|_| p::validate_product_id(&run))
+        .map_err(|_| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "managed discovery verification is invalid",
+            )
+        })?;
+    let run = p::RunId(run);
+    let response = run.clone();
+    let harness = state.runtime.harness();
+    state
+        .blocking(move || harness.verify_managed_mcp(&owner, run))
         .await?;
     Ok(Json(response))
 }

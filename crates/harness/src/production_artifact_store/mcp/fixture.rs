@@ -3,7 +3,7 @@ use forme_execution::installed::{WorkerActionBackend, WorkerBrokerTransport};
 use forme_execution::{ActionBackend, CancelToken, EventSink, OutputBudget};
 use serde_json::json;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc, Mutex,
 };
 
@@ -18,8 +18,15 @@ pub(crate) struct Original {
 pub(crate) struct Transport {
     original: Mutex<Option<Original>>,
     pub calls: AtomicUsize,
+    pub probes: AtomicUsize,
+    pub cancels: AtomicUsize,
+    pub lose_dispatch: AtomicBool,
+    pub lose_result: AtomicBool,
 }
 impl Transport {
+    pub fn alter_original(&self, change: impl FnOnce(&mut Original)) {
+        change(self.original.lock().unwrap().as_mut().unwrap());
+    }
     pub fn original(&self) -> Original {
         self.original.lock().unwrap().clone().unwrap()
     }
@@ -96,17 +103,25 @@ impl WorkerBrokerTransport for Transport {
             manifest,
             bytes,
         });
+        if self.lose_dispatch.load(Ordering::SeqCst) {
+            return Err(p::Error("fixture lost first dispatch response".into()));
+        }
         Ok(observation)
     }
     fn probe(&self, job: &str) -> p::Result<p::WorkerObservation> {
+        self.probes.fetch_add(1, Ordering::SeqCst);
         let original = self.original();
         assert_eq!(job, original.request.job.job_id);
         Ok(original.observation)
     }
     fn cancel(&self, _: &str) -> p::Result<p::WorkerCancelReceipt> {
+        self.cancels.fetch_add(1, Ordering::SeqCst);
         Err(p::Error("fixture has completed".into()))
     }
     fn result_manifest(&self, job: &str) -> p::Result<p::WorkerResultManifest> {
+        if self.lose_result.load(Ordering::SeqCst) {
+            return Err(p::Error("fixture lost result response".into()));
+        }
         let original = self.original();
         assert_eq!(job, original.request.job.job_id);
         Ok(original.manifest)
@@ -149,7 +164,16 @@ pub(crate) fn backend(
     consumer: Arc<dyn ManagedMcpDiscoveryConsumer>,
 ) -> (WorkerActionBackend, Arc<Transport>) {
     let transport = Arc::new(Transport::default());
-    let worker = WorkerActionBackend::new(
+    (
+        backend_with_transport(consumer, transport.clone()),
+        transport,
+    )
+}
+pub(crate) fn backend_with_transport(
+    consumer: Arc<dyn ManagedMcpDiscoveryConsumer>,
+    transport: Arc<Transport>,
+) -> WorkerActionBackend {
+    WorkerActionBackend::new(
         p::BackendKind::Mcp,
         transport.clone(),
         owner(),
@@ -159,8 +183,7 @@ pub(crate) fn backend(
         p::DurationMs(1000),
     )
     .unwrap()
-    .with_discovery_consumer(consumer);
-    (worker, transport)
+    .with_discovery_consumer(consumer)
 }
 struct Capture;
 impl ManagedMcpDiscoveryConsumer for Capture {

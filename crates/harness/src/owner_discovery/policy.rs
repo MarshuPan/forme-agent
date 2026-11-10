@@ -12,7 +12,7 @@ impl ReactiveHarness {
         record: &RunRecord,
         intent: &p::ActionIntent,
     ) -> p::Result<PolicyContext> {
-        let mut context = self.governance.policy_context(
+        let context = self.governance.policy_context(
             record.loop_ctx.session.clone(),
             self.config.toolset_ref.clone(),
             &self.policy,
@@ -21,6 +21,15 @@ impl ReactiveHarness {
         let Some(original) = self.bound_discovery(run, record, intent)? else {
             return Ok(context);
         };
+        self.discovery_policy_context(context, original, intent)
+    }
+
+    pub(super) fn discovery_policy_context(
+        &self,
+        mut context: PolicyContext,
+        original: OwnerRequest,
+        intent: &p::ActionIntent,
+    ) -> p::Result<PolicyContext> {
         let p::ActionParameters::McpDiscovery(spec) = &intent.parameters else {
             return Err(invalid());
         };
@@ -71,7 +80,7 @@ impl ReactiveHarness {
             granted_by: p::Actor::Owner,
             audit_ref: self
                 .store
-                .read_run(run.clone())
+                .read_run(original.run.clone())
                 .next()
                 .ok_or_else(invalid)??
                 .event_id,
