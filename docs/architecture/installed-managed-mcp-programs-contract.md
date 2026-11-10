@@ -48,3 +48,5 @@ Host 私有来源结构 `ManagedMcpProgramSource{schema_version,source_ref,scope
 所有视图和原操作查询在返回前检查 journal healthy；Register 原回执是历史事实，当前 revoked 状态以 catalog 为准，不能用原回执重新启用。重放校验注册摘要、program_ref、原命令 owner/CAS 和 Registered/Revoke 转移，不因 hash 链正确就信任不合法状态。注册命令失败不自动回滚或重放任何外部程序，因为本接口本身没有启动副作用。
 
 本模块通过不表示 AppContainer discovery/call、Core metadata、Web 设置界面、其他 profile 或完整 IP 已完成。现有 MCP enabled 消费者保护在实际链路接通前保持。
+
+请求窗口从 Host 接收命令时开始，配置锁、注册表锁及来源文件校验消耗同一窗口；使用单调耗时推进收到请求时的时间，追加原件前再次检查，绝不续期。未决维护只禁止新注册事实，仍允许同 key/digest 读取原回执。64 项注册上限包含已撤销原件，不能删除 tombstone 腾出可复活的旧身份。来源路径仅接受本机 Windows 盘符绝对路径及对应 verbatim disk 形式，拒绝 UNC、设备路径和相对路径。
