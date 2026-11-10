@@ -4,6 +4,8 @@
 //! architecture contract before changing an event name or adding an event.
 #![forbid(unsafe_code)]
 
+mod action_parameters;
+pub use action_parameters::*;
 mod brain_learning;
 mod brain_memory;
 mod brain_orchestration;
