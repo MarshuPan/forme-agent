@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 owner MCP 发现入口与恢复组件通过，完整启用仍开放
+
+`3cb1819` 已接通私有请求绑定、真实生产能力门记录、一次性审批、精确 pending 重启、保护目录发布和有限 Web/Core 接口。发现不再伪造学习成功，Unknown 不接受通用人工完成，发布失败不重新执行。源码门通过，整仓 200 targets、1558 passed / 0 failed / 35 默认 ignored，15 项新增场景和干净源码 A 波通过。
+
+详见[owner 发现组件记录](installed-managed-mcp-owner-discovery-20261110.md)。Windows 正向服务身份调用未以普通测试进程代替；原 job Unknown 读取、目录对新 run 生效、Host/public enabled、UI、插件/渠道和完整 IP01–IP24 仍开放。原有批准持续有效，无需重复确认。本批未部署。下文保留各阶段历史。
+
 ## 2026-11-10 首次 MCP 装配依赖循环已修复，owner 接线仍开放
 
 `82128a4` 分离 executor 装配与普通目录可用性，缺原件保持普通工具不可用；受管配置拒绝自定义参数/环境，输出使用严格上限，缺 native backend 不暴露正式工具。五项新场景与源码/质量检查通过；原 A 波脏源码封存失败已保留，提交后新一轮 A 波封存通过；整仓 200 targets、1543 passed / 0 failed / 35 默认 ignored。
