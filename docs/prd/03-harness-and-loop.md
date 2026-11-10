@@ -185,6 +185,12 @@ claim 正文存入现有应用层加密 `protected_content`：使用专属 objec
 
 以上任一步失败都必须 `driver call = 0`。durable claim 已成功后的任何失败都保持 nonce consumed；后续恢复只走 receipt/probe/owner 裁决，不复用 grant。
 
+#### 显式 owner 目录发现的独立准入（2026-11-10 已批准）
+
+已认证 owner 明确发起、无模型参与选择的受管 MCP 目录发现，属于受限配置动作。Harness 在审批前后仍读取并记录真实 CompetenceGate 结果，不提升学习上限、不制造信任或能力证据。本次有限动作的执行资格由私有加密持久请求绑定、原不可变计划的一次性批准、当前 policy/permission/envelope、注册与配置摘要、Host 当前性、已验证隔离 profile、严格预算和期限共同确定；不能仅凭公开 Source::OwnerControl 或普通 RunRequest 获得该资格。
+
+仅适用于 ManagedMcpDiscoverySpec 与 windows-appcontainer-mcp-stdio-v1。所有 Deny、撤销、删除、来源缺失和未知原动作仍阻断。pending 重启只恢复原绑定、原计划及原验证要求；已消费或存在执行歧义时不恢复为可执行 pending。目录发布中断只恢复发布，不重跑程序。普通工具、桌面、Shell、PTY、消息以及主动/定时/模型选择路径继续遵守原能力上限。完整限制与验收见 [批准方案](../architecture/proposals/installed-owner-directed-discovery-competence.md)。
+
 ## 6. 错误/安全/权限/审批
 
 - **错误 → FailureTaxonomy**(canonical §11):`handoff_failure`(交接不完整/成环)、`safety_policy_failure`(咽喉点缺失/误判)、`self_eval_trap`(自检过早宣称完成)、`execution_failure`(重试耗尽);loop stop reason 中属失败的映射到分类。

@@ -2,6 +2,12 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-10 首次 MCP 装配依赖循环已修复，owner 接线仍开放
+
+`82128a4` 分离 executor 装配与普通目录可用性，缺原件保持普通工具不可用；受管配置拒绝自定义参数/环境，输出使用严格上限，缺 native backend 不暴露正式工具。五项新场景与源码/质量检查通过；原 A 波脏源码封存失败已保留，提交后新一轮 A 波封存通过；整仓 200 targets、1543 passed / 0 failed / 35 默认 ignored。
+
+详见[装配组件记录](installed-managed-mcp-bootstrap-20261110.md)。完整 M5 与缓存最终维护见独立 [M5 记录](m5-acceptance-report.md)。原三项批准有效，owner 入口/恢复/发布/Web 与插件/渠道继续开放；[能力门窄补充](../architecture/proposals/installed-owner-directed-discovery-competence.md)已由 owner 批准待实施，本批未改变现有治理或提前开放 enabled。本批未部署，不提升完整 IP 状态。以下为历史记录。
+
 ## 2026-11-10 Core 当前来源组件通过，首次装配继续修复
 
 `ed2e20d` 已接通 Core 原事件链/保护原件与 Host 当前注册、配置及 admission 次序核对。十项组件门通过，整仓 200 targets、1,538 passed / 0 failed / 35 默认 ignored，原生 MCP 13/13；1,082 份源码及原件独立核验一致。完整 M5 的测试/合规通过，最后仓库审计回执比较因旧树不匹配退出 1，未记完整 M5 PASS。

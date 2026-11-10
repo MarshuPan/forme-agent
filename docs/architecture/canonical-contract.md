@@ -123,6 +123,12 @@ ProactiveEmissionGuard = ValueGate AND CompetenceGate AND Policy/AutonomyEnvelop
 
 **证据权重原则**：能力门以**结果证据**（CapabilityEvidence、FailureEvidence、验证结果等地面真值）为主，自评置信（MapConfidence、AgentSelfModel 自评）为辅；结果证据不足时，自评置信只能**压低**上限、不能抬高上限——防“被评的模型自己给自己打分”的自指循环。
 
+### 显式 owner 目录发现的独立准入（2026-11-10 已批准）
+
+已认证 owner 明确发起、无模型参与选择的受管 MCP 目录发现，属于受限配置动作。Harness 在审批前后仍读取并记录真实 CompetenceGate 结果，不提升学习上限、不制造信任或能力证据。本次有限动作的执行资格由私有加密持久请求绑定、原不可变计划的一次性批准、当前 policy/permission/envelope、注册与配置摘要、Host 当前性、已验证隔离 profile、严格预算和期限共同确定；不能仅凭公开 Source::OwnerControl 或普通 RunRequest 获得该资格。
+
+仅适用于 ManagedMcpDiscoverySpec 与 windows-appcontainer-mcp-stdio-v1。所有 Deny、撤销、删除、来源缺失和未知原动作仍阻断。pending 重启只恢复原绑定、原计划及原验证要求；已消费或存在执行歧义时不恢复为可执行 pending。目录发布中断只恢复发布，不重跑程序。普通工具、桌面、Shell、PTY、消息以及主动/定时/模型选择路径继续遵守原能力上限。完整限制与验收见 [批准方案](proposals/installed-owner-directed-discovery-competence.md)。
+
 ## 7. 并发和一致性
 
 M0 必须先固定以下不变量：
@@ -317,6 +323,8 @@ forme 的认知必须可被 owner 看见、可被 owner 纠偏（固定内核 Us
 - **主动逐 scope 点亮**：competence 分 scope，forme 可在窄 scope 很快变得能主动、别处仍冷；北极星不是全有或全无，而是从窄、从早逐 scope 点亮。
 - **ImportedHistoricalEvidence 当引导种子**：低权重、不驱动高影响，但给起步地图、让它问更好的问题、爬得更快。
 - **引导性提问是一等机制**：“爱问的学徒”不是姿态而是机制——`AskToLearn` 念头 = Gap 激活形状指向 UserModel/CognitiveMap **自身**的缺口，经 ValueGate 与打扰预算、以 L1（默认搭车投递）发出；提问有用率进北极星度量（§17）。M0 的主动价值主要由它交付。
+
+显式 owner 受管 MCP 目录发现按 §6 的已批准窄边界独立准入；这不将 Day-1 反应式地板泛化为其他动作的能力门豁免。
 
 ## 22. 主动触发（激活扩散）
 

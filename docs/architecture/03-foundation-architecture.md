@@ -521,6 +521,12 @@ trait OrchestrationLibrary {
 | 记忆 vs 认知 owner（§5/§14） | `memory`(事实)/`cognition`(语义) | 单一事实源 owner |
 | 事件审计（§1） | 所有 crate → `store` | 每个咽喉点写 event |
 
+### 显式 owner 目录发现的独立准入（2026-11-10 已批准）
+
+已认证 owner 明确发起、无模型参与选择的受管 MCP 目录发现，属于受限配置动作。Harness 在审批前后仍读取并记录真实 CompetenceGate 结果，不提升学习上限、不制造信任或能力证据。本次有限动作的执行资格由私有加密持久请求绑定、原不可变计划的一次性批准、当前 policy/permission/envelope、注册与配置摘要、Host 当前性、已验证隔离 profile、严格预算和期限共同确定；不能仅凭公开 Source::OwnerControl 或普通 RunRequest 获得该资格。
+
+仅适用于 ManagedMcpDiscoverySpec 与 windows-appcontainer-mcp-stdio-v1。所有 Deny、撤销、删除、来源缺失和未知原动作仍阻断。pending 重启只恢复原绑定、原计划及原验证要求；已消费或存在执行歧义时不恢复为可执行 pending。目录发布中断只恢复发布，不重跑程序。普通工具、桌面、Shell、PTY、消息以及主动/定时/模型选择路径继续遵守原能力上限。完整限制与验收见 [批准方案](proposals/installed-owner-directed-discovery-competence.md)。
+
 ## 7. 存储(`store`)
 
 - **event log**:append-only、单写者;`{event_id, run_id, stream_seq, turn_id, type, payload, schema_version, ts, provenance}`(`stream_seq` 排序权威)。**唯一事实源**。
