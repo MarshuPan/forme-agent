@@ -203,7 +203,7 @@ Job Object 名称由同一 lease identity 确定性派生，使用服务会话�
 
 - 精确 `workspace_scope` 的原目录不直接授予 worker。Windows 使用 owner 已选择的每 job 私有副本/overlay，按 §4.1.3 核验后由 Host 回写；只有该副本允许读写，不允许从可写目录启动可执行文件。其他 workspace、brain/event 数据、model credentials、Web auth、管理 journal、发布目录和备份不得授予 worker。
 - 本 job 的 job/permit/execution 描述只读；注册的 worker 程序与确需的固定运行时只读/执行。任意环境变量、PATH 搜索、请求提供的程序路径、handle 继承与 Secret 值均拒绝。非交互 worker 使用 `DETACHED_PROCESS`，不继承或初始化控制台；不以隐藏窗口的控制台替代该语义，也不为控制台宿主放开 child-process restriction。
-- Windows AppContainer 不授予 `internetClient`、`privateNetworkClientServer` 或 loopback exemption；当前冻结的 Worker DTO 没有网络/credential grant，因此 worker 的直接网络和 credential 能力保持拒绝。不得从宿主环境或共享代理变量继承网络权限。未来增加某类能力必须先变更协议/PRD并形成独立的 exact-scope grant，不能由 launch profile 暗中放行。
+- Windows AppContainer 不授予 `internetClient`、`privateNetworkClientServer` 或 loopback exemption；worker 的直接网络和 credential 能力保持拒绝。2026-11-11 owner 已批准渠道[单次本地交付契约](../architecture/installed-channel-delivery-contract.md)：仅由 Host 的有限代理消费独立 exact-scope grant，使用原 job 的有界 stdio，不授予 worker 直接联网或密钥。不得从宿主环境或共享代理变量继承网络权限。除此之外增加能力仍须先变更协议/PRD并形成独立的 exact-scope grant，不能由 launch profile 暗中放行。
 - 临时目录必须位于受保护的 runtime 根下且按 job 分离；worker 不能修改 Host 的授权材料。关闭网页/桌面会话不改变隔离身份或 worker 生命周期。
 
 OS ACL 变更必须有独立于脑事件的、单写者、有界、可恢复的隔离 lease journal，固定在 `runtime_root/sandbox-leases.jsonl`，使用 append-only、record-size limit、OS writer lock、顺序与每步 flush。对每个 ACL mutation，先持久化包含 `SchemaVersion`、job id、plan digest、AppContainer identity、规范化目标路径及其文件 identity、目标 access 和恢复阶段的 intent，再执行并回读有效访问；回收需按记录精确撤权并核验。正常终态先终止并确认进程树，再撤权/删除 identity 和 job 临时目录，最后持久化 cleanup receipt。服务重启先恢复 worker journal 与所有未清理 lease：未知记录、身份冲突、路径 identity 变化、撤权失败或回读不一致都会阻止 worker admission；不得因旧 job 已经是 Unknown 就跳过 ACL 回收。恢复只清理原 lease，不重放 worker 副作用。不得扫描并修改 lease 根以外的 ACL，也不得用整棵目录重置权限掩盖证据。

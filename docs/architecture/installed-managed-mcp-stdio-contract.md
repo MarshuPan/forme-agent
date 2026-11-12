@@ -95,3 +95,16 @@ managed 模式始终只读 Core 已核验原件；开发 discover_on_start=false
 保护材料持久化及完整原事件链校验先于 ActionCompleted；完成使用原 run 版本 CAS，重复请求最多一份完成事实。历史 Unknown 只在原 Started 后、Completed 前且原派发私有记录与结果 companion 的 request 完全一致时可接纳；完成后的矛盾 Unknown 继续拒绝。恢复不记录目录发现的学习成功，保留原未知结果事实。
 
 完成后沿既有目录发布路径核对 Host/current source、登记唯一 McpDiscovered，再履行原 verification passes 并结束运行。通用重启恢复不可提前将发现 run 标成成功；已写完成但发布未完成时仍由显式原号发布/核实续接。原 publish 入口仅恢复发布，不能暗中拉取或重派 worker；已完成的重复发布仍重查原件与当前性。
+
+## 11. 新任务工具快照及安装配置投影
+
+本节落实已批准的受管消费者接线，不增加 EventKind、公开 action 类型或能力门例外。
+
+- 启动仅配置受管 registry 和隔离 backend，不把当时的目录固定成全部任务的权限。每个新 run 经 `ContextCatalogSource` 读取已发布且经 Host 复核的目录；这一读取不会执行或重新发现 MCP。静态 schema、受管 schema、正式工具 binding、原 envelope 及来源/设置/schema 摘要一次性写入同一个私有快照。
+- 私有原件使用既有加密内容生命周期，命名空间 `run-tools-v1:<run>`，明文上限 4 MiB。`SessionBound.toolset_ref` 记录工具内容摘要；相同内容可以有相同引用，但每份原件另绑定 run、session、workspace、scope 和 composition。受理前的同 run 重入读取原件；受理后的原件缺失、损坏、删除或上下文变化不能重采当前权限。
+- 模型只提交 MCP 原生工具参数。正式入口使用快照中的工具绑定和当前 registry 参数校验，固定 program_ref、schema、scope、permissions、High/Outward；模型数据不能改程序参数、环境或隔离配置。规划与最终执行边界均复核原件和当前来源。禁用、撤销、来源变化、新 Unknown 遮蔽及删除继续拒绝，绝不触发自动发现或重派。
+- 新 run 才获得新目录；已开始的 run 保持原 schema。审批恢复使用原快照和时间窗，审批本身仍绑定原计划。旧 Unknown 的观察/裁决容器可在没有工具原件时恢复，但该容器没有可继续的模型循环或工具权限，不把当前工具集赋给历史任务。
+- 受管 MCP 使用既有 `ManagedWorkerBinding` 的独立投影：相同的已安装 AgentExecution endpoint、凭据路径和 epoch，backend 仅 Mcp，profile 固定 `windows-appcontainer-mcp-stdio-v1`。不能把 File profile 当作 MCP profile。Host 私有配置 state 12 新增 optional `mcp_worker`；Host→Brain 发布 optional `mcp_worker_binding`。旧 state 2–11 和未添加投影的历史文件保持原序列化；公开设置仍为既有 v3，Web 不接收或展示内部投影。
+- Host 启用校验在持有配置锁时只读取独立的程序注册与 worker 事实，不重入配置锁。配置仅弱引用程序消费者，避免引用环。程序文件/摘要/scope/注册/隔离 profile、真实消费者存活均需有效；配置保存不启动程序。断开或撤销时仍可禁用配置，历史配置及维护读取不依赖在线 worker。
+
+以上是实现约束，不是源码门或安装联合验收通过的声明。

@@ -6,7 +6,7 @@
 
 独立常量 `PRODUCT_MANAGED_SETTINGS_SCHEMA_VERSION = SchemaVersion(3)`。原 `PRODUCT_CONFIG_SCHEMA_VERSION = 1`、`PRODUCT_SETTINGS_SCHEMA_VERSION = 2` 和旧验证器接受集不变。`ProductConfigViewV3/PatchV3/ResponseV3/CoreActivationResponseV3` 是独立 closed DTO：逐字段继承 v2 的语义，顶层 schema_version 为 3，新增 `managed_capabilities` 和 `channels`。patch 的两个新增字段均为 Option；省略保持原状态，显式空集合清空相应配置。View 不返回 publisher 公钥原文、凭据、程序路径或固定参数。
 
-沿现有配置锁、CAS、不可变 revision、journal prepare/publication/commit、启动 reconciliation 与真实 core acknowledgement；不得另建配置事实权威。Host 私有 ConfigState 新版 10 增加 optional managed 配置、渠道和 publisher 材料引用；旧 2–9 的字段/序列化/发布内容不重写。任何新版字段只能出现在 state 10；state 10 至少有一项新字段。旧客户端保存保留新版字段并保持 state 10。恢复从原 snapshot 重放发布，不重新执行外部操作。
+沿现有配置锁、CAS、不可变 revision、journal prepare/publication/commit、启动 reconciliation 与真实 core acknowledgement；不得另建配置事实权威。Host 私有 ConfigState 新版 10 增加 optional managed 配置、渠道和 publisher 材料引用；旧 2–9 的字段/序列化/发布内容不重写。初次新增字段要求 state ≥10；state 10 至少有一项新字段。后续已批准桌面投影使用 state 11；独立 MCP 投影使用 state 12（见受管 MCP 契约 §11）。旧客户端保存保留新版字段及既有 state 版本，不能降级。恢复从原 snapshot 重放发布，不重新执行外部操作。
 
 v3 request digest 为 canonical_digest(("forme.product.settings.v3", 完整 typed patch))，包括省略/显式值、owner、operation、expected revision 和写入的公钥。Host journal 只持 digest，不存 patch 原文。相同 operation/digest 返回原结果；不同 digest 拒绝。schema、未知字段、集合/长度、key digest、scope 与消费者来源静态验证均早于 credential/staging 写入。保存配置不会做 discovery 或启动外部程序。
 
@@ -45,3 +45,15 @@ ProductHostBroker 新增 `configuration_view_v3(&HostAuth) -> Result<ProductConf
 ## 5. Publisher 材料预置接缝
 
 Host 发布的 ManagedBrainConfig 增加 optional managed_capabilities/channels 和 publisher_key_files（publisher_ref → 受保护绝对路径）；该路径投影仅供 Host→Brain，不返回 Web。每个公钥文件恰为 32 字节，启动时同时验证 key digest、非弱 Ed25519 点和对应配置，缺失/多余/替换/链接拒绝启动。ProductionRuntimeBuilder 在创建 runtime 前装配 InMemoryPublisherKeyring，并通过私有 ManagedCompositionInputs 传入 compose；在首次 EcosystemHarnessRuntime::new_with_keyring/rebuild_registry 之前提供全部公钥。ReactiveHarness 的私有 new_without_recovery_and_ecosystem 构造接缝接受这个原 runtime；既有公开构造形状不变，避免先用空 keyring 构造再事后补 key 导致已安装包无法重启。仍使用原包事件及包 registry，不把 lifecycle 复制进配置。
+
+## 6. MCP 列表的有限编辑外观
+
+本节落实已批准的受管 MCP 配置与真实设置页面，沿用桌面设置的有限编辑方式。v3 完整 patch 的 publisher_keys 是只写材料，页面不能从 view 重建；因此编辑 MCP 列表不能提交空公钥列表或要求用户重新输入既有公钥。不改 v1/v2/v3 的字段与完整替换语义，也不新建配置存储。
+
+新增独立 schema 1 closed DTO：`ProductMcpSettingsPatch { schema_version, operation_id, expected_revision, owner, mcp_servers }`，引用及列表限制沿用 §2，expected_revision ≤ 1,000,000,000。摘要为 canonical_digest(("forme.product.mcp-settings.v1", 完整 typed patch))。`ProductMcpSettingsView { schema_version, owner: Option, active_revision, pending_restart, configured, mcp_servers, available }`；available 只表示当前安装有真实受管消费者、有效 placement 与匹配的执行凭据，不代表程序已注册、目录已发现或工具已获准执行。`ProductMcpSettingsOperation { schema_version, owner, operation_id, request_digest, committed }`、`ProductMcpSettingsResponse { schema_version, operation_id, applied, view }` 与原配置 journal 共用 CAS/幂等与回执核实。
+
+Host 接缝为 ProductConfigStore/ProductHostBroker 的 `mcp_settings`、`apply_mcp_settings`、`mcp_settings_operation`；broker 维持 WebConfiguration 认证、维护互斥。读写路径 `/api/v1/product/mcp/settings`，原操作只读路径 `/api/v1/product/mcp/settings/operations/{id}`；对应 Host 内部路径为 `/v1/host/configuration/mcp/settings` 及其 operations 子路径。Web owner 只取登录会话，写 body 除 owner 外继承 Patch 并加入 password，重新认证绑定确切摘要，Idempotency-Key 必须等于 operation_id。密码不进入 Host。
+
+仅已完成模型配置的安装接受此有限编辑；Host 从当前已验证 state 克隆，替换 mcp_servers 并推进原 revision，其余来源、公钥、桌面和渠道原件保持。已提交同号同摘要先返回旧回执及当前 view，绝不重新启用。新提交逐项核验 enabled 的程序/信任/allowlist/scope 和原生消费者，校验及总大小检查先于任何写入。启用时持久独立 MCP placement；禁用允许当前程序或消费者已不可用。保存不执行 discovery，不派发 job，不把 pending_restart 清为假 ack。
+
+产品 installation_ref 与 WorkerResultBinding 的 install-auth 引用分属管理和执行域，不能直接相等比较。Host 读取已验证 placement 的受保护 AgentExecution 凭据，计算现有 install-auth 引用，与实际 Worker journal/result source 比较；worker authority_epoch 也须等于程序注册 authority_epoch。凭据原文和路径不出现在公开 view、摘要、日志和脑事件。
