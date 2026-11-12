@@ -11,17 +11,17 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub(super) struct ChildPipes {
-    pub(super) input: PipeReader,
-    pub(super) output: PipeWriter,
-    pub(super) error: PipeWriter,
+pub(crate) struct ChildPipes {
+    pub(crate) input: PipeReader,
+    pub(crate) output: PipeWriter,
+    pub(crate) error: PipeWriter,
 }
-pub(super) enum ReadEvent {
+pub(crate) enum ReadEvent {
     Frame(Vec<u8>),
     Eof,
 }
 
-pub(super) struct Wire {
+pub(crate) struct Wire {
     input: Option<PipeWriter>,
     output: Option<PipeReader>,
     error: Option<PipeReader>,
@@ -60,7 +60,7 @@ impl Meter {
     }
 }
 impl Wire {
-    pub(super) fn prepare(limit: u64) -> p::Result<(Self, ChildPipes)> {
+    pub(crate) fn prepare(limit: u64) -> p::Result<(Self, ChildPipes)> {
         if limit == 0 || limit > 1_048_576 {
             return Err(invalid());
         }
@@ -93,7 +93,7 @@ impl Wire {
     }
     /// Keep this Wire in the original worker owner on any partial-start error;
     /// a successfully started reader must not be detached and forgotten.
-    pub(super) fn start(&mut self) -> p::Result<()> {
+    pub(crate) fn start(&mut self) -> p::Result<()> {
         if !self.readers.is_empty() {
             return Err(invalid());
         }
@@ -102,7 +102,7 @@ impl Wire {
         let meter = self.meter.clone();
         self.readers.push(
             std::thread::Builder::new()
-                .name("forme-mcp-stdout".into())
+                .name("forme-worker-stdout".into())
                 .spawn(move || read_stdout(output, sender, meter))
                 .map_err(|_| invalid())?,
         );
@@ -110,7 +110,7 @@ impl Wire {
         let meter = self.meter.clone();
         self.readers.push(
             std::thread::Builder::new()
-                .name("forme-mcp-stderr".into())
+                .name("forme-worker-stderr".into())
                 .spawn(move || read_stderr(error, meter))
                 .map_err(|_| invalid())?,
         );
@@ -119,7 +119,7 @@ impl Wire {
     /// Gate must check live configuration and registration, then invoke write
     /// within that same exclusion. The independent original-tree supervisor
     /// must already be active, since a synchronous pipe write can block.
-    pub(super) fn send(
+    pub(crate) fn send(
         &mut self,
         bytes: &[u8],
         gate: impl FnOnce(&mut dyn FnMut() -> p::Result<()>) -> p::Result<()>,
@@ -142,7 +142,7 @@ impl Wire {
         }
         self.healthy()
     }
-    pub(super) fn next(
+    pub(crate) fn next(
         &mut self,
         deadline: Instant,
         cancelled: &crate::CancelToken,
@@ -174,17 +174,17 @@ impl Wire {
             }
         }
     }
-    pub(super) fn close_input(&mut self) {
+    pub(crate) fn close_input(&mut self) {
         self.input.take();
     }
-    pub(super) fn abandon(&mut self) {
+    pub(crate) fn abandon(&mut self) {
         self.close_input();
         self.receiver.take();
         self.sender.take();
     }
     /// Nonblocking observation; never join a live pipe reader in the Host
     /// request thread. A false result retains all original worker resources.
-    pub(super) fn join_finished(&mut self) -> bool {
+    pub(crate) fn join_finished(&mut self) -> bool {
         if self.readers.iter().any(|thread| !thread.is_finished()) {
             return false;
         }
@@ -195,10 +195,10 @@ impl Wire {
         }
         true
     }
-    pub(super) fn stderr_bytes(&self) -> u64 {
+    pub(crate) fn stderr_bytes(&self) -> u64 {
         self.meter.stderr.load(Ordering::SeqCst)
     }
-    pub(super) fn healthy(&self) -> p::Result<()> {
+    pub(crate) fn healthy(&self) -> p::Result<()> {
         if self.meter.failed.load(Ordering::SeqCst) {
             return Err(invalid());
         }
@@ -257,5 +257,5 @@ fn read_stderr(mut reader: PipeReader, meter: Arc<Meter>) {
     }
 }
 fn invalid() -> p::Error {
-    p::Error("managed MCP pipe exchange is unavailable or unconfirmed".into())
+    p::Error("managed worker pipe exchange is unavailable or unconfirmed".into())
 }

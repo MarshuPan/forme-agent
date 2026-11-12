@@ -34,11 +34,17 @@ pub(super) struct ConfigState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) desktop: Option<super::super::InstalledDesktopProvisioning>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) mcp_worker: Option<super::super::ManagedWorkerBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) managed_capabilities: Option<p::ProductManagedCapabilitySettings>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) channels: Option<p::ProductChannelSettings>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub(super) publisher_key_files: BTreeMap<String, PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) plugin_sources: Vec<p::ProductPluginSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub(super) channel_sources: Vec<p::ProductChannelSource>,
 }
 
 impl ConfigState {
@@ -58,9 +64,12 @@ impl ConfigState {
             release: None,
             worker: None,
             desktop: None,
+            mcp_worker: None,
             managed_capabilities: None,
             channels: None,
             publisher_key_files: BTreeMap::new(),
+            plugin_sources: Vec::new(),
+            channel_sources: Vec::new(),
         }
     }
 
@@ -77,9 +86,15 @@ impl ConfigState {
                 | p::SchemaVersion(9)
                 | p::SchemaVersion(10)
                 | p::SchemaVersion(11)
+                | p::SchemaVersion(12)
+                | p::SchemaVersion(13)
+                | p::SchemaVersion(14)
         ) || (self.schema_version.0 < 9 && self.worker.is_some())
             || (self.schema_version == p::SchemaVersion(9) && self.worker.is_none())
-            || (self.schema_version.0 == 11) != self.desktop.is_some()
+            || (self.schema_version.0 < 11 && self.desktop.is_some())
+            || (self.schema_version.0 == 11 && self.desktop.is_none())
+            || (self.schema_version.0 < 12 && self.mcp_worker.is_some())
+            || (self.schema_version.0 == 12 && self.mcp_worker.is_none())
             || self.install_ref != template.install_ref
             || (self.schema_version == p::SchemaVersion(2) && self.active_data.is_some())
             || (self.schema_version.0 < 4 && self.brain.is_some())
@@ -97,9 +112,14 @@ impl ConfigState {
             return Err(invalid());
         }
         super::managed::validate_state(self, template)?;
+        super::plugins::validate_state(self)?;
+        super::channel_sources::validate_state(self, template)?;
         release::validate_state(self, template)?;
         if let Some(worker) = &self.worker {
             worker.validate_template(template)?;
+        }
+        if let Some(binding) = &self.mcp_worker {
+            super::mcp_placement::validate(binding, template)?;
         }
         if let Some(desktop) = &self.desktop {
             desktop.validate_template(template)?;

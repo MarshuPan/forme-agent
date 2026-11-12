@@ -370,9 +370,12 @@ fn legacy_fixture(mismatch: bool) -> (tempfile::TempDir, PathBuf, Vec<u8>, PathB
         release: None,
         worker: None,
         desktop: None,
+        mcp_worker: None,
         managed_capabilities: None,
         channels: None,
         publisher_key_files: BTreeMap::new(),
+        plugin_sources: Vec::new(),
+        channel_sources: Vec::new(),
     };
     let mut core = materialize::core_config(&template, &state).unwrap();
     if mismatch {
@@ -530,8 +533,8 @@ fn restored_binding_survives_model_save_reopen_and_rejects_stale_ack() {
     );
 }
 
-// Explicit component fixture only. The public save gate continues to reject
-// enabled MCP until the metadata/owner ingress chain is implemented.
+// Legacy component fixture only. Public configuration admission is exercised
+// separately by managed_mcp_stdio::tests::call::enable.
 #[cfg(windows)]
 pub(crate) fn stage_mcp_fixture(store: &mut ProductConfigStore, server: p::ProductMcpServerConfig) {
     let mut state = store.state.clone();
@@ -544,4 +547,45 @@ pub(crate) fn stage_mcp_fixture(store: &mut ProductConfigStore, server: p::Produ
     store
         .commit_state(format!("fixture:{}", &digest.0[7..]), digest, state)
         .unwrap();
+}
+
+#[cfg(windows)]
+pub(crate) fn provision_mcp_fixture(
+    store: &mut ProductConfigStore,
+    root: &Path,
+    programs: &std::sync::Arc<super::super::InstalledManagedMcpPrograms>,
+) {
+    store.installed_file = Some(super::worker_tests::placement(store, root));
+    let credential = store.mcp_placement().unwrap().credential_path;
+    std::fs::create_dir_all(credential.parent().unwrap()).unwrap();
+    std::fs::write(credential, "a".repeat(32)).unwrap();
+    store.bind_mcp_consumer(programs);
+}
+
+pub(crate) fn provision_channel_fixture(
+    store: &mut ProductConfigStore,
+    root: &Path,
+    source: p::ProductChannelSource,
+) {
+    store.installed_file = Some(super::worker_tests::placement(store, root));
+    store.apply(patch("channel:base", 0)).unwrap();
+    for path in [
+        &store.template.core_owner_credential_path,
+        &store.template.core_web_credential_path,
+    ] {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"distinct-channel-test-management-token").unwrap();
+    }
+    std::fs::write(
+        store
+            .template
+            .core_config_path
+            .with_extension("channel-sources.json"),
+        serde_json::to_vec(&p::ProductChannelSourceCatalog {
+            schema_version: p::SchemaVersion(1),
+            sources: vec![source],
+        })
+        .unwrap(),
+    )
+    .unwrap();
 }

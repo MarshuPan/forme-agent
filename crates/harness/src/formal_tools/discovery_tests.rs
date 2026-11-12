@@ -78,7 +78,7 @@ fn model_catalog_binding_never_resolves_managed_discovery() {
     let run = p::RunId("run:fixture".into());
     let workspace = p::WorkspaceRef("workspace:default".into());
     assert!(harness
-        .resolve_formal_tool(&run, &workspace, &call)
+        .resolve_formal_tool(&run, &workspace, &call, None)
         .is_some());
     call.arguments = serde_json::to_value(p::ActionParameters::McpDiscovery(
         p::ManagedMcpDiscoverySpec {
@@ -93,6 +93,6 @@ fn model_catalog_binding_never_resolves_managed_discovery() {
     ))
     .unwrap();
     assert!(harness
-        .resolve_formal_tool(&run, &workspace, &call)
+        .resolve_formal_tool(&run, &workspace, &call, None)
         .is_none());
 }

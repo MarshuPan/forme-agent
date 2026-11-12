@@ -202,6 +202,24 @@ impl ReactiveHarness {
         let Some(registry) = &self.skill_registry else {
             return Ok(());
         };
+        let revoked = self
+            .managed_skill_sources
+            .as_ref()
+            .map(|source| source.revoked_skills())
+            .transpose()?
+            .unwrap_or_default();
+        if record
+            .loop_ctx
+            .context
+            .sources
+            .loaded_skill_bodies
+            .iter()
+            .any(|body| revoked.contains(&body.id))
+        {
+            return Err(p::Error(
+                "selected plugin skill source is no longer current".into(),
+            ));
+        }
         if record.skills_prepared {
             return Ok(());
         }
@@ -209,12 +227,23 @@ impl ReactiveHarness {
             .skill_runtime_lock
             .lock()
             .map_err(|_| p::Error("skill runtime selection is unavailable".into()))?;
-        let hits = registry.search(SkillSearchQuery {
+        let mut hits = registry.search(SkillSearchQuery {
             schema_version: p::SchemaVersion(1),
             text: record.request.input.0.clone(),
             scope: record.loop_ctx.context.scope.clone(),
             limit: 8,
         })?;
+        hits.retain(|hit| {
+            !revoked.contains(&hit.metadata.id)
+                && (self.brain_services.is_none()
+                    || record
+                        .loop_ctx
+                        .context
+                        .sources
+                        .skills_metadata
+                        .iter()
+                        .any(|visible| visible.id == hit.metadata.id))
+        });
         let mut events = registry.take_events();
         record.loop_ctx.context.sources.skills_metadata = hits
             .iter()

@@ -35,6 +35,9 @@ pub(super) fn reject_path(path: &Path) -> p::Result<()> {
 pub(crate) struct WorkerHostContext<'a> {
     #[cfg(windows)]
     pub managed_mcp: Option<Arc<forme_execution::installed::InstalledManagedMcpPrograms>>,
+    #[cfg(windows)]
+    pub channel_configuration:
+        Option<Arc<std::sync::Mutex<forme_execution::installed::ProductConfigStore>>>,
     pub managed_service_bound: bool,
     pub desktop_authority: Option<Arc<forme_execution::installed::InstalledDesktopAuthority>>,
     pub protected_paths: &'a [PathBuf],
@@ -81,6 +84,23 @@ pub(crate) fn load_worker_host(
             }
             if let Some(programs) = context.managed_mcp {
                 host = host.with_managed_mcp_programs(programs, config.runtime_root.join("mcp"))?;
+            }
+            if let Some(configuration) = context.channel_configuration {
+                if let Some(profile) = config.launch_profiles.iter().find(|p| {
+                    p.sandbox_profile_ref == forme_execution::installed::INSTALLED_FILE_PROFILE
+                        && p.program.file_name().and_then(|n| n.to_str())
+                            == Some("forme-file-worker.exe")
+                }) {
+                    let channels = forme_execution::installed::InstalledChannelDelivery::new(
+                        configuration,
+                        &host_journal.with_extension("channel-delivery"),
+                    )?;
+                    host = host.with_channel_delivery(
+                        channels,
+                        config.runtime_root.join("channels"),
+                        profile.program.clone(),
+                    )?;
+                }
             }
             return Ok(Arc::new(host));
         }

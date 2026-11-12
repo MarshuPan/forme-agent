@@ -37,6 +37,12 @@ impl<M: NativeServiceManager> ProductHostBroker<M> {
         ) {
             return Err(unavailable());
         }
+        self.product_config
+            .as_ref()
+            .ok_or_else(unavailable)?
+            .lock()
+            .map_err(|_| unavailable())?
+            .bind_mcp_consumer(&programs);
         self.mcp_programs = Some(programs);
         Ok(self)
     }

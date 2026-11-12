@@ -19,6 +19,7 @@ use zeroize::Zeroizing;
 
 use super::reject_linked_ancestors;
 
+mod channel;
 mod mcp_source;
 
 const MAX_BODY_BYTES: usize = 4 * 1024 * 1024;
@@ -28,6 +29,12 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// The only operations a core driver may ask the AgentExecution broker to do.
 pub trait WorkerBrokerTransport: Send + Sync {
+    fn dispatch_channel(
+        &self,
+        _input: p::ManagedChannelDeliveryInputV1,
+    ) -> p::Result<p::WorkerObservation> {
+        Err(p::Error("channel delivery is unavailable".into()))
+    }
     fn desktop_output(&self, _job_id: &str) -> p::Result<p::DesktopOutputDescriptor> {
         Err(p::Error("desktop output descriptor is unavailable".into()))
     }
@@ -222,6 +229,12 @@ impl WorkerBrokerClient {
 }
 
 impl WorkerBrokerTransport for WorkerBrokerClient {
+    fn dispatch_channel(
+        &self,
+        input: p::ManagedChannelDeliveryInputV1,
+    ) -> p::Result<p::WorkerObservation> {
+        channel::dispatch(self, input)
+    }
     fn desktop_output(&self, job_id: &str) -> p::Result<p::DesktopOutputDescriptor> {
         p::validate_product_id(job_id)?;
         let body = self.request(
@@ -490,7 +503,7 @@ fn validate_job_id(job_id: &str) -> p::Result<()> {
     p::validate_product_id(job_id).map_err(|_| p::Error("agent execution job id is invalid".into()))
 }
 
-fn read_credential(path: &Path) -> p::Result<Zeroizing<String>> {
+pub(super) fn read_credential(path: &Path) -> p::Result<Zeroizing<String>> {
     if !path.is_absolute() {
         return Err(p::Error(
             "agent execution credential path must be absolute".into(),

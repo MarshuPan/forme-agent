@@ -12,12 +12,22 @@ impl ReactiveHarness {
         record: &RunRecord,
         intent: &p::ActionIntent,
     ) -> p::Result<PolicyContext> {
-        let context = self.governance.policy_context(
-            record.loop_ctx.session.clone(),
-            self.config.toolset_ref.clone(),
-            &self.policy,
-            record.bound_envelope.as_ref(),
-        );
+        let governance = record
+            .tools
+            .as_ref()
+            .map(|s| s.governance(&self.governance));
+        if let (Some(snapshots), Some(snapshot)) = (&self.tool_snapshots, &record.tools) {
+            snapshots.recheck(snapshot, intent)?;
+        }
+        let context = governance
+            .as_ref()
+            .unwrap_or(&self.governance)
+            .policy_context(
+                record.loop_ctx.session.clone(),
+                self.record_toolset(record)?,
+                &self.policy,
+                record.bound_envelope.as_ref(),
+            );
         let Some(original) = self.bound_discovery(run, record, intent)? else {
             return Ok(context);
         };

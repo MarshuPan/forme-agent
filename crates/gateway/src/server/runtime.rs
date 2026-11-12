@@ -255,6 +255,7 @@ where
         max_body_bytes: config.max_body_bytes,
         admission: admission.clone(),
         release_health,
+        channel_ingress: config.channel_ingress.clone(),
         web_bridge: super::web_bridge::WebBridgeState::open(
             config.install_ref.clone(),
             config.web_bridge_token.clone(),

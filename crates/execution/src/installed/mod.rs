@@ -46,6 +46,7 @@ pub use managed_mcp_program::{
 mod managed_mcp_material;
 mod managed_mcp_source;
 pub use managed_mcp_source::ManagedMcpSourceVerifier;
+mod channel_delivery;
 mod management_repair;
 mod paths;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -103,6 +104,9 @@ mod worker_pipe;
 mod worker_result_crypto;
 mod worker_results;
 mod worker_socket;
+#[cfg(windows)]
+mod worker_stdio;
+pub use channel_delivery::InstalledChannelDelivery;
 
 #[cfg(windows)]
 pub use desktop_authority::WindowsDesktopSessionCatalog;

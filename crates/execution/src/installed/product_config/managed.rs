@@ -8,26 +8,24 @@ pub(super) struct ManagedUpdate {
     pub(super) channels: Option<p::ProductChannelSettings>,
 }
 impl ManagedUpdate {
-    pub(super) fn validate(
-        &self,
-        desktop: Option<&super::super::InstalledDesktopProvisioning>,
-    ) -> p::Result<()> {
+    pub(super) fn validate(&self, store: &ProductConfigStore) -> p::Result<()> {
         if let Some(value) = &self.capabilities {
             value.validate().map_err(|_| rejected_patch())?;
             for key in &value.publisher_keys {
                 validate_key(&key.public_key).map_err(|_| rejected_patch())?;
             }
-            // Enabling requires the Host's independently provisioned consumer.
-            // Declarative disabled entries can be staged before that binding exists.
-            if value.mcp_servers.iter().any(|v| v.enabled)
-                || value.plugins.iter().any(|v| v.enabled)
-            {
-                return Err(rejected_patch());
-            }
+            let mut proposed = store.state.clone();
+            proposed.managed_capabilities = Some(value.view());
+            super::plugins::prepare(&store.template, &mut proposed)?;
         }
         if let Some(value) = &self.capabilities {
+            store.validate_mcp_servers(&value.mcp_servers)?;
             if value.computer.enabled {
-                desktop
+                store
+                    .state
+                    .desktop
+                    .as_ref()
+                    .or(store.installed_desktop.as_ref())
                     .ok_or_else(rejected_patch)?
                     .validate_settings(&value.computer)
                     .map_err(|_| rejected_patch())?;
@@ -35,9 +33,13 @@ impl ManagedUpdate {
         }
         if let Some(value) = &self.channels {
             value.validate().map_err(|_| rejected_patch())?;
-            if value.channels.iter().any(|v| v.enabled) {
-                return Err(rejected_patch());
-            }
+            let mut proposed = store.state.clone();
+            proposed.channels = Some(value.clone());
+            super::channel_sources::prepare(
+                &store.template,
+                &mut proposed,
+                store.installed_channel.upgrade().as_deref(),
+            )?;
         }
         Ok(())
     }
@@ -176,12 +178,6 @@ impl ProductConfigStore {
             capabilities: patch.managed_capabilities,
             channels: patch.channels,
         };
-        update.validate(
-            self.state
-                .desktop
-                .as_ref()
-                .or(self.installed_desktop.as_ref()),
-        )?;
         let network = patch
             .network
             .as_ref()
@@ -208,5 +204,15 @@ impl ProductConfigStore {
             operation_id: result.operation_id,
             core_activation: None,
         })
+    }
+}
+
+impl ProductConfigStore {
+    /// Host wiring only. Weak ownership prevents config -> programs -> config cycles.
+    pub(crate) fn bind_mcp_consumer(
+        &mut self,
+        programs: &std::sync::Arc<super::super::InstalledManagedMcpPrograms>,
+    ) {
+        self.installed_mcp = std::sync::Arc::downgrade(programs);
     }
 }

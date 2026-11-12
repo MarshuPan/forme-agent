@@ -1,13 +1,17 @@
 //! Host process composition and bounded listener lifecycle.
 mod bootstrap;
+mod channel_settings_routes;
 pub(super) mod config;
 mod desktop_routes;
 pub(super) mod http;
 mod legacy_recovery_routes;
 mod lifecycle;
+mod listener;
 mod mcp_program_routes;
 #[cfg(windows)]
 mod mcp_programs;
+mod mcp_settings_routes;
+mod plugin_settings_routes;
 mod recovery_capabilities;
 mod recovery_routes;
 #[cfg(windows)]
@@ -278,7 +282,7 @@ fn run_host(
     let desktop_authority = load_desktop_authority(
         &journal,
         &install_id,
-        product_config,
+        product_config.clone(),
         runtime.worker_config_path.as_deref(),
         managed_service_bound,
         active_release.as_ref(),
@@ -297,6 +301,8 @@ fn run_host(
         WorkerHostContext {
             #[cfg(windows)]
             managed_mcp: installed_mcp,
+            #[cfg(windows)]
+            channel_configuration: product_config,
             managed_service_bound,
             desktop_authority,
             protected_paths: &runtime.worker_protected_paths,
@@ -400,34 +406,29 @@ fn run_host(
                     checked_release = std::time::Instant::now();
                 }
                 let mut accepted = false;
-                for endpoint in &endpoints {
-                    match endpoint.listener.accept() {
-                        Ok((stream, _)) => {
-                            accepted = true;
-                            if endpoint.connections.fetch_add(1, Ordering::AcqRel) >= 16 {
-                                endpoint.connections.fetch_sub(1, Ordering::AcqRel);
-                                drop(stream);
-                                continue;
-                            }
-                            let broker = broker.clone();
-                            let bootstrap = bootstrap.clone();
-                            let worker = worker.clone();
-                            let connections = endpoint.connections.clone();
-                            let domain = endpoint.domain;
-                            std::thread::spawn(move || {
-                                struct ConnectionGuard(Arc<AtomicUsize>);
-                                impl Drop for ConnectionGuard {
-                                    fn drop(&mut self) {
-                                        self.0.fetch_sub(1, Ordering::AcqRel);
-                                    }
-                                }
-                                let _guard = ConnectionGuard(connections);
-                                let _ =
-                                    handle_connection(stream, broker, worker, bootstrap, domain);
-                            });
+                for endpoint in &mut endpoints {
+                    if let Some(stream) = endpoint.accept()? {
+                        accepted = true;
+                        if endpoint.connections.fetch_add(1, Ordering::AcqRel) >= 16 {
+                            endpoint.connections.fetch_sub(1, Ordering::AcqRel);
+                            drop(stream);
+                            continue;
                         }
-                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
-                        Err(_) => return Err(p::Error("host broker accept failed".into())),
+                        let broker = broker.clone();
+                        let bootstrap = bootstrap.clone();
+                        let worker = worker.clone();
+                        let connections = endpoint.connections.clone();
+                        let domain = endpoint.domain;
+                        std::thread::spawn(move || {
+                            struct ConnectionGuard(Arc<AtomicUsize>);
+                            impl Drop for ConnectionGuard {
+                                fn drop(&mut self) {
+                                    self.0.fetch_sub(1, Ordering::AcqRel);
+                                }
+                            }
+                            let _guard = ConnectionGuard(connections);
+                            let _ = handle_connection(stream, broker, worker, bootstrap, domain);
+                        });
                     }
                 }
                 #[cfg(windows)]
@@ -506,6 +507,7 @@ struct HostEndpoint {
     listener: TcpListener,
     domain: EndpointDomain,
     connections: Arc<AtomicUsize>,
+    retry: listener::AcceptRetry,
 }
 
 impl HostEndpoint {
@@ -522,6 +524,13 @@ impl HostEndpoint {
             listener,
             domain,
             connections: Arc::new(AtomicUsize::new(0)),
+            retry: listener::AcceptRetry::default(),
+        })
+    }
+
+    fn accept(&mut self) -> p::Result<Option<std::net::TcpStream>> {
+        self.retry.poll(std::time::Instant::now(), || {
+            self.listener.accept().map(|(stream, _)| stream)
         })
     }
 }

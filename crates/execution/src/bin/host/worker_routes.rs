@@ -11,6 +11,17 @@ pub(super) fn route(
     if !request.path.starts_with("/v1/agent/workers/") {
         return None;
     }
+    if request.method == "POST" && request.path == "/v1/agent/workers/channel/dispatch" {
+        return Some(
+            serde_json::from_slice(&request.body)
+                .map_err(|_| p::Error("channel dispatch input is invalid".into()))
+                .and_then(|input| worker.dispatch_channel(auth, input, now))
+                .and_then(|observation| {
+                    serde_json::to_vec(&observation)
+                        .map_err(|_| p::Error("channel observation encoding failed".into()))
+                }),
+        );
+    }
     if request.method == "GET" && request.path.ends_with("/desktop-output") {
         return Some(
             worker_id(&request.path, "/v1/agent/workers/", "/desktop-output")

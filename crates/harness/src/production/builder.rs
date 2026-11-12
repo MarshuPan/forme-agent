@@ -9,7 +9,10 @@ pub struct ProductionRuntimeBuilder {
     managed_key_directory: Option<PathBuf>,
     managed_mode: bool,
     managed_mcp: Vec<p::ProductMcpServerConfig>,
+    managed_plugins: Option<crate::managed_config::ManagedPluginSources>,
+    managed_channels: Option<crate::managed_config::ManagedChannels>,
     worker_binding: Option<ManagedWorkerBinding>,
+    mcp_worker_binding: Option<ManagedWorkerBinding>,
     desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     worker_file_roots: BTreeMap<String, PathBuf>,
     publisher_keyring: Arc<forme_capabilities::InMemoryPublisherKeyring>,
@@ -36,7 +39,10 @@ impl ProductionRuntimeBuilder {
             managed_key_directory: None,
             managed_mode: false,
             managed_mcp: Vec::new(),
+            managed_plugins: None,
+            managed_channels: None,
             worker_binding: None,
+            mcp_worker_binding: None,
             desktop_placement: None,
             worker_file_roots: BTreeMap::new(),
             publisher_keyring: Arc::new(forme_capabilities::InMemoryPublisherKeyring::default()),
@@ -62,12 +68,15 @@ impl ProductionRuntimeBuilder {
             None => None,
         };
         let publisher_keyring = config.publisher_keyring()?;
+        let managed_plugins = config.plugin_sources_guard()?;
+        let managed_channels = config.channel_sources_guard()?;
         let managed_mcp = config
             .managed_capabilities
             .as_ref()
             .map(|v| v.mcp_servers.clone())
             .unwrap_or_default();
         let worker_binding = config.worker_binding.clone();
+        let mcp_worker_binding = config.mcp_worker_binding.clone();
         let desktop_placement = config.desktop_placement.clone();
         let worker_file_roots = config.worker_file_roots.clone();
         let runtime = config.runtime_config()?;
@@ -88,7 +97,10 @@ impl ProductionRuntimeBuilder {
             managed_key_directory: Some(key_directory),
             managed_mode: true,
             managed_mcp,
+            managed_plugins,
+            managed_channels,
             worker_binding,
+            mcp_worker_binding,
             desktop_placement,
             worker_file_roots,
             publisher_keyring,
@@ -165,7 +177,10 @@ impl ProductionRuntimeBuilder {
             composition::ManagedCompositionInputs {
                 managed_mode: self.managed_mode,
                 managed_mcp: self.managed_mcp,
+                managed_plugins: self.managed_plugins,
+                managed_channels: self.managed_channels,
                 worker_binding: self.worker_binding,
+                mcp_worker_binding: self.mcp_worker_binding,
                 desktop_placement: self.desktop_placement,
                 worker_file_roots: self.worker_file_roots,
                 publisher_keyring: self.publisher_keyring,

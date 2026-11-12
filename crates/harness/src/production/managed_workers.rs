@@ -3,6 +3,7 @@ use super::*;
 
 pub(super) struct Bindings<'a> {
     pub worker: Option<&'a ManagedWorkerBinding>,
+    pub mcp: Option<&'a ManagedWorkerBinding>,
     pub desktop: Option<&'a ManagedWorkerBinding>,
 }
 
@@ -148,17 +149,7 @@ pub(super) fn mcp_registry(
             unresolved_mcp,
         ));
     }
-    let source = binding
-        .and_then(|b| b.connect_mcp_source().ok())
-        .map(|authority| {
-            Arc::new(
-                crate::production_artifact_store::ProtectedMcpCatalogSource {
-                    store,
-                    owner: p::VerifiedPrincipal(config.owner.0.clone()),
-                    authority,
-                },
-            ) as Arc<dyn forme_capabilities::ManagedMcpCatalogSource>
-        });
+    let source = catalog_source(config, binding, store);
     Ok((
         Arc::new(StdioMcpRegistry::with_managed_servers(
             resolved_mcp_servers,
@@ -202,4 +193,22 @@ pub(super) fn resolve_mcp_servers(
         }
     }
     (resolved_mcp_servers, unresolved_mcp)
+}
+
+pub(super) fn catalog_source(
+    config: &ProductionRuntimeConfig,
+    binding: Option<&ManagedWorkerBinding>,
+    store: SqliteEventStore,
+) -> Option<Arc<dyn forme_capabilities::ManagedMcpCatalogSource>> {
+    binding
+        .and_then(|b| b.connect_mcp_source().ok())
+        .map(|authority| {
+            Arc::new(
+                crate::production_artifact_store::ProtectedMcpCatalogSource {
+                    store,
+                    owner: p::VerifiedPrincipal(config.owner.0.clone()),
+                    authority,
+                },
+            ) as Arc<dyn forme_capabilities::ManagedMcpCatalogSource>
+        })
 }

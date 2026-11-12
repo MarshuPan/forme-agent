@@ -10,9 +10,9 @@ use std::{
 };
 
 pub(super) struct SourceBinding {
-    journal: Weak<WorkerJournal>,
-    results: Weak<WorkerResultStore>,
-    installation: String,
+    pub(super) journal: Weak<WorkerJournal>,
+    pub(super) results: Weak<WorkerResultStore>,
+    pub(super) installation: String,
 }
 
 impl InstalledManagedMcpPrograms {
@@ -21,7 +21,12 @@ impl InstalledManagedMcpPrograms {
         journal: &Arc<WorkerJournal>,
         results: &Arc<WorkerResultStore>,
         installation: &str,
+        epoch: p::AuthorityEpoch,
     ) -> p::Result<()> {
+        if epoch != self.epoch {
+            return Err(invalid());
+        }
+        p::validate_product_id(installation)?;
         let mut binding = self.source.lock().map_err(|_| invalid())?;
         if let Some(old) = binding.as_ref() {
             if old.journal.upgrade().is_some() || old.results.upgrade().is_some() {

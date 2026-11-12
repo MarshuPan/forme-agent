@@ -69,6 +69,9 @@ mod managed_workers;
 mod mcp_composition;
 pub use builder::ProductionRuntimeBuilder;
 use managed_workers::try_register_managed_worker_backend;
+mod catalog;
+mod channel_content;
+mod channels;
 mod composition;
 use composition::compose;
 mod context_source;
@@ -441,6 +444,8 @@ struct CapabilityAssembly {
 }
 
 struct ProductionContextCatalogSource {
+    managed_plugins: Option<crate::managed_config::ManagedPluginSources>,
+    snapshots: Arc<crate::run_tools::RunToolSnapshots>,
     store: Arc<SqliteEventStore>,
     capabilities: Arc<InMemoryCapabilityRegistry>,
     skills: Arc<InMemorySkillRegistry>,
@@ -485,12 +490,13 @@ fn assemble_capabilities(
 ) -> p::Result<CapabilityAssembly> {
     let managed_workers::Bindings {
         worker: worker_binding,
+        mcp: mcp_binding,
         desktop: desktop_binding,
     } = worker_bindings;
     let capability_config = &config.capabilities;
     let capabilities = Arc::new(InMemoryCapabilityRegistry::default());
     let (mcp, unresolved_mcp) =
-        managed_workers::mcp_registry(managed_mode, config, worker_binding, store.clone())?;
+        managed_workers::mcp_registry(managed_mode, config, mcp_binding, store.clone())?;
     let plugins = Arc::new(LocalPluginRegistry::with_plugins(
         capability_config
             .plugins
@@ -574,7 +580,7 @@ fn assemble_capabilities(
     // This does not expose ordinary MCP tools or grant discovery authority.
     let mcp_backend = if managed_mode && needs_worker {
         managed_workers::register_mcp(
-            worker_binding,
+            mcp_binding,
             config,
             &output_budget,
             timeout,
@@ -973,9 +979,10 @@ fn assemble_capabilities(
                         PluginContribution::Skill(skill) => {
                             Some(p::CapabilityRef(skill.metadata.id.0.clone()))
                         }
-                        // Plugin tools have no execution-backend binding in the
-                        // manifest contract. They stay indexed for audit, but are
-                        // not exposed as executable model tools.
+                        // Catalog admission conveys no execution authority.
+                        // Managed slots still require a selected target binding.
+                        PluginContribution::Tool(tool) => Some(tool.id.clone()),
+                        PluginContribution::Hook(hook) => Some(p::CapabilityRef(hook.id.0.clone())),
                         _ => None,
                     }),
             );
@@ -1457,130 +1464,6 @@ fn build_computer_backend(
             "native computer driver is unsupported on this target".into(),
         ))
     }
-}
-
-impl forme_context::ContextCatalogSource for ProductionContextCatalogSource {
-    fn catalog(
-        &self,
-        request: &ContextHydrationRequest,
-    ) -> p::Result<forme_context::ContextCatalogSnapshot> {
-        super::brain_workspaces::check_workspace(
-            &self.store,
-            &self.workspace,
-            &request.workspace,
-            &request.scope,
-        )?;
-        let mut resolve = self.resolve_context.clone();
-        resolve.session = request.session.clone();
-        if !scope_contains(&resolve.envelope.scope, &request.scope) {
-            resolve.envelope.capability.capabilities.clear();
-            resolve.envelope.capability.permissions.clear();
-            resolve.policy_allowed_capabilities.clear();
-            resolve.policy_allowed_providers.clear();
-        }
-        resolve.envelope.scope = request.scope.clone();
-        let toolset = self.capabilities.resolve_toolset(&resolve)?;
-        let visible_plugin_skills = toolset
-            .items
-            .iter()
-            .filter_map(|item| match &item.capability {
-                Capability::Skill(skill) => Some(skill.clone()),
-                _ => None,
-            })
-            .collect::<BTreeSet<_>>();
-        // Visibility is request-scoped. Mutating the shared skill registry
-        // here would let concurrent hydration requests toggle one another's
-        // catalog state.
-        let plugin_skill_ids = self
-            .plugin_skill_ids
-            .iter()
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        let metadata = self
-            .skills
-            .metadata(request.scope.clone())
-            .into_iter()
-            .filter(|skill| {
-                !plugin_skill_ids.contains(&skill.id) || visible_plugin_skills.contains(&skill.id)
-            })
-            .collect::<Vec<_>>();
-        let mut loaded_skill_bodies = Vec::new();
-        for selected in &request.selected_skills {
-            let skill = metadata
-                .iter()
-                .find(|metadata| &metadata.id == selected)
-                .ok_or_else(|| p::Error("selected skill is not visible in this scope".into()))?;
-            let body = self
-                .skills
-                .load_body(selected.clone(), forme_capabilities::LoadTrigger::Selected)?;
-            loaded_skill_bodies.push(forme_context::LoadedSkillBody {
-                schema_version: p::SchemaVersion(1),
-                id: skill.id.clone(),
-                body: body.0,
-                trigger: p::SkillTriggerRef("selected".into()),
-                provenance: skill_provenance(skill.trust),
-            });
-        }
-
-        let mut tool_entries = Vec::new();
-        let mut has_untrusted_schema = false;
-        for item in toolset.items {
-            let schema = match item.capability {
-                Capability::Tool(tool) => self.static_tool_schemas.get(&tool).cloned(),
-                Capability::McpTool(tool) => mcp_tool_schema(&self.mcp, &tool),
-                Capability::AppApi(provider) => self.app_api_schemas.get(&provider).cloned(),
-                _ => None,
-            };
-            if let Some(schema) = schema {
-                if item
-                    .sources
-                    .iter()
-                    .any(|source| source.0.starts_with("mcp:") || source.0.starts_with("app-api:"))
-                {
-                    has_untrusted_schema = true;
-                }
-                tool_entries.push(forme_context::ToolSchemaEntry {
-                    schema_version: p::SchemaVersion(1),
-                    tool: p::ToolRef(item.id.0),
-                    schema,
-                });
-            }
-        }
-        tool_entries.sort_by(|left, right| left.tool.cmp(&right.tool));
-        let skills_metadata = metadata
-            .into_iter()
-            .map(|skill| forme_context::SkillMetadata {
-                schema_version: skill.schema_version,
-                id: skill.id,
-                summary: skill.summary,
-                scope: skill.scope,
-                version: skill.version,
-                trust: skill.trust,
-            })
-            .collect();
-        Ok(forme_context::ContextCatalogSnapshot {
-            schema_version: p::SchemaVersion(1),
-            rules: self.rules.clone(),
-            skills_metadata,
-            loaded_skill_bodies,
-            tool_schema: ToolSchema {
-                schema_version: p::SchemaVersion(1),
-                version: p::Version(1),
-                entries: tool_entries,
-                provenance: if has_untrusted_schema {
-                    untrusted_provenance()
-                } else {
-                    trusted_provenance()
-                },
-            },
-        })
-    }
-}
-
-fn mcp_tool_schema(mcp: &StdioMcpRegistry, tool: &p::McpToolRef) -> Option<String> {
-    let tool = mcp.resolve_schema(tool.clone()).ok()?;
-    let schema = tool.input_schema?;
-    serde_json::to_string(&schema).ok()
 }
 
 fn skill_provenance(trust: p::TrustTier) -> p::Provenance {

@@ -1,4 +1,4 @@
-//! Explicit native components. Test-staged settings do not enable the product.
+//! Explicit native components; these do not establish installed service identity.
 use super::super::{product_config::tests as config_tests, ManagedMcpProgramSource};
 use super::*;
 use serde_json::{json, Value};
@@ -15,6 +15,9 @@ struct Fixture {
 }
 impl Fixture {
     fn new(mode: &str, timeout: u64) -> Self {
+        Self::create(mode, timeout, true)
+    }
+    fn create(mode: &str, timeout: u64, staged: bool) -> Self {
         let (temp, _, config) = config_tests::fixture();
         let config = Arc::new(config);
         let root = temp.path().join("programs");
@@ -92,7 +95,9 @@ impl Fixture {
                 resources: vec!["fixture://methods".into()],
             },
         };
-        config_tests::stage_mcp_fixture(&mut config.lock().unwrap(), settings.clone());
+        if staged {
+            config_tests::stage_mcp_fixture(&mut config.lock().unwrap(), settings.clone());
+        }
         let request = request(&registration, &settings);
         let runtime = temp.path().join("runtime");
         Self {

@@ -396,12 +396,53 @@ pub(super) fn core_config(
     if let Some(channels) = &state.channels {
         config["brain"]["channels"] = serde_json::to_value(channels).map_err(|_| invalid())?;
     }
+    if state.schema_version.0 >= 14 {
+        config["channel_ingress"] = serde_json::to_value(p::ProductChannelIngress {
+            schema_version: p::SchemaVersion(1),
+            configuration_path: template.core_config_path.clone(),
+            sources: state.channel_sources.clone(),
+        })
+        .map_err(|_| invalid())?;
+    }
+    if state.schema_version.0 >= 13 {
+        config["brain"]["plugin_sources"] =
+            serde_json::to_value(&state.plugin_sources).map_err(|_| invalid())?;
+        config["brain"]["plugin_configuration_path"] =
+            serde_json::to_value(&template.core_config_path).map_err(|_| invalid())?;
+    }
+    if let Some(binding) = &state.mcp_worker {
+        config["brain"]["mcp_worker_binding"] =
+            serde_json::to_value(binding).map_err(|_| invalid())?;
+    }
     if let Some(desktop) = &state.desktop {
         config["brain"]["desktop_placement"] =
             serde_json::to_value(desktop).map_err(|_| invalid())?;
     }
     if let Some(worker) = &state.worker {
         worker.materialize(&mut config["brain"])?;
+    }
+    let delivery_sources = state
+        .channel_sources
+        .iter()
+        .filter(|source| {
+            source.delivery.is_some()
+                && state.channels.as_ref().is_some_and(|settings| {
+                    settings.channels.iter().any(|channel| {
+                        channel.channel_ref == source.channel_ref
+                            && channel.enabled
+                            && channel.adapter_ref == p::ProductChannelAdapter::Loopback
+                    })
+                })
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    if !delivery_sources.is_empty() {
+        config["brain"]["channel_delivery"] = serde_json::to_value(p::ProductChannelIngress {
+            schema_version: p::SchemaVersion(1),
+            configuration_path: template.core_config_path.clone(),
+            sources: delivery_sources,
+        })
+        .map_err(|_| invalid())?;
     }
     if let Some(proxy) = &state.proxy {
         validate_proxy(proxy)?;
@@ -497,9 +538,12 @@ pub(super) fn import_legacy(store: &mut ProductConfigStore) -> p::Result<()> {
         release: None,
         worker: None,
         desktop: None,
+        mcp_worker: None,
         managed_capabilities: None,
         channels: None,
         publisher_key_files: BTreeMap::new(),
+        plugin_sources: Vec::new(),
+        channel_sources: Vec::new(),
     };
     state.validate(&store.template)?;
     if state.revision > 0 {

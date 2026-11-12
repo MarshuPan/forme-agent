@@ -59,6 +59,11 @@ impl ManagedWorkerBinding {
         Ok(())
     }
 
+    pub fn channel_installation_ref(&self) -> p::Result<String> {
+        self.validate()?;
+        let credential = super::worker_client::read_credential(&self.credential_path)?;
+        super::worker_results::installation_ref(&p::canonical_digest(&credential.as_str())?)
+    }
     pub fn supports(&self, kind: p::BackendKind) -> bool {
         self.backend_kinds.contains(&kind)
     }

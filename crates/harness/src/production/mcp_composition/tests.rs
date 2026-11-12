@@ -147,7 +147,7 @@ fn first_catalog_absence_does_not_remove_worker_eligibility_or_expose_tools() {
         assert!(prepared.needs_worker);
         assert!(prepared.active.is_empty());
         assert!(prepared.tools.is_empty());
-        assert!(source.reads.load(Ordering::SeqCst) > 0);
+        assert_eq!(source.reads.load(Ordering::SeqCst), 0);
         assert!(registry
             .resolve_schema(p::McpToolRef("bootstrap-fixture/fixture.inspect".into()))
             .is_err());
@@ -197,21 +197,15 @@ fn disabled_untrusted_ungranted_or_unresolved_server_has_no_worker_eligibility()
     }
 }
 #[test]
-fn valid_original_is_required_even_when_start_discovery_flag_is_false() {
-    let mut config = config();
-    config.mcp[0].discover_on_start = false;
+fn startup_does_not_pin_catalog_even_when_an_original_exists() {
+    let config = config();
     let (registry, source) = registry(&config);
     *source.original.lock().unwrap() = Some(original());
     let prepared = prepare_for(&config, &registry);
     assert!(prepared.needs_worker);
-    assert_eq!(
-        prepared.active,
-        [config.mcp[0].server.provider_id.clone()]
-            .into_iter()
-            .collect()
-    );
-    assert_eq!(prepared.tools.len(), 1);
-    assert_eq!(source.reads.load(Ordering::SeqCst), 1);
+    assert!(prepared.active.is_empty());
+    assert!(prepared.tools.is_empty());
+    assert_eq!(source.reads.load(Ordering::SeqCst), 0);
 }
 
 #[test]

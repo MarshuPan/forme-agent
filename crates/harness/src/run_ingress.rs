@@ -156,6 +156,7 @@ impl ReactiveHarness {
             mode: RunMode::Loop,
             direct_intent: None,
             owner_discovery_bound: false,
+            tools: self.run_tool_snapshot(&run)?,
             bound_envelope: None,
             effect_mode: None,
             evolution_snapshot: None,

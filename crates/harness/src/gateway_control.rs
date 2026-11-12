@@ -93,35 +93,7 @@ impl AgentHarness for ReactiveHarness {
 
 impl GatewayControl for ReactiveHarness {
     fn start_run(self: Arc<Self>, request: p::RunRequest) -> p::Result<p::RunId> {
-        match self.prepare_ingress_internal_as(request, Vec::new(), None)? {
-            PreparedSubmission::Existing(run) => Ok(run),
-            PreparedSubmission::New {
-                run,
-                handle,
-                session,
-            } => {
-                let worker = self.clone();
-                let worker_run = run.clone();
-                let worker_handle = handle.clone();
-                let worker_session = session.clone();
-                if let Err(error) = std::thread::Builder::new()
-                    .name("forme-gateway-run".into())
-                    .spawn(move || {
-                        if let Err(drive_error) =
-                            worker.drive_prepared_run(&worker_run, &worker_handle, &worker_session)
-                        {
-                            let _ =
-                                worker.fail_prepared_run(&worker_run, &worker_handle, &drive_error);
-                        }
-                    })
-                {
-                    let spawn_error = p::Error(format!("failed to start accepted run: {error}"));
-                    self.fail_prepared_run(&run, &handle, &spawn_error)?;
-                    return Err(spawn_error);
-                }
-                Ok(run)
-            }
-        }
+        self.start_ingress(request, Vec::new())
     }
 
     fn gateway_profile(&self, surface: p::SurfaceRef) -> p::Result<p::GatewayProfile> {
@@ -298,6 +270,45 @@ impl Observability for ReactiveHarness {
             state,
             last_stream_seq: events.last().map(|event| event.stream_seq).unwrap_or(0),
             result,
+        }
+    }
+}
+
+impl ReactiveHarness {
+    /// Uses the same accepted-run dispatcher, with authority-stamped ingress facts.
+    pub fn start_ingress(
+        self: Arc<Self>,
+        request: p::RunRequest,
+        prelude: Vec<IngressEvent>,
+    ) -> p::Result<p::RunId> {
+        match self.prepare_ingress_internal_as(request, prelude, None)? {
+            PreparedSubmission::Existing(run) => Ok(run),
+            PreparedSubmission::New {
+                run,
+                handle,
+                session,
+            } => {
+                let worker = self.clone();
+                let worker_run = run.clone();
+                let worker_handle = handle.clone();
+                let worker_session = session.clone();
+                if let Err(error) = std::thread::Builder::new()
+                    .name("forme-gateway-run".into())
+                    .spawn(move || {
+                        if let Err(drive_error) =
+                            worker.drive_prepared_run(&worker_run, &worker_handle, &worker_session)
+                        {
+                            let _ =
+                                worker.fail_prepared_run(&worker_run, &worker_handle, &drive_error);
+                        }
+                    })
+                {
+                    let spawn_error = p::Error(format!("failed to start accepted run: {error}"));
+                    self.fail_prepared_run(&run, &handle, &spawn_error)?;
+                    return Err(spawn_error);
+                }
+                Ok(run)
+            }
         }
     }
 }

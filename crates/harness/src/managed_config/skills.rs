@@ -8,6 +8,7 @@ impl ManagedBrainConfig {
         self.configure_mcp(&mut capabilities)?;
         self.configure_file_placement(&mut capabilities)?;
         self.configure_desktop_placement(&mut capabilities)?;
+        self.configure_plugins(&mut capabilities)?;
         if let Some(settings) = &self.capabilities {
             settings.validate()?;
             capabilities.skills = settings

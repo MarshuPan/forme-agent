@@ -3,6 +3,14 @@ use crate::installed::HostAuth;
 use forme_protocol as p;
 
 pub trait IsolatedExecutorHost: Send + Sync {
+    fn dispatch_channel(
+        &self,
+        _auth: &HostAuth,
+        _input: p::ManagedChannelDeliveryInputV1,
+        _now: p::Timestamp,
+    ) -> p::Result<p::WorkerObservation> {
+        Err(p::Error("channel delivery is unavailable".into()))
+    }
     fn desktop_output(
         &self,
         _auth: &HostAuth,

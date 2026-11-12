@@ -59,6 +59,7 @@ impl ProductionRuntime {
                     mode: crate::RunMode::Loop,
                     direct_intent: None,
                     owner_discovery_bound: false,
+                    tools: h.run_tool_snapshot(&route.parent)?,
                     bound_envelope: None,
                     effect_mode: None,
                     evolution_snapshot: None,

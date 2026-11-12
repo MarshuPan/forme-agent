@@ -9,9 +9,13 @@ use serde::Deserialize;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
+mod channels;
+pub(crate) use channels::ManagedChannels;
 mod desktop;
 mod mcp;
+mod plugins;
 mod publishers;
+pub(crate) use plugins::ManagedPluginSources;
 mod skills;
 mod worker;
 
@@ -37,6 +41,8 @@ pub struct ManagedBrainConfig {
     #[serde(default)]
     pub worker_binding: Option<ManagedWorkerBinding>,
     #[serde(default)]
+    pub mcp_worker_binding: Option<ManagedWorkerBinding>,
+    #[serde(default)]
     pub desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     /// Host-owned readonly placement projection, separate from the binding.
     #[serde(default)]
@@ -52,7 +58,13 @@ pub struct ManagedBrainConfig {
     #[serde(default)]
     pub channels: Option<p::ProductChannelSettings>,
     #[serde(default)]
+    pub channel_delivery: Option<p::ProductChannelIngress>,
+    #[serde(default)]
     pub publisher_key_files: std::collections::BTreeMap<String, PathBuf>,
+    #[serde(default)]
+    pub plugin_sources: Vec<p::ProductPluginSource>,
+    #[serde(default)]
+    pub plugin_configuration_path: Option<PathBuf>,
     pub scheduler_enabled: bool,
     pub scheduler: p::SchedulerConfig,
     pub cognition: CognitiveRuntimeConfig,

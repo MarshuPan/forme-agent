@@ -7,6 +7,8 @@ use forme_protocol as p;
 mod host_backup_verification;
 #[path = "host_bootstrap.rs"]
 mod host_bootstrap;
+#[path = "host_channel_settings.rs"]
+mod host_channel_settings;
 #[path = "host_computer_settings.rs"]
 mod host_computer_settings;
 #[path = "host_configuration.rs"]
@@ -19,8 +21,12 @@ mod host_maintenance;
 mod host_managed_configuration;
 #[path = "host_mcp_programs.rs"]
 mod host_mcp_programs;
+#[path = "host_mcp_settings.rs"]
+mod host_mcp_settings;
 #[path = "host_network.rs"]
 mod host_network;
+#[path = "host_plugin_settings.rs"]
+mod host_plugin_settings;
 pub use host_network::PreparedOwnerNetwork;
 #[path = "host_legacy_release_recovery.rs"]
 mod host_legacy_release_recovery;

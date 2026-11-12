@@ -4,7 +4,7 @@ pub(super) fn asset(path: &str) -> Option<(&'static str, &'static [u8])> {
     match path {
         "/LICENSES.txt" => Some(("text/plain; charset=utf-8", include_bytes!("dist/LICENSES.txt"))),
         "/assets/index-By_MCe4J.css" => Some(("text/css; charset=utf-8", include_bytes!("dist/assets/index-By_MCe4J.css"))),
-        "/assets/index-gooi_IKv.js" => Some(("text/javascript; charset=utf-8", include_bytes!("dist/assets/index-gooi_IKv.js"))),
+        "/assets/index-Cwq2KXOt.js" => Some(("text/javascript; charset=utf-8", include_bytes!("dist/assets/index-Cwq2KXOt.js"))),
         "/dependencies.json" => Some(("application/json", include_bytes!("dist/dependencies.json"))),
         "/favicon.svg" => Some(("image/svg+xml", include_bytes!("dist/favicon.svg"))),
         "/index.html" => Some(("text/html; charset=utf-8", include_bytes!("dist/index.html"))),

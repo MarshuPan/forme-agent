@@ -27,10 +27,7 @@ pub(super) struct CallFrame {
     pub(super) tool_call: bool,
     pub(super) reply: bool,
 }
-pub(super) struct CallResult {
-    pub(super) bytes: Vec<u8>,
-    pub(super) outcome: p::WorkerOutcome,
-}
+pub(super) use super::controller::ExchangeResult as CallResult;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Reply {

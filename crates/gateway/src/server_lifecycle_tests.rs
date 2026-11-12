@@ -183,6 +183,7 @@ impl Fixture {
             web_session_fence_path: None,
             token: LocalBearerSecret::new(TOKEN.into()).unwrap(),
             token_path: None,
+            channel_ingress: None,
         }
     }
 
@@ -395,6 +396,7 @@ async fn cancelled_request_keeps_its_blocking_admission_until_the_operation_fini
         )
         .unwrap(),
         release_health: None,
+        channel_ingress: None,
     });
     let (release, wait) = mpsc::channel();
     let (entered, entry) = tokio::sync::oneshot::channel();
@@ -719,3 +721,6 @@ async fn shutdown_stops_background_claims_and_leaves_later_intentions_pending() 
         .iter()
         .any(|e| e.kind == p::EventKind::RunComplete));
 }
+
+#[path = "server_lifecycle_tests/channels.rs"]
+mod channels;

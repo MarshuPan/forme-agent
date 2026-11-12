@@ -11,8 +11,11 @@ use forme_protocol as p;
 use serde::{de::DeserializeOwned, Serialize};
 use zeroize::Zeroizing;
 
+mod channel_settings;
 mod desktop;
 mod mcp_programs;
+mod mcp_settings;
+mod plugin_settings;
 
 const MAX_WIRE_BYTES: usize = 512 * 1024;
 const MAX_BODY_BYTES: usize = 256 * 1024;
@@ -262,6 +265,9 @@ impl LocalConfigurationClient {
     ) -> p::Result<T> {
         if !desktop::allows_route(method, path)
             && !mcp_programs::allows_route(method, path)
+            && !mcp_settings::allows_route(method, path)
+            && !plugin_settings::allows_route(method, path)
+            && !channel_settings::allows_route(method, path)
             && !matches!(
                 (method, path),
                 ("GET", "/v1/host/status")

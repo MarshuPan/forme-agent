@@ -16,6 +16,18 @@ use crate::{
 
 mod computer;
 pub use computer::*;
+mod mcp_settings;
+pub use mcp_settings::*;
+mod plugin_settings;
+pub use plugin_settings::*;
+mod channel_settings;
+mod channel_sources;
+mod plugin_slots;
+mod plugin_sources;
+pub use channel_settings::*;
+pub use channel_sources::*;
+pub use plugin_slots::*;
+pub use plugin_sources::*;
 
 mod proxy;
 pub use proxy::*;

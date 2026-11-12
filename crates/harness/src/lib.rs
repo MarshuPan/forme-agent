@@ -66,6 +66,8 @@ mod run_ingress;
 mod run_output;
 mod run_preparation;
 mod run_recovery;
+mod run_state;
+mod run_tools;
 mod workbench;
 pub use brain_evolution::ProductionStrategySpec;
 pub use brain_evolution_seed::ProductionSeedSpec;
@@ -636,80 +638,7 @@ impl TickScheduler {
     }
 }
 
-#[derive(Clone)]
-struct PendingAction {
-    intent: p::ActionIntent,
-    plan: ExecutionPlan,
-    ticket: ApprovalTicket,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RunMode {
-    Loop,
-    DirectAction,
-}
-
-#[derive(Clone)]
-struct EvolutionSimulationContext {
-    candidate: p::StrategyCandidate,
-    comparison: p::EvolutionComparison,
-}
-
-struct RunRecord {
-    request: p::RunRequest,
-    workspace: p::WorkspaceRef,
-    loop_ctx: forme_loop::RunCtx,
-    result: Option<p::RunResult>,
-    final_output: Option<String>,
-    resume_state: Option<ResumeState>,
-    pending_action: Option<PendingAction>,
-    recovered_unknown: Option<p::ActionId>,
-    approval: InMemoryApprovalBroker,
-    mode: RunMode,
-    direct_intent: Option<p::ActionIntent>,
-    owner_discovery_bound: bool,
-    bound_envelope: Option<p::AutonomyEnvelope>,
-    effect_mode: Option<p::EffectMode>,
-    evolution_snapshot: Option<p::EvolutionSnapshotRef>,
-    evolution_snapshot_full: Option<p::EvolutionSnapshot>,
-    federation_snapshot: Option<p::FederationSnapshotRef>,
-    m3_binding: Option<BoundM3Domains>,
-    remaining_action_budget: Option<u64>,
-    competence_inputs: cognition::CompetenceInputs,
-    skills_prepared: bool,
-    evolution_simulation: Option<EvolutionSimulationContext>,
-    long_horizon: Option<m3_b::PendingLongHorizonCheckpoint>,
-    model_selection: Option<ModelSelection>,
-    active_model: Option<p::ModelProfileRef>,
-    fallback_index: usize,
-}
-
-struct RunHandle {
-    record: Mutex<RunRecord>,
-    changed: Condvar,
-    cancelled: AtomicBool,
-    cancel_token: CancelToken,
-}
-
-enum PreparedSubmission {
-    Existing(p::RunId),
-    New {
-        run: p::RunId,
-        handle: Arc<RunHandle>,
-        session: p::SessionId,
-    },
-}
-
-impl RunHandle {
-    fn new(record: RunRecord) -> Self {
-        Self {
-            record: Mutex::new(record),
-            changed: Condvar::new(),
-            cancelled: AtomicBool::new(false),
-            cancel_token: CancelToken::default(),
-        }
-    }
-}
+use run_state::*;
 
 struct SchedulerRuntime {
     config: p::SchedulerConfig,
@@ -742,10 +671,12 @@ pub struct ReactiveHarness {
     desktop_backend: Option<Arc<forme_execution::installed::WorkerActionBackend>>,
     owner_discovery: Option<owner_discovery::DiscoveryRuntime>,
     skill_registry: Option<Arc<InMemorySkillRegistry>>,
+    managed_skill_sources: Option<managed_config::ManagedPluginSources>,
     skill_runtime_lock: Mutex<()>,
     runs: Mutex<BTreeMap<p::RunId, Arc<RunHandle>>>,
     child_harnesses: Mutex<BTreeMap<p::RunId, (p::RunId, Arc<ReactiveHarness>)>>,
     charter_workspace_override: Option<p::WorkspaceRef>,
+    tool_snapshots: Option<Arc<run_tools::RunToolSnapshots>>,
     formal_tool_bindings: BTreeMap<p::ToolRef, formal_tools::FormalToolBinding>,
     project_directory: Option<std::path::PathBuf>,
     idempotency: Mutex<BTreeMap<p::IdempotencyKey, p::RunId>>,
@@ -1491,6 +1422,7 @@ impl ReactiveHarness {
             mode: RunMode::Loop,
             direct_intent: None,
             owner_discovery_bound: false,
+            tools: self.run_tool_snapshot(run)?,
             bound_envelope: None,
             effect_mode: None,
             evolution_snapshot: None,
@@ -1988,7 +1920,7 @@ impl ReactiveHarness {
             p::EventPayload::SessionBound(p::SessionBoundPayload {
                 policy_profile: self.config.policy_profile.clone(),
                 model_profile: self.config.model_profile.clone(),
-                toolset_ref: self.config.toolset_ref.clone(),
+                toolset_ref: self.record_toolset(&record)?,
                 workspace: record.workspace.clone(),
                 effect_mode,
                 evolution_snapshot: record.evolution_snapshot.clone(),
@@ -2007,7 +1939,7 @@ impl ReactiveHarness {
                 None,
                 internal_provenance(p::Source::Internal),
                 p::EventPayload::ToolsetResolved(p::ToolsetResolvedPayload {
-                    toolset_ref: self.config.toolset_ref.clone(),
+                    toolset_ref: self.record_toolset(&record)?,
                     sources: vec![p::CapabilitySourceRef(format!(
                         "m3-selection:{}",
                         selection.version.0

@@ -19,6 +19,9 @@ pub(super) fn is_configuration_path(path: &str) -> bool {
             | "/v1/host/configuration/desktop/consents"
             | "/v1/host/configuration/desktop/revocations"
     ) || super::super::mcp_program_routes::is_path(path)
+        || super::super::mcp_settings_routes::is_path(path)
+        || super::super::plugin_settings_routes::is_path(path)
+        || super::super::channel_settings_routes::is_path(path)
         || path
             .strip_prefix("/v1/host/configuration/desktop/consents/")
             .is_some_and(|id| forme_protocol::validate_product_id(id).is_ok())
@@ -41,6 +44,21 @@ pub(super) fn is_configuration_path(path: &str) -> bool {
 
 pub(super) fn is_configuration_status_path(path: &str) -> bool {
     path == "/v1/host/status"
+}
+
+pub(super) fn worker_id<'a>(
+    path: &'a str,
+    prefix: &str,
+    suffix: &str,
+) -> forme_protocol::Result<&'a str> {
+    let value = path
+        .strip_prefix(prefix)
+        .and_then(|value| value.strip_suffix(suffix))
+        .filter(|value| !value.is_empty() && !value.contains('/'))
+        .ok_or_else(|| forme_protocol::Error("worker route job id is invalid".into()))?;
+    forme_protocol::validate_product_id(value)
+        .map_err(|_| forme_protocol::Error("worker route job id is invalid".into()))?;
+    Ok(value)
 }
 
 #[cfg(test)]

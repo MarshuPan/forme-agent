@@ -67,9 +67,15 @@ pub(super) fn prepare(
             continue;
         }
         needs_worker = true;
-        // A managed registry can only read originals. The development flag
-        // cannot turn an absent managed catalog into an active tool provider.
-        if managed_mode || entry.discover_on_start {
+        if managed_mode {
+            service_states.push(RuntimeServiceState::unavailable(
+                format!("mcp:{}", id.0),
+                RuntimeServiceStatus::Disabled,
+                "managed MCP tools are selected from verified originals for each new run",
+            ));
+            continue;
+        }
+        if entry.discover_on_start {
             match mcp.discover_detailed(id.clone()) {
                 Ok(discovery) => {
                     active_mcp.insert(id.clone());

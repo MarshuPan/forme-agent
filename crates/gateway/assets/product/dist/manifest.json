@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "0a046a4d3ddefbc1ef4f2ec66ccabff6e527f0d97c69555795439baa0475b460",
+  "source_digest": "13b2640f9f390c91ccfc9de2e3682136dafa71f37464517fcadf37cfd5a194a4",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,7 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "0864c0cfb3f774db50526295bd51d6056d67c8529b1bd2b9caad84761393b591"
+      "sha256": "a602d08eca66b44f38a62147c7d012e197a5e06adad45ad3f34ec434890f1a07"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -39,6 +39,10 @@
       "sha256": "c8f074f8dfdc1c1753e2de5766db4fe92c7da710a3454bf3e3edd9698521a187"
     },
     {
+      "path": "frontend/src/channel-settings.ts",
+      "sha256": "30e2e4909868b8de9a0015e53424bdcd5a098bc0b95b5fd262a616076771839e"
+    },
+    {
       "path": "frontend/src/components/Approval.tsx",
       "sha256": "2bbce38ad6bd2e8263d05d99ce9e5185f80a8fc8149c59d189069b206502bb2a"
     },
@@ -49,6 +53,10 @@
     {
       "path": "frontend/src/components/BrainViews.tsx",
       "sha256": "011e9d27a3b92030c02913a22213d8fd845abbd6014e4a37fd4425fbf8f70c09"
+    },
+    {
+      "path": "frontend/src/components/ChannelSettings.tsx",
+      "sha256": "95990c47ab089832d91a28d8c8bf86a71a37e2e9cadc654766cdb6856e697a6d"
     },
     {
       "path": "frontend/src/components/CognitionCorrection.tsx",
@@ -91,12 +99,28 @@
       "sha256": "86a937f1a656a5b99226c812c474d3f84b33db10d01fcd6f20d56358e5ce41f0"
     },
     {
+      "path": "frontend/src/components/McpDiscovery.tsx",
+      "sha256": "0a2ca0b118af338f47fb23d8c1d02dfae2279e84094a4435cd9bac509fd6be0a"
+    },
+    {
+      "path": "frontend/src/components/McpPrograms.tsx",
+      "sha256": "eef8e47974b64fc9891a27a89dd296ef1073d8c1168b5cd84c6b22d87d6559db"
+    },
+    {
+      "path": "frontend/src/components/McpSettings.tsx",
+      "sha256": "75c3f5ddeba7b3d6ec61515e121c8c8057ca08d607236cc89137f5907ed3e9ec"
+    },
+    {
       "path": "frontend/src/components/MemoryMaterial.tsx",
       "sha256": "9dd6435d7ba42473681e9b1ad4d874aef0fe7d2a9117c1c0b895e518f9c76a88"
     },
     {
       "path": "frontend/src/components/NetworkConfigurationActivation.tsx",
       "sha256": "8f627d72facd543a5e65e9c88c979ff8d165d40362c32fc4be811d513a591566"
+    },
+    {
+      "path": "frontend/src/components/PluginSettings.tsx",
+      "sha256": "fd31f85f3faa5fd366552798d11238e68877865c25ebdf3df8153ff6a9b7edc8"
     },
     {
       "path": "frontend/src/components/ProjectControls.tsx",
@@ -136,7 +160,7 @@
     },
     {
       "path": "frontend/src/components/Views.tsx",
-      "sha256": "0c7060c4f16bb5ac3d82ceb07c7a9b78754e5bc52ab04d0acd5519a902089607"
+      "sha256": "5a53be8d2c8bcf50530528a548db4d0faeb87be11be4d85b73230baefbe485dd"
     },
     {
       "path": "frontend/src/components/Workspace.tsx",
@@ -203,12 +227,20 @@
       "sha256": "23253a01a2c46a4d14325219c48f0153b44eb0d489c08cc9fd86848ff8e4569d"
     },
     {
+      "path": "frontend/src/mcp-settings.ts",
+      "sha256": "ca42e5d236b0063c9d67a4cd37723fce34ebec9a5fa7fec56756026593b3d350"
+    },
+    {
       "path": "frontend/src/memory-material.ts",
       "sha256": "fd5cc2626822c8074f7109b50741b7ebc9933c26935c9d0204256b3b0cc2bffb"
     },
     {
       "path": "frontend/src/offline-backup.ts",
       "sha256": "37b9dcc382d8baec9226619a9e3fae133b1579cb28e8078ab9e11eee0631e829"
+    },
+    {
+      "path": "frontend/src/plugin-settings.ts",
+      "sha256": "1165284d16579dba5331504f8ee54a311d059f4cee0e518014ab4c76323669c5"
     },
     {
       "path": "frontend/src/project-routes.ts",
@@ -253,6 +285,10 @@
     {
       "path": "frontend/src/tests/bootstrap.test.ts",
       "sha256": "a0705b77425fd19f9abe303152c1b25a0bee1a41a9d67cc1c3baf5da3325ab49"
+    },
+    {
+      "path": "frontend/src/tests/channel-settings.test.ts",
+      "sha256": "aa8d260a2df93497bc9cb652a00305ce484e7646fbf12809828a6d579c3805c4"
     },
     {
       "path": "frontend/src/tests/client.test.ts",
@@ -307,12 +343,20 @@
       "sha256": "5253d2677a8fb89de7b908c6ff62f8578752fe32570715c1b3c6e1f1df2f91a2"
     },
     {
+      "path": "frontend/src/tests/mcp-settings.test.ts",
+      "sha256": "db8260cc6a3c78b89622b73509291afdbb48df19cc6c50a0301133267556fcf5"
+    },
+    {
       "path": "frontend/src/tests/memory-material.test.ts",
       "sha256": "aef42189ee027a003c8615ed432159d199e003778e877a513b83be18e7cdc9fd"
     },
     {
       "path": "frontend/src/tests/offline-backup.test.ts",
       "sha256": "318937019541cc893f4a51ceab9337f5d3ebb8a3c03b0fd6b86ca826709bf777"
+    },
+    {
+      "path": "frontend/src/tests/plugin-settings.test.ts",
+      "sha256": "749341c5644d01a87f8f043df36fd655dc39a088ceb4c7e7a704e76f3bc2fa12"
     },
     {
       "path": "frontend/src/tests/project-routes.test.ts",
@@ -382,9 +426,9 @@
       "bytes": 15032
     },
     {
-      "path": "assets/index-gooi_IKv.js",
-      "sha256": "5fa8b6e0ec698d54aa1b0925ead73ade5f63aa2d48dd40eddc7b771d424617ab",
-      "bytes": 426369
+      "path": "assets/index-Cwq2KXOt.js",
+      "sha256": "5397d0f2be6a4fb09b623b66749b54aefff8d4c24c25f5e314dcc19ca5cd5cc0",
+      "bytes": 458961
     },
     {
       "path": "dependencies.json",
@@ -398,7 +442,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "5de8738103ab5047a570ebc0372904eb972cd87e2982e5e62e30182fe38b5811",
+      "sha256": "80437db8babb460792ebf2a51ce85f256ccaa88381806fb982834cf9e9abf352",
       "bytes": 595
     },
     {

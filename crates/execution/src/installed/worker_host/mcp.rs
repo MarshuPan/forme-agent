@@ -7,7 +7,12 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         programs: std::sync::Arc<super::super::InstalledManagedMcpPrograms>,
         runtime_root: std::path::PathBuf,
     ) -> p::Result<Self> {
-        programs.bind_source_reader(&self.journal, &self.result_store, &self.installation_ref)?;
+        programs.bind_source_reader(
+            &self.journal,
+            &self.result_store,
+            &self.installation_ref,
+            self.authority_epoch,
+        )?;
         self.managed_mcp = Some(super::super::managed_mcp_stdio::ManagedMcpIsolation::open(
             runtime_root,
             programs,
@@ -18,6 +23,13 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         if job.sandbox_profile_ref == p::MANAGED_MCP_PROGRAM_PROFILE {
             #[cfg(windows)]
             if let Some(isolation) = &self.managed_mcp {
+                return Ok(isolation);
+            }
+            return Err(unavailable());
+        }
+        if job.sandbox_profile_ref == p::MANAGED_CHANNEL_PROFILE {
+            #[cfg(windows)]
+            if let Some(isolation) = &self.managed_channel {
                 return Ok(isolation);
             }
             return Err(unavailable());

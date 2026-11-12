@@ -5,7 +5,10 @@ use super::*;
 pub(super) struct ManagedCompositionInputs {
     pub(super) managed_mode: bool,
     pub(super) managed_mcp: Vec<p::ProductMcpServerConfig>,
+    pub(super) managed_plugins: Option<crate::managed_config::ManagedPluginSources>,
+    pub(super) managed_channels: Option<crate::managed_config::ManagedChannels>,
     pub(super) worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
+    pub(super) mcp_worker_binding: Option<forme_execution::installed::ManagedWorkerBinding>,
     pub(super) desktop_placement: Option<forme_execution::installed::InstalledDesktopProvisioning>,
     pub(super) worker_file_roots: BTreeMap<String, PathBuf>,
     pub(super) publisher_keyring: Arc<forme_capabilities::InMemoryPublisherKeyring>,
@@ -21,7 +24,10 @@ pub(super) fn compose(
     let ManagedCompositionInputs {
         managed_mode,
         managed_mcp,
+        managed_plugins,
+        managed_channels,
         worker_binding,
+        mcp_worker_binding,
         desktop_placement,
         worker_file_roots,
         publisher_keyring,
@@ -77,7 +83,12 @@ pub(super) fn compose(
         store.quarantined_intentions()?,
     )?;
 
-    let capability_assembly = assemble_capabilities(
+    let mcp_binding = mcp_worker_binding.as_ref().or_else(|| {
+        worker_binding
+            .as_ref()
+            .filter(|b| b.supports(p::BackendKind::Mcp))
+    });
+    let mut capability_assembly = assemble_capabilities(
         &config,
         &config.workspace,
         authority.created_at,
@@ -88,8 +99,15 @@ pub(super) fn compose(
         managed_mode,
         managed_workers::Bindings {
             worker: worker_binding.as_ref(),
+            mcp: mcp_binding,
             desktop: desktop_placement.as_ref().map(|p| p.binding()),
         },
+    )?;
+    channels::register(
+        &mut capability_assembly,
+        managed_channels.as_ref(),
+        &config,
+        store.as_ref().clone(),
     )?;
     let capabilities = capability_assembly.capabilities.clone();
     let skills = capability_assembly.skills.clone();
@@ -128,7 +146,57 @@ pub(super) fn compose(
         aggregates.clone(),
         config.workspace.clone(),
     ));
+    let formal_bindings = capability_assembly
+        .bindings
+        .values()
+        .map(|binding| {
+            (
+                p::ToolRef(binding.id.0.clone()),
+                crate::formal_tools::FormalToolBinding {
+                    capability: binding.id.clone(),
+                    backend: binding.backend,
+                    scope: binding.scope.clone(),
+                    permissions: binding.permissions.clone(),
+                    risk: binding.risk,
+                },
+            )
+        })
+        .collect();
+    let snapshots = Arc::new(crate::run_tools::RunToolSnapshots {
+        store: store.clone(),
+        owner: p::VerifiedPrincipal(config.owner.0.clone()),
+        composition: std::sync::OnceLock::new(),
+        access: Mutex::new(()),
+        bindings: formal_bindings,
+        envelope: capability_assembly.resolve_context.envelope.clone(),
+        registry: mcp.clone(),
+        managed_source: if managed_mode && capability_assembly.mcp_backend.is_some() {
+            managed_workers::catalog_source(&config, mcp_binding, store.as_ref().clone())
+        } else {
+            None
+        },
+        plugins: managed_plugins
+            .clone()
+            .map(|sources| crate::run_tools::ManagedPluginTools {
+                sources,
+                registry: plugins.clone(),
+                capabilities: capabilities.clone(),
+                resolve: capability_assembly.resolve_context.clone(),
+                generations: plugins
+                    .statuses()
+                    .into_iter()
+                    .map(|s| (s.plugin, s.generation))
+                    .collect(),
+            }),
+        managed_configs: if managed_mode {
+            managed_mcp.clone()
+        } else {
+            Vec::new()
+        },
+    });
     let catalog = ProductionContextCatalogSource {
+        managed_plugins: managed_plugins.clone(),
+        snapshots: snapshots.clone(),
         store: store.clone(),
         capabilities: capabilities.clone(),
         skills: skills.clone(),
@@ -199,34 +267,17 @@ pub(super) fn compose(
     .with_authority_guard(guard.clone());
 
     harness.desktop_backend = capability_assembly.desktop_backend.clone();
-    if let (Some(binding), Some(backend)) = (
-        worker_binding.as_ref(),
-        capability_assembly.mcp_backend.clone(),
-    ) {
+    harness.managed_skill_sources = managed_plugins;
+    if let (Some(binding), Some(backend)) = (mcp_binding, capability_assembly.mcp_backend.clone()) {
         harness.owner_discovery =
             crate::owner_discovery::DiscoveryRuntime::new(managed_mcp, binding, backend).ok();
     }
-    harness.formal_tool_bindings = capability_assembly
-        .bindings
-        .values()
-        .map(|binding| {
-            (
-                p::ToolRef(binding.id.0.clone()),
-                crate::formal_tools::FormalToolBinding {
-                    capability: binding.id.clone(),
-                    backend: binding.backend,
-                    scope: binding.scope.clone(),
-                    permissions: binding.permissions.clone(),
-                    risk: binding.risk,
-                },
-            )
-        })
-        .collect();
+    harness.formal_tool_bindings = snapshots.bindings.clone();
+    harness.tool_snapshots = Some(snapshots.clone());
 
     // Startup recovery is a durable mutation boundary: the production
     // authority fence must already be installed before an incomplete action
     // can be converted into ActionOutcomeUnknown/RunWaiting events.
-    harness.recover_unknown_outcomes()?;
     harness.resume_tick_sequence()?;
     // Tick lease recovery: a window a crashed process left claimed becomes
     // abandoned, so the next pass retries it with its recorded inputs.
@@ -302,6 +353,15 @@ pub(super) fn compose(
         ))?,
         None => capability_snapshot,
     };
+    let capability_snapshot = match mcp_binding {
+        Some(binding) => p::canonical_digest(&(
+            "forme-installed-mcp-placement-v1",
+            capability_snapshot,
+            binding,
+            &snapshots.managed_configs,
+        ))?,
+        None => capability_snapshot,
+    };
     let manifest = CompositionManifest::new(CompositionManifestParts {
         owner_digest,
         store_identity: authority.store_identity.clone(),
@@ -315,6 +375,10 @@ pub(super) fn compose(
         service_states,
     });
     manifest.validate()?;
+    snapshots
+        .composition
+        .set(manifest.digest.clone())
+        .map_err(|_| p::Error("tool snapshot composition was already bound".into()))?;
     let services = Arc::new(BrainServices {
         data_access: std::sync::RwLock::new(()),
         store,
@@ -351,6 +415,7 @@ pub(super) fn compose(
             services.authority_guard.clone(),
             config.authority_lease,
         )?);
+    harness.recover_unknown_outcomes()?;
     harness.recover_owner_discoveries()?;
     let harness = Arc::new(harness);
     // The production guard is also held by the harness, so the lease remains

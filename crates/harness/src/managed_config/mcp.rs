@@ -8,6 +8,19 @@ impl ManagedBrainConfig {
         &self,
         capabilities: &mut CapabilityRuntimeConfig,
     ) -> p::Result<()> {
+        if let Some(binding) = &self.mcp_worker_binding {
+            binding.validate()?;
+            if binding.sandbox_profile_ref != p::MANAGED_MCP_PROGRAM_PROFILE
+                || binding.backend_kinds != std::collections::BTreeSet::from([p::BackendKind::Mcp])
+                || self.worker_binding.as_ref().is_some_and(|file| {
+                    file.endpoint != binding.endpoint
+                        || file.authority_epoch != binding.authority_epoch
+                        || file.credential_path != binding.credential_path
+                })
+            {
+                return Err(invalid());
+            }
+        }
         let Some(managed) = &self.managed_capabilities else {
             return Ok(());
         };

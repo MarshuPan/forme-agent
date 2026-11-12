@@ -25,6 +25,7 @@ fn config(bind: IpAddr) -> GatewayServerConfig {
         token: LocalBearerSecret::new("unit-test-token-0123456789abcdef0123456789abcdef".into())
             .unwrap(),
         token_path: None,
+        channel_ingress: None,
     }
 }
 

@@ -79,12 +79,16 @@ impl ProductConfigStore {
         } else {
             p::ProductPreferenceSource::InstallationTemplate
         };
-        Ok(view.into_settings_v2(
-            network,
-            proxy_view,
-            proxy_source,
-            p::ProductConfigAvailability::managed(self.network_is_managed()),
-        ))
+        let mut availability = p::ProductConfigAvailability::managed(self.network_is_managed());
+        if self.mcp_consumer().is_ok() {
+            for feature in &mut availability.features {
+                if feature.feature == p::ProductSettingFeature::Mcp {
+                    feature.state = p::ProductSettingState::Configurable;
+                    feature.reason = None;
+                }
+            }
+        }
+        Ok(view.into_settings_v2(network, proxy_view, proxy_source, availability))
     }
 
     pub fn apply_settings_v2(

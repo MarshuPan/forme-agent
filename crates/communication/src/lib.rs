@@ -1,6 +1,6 @@
 //! Standardized communication ingress and bounded external-session membrane (prd/14).
 #![forbid(unsafe_code)]
-
+mod bound_delivery;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};

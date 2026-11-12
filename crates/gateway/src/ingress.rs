@@ -43,6 +43,15 @@ where
         event: CommunicationEvent,
         auth: AuthContext,
     ) -> p::Result<p::RunId> {
+        let (request, prelude) = self.prepare_channel_event(event, auth)?;
+        self.harness.submit_ingress(request, prelude)
+    }
+
+    fn prepare_channel_event(
+        &self,
+        event: CommunicationEvent,
+        auth: AuthContext,
+    ) -> p::Result<(p::RunRequest, Vec<forme_harness::IngressEvent>)> {
         event.validate()?;
         auth.validate(now_ms())?;
         validate_principal(&event.participant, &auth.principal, &self.owner)?;
@@ -82,12 +91,12 @@ where
                 event.channel_adapter.0, event.message_id
             ))),
         };
-        self.harness.submit_ingress(
+        Ok((
             request,
             vec![self
                 .ingress_authority
                 .stamp(event.event_payload(), provenance)],
-        )
+        ))
     }
 
     pub fn submit_run(&self, request: p::RunRequest, auth: AuthContext) -> p::Result<p::RunId> {
@@ -313,7 +322,14 @@ where
             ));
         }
         let session = message.session.clone();
-        let prepared = match adapter.prepare_delivery(fabric, message) {
+        let preparation = if let Some(runtime) = &self.production_runtime {
+            runtime
+                .channel_content_digest(&self.owner, &adapter.scope, &message.content_ref)
+                .and_then(|digest| adapter.prepare_bound_delivery(fabric, message, digest))
+        } else {
+            adapter.prepare_delivery(fabric, message)
+        };
+        let prepared = match preparation {
             Ok(prepared) => prepared,
             Err(error) => {
                 self.persist_fabric_events(fabric, &session)?;
@@ -360,5 +376,19 @@ where
         };
         self.harness
             .submit_action(request, prepared.intent, prepared.envelope, prelude)
+    }
+}
+
+impl LocalGateway<ReactiveHarness> {
+    /// Admits a verified connector message before returning; the ordinary run
+    /// dispatcher owns execution and is observed by the existing drain path.
+    pub fn start_channel_event<A: ChannelAdapter>(
+        &self,
+        adapter: &A,
+        raw: RawInput,
+        auth: AuthContext,
+    ) -> p::Result<p::RunId> {
+        let (request, prelude) = self.prepare_channel_event(adapter.normalize(raw)?, auth)?;
+        self.harness.clone().start_ingress(request, prelude)
     }
 }

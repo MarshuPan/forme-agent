@@ -66,7 +66,12 @@ impl ProductConfigStore {
             .filter(|value| *value <= 1_000_000_000)
             .ok_or_else(rejected_patch)?;
         state.desktop = placement;
-        state.schema_version = p::SchemaVersion(if state.desktop.is_some() { 11 } else { 10 });
+        state.schema_version =
+            p::SchemaVersion(state.schema_version.0.max(if state.desktop.is_some() {
+                11
+            } else {
+                10
+            }));
         state
             .managed_capabilities
             .get_or_insert_with(Default::default)

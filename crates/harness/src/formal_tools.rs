@@ -7,7 +7,7 @@ use forme_store::EventStore;
 #[cfg(test)]
 mod discovery_tests;
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct FormalToolBinding {
     pub capability: p::CapabilityRef,
     pub backend: p::BackendKind,
@@ -71,17 +71,28 @@ impl ReactiveHarness {
         run: &p::RunId,
         workspace: &p::WorkspaceRef,
         tool: &ModelToolCall,
+        snapshot: Option<&crate::run_tools::RunToolSnapshot>,
     ) -> Option<p::ActionIntent> {
-        let binding = self.formal_tool_bindings.get(&tool.tool)?;
-        if !self
-            .governance
+        let binding = match snapshot {
+            Some(snapshot) => snapshot.binding(&tool.tool)?,
+            None => self.formal_tool_bindings.get(&tool.tool)?,
+        };
+        let governance = snapshot.map(|s| s.governance(&self.governance));
+        let governance = governance.as_ref().unwrap_or(&self.governance);
+        if !governance
             .visible_capabilities
             .contains(&binding.capability)
         {
             return None;
         }
-        let mut parameters: p::ActionParameters =
-            serde_json::from_value(tool.arguments.clone()).ok()?;
+        let managed_intent = match (snapshot, &self.tool_snapshots) {
+            (Some(snapshot), Some(snapshots)) => snapshots.prepare_managed(snapshot, tool).ok()?,
+            _ => None,
+        };
+        let mut parameters: p::ActionParameters = match &managed_intent {
+            Some(intent) => intent.parameters.clone(),
+            None => serde_json::from_value(tool.arguments.clone()).ok()?,
+        };
         let (backend, action_type) = match &mut parameters {
             p::ActionParameters::File {
                 operation, path, ..
@@ -129,7 +140,7 @@ impl ReactiveHarness {
         if !p::charter_scope_contains(&binding.scope, &scope) {
             return None;
         }
-        Some(p::ActionIntent {
+        let intent = p::ActionIntent {
             schema_version: p::SchemaVersion(1),
             intent_id: p::ActionId(format!(
                 "formal-tool:{}",
@@ -142,7 +153,8 @@ impl ReactiveHarness {
             action_type,
             scope,
             risk_hint: binding.risk,
-            expected_effect: if backend == p::BackendKind::Notification {
+            expected_effect: if managed_intent.is_some() || backend == p::BackendKind::Notification
+            {
                 p::ExpectedEffect::Outward
             } else {
                 p::ExpectedEffect::Internal
@@ -164,7 +176,13 @@ impl ReactiveHarness {
                 .unwrap_or(0),
             estimated_output_bytes: 4096,
             estimated_duration: p::DurationMs(5000),
-        })
+        };
+        match (snapshot, &self.tool_snapshots) {
+            (Some(snapshot), Some(snapshots)) => snapshots
+                .transform_plugin(snapshot, &tool.tool, intent)
+                .ok(),
+            _ => Some(intent),
+        }
     }
 
     pub(crate) fn child_executor(
@@ -213,7 +231,7 @@ impl ReactiveHarness {
             || bound.workspace != self.config.workspace
             || bound.policy_profile != self.config.policy_profile
             || bound.model_profile != self.config.model_profile
-            || bound.toolset_ref != self.config.toolset_ref
+            || self.validate_tool_binding(run, &bound.toolset_ref).is_err()
             || bound.composition_manifest != self.composition_manifest
             || !matches!(bound.effect_mode, None | Some(p::EffectMode::LiveGoverned))
             || bound.evolution_snapshot.is_some()
@@ -306,12 +324,15 @@ impl ReactiveHarness {
                 _ => None,
             })
             .unwrap_or_else(|| self.config.workspace.clone());
+        let snapshot = self.run_tool_snapshot(run)?;
         let mut intent = self
-            .resolve_formal_tool(run, &workspace, &tool)
+            .resolve_formal_tool(run, &workspace, &tool, snapshot.as_deref())
             .ok_or_else(|| p::Error("approval tool binding is no longer available".into()))?;
         intent.source = accepted.source;
-        if self
-            .governance
+        let governance = snapshot.as_ref().map(|s| s.governance(&self.governance));
+        if governance
+            .as_ref()
+            .unwrap_or(&self.governance)
             .envelope
             .as_ref()
             .is_none_or(|e| crate::now_ms() > e.timebox.expires_at)
@@ -408,6 +429,7 @@ impl ReactiveHarness {
             mode: RunMode::Loop,
             direct_intent: None,
             owner_discovery_bound: false,
+            tools: snapshot,
             bound_envelope: None,
             effect_mode: None,
             evolution_snapshot: None,

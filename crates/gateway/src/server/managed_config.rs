@@ -12,6 +12,8 @@ pub struct CoreServiceConfig {
     pub brain: forme_harness::ManagedBrainConfig,
     pub transport: ManagedGatewayTransport,
     pub drain_timeout_ms: u64,
+    #[serde(default)]
+    pub channel_ingress: Option<p::ProductChannelIngress>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -43,6 +45,13 @@ impl CoreServiceConfig {
         let bytes = read_file(path, 256 * 1024)?;
         let config: Self = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
         config.validate()?;
+        if config
+            .channel_ingress
+            .as_ref()
+            .is_some_and(|c| c.configuration_path != path)
+        {
+            return Err(invalid());
+        }
         Ok(config)
     }
 
@@ -62,6 +71,7 @@ impl CoreServiceConfig {
         }
         p::validate_product_id(&self.install_ref)?;
         self.brain.runtime_config()?;
+        super::channels::validate_configuration(self)?;
         GatewayLifecycleConfig {
             schema_version: p::SchemaVersion(1),
             drain_timeout: Duration::from_millis(self.drain_timeout_ms),
@@ -122,6 +132,7 @@ impl CoreServiceConfig {
             web_session_fence_path: Some(self.transport.web_session_fence_path.clone()),
             token: credential(&self.transport.owner_credential_path)?,
             token_path: Some(self.transport.owner_credential_path.clone()),
+            channel_ingress: self.channel_ingress.clone(),
         };
         config.validate()?;
         Ok(config)
@@ -145,7 +156,7 @@ fn credential(path: &Path) -> p::Result<LocalBearerSecret> {
     LocalBearerSecret::new(value.trim_end_matches(['\r', '\n']).to_owned()).map_err(|_| invalid())
 }
 
-fn read_file(path: &Path, limit: u64) -> p::Result<Vec<u8>> {
+pub(super) fn read_file(path: &Path, limit: u64) -> p::Result<Vec<u8>> {
     crate::web::config::check_path(path)?;
     let file = std::fs::File::open(path).map_err(|_| invalid())?;
     if !file.metadata().map_err(|_| invalid())?.is_file() {

@@ -1,3 +1,5 @@
+import { parseChannelSettings, parseChannelResponse } from '../channel-settings.ts';
+import type { ChannelSettingsPatch } from '../channel-settings.ts';
 import { isRecord, versioned } from '../types.ts';
 import { toolArtifactCatalog, readToolArtifact } from '../tool-artifacts.ts';
 import type { ToolArtifactEntry } from '../tool-artifacts.ts';
@@ -27,6 +29,10 @@ import type { ReleaseRecoveryCommand, ReleaseRecoveryVerification } from '../rel
 import { parseLegacyReview, parseLegacyRecoveries, parseLegacyRecovery, verifyLegacyRecoveryDigest } from '../legacy-release-recovery.ts';
 import type { LegacyRecoveryCommand, LegacyRecoveryVerification } from '../legacy-release-recovery.ts';
 import { parsePreparedCharter } from '../workspace-charter.ts';
+import { parseMcpSettings, parseMcpSettingsResponse, parseMcpPrograms } from '../mcp-settings.ts';
+import type { McpSettingsPatch, McpProgramCommand, McpDiscoveryRequest } from '../mcp-settings.ts';
+import { parsePluginSettings, parsePluginResponse } from '../plugin-settings.ts';
+import type { PluginSettingsPatch } from '../plugin-settings.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,6 +48,18 @@ const id = (value: string) => encodeURIComponent(value);
 
 /** Only same-origin, allowlisted endpoints. No provider URL or internal token. */
 export class WorkbenchClient {
+  async pluginSettings() { return parsePluginSettings(await this.json<unknown>('product/plugin/settings')); }
+  pluginOperation(operation: string) { return this.json<unknown>(`product/plugin/settings/operations/${id(operation)}`); }
+  async savePluginSettings(patch: PluginSettingsPatch, password: string) {
+    const {owner: _owner,...body} = patch;
+    return parsePluginResponse(await this.json<unknown>('product/plugin/settings','POST',{...body,password},patch.operation_id),patch);
+  }
+  async channelSettings() { return parseChannelSettings(await this.json<unknown>('product/channel/settings')); }
+  channelOperation(operation: string) { return this.json<unknown>(`product/channel/settings/operations/${id(operation)}`); }
+  async saveChannelSettings(patch: ChannelSettingsPatch, password: string) {
+    const {owner: _owner,...body} = patch;
+    return parseChannelResponse(await this.json<unknown>('product/channel/settings','POST',{...body,password},patch.operation_id),patch);
+  }
   private csrf: string | null = null;
   private generation = 0;
   private artifactReads = new AbortController();
@@ -175,6 +193,26 @@ export class WorkbenchClient {
     await this.request('auth/password', 'PUT', { schema_version: 1, old_password, new_password }, operation); this.clear();
   }
   async computerSettings() { return parseComputerSettings(await this.json<unknown>('desktop/settings')); }
+  async mcpSettings() { return parseMcpSettings(await this.jsonValue('product/mcp/settings')); }
+  async saveMcpSettings(patch: McpSettingsPatch, password: string) {
+    const { owner: _owner, ...body } = patch;
+    return parseMcpSettingsResponse(await this.jsonValue('product/mcp/settings','POST',{...body,password},patch.operation_id),patch);
+  }
+  mcpSettingsOperation(operation: string) { return this.jsonValue(`product/mcp/settings/operations/${id(operation)}`); }
+  async mcpPrograms() { return parseMcpPrograms(await this.jsonValue('product/mcp/programs')); }
+  registerMcpProgram(command: McpProgramCommand, password: string) {
+    return this.jsonValue('product/mcp/programs/commands','POST',{schema_version:1,command,password},command.operation_id);
+  }
+  mcpProgramOperation(operation: string) { return this.jsonValue(`product/mcp/programs/operations/${id(operation)}`); }
+  async discoverMcp(request: McpDiscoveryRequest, expectedRun: string) {
+    const run = await this.jsonValue('brain/mcp/discovery','POST',request,request.command);
+    if (run !== expectedRun) throw new Error('发现任务回执不匹配，请核实原任务。');
+    return expectedRun;
+  }
+  async verifyMcpDiscovery(run: string, action: 'verify' | 'publish', command: string) {
+    const result = await this.jsonValue(`brain/mcp/discovery/${id(run)}/${action}`,'POST',{schema_version:1,command},command);
+    if (result !== run) throw new Error('原发现任务尚未核实。');
+  }
   async saveComputerSettings(patch: ComputerSettingsPatch, password: string) {
     const { owner: _owner, ...body } = patch;
     return parseComputerSettingsResponse(await this.json<unknown>('desktop/settings', 'POST', { ...body, password }, patch.operation_id), patch);

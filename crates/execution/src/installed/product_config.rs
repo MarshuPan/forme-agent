@@ -2,6 +2,10 @@
 #[cfg(test)]
 mod activation_tests;
 mod bootstrap;
+mod channel_settings;
+mod channel_sources;
+#[cfg(test)]
+mod channel_tests;
 mod computer_settings;
 mod desktop;
 mod journal;
@@ -13,9 +17,19 @@ mod managed;
 #[cfg(test)]
 mod managed_tests;
 mod materialize;
+mod mcp_placement;
+#[cfg(all(test, windows))]
+mod mcp_placement_tests;
+mod mcp_settings;
+#[cfg(test)]
+mod mcp_settings_tests;
 mod network;
 #[cfg(test)]
 mod network_tests;
+mod plugin_settings;
+#[cfg(test)]
+mod plugin_tests;
+mod plugins;
 #[cfg(test)]
 mod preference_tests;
 mod release;
@@ -54,6 +68,8 @@ pub struct ProductConfigStore {
     journal: ConfigJournal,
     installed_file: Option<super::InstalledFileProvisioning>,
     installed_desktop: Option<super::InstalledDesktopProvisioning>,
+    installed_mcp: std::sync::Weak<super::InstalledManagedMcpPrograms>,
+    installed_channel: std::sync::Weak<super::InstalledChannelDelivery>,
 }
 
 impl ProductConfigStore {
@@ -93,6 +109,8 @@ impl ProductConfigStore {
             journal,
             installed_file,
             installed_desktop: None,
+            installed_mcp: std::sync::Weak::new(),
+            installed_channel: std::sync::Weak::new(),
         };
         if let Some(reference) = store.journal.current() {
             store.state = store.load_state(reference)?;
@@ -154,14 +172,6 @@ impl ProductConfigStore {
         managed: Option<managed::ManagedUpdate>,
     ) -> p::Result<p::ProductConfigResponse> {
         patch.validate().map_err(|_| rejected_patch())?;
-        if let Some(update) = &managed {
-            update.validate(
-                self.state
-                    .desktop
-                    .as_ref()
-                    .or(self.installed_desktop.as_ref()),
-            )?;
-        }
         if let Some(proxy) = &proxy_update {
             materialize::validate_proxy(proxy).map_err(|_| rejected_patch())?;
         }
@@ -178,6 +188,9 @@ impl ProductConfigStore {
             return self.settings_response(patch.operation_id, false, settings_schema);
         }
         self.check_revision(patch.expected_revision, &patch.owner, true)?;
+        if let Some(update) = &managed {
+            update.validate(self)?;
+        }
         if !self.network_is_managed()
             && patch.network.as_ref().is_some_and(|network| {
                 *network != p::ProductNetworkConfig::loopback(self.template.web_bind)
@@ -224,7 +237,11 @@ impl ProductConfigStore {
             .clone()
             .or_else(|| self.installed_desktop.clone());
         let mut state = ConfigState {
-            schema_version: p::SchemaVersion(if desktop.is_some() {
+            schema_version: p::SchemaVersion(if self.state.schema_version.0 >= 13 {
+                self.state.schema_version.0
+            } else if self.state.mcp_worker.is_some() {
+                12
+            } else if desktop.is_some() {
                 11
             } else if self.state.schema_version.0 >= 10 {
                 10
@@ -256,12 +273,33 @@ impl ProductConfigStore {
             release: self.state.release.clone(),
             worker,
             desktop,
+            mcp_worker: self.state.mcp_worker.clone(),
+            plugin_sources: self.state.plugin_sources.clone(),
+            channel_sources: self.state.channel_sources.clone(),
             managed_capabilities: self.state.managed_capabilities.clone(),
             channels: self.state.channels.clone(),
             publisher_key_files: self.state.publisher_key_files.clone(),
         };
         if let Some(update) = &managed {
             update.prepare(&self.template, &id, &mut state)?;
+            if update.capabilities.is_some() {
+                plugins::prepare(&self.template, &mut state)?;
+            }
+            if update.channels.is_some() {
+                channel_sources::prepare(
+                    &self.template,
+                    &mut state,
+                    self.installed_channel.upgrade().as_deref(),
+                )?;
+            }
+            if state
+                .managed_capabilities
+                .as_ref()
+                .is_some_and(|v| v.mcp_servers.iter().any(|v| v.enabled))
+            {
+                state.mcp_worker = Some(self.mcp_placement()?);
+                state.schema_version = p::SchemaVersion(state.schema_version.0.max(12));
+            }
         }
         state
             .validate(&self.template)

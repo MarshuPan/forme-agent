@@ -193,7 +193,7 @@ impl ReactiveHarness {
                     }
                     _ => (p::RunStatus::Aborted, StopReason::UserCancel),
                 };
-                let mut record = self.recovered_record(
+                let mut record = self.recovered_observation_record(
                     &run,
                     &events,
                     PendingKind::ToolInterrupt(
@@ -282,7 +282,7 @@ impl ReactiveHarness {
                 wait_reason: p::WaitReason("unknown_action_outcome".into()), resume_ref: p::ResumeRef(format!("resume:{}", snapshot.0)),
             }))?;
         }
-        let mut record = self.recovered_record(
+        let mut record = self.recovered_observation_record(
             run,
             events,
             PendingKind::ToolInterrupt(action.intent_id.clone()),
@@ -323,7 +323,10 @@ impl ReactiveHarness {
             && b.workspace == self.config.workspace
             && b.policy_profile == self.config.policy_profile
             && b.model_profile == self.config.model_profile
-            && b.toolset_ref == self.config.toolset_ref
+            && events.first().is_some_and(|event| {
+                self.validate_tool_binding(&event.run_id, &b.toolset_ref)
+                    .is_ok()
+            })
             && b.composition_manifest == self.composition_manifest
             && matches!(b.effect_mode, None | Some(p::EffectMode::LiveGoverned))
             && b.evolution_snapshot.is_none()
@@ -336,6 +339,31 @@ impl ReactiveHarness {
         events: &[p::Event],
         pending: PendingKind,
         snapshot_ref: p::EventId,
+    ) -> p::Result<RunRecord> {
+        self.recovered_record_inner(run, events, pending, snapshot_ref, false)
+    }
+
+    fn recovered_observation_record(
+        &self,
+        run: &p::RunId,
+        events: &[p::Event],
+        pending: PendingKind,
+        snapshot_ref: p::EventId,
+    ) -> p::Result<RunRecord> {
+        let mut record = self.recovered_record_inner(run, events, pending, snapshot_ref, true)?;
+        // Unknown outcomes expose only observation/adjudication. They can never
+        // restart a model loop, including legacy runs without a tools original.
+        record.mode = RunMode::DirectAction;
+        Ok(record)
+    }
+
+    fn recovered_record_inner(
+        &self,
+        run: &p::RunId,
+        events: &[p::Event],
+        pending: PendingKind,
+        snapshot_ref: p::EventId,
+        inspection_only: bool,
     ) -> p::Result<RunRecord> {
         let accepted = events
             .iter()
@@ -362,7 +390,11 @@ impl ReactiveHarness {
             .unwrap_or_else(|| self.config.workspace.clone());
         let mut config = self.config.clone();
         config.workspace = workspace.clone();
-        let context = (self.context_factory)(&request, run, &config)?;
+        let context = if inspection_only {
+            default_context(&request, run, &config)?
+        } else {
+            (self.context_factory)(&request, run, &config)?
+        };
         let mut loop_ctx = forme_loop::RunCtx::new_with_input_provenance(
             accepted.session_ref.clone(),
             request.input.clone(),
@@ -414,6 +446,11 @@ impl ReactiveHarness {
             mode: RunMode::Loop,
             direct_intent: None,
             owner_discovery_bound: false,
+            tools: if inspection_only {
+                None
+            } else {
+                self.run_tool_snapshot(run)?
+            },
             bound_envelope: None,
             effect_mode: bound.and_then(|b| b.effect_mode),
             evolution_snapshot: bound.and_then(|b| b.evolution_snapshot.clone()),

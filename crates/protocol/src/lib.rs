@@ -27,6 +27,8 @@ mod m3_b;
 mod m3_c;
 mod m4;
 mod m5;
+mod managed_channel_delivery;
+pub use managed_channel_delivery::*;
 mod managed_mcp_discovery;
 pub use managed_mcp_discovery::*;
 mod managed_mcp_program;

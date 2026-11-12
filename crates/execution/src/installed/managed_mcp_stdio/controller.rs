@@ -5,7 +5,6 @@ use super::super::{
     InstalledManagedMcpPrograms,
 };
 use super::{
-    call_exchange::CallResult,
     invalid,
     session::Session,
     wire::{ReadEvent, Wire},
@@ -20,22 +19,26 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub(super) struct Controller {
+pub(crate) struct Controller {
     thread: Option<JoinHandle<Completion>>,
     supervisor: Option<JoinHandle<p::Result<()>>>,
     completion: Option<Completion>,
-    pub(super) cancelled: crate::CancelToken,
+    pub(crate) cancelled: crate::CancelToken,
     state: Arc<AtomicU8>,
     call_attempted: Arc<AtomicBool>,
     supervision_confirmed: bool,
 }
+pub(crate) struct ExchangeResult {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) outcome: p::WorkerOutcome,
+}
 struct Completion {
     wire: Wire,
-    result: p::Result<CallResult>,
+    result: p::Result<ExchangeResult>,
     finished_at: p::Timestamp,
 }
 impl Controller {
-    pub(super) fn prepare() -> Self {
+    pub(crate) fn prepare() -> Self {
         Self {
             thread: None,
             supervisor: None,
@@ -47,12 +50,36 @@ impl Controller {
         }
     }
     /// On partial failure the caller retains this Controller and original tree.
-    pub(super) fn start(
+    pub(crate) fn start(
         &mut self,
         native: &NativeWorker,
         wire: Wire,
         programs: Arc<InstalledManagedMcpPrograms>,
         admission: DiscoveryAdmission,
+    ) -> p::Result<()> {
+        let deadline = admission.deadline;
+        self.start_exchange(
+            native,
+            wire,
+            deadline,
+            move |wire, cancelled, handles, attempted| {
+                exchange(wire, &programs, &admission, cancelled, handles, attempted)
+            },
+        )
+    }
+    pub(crate) fn start_exchange(
+        &mut self,
+        native: &NativeWorker,
+        wire: Wire,
+        deadline: Instant,
+        run: impl FnOnce(
+                &mut Wire,
+                &crate::CancelToken,
+                &NativeCancellation,
+                &AtomicBool,
+            ) -> p::Result<ExchangeResult>
+            + Send
+            + 'static,
     ) -> p::Result<()> {
         if self.thread.is_some() || self.supervisor.is_some() {
             return Err(invalid());
@@ -61,7 +88,6 @@ impl Controller {
         let supervisor_handles = handles.clone();
         let cancelled = self.cancelled.clone();
         let state = self.state.clone();
-        let deadline = admission.deadline;
         self.supervisor = Some(
             std::thread::Builder::new()
                 .name("forme-mcp-deadline".into())
@@ -76,9 +102,7 @@ impl Controller {
             .spawn(move || {
                 let mut wire = wire;
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    exchange(
-                        &mut wire, &programs, &admission, &cancelled, &handles, &attempted,
-                    )
+                    run(&mut wire, &cancelled, &handles, &attempted)
                 }))
                 .unwrap_or_else(|_| Err(invalid()));
                 if result.is_err() {
@@ -101,7 +125,7 @@ impl Controller {
     }
     /// No joins while a thread is live. Failure to observe cleanup retains the
     /// controller, original handles and source custody in its worker record.
-    pub(super) fn poll(&mut self) -> p::Result<bool> {
+    pub(crate) fn poll(&mut self) -> p::Result<bool> {
         if self.thread.as_ref().is_some_and(JoinHandle::is_finished) {
             self.completion = Some(
                 self.thread
@@ -141,16 +165,16 @@ impl Controller {
             .as_mut()
             .is_none_or(|done| done.wire.join_finished()))
     }
-    pub(super) fn call_attempted(&self) -> bool {
+    pub(crate) fn call_attempted(&self) -> bool {
         self.call_attempted.load(Ordering::SeqCst)
     }
-    pub(super) fn result(&self) -> p::Result<(&[u8], p::WorkerOutcome, p::Timestamp)> {
+    pub(crate) fn result(&self) -> p::Result<(&[u8], p::WorkerOutcome, p::Timestamp)> {
         let done = self.completion.as_ref().ok_or_else(invalid)?;
         done.wire.healthy()?;
         let bytes = done.result.as_ref().map_err(|_| invalid())?;
         Ok((&bytes.bytes, bytes.outcome, done.finished_at))
     }
-    pub(super) fn cancel(&self) {
+    pub(crate) fn cancel(&self) {
         self.cancelled.cancel();
     }
 }
@@ -186,7 +210,7 @@ fn exchange(
     cancelled: &crate::CancelToken,
     handles: &NativeCancellation,
     attempted: &AtomicBool,
-) -> p::Result<CallResult> {
+) -> p::Result<ExchangeResult> {
     wire.start()?;
     let mut exchange = Session::new(admission)?;
     while let Some(frame) = exchange.next_frame()? {

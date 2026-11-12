@@ -93,6 +93,7 @@ async fn listener(
         max_body_bytes: 8192,
         admission: Arc::new(WorkAdmission::default()),
         web_bridge: web_bridge::WebBridgeState::open(None, None, None, None, &owner).unwrap(),
+        channel_ingress: None,
         release_health: health,
     });
     state.admission.close().unwrap();

@@ -107,7 +107,9 @@ impl ReactiveHarness {
             || pending.approval.tool_schema_version != self.config.tool_schema_version
             || pending.session_binding.workspace != self.config.workspace
             || pending.session_binding.policy_profile != self.config.policy_profile
-            || pending.session_binding.toolset_ref != self.config.toolset_ref
+            || self
+                .validate_tool_binding(run, &pending.session_binding.toolset_ref)
+                .is_err()
             || read::<OwnerRequest>(self, run, "request")?.as_ref() != Some(original)
             || read::<PendingDiscovery>(self, run, "pending")?.as_ref() != Some(pending)
             || self

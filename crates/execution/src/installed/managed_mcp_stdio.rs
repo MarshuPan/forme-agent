@@ -18,11 +18,11 @@ use std::{
 };
 
 mod call_exchange;
-mod controller;
+pub(crate) mod controller;
 mod exchange;
 mod lifecycle;
 mod session;
-mod wire;
+use super::worker_stdio as wire;
 use controller::Controller;
 
 pub(crate) struct ManagedMcpIsolation {

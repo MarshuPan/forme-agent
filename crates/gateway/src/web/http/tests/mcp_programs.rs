@@ -1,6 +1,7 @@
 //! Actual HTTP rejection and forwarding checks; no native installation claim.
 use super::*;
 mod bridge;
+mod settings;
 
 fn command() -> p::ManagedMcpProgramCommand {
     p::ManagedMcpProgramCommand {

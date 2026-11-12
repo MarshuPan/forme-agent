@@ -10,6 +10,7 @@ use forme_execution::installed::{HostManagement, IsolatedExecutorHost, ProductHo
 use forme_protocol as p;
 #[path = "http_paths.rs"]
 mod paths;
+use paths::worker_id;
 use paths::{is_agent_path, is_configuration_path, is_configuration_status_path};
 
 const MAX_REQUEST: usize = 4 * 1024 * 1024;
@@ -213,6 +214,15 @@ fn route(
     if let Some(result) =
         super::desktop_routes::route(request, broker, worker, auth, domain, now_ms())
     {
+        return result.map(|body| (200, body));
+    }
+    if let Some(result) = super::channel_settings_routes::route(request, broker, auth, domain) {
+        return result.map(|body| (200, body));
+    }
+    if let Some(result) = super::plugin_settings_routes::route(request, broker, auth, domain) {
+        return result.map(|body| (200, body));
+    }
+    if let Some(result) = super::mcp_settings_routes::route(request, broker, auth, domain) {
         return result.map(|body| (200, body));
     }
     if let Some(result) = super::mcp_program_routes::route(request, broker, auth, domain, now_ms())
@@ -436,15 +446,6 @@ mod tests {
     }
 }
 
-fn worker_id<'a>(path: &'a str, prefix: &str, suffix: &str) -> p::Result<&'a str> {
-    let value = path
-        .strip_prefix(prefix)
-        .and_then(|value| value.strip_suffix(suffix))
-        .filter(|value| !value.is_empty() && !value.contains('/'))
-        .ok_or_else(|| p::Error("worker route job id is invalid".into()))?;
-    p::validate_product_id(value).map_err(|_| p::Error("worker route job id is invalid".into()))?;
-    Ok(value)
-}
 pub(crate) struct Request {
     pub(super) method: String,
     pub(crate) path: String,

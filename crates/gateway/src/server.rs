@@ -1,3 +1,4 @@
+mod channels;
 mod maintenance_admission;
 mod managed_config;
 mod managed_discovery;
@@ -96,6 +97,7 @@ pub struct GatewayServerConfig {
     web_session_fence_path: Option<PathBuf>,
     token: LocalBearerSecret,
     token_path: Option<PathBuf>,
+    channel_ingress: Option<p::ProductChannelIngress>,
 }
 
 impl fmt::Debug for GatewayServerConfig {
@@ -166,6 +168,7 @@ impl GatewayServerConfig {
             web_session_fence_path: bridge.fence_path,
             token,
             token_path,
+            channel_ingress: None,
         };
         config.validate()?;
         Ok(config)
@@ -228,6 +231,10 @@ fn router(state: Arc<HttpState>, config: &GatewayServerConfig) -> Router {
         .merge(data_workbench::routes())
         .merge(project_controls::routes())
         .merge(managed_discovery::routes())
+        .route(
+            "/v1/channels/{channel}/messages",
+            post(channels::receive).layer(DefaultBodyLimit::max(20 * 1024)),
+        )
         .route(
             "/v1/brain/projects",
             get(project_ledger).post(project_command),
@@ -307,6 +314,7 @@ struct HttpState {
     admission: Arc<WorkAdmission>,
     web_bridge: WebBridgeState,
     release_health: Option<release_health::ReleaseHealth>,
+    channel_ingress: Option<p::ProductChannelIngress>,
 }
 
 struct RateWindow {

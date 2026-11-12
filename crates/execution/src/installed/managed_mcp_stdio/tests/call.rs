@@ -451,3 +451,6 @@ fn native_managed_mcp_new_pending_discovery_shadows_old_completed_metadata() {
 
 #[path = "source.rs"]
 mod source;
+
+#[path = "enable.rs"]
+mod enable;

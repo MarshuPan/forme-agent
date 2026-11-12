@@ -21,11 +21,9 @@ impl ReactiveHarness {
                 args: tool.arguments.clone(),
             }),
         )?;
-        let Some(mut intent) = tool
-            .intent
-            .clone()
-            .or_else(|| self.resolve_formal_tool(run, &record.workspace, &tool))
-        else {
+        let Some(mut intent) = tool.intent.clone().or_else(|| {
+            self.resolve_formal_tool(run, &record.workspace, &tool, record.tools.as_deref())
+        }) else {
             self.append(
                 run.clone(),
                 turn,

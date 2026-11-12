@@ -4,6 +4,7 @@ mod auth;
 mod backup_verification;
 mod bootstrap;
 mod bootstrap_legacy;
+mod channel_settings;
 mod computer_settings;
 mod configuration;
 mod connections;
@@ -15,7 +16,9 @@ mod error;
 mod legacy_release_recovery;
 mod maintenance;
 mod mcp_programs;
+mod mcp_settings;
 mod network;
+mod plugin_settings;
 mod proposal_controls;
 mod release_recovery;
 mod security;
@@ -237,6 +240,36 @@ fn router(state: Arc<WebState>) -> Router {
             get(configuration::read)
                 .post(configuration::write)
                 .layer(DefaultBodyLimit::max(256 * 1024)),
+        )
+        .route(
+            "/api/v1/product/mcp/settings",
+            get(mcp_settings::read)
+                .post(mcp_settings::write)
+                .layer(DefaultBodyLimit::max(128 * 1024)),
+        )
+        .route(
+            "/api/v1/product/mcp/settings/operations/{id}",
+            get(mcp_settings::operation),
+        )
+        .route(
+            "/api/v1/product/plugin/settings",
+            get(plugin_settings::read)
+                .post(plugin_settings::write)
+                .layer(DefaultBodyLimit::max(128 * 1024)),
+        )
+        .route(
+            "/api/v1/product/plugin/settings/operations/{id}",
+            get(plugin_settings::operation),
+        )
+        .route(
+            "/api/v1/product/channel/settings",
+            get(channel_settings::read)
+                .post(channel_settings::write)
+                .layer(DefaultBodyLimit::max(128 * 1024)),
+        )
+        .route(
+            "/api/v1/product/channel/settings/operations/{id}",
+            get(channel_settings::operation),
         )
         .route(
             "/api/v1/desktop/settings",

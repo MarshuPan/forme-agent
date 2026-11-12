@@ -34,6 +34,7 @@ impl WorkerIsolation for UnavailableWorkerIsolation {
     }
 }
 
+mod channel;
 mod contract;
 mod desktop;
 mod mcp;
@@ -52,6 +53,8 @@ pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDes
     isolation: I,
     #[cfg(windows)]
     managed_mcp: Option<super::managed_mcp_stdio::ManagedMcpIsolation>,
+    #[cfg(windows)]
+    managed_channel: Option<super::channel_delivery::isolation::ChannelIsolation>,
     desktop_helper: D,
     desktop_authority: Option<std::sync::Arc<super::DesktopAuthority>>,
     installed_desktop_authority: Option<std::sync::Arc<super::InstalledDesktopAuthority>>,
@@ -134,6 +137,8 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             isolation,
             #[cfg(windows)]
             managed_mcp: None,
+            #[cfg(windows)]
+            managed_channel: None,
             desktop_helper,
             desktop_authority: None,
             installed_desktop_authority: None,
@@ -227,6 +232,14 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
 impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
     for WorkerExecutorHost<I, D>
 {
+    fn dispatch_channel(
+        &self,
+        auth: &HostAuth,
+        input: p::ManagedChannelDeliveryInputV1,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerObservation> {
+        self.dispatch_channel_input(auth, input, now)
+    }
     fn register_desktop_pending(
         &self,
         auth: &HostAuth,
@@ -286,7 +299,9 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
     ) -> p::Result<()> {
         let _operation = self.operations.lock().map_err(|_| storage_error())?;
         self.isolation.with_quiescent_resources(&mut || {
-            self.with_mcp_quiescent(&mut || action(self.journal.quiescent_digest()?))
+            self.with_mcp_quiescent(&mut || {
+                self.with_channel_quiescent(&mut || action(self.journal.quiescent_digest()?))
+            })
         })
     }
     fn dispatch(
@@ -307,6 +322,9 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         execution: Option<p::WorkerExecutionSpec>,
         now: p::Timestamp,
     ) -> p::Result<p::WorkerObservation> {
+        if job.sandbox_profile_ref == p::MANAGED_CHANNEL_PROFILE {
+            return Err(storage_error());
+        }
         let entered = std::time::Instant::now();
         self.verify(auth)?;
         self.validate_admission(&job, &permit, now)?;

@@ -7,6 +7,8 @@ use std::sync::Arc;
 pub(crate) mod admission;
 #[path = "call_admission.rs"]
 mod call_admission;
+#[path = "settings.rs"]
+mod settings;
 #[path = "source.rs"]
 mod source;
 
@@ -73,10 +75,20 @@ impl InstalledManagedMcpPrograms {
         &self,
         snapshot: &p::ProductConfigView,
     ) -> p::Result<Arc<ManagedMcpProgramRegistry>> {
-        if snapshot.install_ref != self.installation {
+        self.registry_for_owner(
+            &snapshot.install_ref,
+            snapshot.owner.as_ref().ok_or_else(invalid)?,
+        )
+    }
+
+    fn registry_for_owner(
+        &self,
+        installation: &str,
+        owner: &p::OwnerPrincipalRef,
+    ) -> p::Result<Arc<ManagedMcpProgramRegistry>> {
+        if installation != self.installation {
             return Err(invalid());
         }
-        let owner = snapshot.owner.as_ref().ok_or_else(invalid)?;
         let mut initialized = self.registry.lock().map_err(|_| invalid())?;
         if initialized.is_none() {
             *initialized = Some(Arc::new(ManagedMcpProgramRegistry::open(
