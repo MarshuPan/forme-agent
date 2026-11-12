@@ -21,7 +21,7 @@
 
 1. 出站方案只允许已注册的本地 loopback fixture。当前没有真实联系人、第三方 provider、LAN endpoint 或凭据代理被调用；HTTP 外部出站的正式入口仍需通过既有 owner-authenticated Communication/Harness API，不能由 Web 或模型直接绕过。
 2. 还没有取得真实安装环境的 SCM/service identity、AppContainer、UAC、浏览器工作台和签名候选联合证据。因此 IP01–IP24、Final、M5 release audit 仍保持未完成。
-3. `remaining-m5-r1.json` 曾因工作树存在待提交改动而返回 `RELEASE_TREE_DIRTY`；代码与文档提交后，`remaining-m5-r2.json` 已完成功能阶段、完整回归、合规和 clean-tree S99，当前 M5 回执为 `sha256:ddf221a3955dc5c19ff68765cc365635a3570cc0c073460eca897e495bf65f39`。
+3. `remaining-m5-r1.json` 曾因工作树存在待提交改动而返回 `RELEASE_TREE_DIRTY`；代码与文档提交后，`remaining-m5-r2.json` 已完成功能阶段、完整回归、合规和 clean-tree S99，规范目录中的当前唯一 M5 回执已通过独立验证与 compare。
 4. 固定 `target` 当前约 100.10 GiB logical、76.49 GiB allocated，超过 64 GiB 缓存预算。证据和运行时数据尚未删除；后续只按 `build_resources.py` 先预览再清理。
 
 ## 后续验收顺序
