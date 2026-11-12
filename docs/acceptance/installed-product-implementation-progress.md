@@ -6,7 +6,7 @@
 
 本轮已接通 run-bound 工具快照恢复、受管 MCP 设置与 Host 启用、插件 slot/runtime consumer、认证渠道 ingress，以及批准范围内的本地 loopback 渠道出站组件。出站链路使用独立 channel AgentExecution、Host intent、Low AppContainer/Job worker、固定 loopback endpoint、签名接收回执和 Unknown/no-retry；真实联系人、第三方 provider、LAN endpoint 和任意 worker 网络能力均未开放。
 
-质量门 `remaining-quality-r4.json` PASS；协议/Host/工具 slot/插件/渠道组件记录见[受管消费者与渠道闭合记录](installed-managed-consumers-channel-closure-20261112.md)。M5 的功能阶段已执行，S99 因当前工作树待提交而返回 `RELEASE_TREE_DIRTY`，代码与文档提交后重跑。真实 SCM/service identity、AppContainer、UAC、浏览器和签名安装候选联合证据仍缺，因此 IP01–IP24、Final、完整 M5 仍不提升。本轮固定 target 约 100.10 GiB logical、76.49 GiB allocated，未执行删除。
+质量门 `remaining-quality-r4.json` PASS；协议/Host/工具 slot/插件/渠道组件记录见[受管消费者与渠道闭合记录](installed-managed-consumers-channel-closure-20261112.md)。M5 的功能阶段、完整回归、合规和 clean-tree S99 已在 `remaining-m5-r2.json` 完成，当前 M5 回执为 `sha256:ddf221a3955dc5c19ff68765cc365635a3570cc0c073460eca897e495bf65f39`。真实 SCM/service identity、AppContainer、UAC、浏览器和签名安装候选联合证据仍缺，因此 IP01–IP24、Final 和安装联合验收仍不提升。本轮固定 target 约 100.10 GiB logical、76.49 GiB allocated，未执行删除。
 
 ## 2026-11-10 原 MCP 发现任务核实与恢复组件通过
 

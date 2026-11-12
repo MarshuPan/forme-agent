@@ -108,6 +108,12 @@ M5 FINAL ACCEPTANCE: PASS (S1-S99 + 97 EventKinds + 18 crates + governed ecosyst
 
 M5-A/B/C 已拼成完整受治理能力生态闭环：owner publisher grant -> untrusted catalog quarantine -> signed content-addressed admission -> plan/approval/CAS lifecycle -> existing registry -> governed capability use -> M4-bound remote distribution -> unknown/no-retry recovery -> authority ground-truth verification -> revoke -> typed artifacts/release audit。S1-S99、97 EventKinds、18 crates、全部列出测试、29 个 Python gates、真实三角色 golden、strict Clippy 与 clean-tree compliance 均满足，且 M0-M4 治理不变量没有削弱。
 
+## 2026-11-12 受管消费者与渠道组件提交后的 M5 回执
+
+在 `b40699b`（实现）与 `e7932df`（文档）提交后，`remaining-m5-r2.json` 重新执行了 S1–S99、完整 workspace 回归、strict Clippy、Python gates、原创合规和当前 clean-tree release audit。S99 的 9 项检查全部通过，仓库回执与临时回执 `--compare` 通过；当前规范工件为 `m5-release-audit-artifacts/release-audit-ddf221a3955dc5c19ff68765cc365635a3570cc0c073460eca897e495bf65f39.json`，摘要为 `sha256:ddf221a3955dc5c19ff68765cc365635a3570cc0c073460eca897e495bf65f39`。非目标平台 RustSec advisory、unmaintained 与 yanked 记录继续作为非阻断观察保留。
+
+该 M5 回执只证明当前源码与生态发布审计闭合，不证明真实 SCM/service identity、LocalSystem/AppContainer、UAC、浏览器进程、第三方 provider 或 IP01–IP24 安装联合验收；本轮渠道出站仍限于本地 loopback fixture。
+
 **M5 工程最终验收 PASS，达到 owner review/合并候选标准。**
 
 ## 10. 产品化分支的永久回归重验
