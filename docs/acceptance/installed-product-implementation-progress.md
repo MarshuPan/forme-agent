@@ -2,6 +2,10 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-13 当前安装与 Web 工作台只读联合检查
+
+当前本机的 `forme-host`、`forme-brain`、`forme-web` 已由真实 SCM 以 `LocalSystem`/服务 SID 运行，认证后的产品状态、维护、配置和运行时清单接口均返回 200；Ego Lite 登录后的“设置与维护”页显示“主脑已连接”。运行时仍明确显示 `notification-backend` 因缺少 managed worker binding 而阻断，MCP、插件、browser、computer、PTY 等消费者未配置或未启用。现场仍运行 `forme-windows-x86_64-20261109-36f8662-dev`，不是当前 `shu/product-integration@b1d7305` 的部署，因此本轮只记录实时只读证据，不提升 IP01–IP24、Final 或安装联合验收。详见[当前安装与 Web 工作台只读联合检查](installed-current-readonly-browser-acceptance-20261113.md)。
+
 ## 2026-11-12 受管消费者、工具快照与渠道组件闭合
 
 本轮已接通 run-bound 工具快照恢复、受管 MCP 设置与 Host 启用、插件 slot/runtime consumer、认证渠道 ingress，以及批准范围内的本地 loopback 渠道出站组件。出站链路使用独立 channel AgentExecution、Host intent、Low AppContainer/Job worker、固定 loopback endpoint、签名接收回执和 Unknown/no-retry；真实联系人、第三方 provider、LAN endpoint 和任意 worker 网络能力均未开放。

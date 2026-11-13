@@ -26,4 +26,4 @@
 
 ## 后续验收顺序
 
-installed Host gate 仍需在当前提交上完成；随后在有真实安装身份和受控本机证据的环境执行联合验收。任何未知出站结果继续保留 Unknown，不重试或伪造 Delivered。
+当前提交的 installed Host gate 已由 `target/product-integration-evidence/remaining-host-r3.json` 记录为 PASS；随后在有真实安装身份和受控本机证据的环境继续执行联合验收。2026-11-13 的实时安装与 Web 只读检查见[当前安装与 Web 工作台只读联合检查](installed-current-readonly-browser-acceptance-20261113.md)。任何未知出站结果继续保留 Unknown，不重试或伪造 Delivered。
