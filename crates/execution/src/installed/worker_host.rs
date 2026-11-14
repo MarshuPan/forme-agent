@@ -10,6 +10,7 @@ use super::desktop_helper::{
 };
 use super::worker::WorkerJournal;
 use super::worker_binding::validate_workspace_scope;
+use super::worker_input::{RejectingWorkerInputResolver, WorkerInputResolver};
 use super::worker_results::{
     installation_ref, WorkerResultHostExt, WorkerResultSealRequest, WorkerResultStore,
 };
@@ -37,6 +38,7 @@ impl WorkerIsolation for UnavailableWorkerIsolation {
 mod channel;
 mod contract;
 mod desktop;
+mod input;
 mod mcp;
 mod output;
 pub use contract::IsolatedExecutorHost;
@@ -60,6 +62,7 @@ pub struct WorkerExecutorHost<I = UnavailableWorkerIsolation, D = UnavailableDes
     installed_desktop_authority: Option<std::sync::Arc<super::InstalledDesktopAuthority>>,
     pub(super) result_store: Arc<WorkerResultStore>,
     pub(super) installation_ref: String,
+    input_resolver: Arc<dyn WorkerInputResolver>,
 }
 
 impl WorkerExecutorHost<UnavailableWorkerIsolation, UnavailableDesktopHelper> {
@@ -144,6 +147,7 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             installed_desktop_authority: None,
             result_store: Arc::new(WorkerResultStore::open(&result_root)?),
             installation_ref,
+            input_resolver: Arc::new(RejectingWorkerInputResolver),
         })
     }
 
@@ -330,6 +334,14 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         self.validate_admission(&job, &permit, now)?;
         if let Some(spec) = &execution {
             spec.validate_for(&job, &permit, now)?;
+            if spec.backend == p::BackendKind::Pty
+                && job.sandbox_profile_ref == p::INSTALLED_PTY_PROFILE
+                && !self.isolation.supports_managed_pty()
+            {
+                return Err(p::Error(
+                    "installed PTY profile has no verified native adapter".into(),
+                ));
+            }
         }
         // Original observations remain readable after disable/revoke and never
         // need a new config/authority lock or helper observation.
@@ -521,6 +533,15 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> IsolatedExecutorHost
         now: p::Timestamp,
     ) -> p::Result<p::WorkerResultChunk> {
         self.read_result_endpoint(auth, request, now)
+    }
+
+    fn read_input(
+        &self,
+        auth: &HostAuth,
+        request: p::WorkerInputReadRequest,
+        now: p::Timestamp,
+    ) -> p::Result<p::WorkerInputChunk> {
+        WorkerExecutorHost::read_input(self, auth, request, now)
     }
 }
 

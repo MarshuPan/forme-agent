@@ -45,6 +45,9 @@ pub struct ExecutionPlan {
     /// at WorkerJob admission, while the plan digest remains stable for
     /// approval and replay.
     pub desktop_session: Option<p::DesktopSessionBinding>,
+    /// Host-issued, executor-local input grants. Like desktop_session, these
+    /// are attached after the stable plan digest and rechecked at admission.
+    pub input_grants: Vec<p::WorkerInputGrantV1>,
 }
 
 impl ExecutionPlan {
@@ -73,6 +76,22 @@ impl ExecutionPlan {
             if binding.action_ref != self.intent.intent_id || binding.plan_digest != self.digest {
                 return Err(p::Error(
                     "execution plan desktop session is not bound to the plan".into(),
+                ));
+            }
+        }
+        if self.input_grants.len() > p::WORKER_INPUT_MAX_GRANTS {
+            return Err(p::Error("execution plan input grants are unbounded".into()));
+        }
+        let mut paths = std::collections::BTreeSet::new();
+        for grant in &self.input_grants {
+            grant.validate()?;
+            if grant.plan_digest != self.digest
+                || grant.normalized_action_digest != self.normalized_action_digest
+                || grant.action_ref != self.intent.intent_id
+                || !paths.insert(grant.input_path.clone())
+            {
+                return Err(p::Error(
+                    "execution plan input grant is not plan-bound".into(),
                 ));
             }
         }
@@ -105,6 +124,15 @@ impl ExecutionPlan {
             ));
         }
         self.desktop_session = Some(binding);
+        Ok(self)
+    }
+
+    pub fn with_input_grants(
+        mut self,
+        grants: impl IntoIterator<Item = p::WorkerInputGrantV1>,
+    ) -> p::Result<Self> {
+        self.input_grants = grants.into_iter().collect();
+        self.validate_digest()?;
         Ok(self)
     }
 }
@@ -302,6 +330,7 @@ pub(crate) fn plan_with(
         budget,
         timeout,
         desktop_session: None,
+        input_grants: Vec::new(),
     };
     plan.refresh_digest()?;
     Ok(plan)

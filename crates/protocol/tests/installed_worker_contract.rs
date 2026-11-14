@@ -68,6 +68,7 @@ fn request(now: p::Timestamp) -> p::WorkerDispatchRequest {
         timeout: p::DurationMs(5_000),
         output_budget_bytes: 4 * 1024,
         desktop_session: None,
+        input_grants: Vec::new(),
     };
     p::WorkerDispatchRequest {
         schema_version: p::SchemaVersion(1),

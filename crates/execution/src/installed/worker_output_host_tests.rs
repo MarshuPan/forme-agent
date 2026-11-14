@@ -193,6 +193,7 @@ impl Fixture {
             timeout: p::DurationMs(30_000),
             output_budget_bytes: 4096,
             desktop_session: None,
+            input_grants: Vec::new(),
         };
         let pending = p::DesktopPendingAction {
             schema_version: p::SchemaVersion(1),

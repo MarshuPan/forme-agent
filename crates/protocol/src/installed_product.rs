@@ -13,6 +13,8 @@ use crate::{
 };
 mod worker;
 pub use worker::*;
+mod worker_input;
+pub use worker_input::*;
 mod worker_result;
 pub use worker_result::*;
 mod worker_file;

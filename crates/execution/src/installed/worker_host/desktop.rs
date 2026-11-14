@@ -37,6 +37,21 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
             return Ok(observation);
         }
 
+        let input_material = execution
+            .as_ref()
+            .map(|spec| self.resolve_inputs(&job, &permit, spec, now))
+            .transpose()?;
+        if execution.as_ref().is_some_and(|spec| {
+            (spec.backend == p::BackendKind::Computer || spec.desktop_session.is_some())
+                && input_material
+                    .as_ref()
+                    .is_some_and(|inputs| !inputs.is_empty())
+        }) {
+            return Err(p::Error(
+                "desktop helper input delivery is unavailable for managed grants".into(),
+            ));
+        }
+
         let admit = || {
             let desktop = match execution.as_ref() {
                 Some(execution) => self.prepare_desktop_action(&job, &permit, execution, now)?,
@@ -188,10 +203,11 @@ impl<I: WorkerIsolation, D: DesktopHelperAdapter> WorkerExecutorHost<I, D> {
         let started = self.journal.start(&job.job_id, now)?;
         let effect = match admit_override {
             Some(admit) => admit(),
-            None => self.isolation_for(&job)?.admit_with_execution(
+            None => self.isolation_for(&job)?.admit_with_input(
                 &job,
                 &permit,
                 execution.as_ref(),
+                input_material.as_deref().unwrap_or(&[]),
                 now,
             ),
         };

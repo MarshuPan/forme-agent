@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::Command;
 use std::{env, fs, thread, time::Duration};
 
@@ -9,6 +9,14 @@ fn main() {
         return;
     }
     let workspace = env::current_dir().expect("worker fixture workspace");
+    if env::args().any(|arg| arg == "--read-input") {
+        let mut input = Vec::new();
+        std::io::stdin()
+            .read_to_end(&mut input)
+            .expect("worker input frame");
+        fs::write(workspace.join("worker-input-frame.bin"), input)
+            .expect("worker input frame write");
+    }
     if env::args().any(|arg| arg == "--isolation-probe") {
         isolation_probe(&workspace);
         write_result();

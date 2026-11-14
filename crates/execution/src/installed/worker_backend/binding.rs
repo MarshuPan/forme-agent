@@ -69,6 +69,7 @@ pub(super) fn execution_spec(plan: &ExecutionPlan) -> p::WorkerExecutionSpec {
         timeout: plan.timeout,
         output_budget_bytes: plan.budget.max_bytes,
         desktop_session: plan.desktop_session.clone(),
+        input_grants: plan.input_grants.clone(),
     }
 }
 

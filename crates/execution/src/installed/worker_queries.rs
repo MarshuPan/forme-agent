@@ -13,6 +13,33 @@ impl WorkerJournal {
             .ok_or_else(|| p::Error("worker job does not exist".into()))
     }
 
+    pub fn input_grant(
+        &self,
+        job_id: &str,
+        grant_ref: &str,
+    ) -> p::Result<(p::WorkerJob, p::WorkerPermit, p::WorkerInputGrantV1)> {
+        validate_worker_id(job_id)?;
+        p::validate_product_id(grant_ref)?;
+        let writer = self.writer.lock().map_err(|_| storage_error())?;
+        let record = writer
+            .projection
+            .jobs
+            .get(job_id)
+            .ok_or_else(|| p::Error("worker job does not exist".into()))?;
+        let grant = record
+            .execution_binding
+            .as_ref()
+            .and_then(|binding| {
+                binding
+                    .input_grants
+                    .iter()
+                    .find(|grant| grant.grant_ref == grant_ref)
+            })
+            .cloned()
+            .ok_or_else(|| p::Error("worker input grant does not exist".into()))?;
+        Ok((record.job.clone(), record.permit.clone(), grant))
+    }
+
     pub fn result_manifest(&self, job_id: &str) -> p::Result<Option<p::WorkerResultManifest>> {
         validate_worker_id(job_id)?;
         let writer = self.writer.lock().map_err(|_| storage_error())?;

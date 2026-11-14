@@ -212,6 +212,7 @@ fn request(
         timeout: p::DurationMs(30_000),
         output_budget_bytes: 4096,
         desktop_session: None,
+        input_grants: Vec::new(),
     };
     p::WorkerDispatchRequest {
         schema_version: p::SchemaVersion(1),

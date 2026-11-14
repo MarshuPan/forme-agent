@@ -289,6 +289,7 @@ fn input(source: &p::ProductChannelSource, id: &str) -> p::ManagedChannelDeliver
             timeout: plan.timeout,
             output_budget_bytes: plan.budget.max_bytes,
             desktop_session: None,
+            input_grants: Vec::new(),
         }),
     };
     let grant = p::ManagedChannelDeliveryGrantV1::from_request(

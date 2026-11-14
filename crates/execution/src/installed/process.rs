@@ -8,7 +8,11 @@ use std::sync::Mutex;
 use forme_protocol as p;
 use serde::Serialize;
 
-use super::{reject_linked_ancestors, WorkerIsolation};
+use super::{
+    reject_linked_ancestors,
+    worker_input::{encode_input_frame, WorkerInputMaterial},
+    WorkerIsolation,
+};
 
 const MAX_LAUNCH_ARGS: usize = 64;
 const MAX_LAUNCH_ARG_BYTES: usize = 4096;
@@ -177,7 +181,11 @@ impl ProcessWorkerIsolation {
         job: &p::WorkerJob,
         permit: &p::WorkerPermit,
         execution: Option<&p::WorkerExecutionSpec>,
+        inputs: &[WorkerInputMaterial],
     ) -> p::Result<Child> {
+        let input_frame = (!inputs.is_empty())
+            .then(|| encode_input_frame(inputs))
+            .transpose()?;
         let spec = self.launches.get(&job.sandbox_profile_ref)?;
         spec.validate()?;
         if spec.sandbox_profile_ref != permit.sandbox_profile_ref {
@@ -217,7 +225,11 @@ impl ProcessWorkerIsolation {
             .env("FORME_WORKER_WORKSPACE_SCOPE", &job.workspace_scope.0)
             .env("FORME_WORKER_DEADLINE", job.deadline.to_string())
             .env("FORME_WORKER_RESULT_PATH", run_dir.join("result.bin"))
-            .stdin(Stdio::null())
+            .stdin(if input_frame.is_none() {
+                Stdio::null()
+            } else {
+                Stdio::piped()
+            })
             // Worker output is not a result channel. Discard it here so a
             // noisy child cannot grow an unbounded product log or fill the
             // installation volume; bounded result artifacts are a separate
@@ -227,9 +239,21 @@ impl ProcessWorkerIsolation {
         if execution.is_some() {
             command.env("FORME_WORKER_EXECUTION_PATH", &execution_path);
         }
-        command
+        let mut child = command
             .spawn()
-            .map_err(|_| p::Error("worker process could not be started".into()))
+            .map_err(|_| p::Error("worker process could not be started".into()))?;
+        if let Some(frame) = input_frame {
+            let mut stdin = child
+                .stdin
+                .take()
+                .ok_or_else(|| p::Error("worker input pipe is unavailable".into()))?;
+            if let Err(error) = stdin.write_all(&frame).and_then(|()| stdin.flush()) {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(p::Error(format!("worker input delivery failed: {error}")));
+            }
+        }
+        Ok(child)
     }
 
     fn receipt(
@@ -278,6 +302,7 @@ impl ProcessWorkerIsolation {
         job: &p::WorkerJob,
         permit: &p::WorkerPermit,
         execution: Option<&p::WorkerExecutionSpec>,
+        inputs: &[WorkerInputMaterial],
         now: p::Timestamp,
     ) -> p::Result<()> {
         let mut children = self
@@ -287,7 +312,7 @@ impl ProcessWorkerIsolation {
         if children.contains_key(&job.job_id) {
             return Err(p::Error("worker process is already admitted".into()));
         }
-        let child = self.spawn_worker(job, permit, execution)?;
+        let child = self.spawn_worker(job, permit, execution, inputs)?;
         children.insert(
             job.job_id.clone(),
             RunningWorker {
@@ -314,7 +339,7 @@ impl WorkerIsolation for ProcessWorkerIsolation {
         permit: &p::WorkerPermit,
         now: p::Timestamp,
     ) -> p::Result<()> {
-        self.admit_at_with_execution(job, permit, None, now)
+        self.admit_at_with_execution(job, permit, None, &[], now)
     }
 
     fn admit_with_execution(
@@ -324,7 +349,18 @@ impl WorkerIsolation for ProcessWorkerIsolation {
         execution: Option<&p::WorkerExecutionSpec>,
         now: p::Timestamp,
     ) -> p::Result<()> {
-        self.admit_at_with_execution(job, permit, execution, now)
+        self.admit_at_with_execution(job, permit, execution, &[], now)
+    }
+
+    fn admit_with_input(
+        &self,
+        job: &p::WorkerJob,
+        permit: &p::WorkerPermit,
+        execution: Option<&p::WorkerExecutionSpec>,
+        inputs: &[WorkerInputMaterial],
+        now: p::Timestamp,
+    ) -> p::Result<()> {
+        self.admit_at_with_execution(job, permit, execution, inputs, now)
     }
 
     fn cancel(&self, job: &p::WorkerJob) -> p::Result<p::WorkerCancelReceipt> {

@@ -310,6 +310,7 @@ fn desktop_execution(
             issued_at: 1,
             expires_at: 900,
         }),
+        input_grants: Vec::new(),
     }
 }
 

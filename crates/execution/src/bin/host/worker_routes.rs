@@ -44,7 +44,29 @@ pub(super) fn route(
                 .and_then(|job_id| read(worker, auth, job_id, &request.body, now)),
         );
     }
+    if request.method == "POST" && request.path.ends_with("/input") {
+        return Some(
+            worker_id(&request.path, "/v1/agent/workers/", "/input")
+                .and_then(|job_id| read_input(worker, auth, job_id, &request.body, now)),
+        );
+    }
     None
+}
+
+fn read_input(
+    worker: &dyn IsolatedExecutorHost,
+    auth: &HostAuth,
+    job_id: &str,
+    body: &[u8],
+    now: p::Timestamp,
+) -> p::Result<Vec<u8>> {
+    let request: p::WorkerInputReadRequest = serde_json::from_slice(body)
+        .map_err(|_| p::Error("worker input read body is invalid".into()))?;
+    if request.grant.job_id != job_id {
+        return Err(p::Error("worker input read job binding is invalid".into()));
+    }
+    let chunk = worker.read_input(auth, request, now)?;
+    serde_json::to_vec(&chunk).map_err(|_| p::Error("worker input chunk response failed".into()))
 }
 
 pub(super) fn manifest(

@@ -30,6 +30,8 @@ pub(super) struct WorkerExecutionBinding {
     pub(super) output_budget_bytes: u64,
     #[serde(default)]
     pub(super) desktop_session: Option<p::DesktopSessionBinding>,
+    #[serde(default)]
+    pub(super) input_grants: Vec<p::WorkerInputGrantV1>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(super) discovery: Option<Box<p::WorkerExecutionSpec>>,
 }
@@ -50,6 +52,7 @@ impl WorkerExecutionBinding {
             timeout: spec.timeout,
             output_budget_bytes: spec.output_budget_bytes,
             desktop_session: spec.desktop_session.clone(),
+            input_grants: spec.input_grants.clone(),
             discovery,
         }
     }
@@ -108,6 +111,28 @@ impl WorkerExecutionBinding {
         }
         if let Some(binding) = &self.desktop_session {
             binding.validate_for(job, permit, at)?;
+        }
+        if self.input_grants.len() > p::WORKER_INPUT_MAX_GRANTS {
+            return Err(p::Error("worker journal input grants are unbounded".into()));
+        }
+        let mut paths = std::collections::BTreeSet::new();
+        for grant in &self.input_grants {
+            grant.validate()?;
+            if !paths.insert(grant.input_path.clone()) {
+                return Err(p::Error("worker journal input paths are duplicated".into()));
+            }
+            if grant.job_id != job.job_id
+                || grant.owner_ref != job.owner_ref
+                || grant.plan_digest != job.plan_digest
+                || grant.permit_digest != p::canonical_digest(permit)?
+                || grant.authority_epoch != job.authority_epoch
+                || grant.nonce != job.nonce
+                || grant.workspace_scope != job.workspace_scope
+            {
+                return Err(p::Error(
+                    "worker journal input grant is not job-bound".into(),
+                ));
+            }
         }
         Ok(())
     }

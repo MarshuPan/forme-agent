@@ -153,6 +153,7 @@ fn call(
         timeout: plan.timeout,
         output_budget_bytes: plan.budget.max_bytes,
         desktop_session: None,
+        input_grants: Vec::new(),
     });
     req
 }

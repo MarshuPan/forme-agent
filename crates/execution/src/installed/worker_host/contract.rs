@@ -116,4 +116,12 @@ pub trait IsolatedExecutorHost: Send + Sync {
         let _ = (auth, request, now);
         Err(p::Error("worker result channel is unavailable".into()))
     }
+    fn read_input(
+        &self,
+        _auth: &HostAuth,
+        _request: p::WorkerInputReadRequest,
+        _now: p::Timestamp,
+    ) -> p::Result<p::WorkerInputChunk> {
+        Err(p::Error("worker input channel is unavailable".into()))
+    }
 }

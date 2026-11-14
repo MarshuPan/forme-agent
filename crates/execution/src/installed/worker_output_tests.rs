@@ -29,6 +29,7 @@ impl Fixture {
             timeout: p::DurationMs(60_000),
             output_budget_bytes: 4096,
             desktop_session: Some(request.binding.clone()),
+            input_grants: Vec::new(),
         };
         let now = permit.issued_at;
         journal

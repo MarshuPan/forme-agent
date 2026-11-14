@@ -98,6 +98,7 @@ mod worker_binding;
 mod worker_client;
 mod worker_config;
 mod worker_host;
+mod worker_input;
 mod worker_isolation;
 #[cfg(windows)]
 mod worker_pipe;
@@ -165,3 +166,4 @@ pub use worker_backend::*;
 pub use worker_client::*;
 pub use worker_config::*;
 pub use worker_host::*;
+pub use worker_input::*;

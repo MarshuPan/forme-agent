@@ -136,6 +136,7 @@ impl PlanOriginal {
                 timeout: plan.timeout,
                 output_budget_bytes: plan.budget.max_bytes,
                 desktop_session: None,
+                input_grants: plan.input_grants.clone(),
             },
             budget_version: plan.budget.schema_version,
             truncate: plan.budget.truncate,
@@ -163,6 +164,7 @@ impl PlanOriginal {
             },
             timeout: e.timeout,
             desktop_session: e.desktop_session.clone(),
+            input_grants: e.input_grants.clone(),
         };
         if Self::capture(&plan)? != *self {
             return Err(invalid());

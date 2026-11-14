@@ -219,6 +219,9 @@ pub struct WorkerExecutionSpec {
     /// the helper admission; this field cannot create permission by itself.
     #[serde(default)]
     pub desktop_session: Option<super::DesktopSessionBinding>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub input_grants: Vec<super::WorkerInputGrantV1>,
 }
 
 impl WorkerExecutionSpec {
@@ -275,6 +278,29 @@ impl WorkerExecutionSpec {
                     "desktop session binding requires a computer or PTY backend".into(),
                 ));
             }
+        }
+        if self.input_grants.len() > super::WORKER_INPUT_MAX_GRANTS {
+            return Err(Error("worker input grants are unbounded".into()));
+        }
+        if self.backend == BackendKind::Pty
+            && !self.input_grants.is_empty()
+            && job.sandbox_profile_ref != super::INSTALLED_PTY_PROFILE
+        {
+            return Err(Error(
+                "managed PTY input requires the installed PTY profile".into(),
+            ));
+        }
+        let mut paths = std::collections::BTreeSet::new();
+        let mut total_content_bytes = 0_u64;
+        for grant in &self.input_grants {
+            if !paths.insert(grant.input_path.clone()) {
+                return Err(Error("worker input grant paths are duplicated".into()));
+            }
+            grant.validate_for(job, permit, &self.intent, now)?;
+            total_content_bytes = total_content_bytes
+                .checked_add(grant.content_bytes.unwrap_or(0))
+                .filter(|bytes| *bytes <= super::WORKER_INPUT_MAX_TOTAL_BYTES)
+                .ok_or_else(|| Error("worker input grants exceed their byte budget".into()))?;
         }
         let encoded = serde_json::to_vec(self)
             .map_err(|_| Error("worker execution spec cannot be encoded".into()))?;

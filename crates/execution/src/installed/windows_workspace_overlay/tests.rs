@@ -91,6 +91,7 @@ impl Fixture {
             timeout: p::DurationMs(10_000),
             output_budget_bytes: 4096,
             desktop_session: None,
+            input_grants: Vec::new(),
         };
         Self {
             _temporary: temporary,

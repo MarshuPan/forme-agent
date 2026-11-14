@@ -2,16 +2,20 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 use forme_execution::installed::{
-    HostCredentials, IsolatedExecutorHost, NativeServiceManager, ProcessWorkerIsolation,
-    ProductHostBroker, WorkerExecutorHost, WorkerLaunchRegistry, WorkerLaunchSpec,
+    HostCredentials, IsolatedExecutorHost, ManagedWorkerInputResolver, NativeServiceManager,
+    ProcessWorkerIsolation, ProductHostBroker, WorkerExecutorHost, WorkerLaunchRegistry,
+    WorkerLaunchSpec,
 };
+use forme_execution::{InMemoryContentResolver, RejectingSecretResolver};
 use forme_protocol as p;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
+const AGENT_TOKEN: &str = "process-agent-token-abcdefghijklmnopqrstuvwxyz";
 
 struct Temp(PathBuf);
 
@@ -137,6 +141,104 @@ fn host(temp: &Temp, args: Vec<String>) -> WorkerExecutorHost<ProcessWorkerIsola
         isolation,
     )
     .unwrap()
+}
+
+fn input_execution(
+    job: &mut p::WorkerJob,
+    permit: &mut p::WorkerPermit,
+) -> (p::WorkerExecutionSpec, Arc<ManagedWorkerInputResolver>) {
+    let content_ref = p::ContentRef("content:worker-input".into());
+    let intent = p::ActionIntent {
+        schema_version: p::SchemaVersion(1),
+        intent_id: p::ActionId("action-worker-input".into()),
+        source: p::Source::Internal,
+        goal: p::GoalRef("worker input delivery".into()),
+        backend_hint: p::BackendKind::AppApi,
+        capability_ref: p::CapabilityRef("connector:worker-input".into()),
+        action_type: p::ActionType::Execute,
+        scope: job.workspace_scope.clone(),
+        risk_hint: p::Risk::Low,
+        expected_effect: p::ExpectedEffect::Internal,
+        rollback_expectation: p::RollbackBoundary("none".into()),
+        parameters: p::ActionParameters::AppApi(p::AppApiActionSpec {
+            schema_version: p::SchemaVersion(1),
+            connector: p::ProviderId("connector:worker-input".into()),
+            endpoint: "http://127.0.0.1/input".into(),
+            schema_digest: p::SchemaDigest(
+                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+            ),
+            credential: None,
+            operation: p::AppApiOperation::Mutation {
+                method: p::AppApiMutationMethod::Post,
+                body: Some(p::ExternalInput::Content(content_ref.clone())),
+                idempotency_key: p::IdempotencyKey("worker-input-once".into()),
+            },
+            timeout: p::DurationMs(1_000),
+            participant: None,
+            representation: None,
+            disclosure_request: None,
+        }),
+        requested_permissions: Vec::new(),
+        requested_at: 2,
+        estimated_output_bytes: 128,
+        estimated_duration: p::DurationMs(100),
+    };
+    job.action_ref = intent.intent_id.clone();
+    permit.action_ref = intent.intent_id.clone();
+    let resources = p::affected_resources_for(&intent);
+    job.affected_resources = resources.clone();
+    permit.affected_resources = resources.clone();
+    let agent_digest = p::canonical_digest(&AGENT_TOKEN).unwrap();
+    let installation_ref = format!(
+        "install-auth-{}",
+        agent_digest.0.strip_prefix("sha256:").unwrap()
+    );
+    let mut grant = p::WorkerInputGrantV1 {
+        schema_version: p::WORKER_INPUT_SCHEMA_VERSION,
+        grant_ref: "worker-input-grant:placeholder".into(),
+        installation_ref,
+        owner_ref: job.owner_ref.clone(),
+        job_id: job.job_id.clone(),
+        action_ref: job.action_ref.clone(),
+        plan_digest: job.plan_digest.clone(),
+        normalized_action_digest: p::normalized_action_digest(&intent).unwrap(),
+        permit_digest: p::canonical_digest(permit).unwrap(),
+        authority_epoch: job.authority_epoch,
+        nonce: job.nonce.clone(),
+        workspace_scope: job.workspace_scope.clone(),
+        input_path: "app_api.body".into(),
+        input_kind: p::WorkerInputKind::Content,
+        content_ref: Some(content_ref.clone()),
+        content_digest: Some(p::sha256_content_digest(b"managed input")),
+        content_bytes: Some(13),
+        secret_slot_ref: None,
+        issued_at: 2,
+        expires_at: 400,
+    };
+    grant.grant_ref = grant.expected_ref().unwrap();
+    let contents = Arc::new(InMemoryContentResolver::default());
+    contents
+        .insert(content_ref, b"managed input".to_vec())
+        .unwrap();
+    let resolver = Arc::new(
+        ManagedWorkerInputResolver::new(contents, Arc::new(RejectingSecretResolver), []).unwrap(),
+    );
+    (
+        p::WorkerExecutionSpec {
+            schema_version: p::SchemaVersion(1),
+            plan_digest: job.plan_digest.clone(),
+            intent,
+            backend: p::BackendKind::AppApi,
+            scope: job.workspace_scope.clone(),
+            affected_resources: resources,
+            normalized_action_digest: grant.normalized_action_digest.clone(),
+            timeout: p::DurationMs(100),
+            output_budget_bytes: 4096,
+            desktop_session: None,
+            input_grants: vec![grant],
+        },
+        resolver,
+    )
 }
 
 fn wait_for_terminal(
@@ -344,4 +446,25 @@ fn process_worker_cancel_kills_running_child_without_retry() {
         p::WorkerState::Cancelled
     );
     assert!(host.cancel(&auth, &job.job_id, 13).is_err());
+}
+
+#[test]
+fn process_worker_receives_resolved_content_as_one_shot_stdin_frame() {
+    let temp = Temp::new();
+    let auth = agent_auth(&temp);
+    let mut host = host(&temp, vec!["--read-input".into()]);
+    let (mut job, mut permit) = job("job-process-input", 500);
+    let (execution, resolver) = input_execution(&mut job, &mut permit);
+    host = host.with_input_resolver(resolver);
+    host.dispatch_with_execution(&auth, job.clone(), permit, Some(execution), 10)
+        .unwrap();
+    assert_eq!(
+        wait_for_terminal(&host, &auth, &job.job_id).state,
+        p::WorkerState::Completed
+    );
+    let frame = fs::read(temp.workspace().join("worker-input-frame.bin")).unwrap();
+    assert!(frame.starts_with(b"FORME-WORKER-INPUT-V1\0"));
+    assert!(frame
+        .windows(b"managed input".len())
+        .any(|part| part == b"managed input"));
 }

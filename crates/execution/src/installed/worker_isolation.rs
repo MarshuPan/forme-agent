@@ -2,9 +2,17 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Mutex};
 
 use forme_protocol as p;
 
+use super::worker_input::WorkerInputMaterial;
+
 /// OS isolation lifecycle. A terminal observation retains its result source
 /// until the Host durably seals the result and acknowledges that handoff.
 pub trait WorkerIsolation: Send + Sync {
+    /// Whether this adapter has independently verified the fixed production
+    /// PTY profile. Mechanism tests and ordinary process workers return false.
+    fn supports_managed_pty(&self) -> bool {
+        false
+    }
+
     /// Keep the adapter's actual resource exclusion through one callback.
     /// Missing observation capability never proves quiescence, even if idle.
     /// The callback must not reenter worker or lease lifecycle methods.
@@ -27,6 +35,25 @@ pub trait WorkerIsolation: Send + Sync {
         now: p::Timestamp,
     ) -> p::Result<()> {
         self.admit_at(job, permit, now)
+    }
+
+    /// Admit only after the Host has resolved all plan-bound input grants. A
+    /// platform adapter must opt in to delivery; the default rejects grants
+    /// so old or incomplete adapters cannot fall back to empty/Literal input.
+    fn admit_with_input(
+        &self,
+        job: &p::WorkerJob,
+        permit: &p::WorkerPermit,
+        execution: Option<&p::WorkerExecutionSpec>,
+        inputs: &[WorkerInputMaterial],
+        now: p::Timestamp,
+    ) -> p::Result<()> {
+        if !inputs.is_empty() {
+            return Err(p::Error(
+                "worker input delivery is unavailable for this isolation adapter".into(),
+            ));
+        }
+        self.admit_with_execution(job, permit, execution, now)
     }
 
     fn admit_at(
