@@ -10,8 +10,9 @@
 - 升级/兼容回滚响应等待已在 `76feaeb` 固化为按原授权截止的有界等待，前端静态资源和 Rust/TypeScript 回归均通过。该修复不改变 operation、journal、dispatch 或重试事实。
 - 当前未决升级仍为 `Validated / pending Quiescing`，active release 未变；没有新的 dispatch claim 或 updater 原生副作用证据，因此未重发 Upgrade/Recovery，也没有把现场提升为 IP14/IP24。
 - 本轮完整 workspace 测试实际为 1,606 passed / 38 ignored，前端 verify 为 141 passed，格式、代码质量、严格合规均通过。随后在没有 target 占用且证据已保存时，使用 `tools/build_resources.py` 清理了 20,477 个 Cargo dev 文件、102.2 GiB；源码、证据和 Git 状态前后摘要一致。
+- 针对剩余的 `ContentRef`/`SecretRef` worker 输入与真实生产 PTY，已形成[窄范围协议补充](../architecture/proposals/installed-worker-input-pty-closure.md)：现有类型和开发 resolver 保持不变，新增受管一次性输入授权、executor-local secret slot、固定 PTY profile 和清理/Unknown 规则；在 owner 确认并回填冻结文档前不改代码、不放开生产能力。
 
-当前仍未完成的不是一个可由单元测试补齐的单点 TODO，而是：当前签名候选的真实 SCM/UAC/AppContainer/worker binding 安装回执；桌面登录会话 helper 的端到端取证；真实 provider、第三方渠道、LAN/TLS、浏览器联合流、备份恢复、升级/回滚与卸载；`ContentRef`/`SecretRef` 输入、真实生产 PTY；以及 IP01–IP24 的逐项当前候选证据。IP02、IP09、IP16、IP24 仍未运行，其余项目仍为部分证据或不可验证。
+当前仍未完成的不是一个可由单元测试补齐的单点 TODO，而是：当前签名候选的真实 SCM/UAC/AppContainer/worker binding 安装回执；桌面登录会话 helper 的端到端取证；真实 provider、第三方渠道、LAN/TLS、浏览器联合流、备份恢复、升级/回滚与卸载；待确认协议下的 `ContentRef`/`SecretRef` 输入、真实生产 PTY；以及 IP01–IP24 的逐项当前候选证据。IP02、IP09、IP16、IP24 仍未运行，其余项目仍为部分证据或不可验证。
 
 针对本 operation 缺少升级前可信源基线的窄范围 `PreDispatchAbort` 仍只是待确认提案，尚未修改冻结协议或实施本机裁决；不能用“服务仍在运行”或“尚未观察到 claim”补造基线。
 

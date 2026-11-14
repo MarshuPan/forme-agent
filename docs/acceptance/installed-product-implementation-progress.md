@@ -19,7 +19,7 @@
 
 - 当前未决升级没有原升级前可信源基线。普通 `AbortBeforeSwitch` 不能套用；
   `docs/architecture/proposals/installed-pre-dispatch-abort-review.md` 仍是待确认的窄范围协议，尚未改 canonical/PRD、尚未实现，也没有本机裁决。
-- `ContentRef`/`SecretRef` 作为受管 worker 输入、真实生产 PTY，以及截图之外的完整二进制输入/消费者仍是独立义务，不能由已有结果链或普通 stdio 测试替代。
+- `ContentRef`/`SecretRef` 作为受管 worker 输入、真实生产 PTY，以及截图之外的完整二进制输入/消费者仍是独立义务，不能由已有结果链或普通 stdio 测试替代。本轮已形成[安装 worker 输入与生产 PTY 窄范围补充](../architecture/proposals/installed-worker-input-pty-closure.md)，等待协议确认后再回填 canonical/PRD 并改代码。
 - Linux/macOS 的原生服务、权限与发布边界仍按已批准的有限策略保持未发布，不以 WSL、Docker、交叉编译或普通进程证据代替。
 
 ### 必须用当前签名候选和真实环境取证的项目
