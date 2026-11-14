@@ -6,6 +6,8 @@
 
 每个 IP 场景至少保存：源码 commit、包/UI 摘要、OS/架构/浏览器版本、脱敏配置来源、前置数据基线、操作步骤、实际结果、独立探测、反向断言、残余限制。使用 `PASS / FAIL / UNVERIFIABLE / NOT_RUN / NOT_APPLICABLE`，不可验证不计通过。报告不得保存账号密码、cookie、bootstrap token、provider key、私有路径或可利用的 SecretRef。
 
+受管输入和生产 PTY 的新增证据要求：`WorkerInputGrantV1` 的 installation/owner/job/plan/permit/nonce/path/digest/expiry 逐字段核对；Content 分块读取证明连续 offset、总长度和原始摘要；Secret 证明 executor-local slot、明文不落盘/不进日志且输出 redaction；PTY 证明固定 profile、Low AppContainer/Job/ConPTY 进程树、无网络/代理/任意 child、取消/锁屏/注销/后代退出和清理 Unknown 边界。组件、WSL、Docker、交叉编译或普通进程测试不能单独关闭 IP10/IP11/IP17/IP18/IP21/IP24。
+
 服务状态必须由 OS 服务管理器和进程/端口/任务进展共同证明；不能只看安装器退出码。UI 必须有真实浏览器交互、后端事件与状态恢复证据，截图不证明执行效果。模型有用性另保留真实模型/工具与简单基线，不让 UI 冒充能力增长。
 
 ## 2. 场景矩阵

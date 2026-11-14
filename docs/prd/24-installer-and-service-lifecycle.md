@@ -216,6 +216,14 @@ SCM Host 自身的第一道只读核验在构造 runtime、读取管理凭据和
 
 默认配置加载**不启用普通进程 adapter**。即使 Windows AppContainer/Job Object adapter 已存在，只要实际 service identity、有效 ACL 正反断言、重启撤权恢复、无网络/无凭据、会话 helper 等平台门未全部通过，服务仍提供维护与状态查询，但 dispatch 被阻断。开发者必须在前台显式传 `--development-process-workers` 才能使用受注册的普通子进程；SCM 服务模式永远不接受此降级。该开关不能由 JSON、Agent 请求或 profile 名开启，Job Object、AppContainer 单项或开发进程证据都不得单独登记为完整安全沙箱或 IP10 PASS。
 
+#### 4.1.2a 受管 ContentRef/SecretRef 输入与生产 PTY
+
+2026-11-14 owner 批准的输入协议不改变 `ExternalInput` 或旧 `WorkerExecutionSpec` 的既有序列化；新安装 worker 通过 `WorkerDispatchRequest.input_grants` 接收独立 closed `WorkerInputGrantV1` 列表。旧 Host 遇到该字段或未知版本必须拒绝，不能忽略后按 Literal 执行。每个 grant 绑定原 installation、owner、job/action、plan/normalized-action digest、permit digest、authority epoch、nonce、workspace、closed input path、deadline 和一次性 `grant_ref`。
+
+Content grant 只能引用 Core 已保护的不可变 `ContentRef`，Host 通过 AgentExecution peer 读取有界分块，逐次核对 binding、offset、总长度和原始 digest；总量取最终 output/input budget 与 16 MiB 的较小值。Secret grant 只携带 Host 配置中登记的 opaque `secret_slot_ref`；slot 在 Host 侧绑定 executor-local `SecretRef`、owner/workspace、closed input path、用途和期限，最后一跳解析后经受限 stdin/environment 管道注入，明文不落 job 文件、日志、事件、trace 或结果正文。读取和解析完成后才允许副作用；撤销、过期、来源/配置漂移、读取不明或清理不明均阻断或保持原 job Unknown。
+
+新增受管 profile `sandbox:installed-pty-v1` 只允许固定 runner、固定 portable-pty 版本、程序 allowlist、明确 cwd、无父环境继承和既有 Low AppContainer/Job/ConPTY 进程树 custody。生产 stdin/environment 只能使用上述 Content grant 或 Secret slot，Literal 仅保留开发/机制测试。网络、代理、brain/Host journal/key 目录、任意 child 和桌面用户权限均拒绝；secret redaction、输出预算、取消、后代收束和退出状态任一不明都不得写 Completed。Linux/macOS 仍保持既定不发布边界；真实 SCM、服务身份、worker binding 和进程树回执另按 IP10/IP11/IP24 取证。
+
 #### 4.1.3 Windows 私有副本与受治理回写（owner 已选择 A）
 
 本节改变 Windows worker 的直接写入时机，不改变脑协议、最终计划或权限范围。原 workspace 的完整性标签、owner/ACL 不降低、不复制到私有文件，也不把副本当作新的记忆/事实源。

@@ -232,6 +232,12 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 
 `forme-file-worker --installed-file-worker` 是现有执行 crate 内的一次性、无模型/网络/子进程的独立文件镜像，直接编译共有文件模块而不链接整个执行库；桌面/截图等 DLL 不进入该镜像的初始化链。`forme-executord` 的既有 M4、桌面 helper 和历史文件入口兼容保留。Host 从 exact plan 的 overlay `WriteScope` 派生 versioned `WorkerFileTarget`，绑定 job、plan/normalized-action digest 和安全相对路径，写入本 job 只读输入并通过固定环境项传递。worker 只对私有副本执行 Read/Write/Delete，不能重规划或用原逻辑绝对路径直接打开 owner workspace。Host 的原变更集核验、回写、结果 AEAD/manifest/receipt 和 Unknown 边界保持不变。完整输入/资源/拒绝与验收细节见 prd/24 §4.1.1d；入口存在不等于安装自动配置或平台/IP 通过。
 
+#### 7.1.3a 受管输入与生产 PTY
+
+安装 worker 的 `ContentRef`/`SecretRef` 输入沿独立 `WorkerInputGrantV1` 接缝传递。grant 必须绑定原 job/permit/plan/nonce/deadline 和 closed input path；Content 通过 AgentExecution peer 有界分块读取并核对原始 digest，Secret 通过 Host executor-local opaque slot 在最后一跳解析。Host 不向 worker 暴露 `SecretRef` identifier、key、owner 环境或原始内容目录；取消、撤销、过期和删除先阻断读取，再按数据 fence 清理副本。输入读取结果不明或清理不明保持原 job Unknown，不新建替代 job。
+
+生产 PTY 使用固定 `sandbox:installed-pty-v1`，仅在真实 worker isolation、固定程序/cwd、无环境继承、Low AppContainer/Job/ConPTY 进程树 custody 和输入 grant 全部就绪时注册。stdin/environment 不接受 Literal；secret redaction、输出 budget、取消、后代收束和可信退出状态必须逐项取证。PTY 不获得网络、代理、brain/Host journal/key、桌面用户或任意 child 权限，生产 Linux/macOS 继续不发布。
+
 安装侧装配沿 PRD24 §4.1.1e：新 Windows 安装仅 provision 当前 release 的有限文件 profile 与默认 workspace 映射；Host 核验后通过原配置 revision/journal 持久化私有 state 9，物化现有 worker binding 和独立的只读 policy roots。旧配置/历史物化字节保持，只有新的 owner 配置命令提交投影；未映射 workspace 不启用 File，真实 SCM 连通另验。此路径不新增公开设置、脑事件、依赖边或进程内 fallback。
 
 #### 7.1.4 恢复静止的资源守卫

@@ -727,6 +727,9 @@ V1 闭合进入代码实施前，以下协议必须在 `protocol`、`store`、`h
 - owner 已选择 Windows 每 job 私有副本/overlay + Host 核验回写（prd/24 §4.1.3）：仅副本降低完整性，原 workspace 不授予 worker、不改变标签；baseline/最终计划/permit 精确绑定、原句柄 custody、冲突整批拒绝和 durable writeback intent/receipt 是承重条件。回写不明保留原副本并阻断恢复，不盲重试；不增加脑 EventKind。新增 Low label/文件 identity/按句柄删除/child-process restriction FFI 仍仅限上述两个文件。
 - POSIX 服务恢复采取 **选择 A：保持当前有限策略与不发布边界**。Linux/macOS 继续 `release_ready=false`，有限 systemd/launchd 模板和通用代码不能推出规范目标的原生支持；不实施 one-shot wrapper、无限 KeepAlive 或进程内第二个 supervisor。结果通道的实现不改变这一发布边界。
 
+- **受管输入与生产 PTY（2026-11-14 owner 已批准）**：`ExternalInput` 的 `ContentRef`/`SecretRef` 只能沿最终 `WorkerExecutionSpec` 携带，不能在 Host 侧改写为 Literal。安装 dispatch 可附带独立 closed `WorkerInputGrantV1`；它绑定 `installation/owner/job/action/plan/normalized-action/permit/authority/nonce/workspace/input-path/deadline`，Content 必须绑定不可变 ref、原始 digest 和有界分块读取，Secret 只能绑定 Host executor-local 的 opaque slot，`SecretRef` identifier 与明文不出现在 worker/journal/log/trace/artifact。读取、解析、撤销、过期和清理均在副作用前后重查；任何不明结果保留原 job Unknown，不换号重派。
+- **生产 PTY profile**：`sandbox:installed-pty-v1` 仅在已验证的 AgentExecution worker isolation、固定程序 allowlist、无继承环境、Low AppContainer/Job/ConPTY 进程树和受管输入 grant 全部成立时可用。Literal 输入只用于开发/机制测试；生产 stdin/environment 只接受 Content grant 或 Secret slot。网络、brain/Host journal/key 目录、任意 child/代理和桌面权限保持拒绝。程序、cwd、输入 grant digest、timeout 和 output budget 都属于原 plan digest；secret 回显、后代未收束、编码异常或退出不明均保持 Unknown。组件或 WSL/Docker/交叉编译证据不构成 IP10/IP11/IP24 通过。
+
 ### 29.10 交互桌面会话 helper
 
 安装后的有限文件 worker 使用与桌面 helper 分离的 `forme-file-worker` 镜像，两者仍属于同一个 execution crate 和同一受治理执行面。文件镜像只链接文件与协议所需模块，打包核对其 Windows PE 导入，禁止桌面/图形初始化依赖；实际服务身份下的 AppContainer 证据独立取得。历史 executord 文件入口、发布清单和原 job 回执保持可读，不以新镜像重派 Unknown。此为镜像装配修复，不改变既有 trait、DTO、五个 unsafe 边界或治理语义。

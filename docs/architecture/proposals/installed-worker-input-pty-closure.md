@@ -1,6 +1,6 @@
 # 安装 worker 输入与生产 PTY 的窄范围补充（待确认）
 
-状态：**提案，尚未实施，未授权生产 worker 或本机 PTY 放开**。
+状态：**2026-11-14 owner 已批准实施；本文冻结范围已生效，代码与原生验收仍未完成**。
 
 本文只处理当前设计中剩余的两个安装侧接缝：`ContentRef`/`SecretRef` 作为受管 worker 输入，以及真实生产 PTY profile。它不修改已有的受管 MCP、插件、渠道、桌面授权或截图协议，也不把组件级 PTY 机制证据提升为产品能力。
 
@@ -63,6 +63,6 @@
 
 实现前必须补齐 closed serde/golden 测试、grant digest/CAS/expiry/revoke、chunk/size/offset、跨 owner/workspace/path、未知字段/版本、secret 不落盘、同号重启、清理失败和零重派场景。随后才实现 Host 解析、固定 worker 接线和真实 Windows native receipt；组件/机制测试不关闭 IP10/IP11/IP24。
 
-## 6. 本次请求的最小确认
+## 6. 实施确认
 
-请确认是否批准本文 §3 的受管 Content/Secret 输入授权，以及 §4 的 `sandbox:installed-pty-v1` 生产 profile。批准后先提交上述正式文档变更，再按“协议 → Host resolver → worker 接线 → native 验收”的顺序实施；未确认前只保持现有拒绝路径。
+Owner 已批准本文 §3 的受管 Content/Secret 输入授权，以及 §4 的 `sandbox:installed-pty-v1` 生产 profile。正式文档变更先于代码提交；实现顺序固定为“协议 → Host resolver → worker 接线 → native 验收”。在对应组件和原生证据完成前，生产默认仍保持 `Unavailable/Blocking`。
