@@ -2,6 +2,14 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-14 受管输入接缝与生产 PTY 准入状态
+
+本轮已把 owner 批准的 `ContentRef`/opaque `SecretRef` slot 协议接到最终执行计划、worker binding、Host resolver 和 AgentExecution 分块读取路由：grant 绑定 installation、owner、job/action、plan/permit digest、authority epoch、nonce、workspace、closed input path 与期限；Content 逐次核对字节数和 SHA-256，Secret 只由 Host 的 executor-local slot 在最后一跳解析。解析失败、绑定漂移、过期、撤销或清理不明继续阻断或保留原 job Unknown。开发进程 adapter 的一次性 stdin envelope 已有回归，值不进入 journal/receipt；没有明确输入能力的隔离 adapter 仍拒绝 grants。
+
+协议/组件证据为 `cargo check --workspace --all-targets`、`forme-protocol` worker-input 场景、`forme-execution` worker-input 场景，以及 `installed_worker_process_contract::process_worker_receives_resolved_content_as_one_shot_stdin_frame`。这些证据证明 typed binding、resolver、分块路由和开发 adapter 接缝，不提升为原生产品验收。
+
+生产 profile 名称已冻结为 `sandbox:installed-pty-v1`，但当前没有通过 `supports_managed_pty` 的真实 Windows/Linux/macOS adapter；Host 对该 profile 保持 `Unavailable/Blocking`，不会把普通进程、WSL、Docker 或机制 PTY 实验当作生产能力。真实固定 runner、ConPTY/Job/AppContainer 进程树、无网络/无凭据、secret redaction、取消/清理和 IP10/IP11/IP24 回执仍待原生环境完成。
+
 ## 2026-11-14 设计差距复核与当前可闭合范围
 
 本次按 `docs/acceptance/approved-design-completion-ledger.md`、
@@ -19,7 +27,7 @@
 
 - 当前未决升级没有原升级前可信源基线。普通 `AbortBeforeSwitch` 不能套用；
   `docs/architecture/proposals/installed-pre-dispatch-abort-review.md` 仍是待确认的窄范围协议，尚未改 canonical/PRD、尚未实现，也没有本机裁决。
-- `ContentRef`/`SecretRef` 作为受管 worker 输入、真实生产 PTY，以及截图之外的完整二进制输入/消费者仍是独立义务，不能由已有结果链或普通 stdio 测试替代。本轮已形成[安装 worker 输入与生产 PTY 窄范围补充](../architecture/proposals/installed-worker-input-pty-closure.md)，等待协议确认后再回填 canonical/PRD 并改代码。
+- `ContentRef`/`SecretRef` 作为受管 worker 输入的协议、Host 解析和开发 adapter 接缝已实现；真实生产 PTY、固定 profile 的 native adapter，以及截图之外的完整二进制输入/消费者仍是独立义务，不能由组件 stdio 测试替代。本轮方案见[安装 worker 输入与生产 PTY 窄范围补充](../architecture/proposals/installed-worker-input-pty-closure.md)，原生证据完成前生产默认继续阻断。
 - Linux/macOS 的原生服务、权限与发布边界仍按已批准的有限策略保持未发布，不以 WSL、Docker、交叉编译或普通进程证据代替。
 
 ### 必须用当前签名候选和真实环境取证的项目

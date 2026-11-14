@@ -1,6 +1,6 @@
 # 安装 worker 输入与生产 PTY 的窄范围补充（待确认）
 
-状态：**2026-11-14 owner 已批准实施；本文冻结范围已生效，代码与原生验收仍未完成**。
+状态：**2026-11-14 owner 已批准实施；协议、Host 解析和开发 worker 接缝已完成，真实生产 PTY adapter 与原生验收仍未完成**。
 
 本文只处理当前设计中剩余的两个安装侧接缝：`ContentRef`/`SecretRef` 作为受管 worker 输入，以及真实生产 PTY profile。它不修改已有的受管 MCP、插件、渠道、桌面授权或截图协议，也不把组件级 PTY 机制证据提升为产品能力。
 
@@ -61,7 +61,7 @@
 - `docs/architecture/10-installed-product-and-web-workbench-architecture.md` §7.1.2/§7.1.3 的输入与 PTY 生产边界；
 - `docs/requirements/18-installed-product-verification-strategy.md` 的 IP10/IP11/IP17/IP18/IP21/IP24 输入、secret redaction、PTY 进程树和删除证据。
 
-实现前必须补齐 closed serde/golden 测试、grant digest/CAS/expiry/revoke、chunk/size/offset、跨 owner/workspace/path、未知字段/版本、secret 不落盘、同号重启、清理失败和零重派场景。随后才实现 Host 解析、固定 worker 接线和真实 Windows native receipt；组件/机制测试不关闭 IP10/IP11/IP24。
+已补齐 closed serde/绑定、grant digest/expiry、chunk/size/offset、跨 owner/workspace/path、secret 不落盘和开发 stdin 接线场景。Host 解析、固定 worker 接线仍在无 native adapter 时 fail-closed；真实 Windows native receipt、撤销/清理异常矩阵和完整生产 profile 仍未完成，组件/机制测试不关闭 IP10/IP11/IP24。
 
 ## 6. 实施确认
 
