@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "13b2640f9f390c91ccfc9de2e3682136dafa71f37464517fcadf37cfd5a194a4",
+  "source_digest": "209d067a5aa8871042199c7f156e4e5975083b057e5d7e04d5b271f48b0eaf68",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -24,7 +24,11 @@
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "a602d08eca66b44f38a62147c7d012e197a5e06adad45ad3f34ec434890f1a07"
+      "sha256": "01febff65db4c60ac88b897e85fc82d6c243b850cf2d8a5828e39bee594ea732"
+    },
+    {
+      "path": "frontend/src/api/request-timeout.ts",
+      "sha256": "cda116682be4533056f27ceee53b502e4f5973cd94c3656c20a7a9aed49c73af"
     },
     {
       "path": "frontend/src/artifacts.ts",
@@ -339,6 +343,10 @@
       "sha256": "5e318f2e1f9ba070904914db8667c59efd9cdbb769be4b1f5300d95cc165c3a2"
     },
     {
+      "path": "frontend/src/tests/maintenance-timeout.test.ts",
+      "sha256": "d01f347b99bb7ab3602b392be0f958aa6a7eba0069ddefe4dfd1f5a05959409c"
+    },
+    {
       "path": "frontend/src/tests/maintenance.test.ts",
       "sha256": "5253d2677a8fb89de7b908c6ff62f8578752fe32570715c1b3c6e1f1df2f91a2"
     },
@@ -426,9 +434,9 @@
       "bytes": 15032
     },
     {
-      "path": "assets/index-Cwq2KXOt.js",
-      "sha256": "5397d0f2be6a4fb09b623b66749b54aefff8d4c24c25f5e314dcc19ca5cd5cc0",
-      "bytes": 458961
+      "path": "assets/index-CP987fJZ.js",
+      "sha256": "ad2eabea74e420040fe36832d9234a5b73c1c6a3b549d9eacfcbcc7139a8874a",
+      "bytes": 459338
     },
     {
       "path": "dependencies.json",
@@ -442,7 +450,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "80437db8babb460792ebf2a51ce85f256ccaa88381806fb982834cf9e9abf352",
+      "sha256": "3378ab1c3f5feb231d5b00450ae438e012d9e7cfda9b3d5999a83921b08a412b",
       "bytes": 595
     },
     {

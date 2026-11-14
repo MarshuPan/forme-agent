@@ -1,6 +1,7 @@
 import { parseChannelSettings, parseChannelResponse } from '../channel-settings.ts';
 import type { ChannelSettingsPatch } from '../channel-settings.ts';
 import { isRecord, versioned } from '../types.ts';
+import { requestTimeout } from './request-timeout.ts';
 import { toolArtifactCatalog, readToolArtifact } from '../tool-artifacts.ts';
 import type { ToolArtifactEntry } from '../tool-artifacts.ts';
 import { parseDesktopCatalog, parseDesktopConsent } from '../desktop.ts';
@@ -87,7 +88,7 @@ export class WorkbenchClient {
     try {
       response = await this.transport(`/api/v${options.version ?? 1}/${path}`, {
         method, headers, credentials: 'same-origin', cache: 'no-store',
-        body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.any([AbortSignal.timeout(path === 'bootstrap/claim-v2' ? 140_000 : path.startsWith('bootstrap/') ? 50_000 : 28_000), ...(options.signal ? [options.signal] : [])]),
+        body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.any([AbortSignal.timeout(requestTimeout(path, method, body)), ...(options.signal ? [options.signal] : [])]),
       });
     } catch {
       options.signal?.throwIfAborted();

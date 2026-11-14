@@ -5,7 +5,7 @@
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use forme_protocol as p;
 use serde::{de::DeserializeOwned, Serialize};
@@ -16,6 +16,8 @@ mod desktop;
 mod mcp_programs;
 mod mcp_settings;
 mod plugin_settings;
+#[cfg(test)]
+mod timeout_tests;
 
 const MAX_WIRE_BYTES: usize = 512 * 1024;
 const MAX_BODY_BYTES: usize = 256 * 1024;
@@ -245,7 +247,16 @@ impl LocalConfigurationClient {
         &self,
         request: p::ProductMaintenanceRequest,
     ) -> p::Result<p::MaintenanceOperation> {
-        self.request("POST", "/v1/host/configuration/maintenance", Some(&request))
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|value| value.as_millis().min(i64::MAX as u128) as i64)
+            .unwrap_or_default();
+        self.request_with_response_timeout(
+            "POST",
+            "/v1/host/configuration/maintenance",
+            Some(&request),
+            maintenance_response_timeout(&request, now),
+        )
     }
 
     pub(super) fn maintenance_operation(&self, id: &str) -> p::Result<p::MaintenanceOperation> {
@@ -262,6 +273,16 @@ impl LocalConfigurationClient {
         method: &str,
         path: &str,
         body: Option<&B>,
+    ) -> p::Result<T> {
+        self.request_with_response_timeout(method, path, body, REQUEST_TIMEOUT)
+    }
+
+    fn request_with_response_timeout<T: DeserializeOwned, B: Serialize>(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&B>,
+        response_timeout: Duration,
     ) -> p::Result<T> {
         if !desktop::allows_route(method, path)
             && !mcp_programs::allows_route(method, path)
@@ -345,7 +366,7 @@ impl LocalConfigurationClient {
             .write_all(header.as_bytes())
             .and_then(|_| stream.write_all(&encoded))
             .map_err(|_| unavailable())?;
-        let deadline = Instant::now() + REQUEST_TIMEOUT;
+        let deadline = Instant::now() + response_timeout;
         let mut wire = Vec::new();
         loop {
             let remaining = deadline
@@ -381,6 +402,22 @@ impl LocalConfigurationClient {
             ));
         }
         serde_json::from_slice(response_body).map_err(|_| invalid())
+    }
+}
+
+// Waiting for a receipt does not renew authority. Host still validates the
+// unchanged request and its deadline; expired replays remain ordinary queries.
+fn maintenance_response_timeout(request: &p::ProductMaintenanceRequest, now: i64) -> Duration {
+    if matches!(
+        request.action,
+        p::ProductMaintenanceAction::Upgrade { .. }
+            | p::ProductMaintenanceAction::RollbackCompatibleRelease { .. }
+    ) && request.requested_deadline > now
+    {
+        let remaining = request.requested_deadline.saturating_sub(now).min(300_000);
+        Duration::from_millis(remaining as u64) + REQUEST_TIMEOUT
+    } else {
+        REQUEST_TIMEOUT
     }
 }
 

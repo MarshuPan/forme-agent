@@ -115,7 +115,9 @@ impl BoundedStream {
         Self {
             inner,
             _permit: permit,
-            deadline: Box::pin(tokio::time::sleep(std::time::Duration::from_secs(120))),
+            // The absolute socket bound must cover the longest bounded route
+            // (release maintenance: 350s), including slow header arrival.
+            deadline: Box::pin(tokio::time::sleep(std::time::Duration::from_secs(360))),
         }
     }
     fn check_deadline(&mut self, context: &mut Context<'_>) -> std::io::Result<()> {

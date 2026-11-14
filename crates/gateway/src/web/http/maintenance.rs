@@ -12,6 +12,18 @@ use std::sync::Arc;
 use super::{auth, configuration, WebError, WebState};
 use crate::web::identity::{AuthError, SensitivePassword};
 
+pub(super) fn routes() -> axum::Router<Arc<WebState>> {
+    // Outside the ordinary 30-second layer: release preflight may consume the
+    // existing 300-second authorization window. This only bounds HTTP waiting.
+    axum::Router::new()
+        .route("/api/v1/product/maintenance", axum::routing::post(apply))
+        .layer(axum::extract::DefaultBodyLimit::max(8192))
+        .layer(tower_http::timeout::TimeoutLayer::with_status_code(
+            axum::http::StatusCode::REQUEST_TIMEOUT,
+            std::time::Duration::from_secs(350),
+        ))
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct MaintenanceBody {

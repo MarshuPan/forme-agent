@@ -314,10 +314,7 @@ fn router(state: Arc<WebState>) -> Router {
             "/api/v1/product/operations/{id}",
             get(configuration::operation),
         )
-        .route(
-            "/api/v1/product/maintenance",
-            get(maintenance::read).post(maintenance::apply),
-        )
+        .route("/api/v1/product/maintenance", get(maintenance::read))
         .route(
             "/api/v1/product/maintenance/operations/{id}",
             get(maintenance::operation),
@@ -381,6 +378,7 @@ fn router(state: Arc<WebState>) -> Router {
             axum::http::StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(30),
         ))
+        .merge(maintenance::routes())
         .merge(bootstrap_legacy::routes())
         .merge(tool_artifacts::routes())
         .layer(axum::middleware::from_fn_with_state(

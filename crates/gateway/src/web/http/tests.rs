@@ -13,6 +13,7 @@ use crate::web::identity::{SensitivePassword, WebIdentityStore};
 mod backup_verification;
 mod bootstrap_legacy;
 mod desktop;
+mod maintenance_transport;
 mod mcp_programs;
 mod proposals;
 mod release_recovery;
