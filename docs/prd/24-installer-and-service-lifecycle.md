@@ -218,7 +218,7 @@ SCM Host 自身的第一道只读核验在构造 runtime、读取管理凭据和
 
 #### 4.1.2a 受管 ContentRef/SecretRef 输入与生产 PTY
 
-2026-11-14 owner 批准的输入协议不改变 `ExternalInput` 或旧 `WorkerExecutionSpec` 的既有序列化；新安装 worker 通过 `WorkerDispatchRequest.input_grants` 接收独立 closed `WorkerInputGrantV1` 列表。旧 Host 遇到该字段或未知版本必须拒绝，不能忽略后按 Literal 执行。每个 grant 绑定原 installation、owner、job/action、plan/normalized-action digest、permit digest、authority epoch、nonce、workspace、closed input path、deadline 和一次性 `grant_ref`。
+2026-11-14 owner 批准的输入协议不改变 `ExternalInput` 或旧字段的语义；新安装 worker 通过 `WorkerExecutionSpec.input_grants` 接收独立 closed `WorkerInputGrantV1` 列表。旧 Host 遇到该字段或未知版本必须拒绝，不能忽略后按 Literal 执行。每个 grant 绑定原 installation、owner、job/action、plan/normalized-action digest、permit digest、authority epoch、nonce、workspace、closed input path、deadline 和一次性 `grant_ref`。
 
 Content grant 只能引用 Core 已保护的不可变 `ContentRef`，Host 通过 AgentExecution peer 读取有界分块，逐次核对 binding、offset、总长度和原始 digest；总量取最终 output/input budget 与 16 MiB 的较小值。Secret grant 只携带 Host 配置中登记的 opaque `secret_slot_ref`；slot 在 Host 侧绑定 executor-local `SecretRef`、owner/workspace、closed input path、用途和期限，最后一跳解析后经受限 stdin/environment 管道注入，明文不落 job 文件、日志、事件、trace 或结果正文。读取和解析完成后才允许副作用；撤销、过期、来源/配置漂移、读取不明或清理不明均阻断或保持原 job Unknown。
 

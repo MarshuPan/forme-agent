@@ -234,7 +234,7 @@ Computer/交互 PTY 需要特定 OS 登录会话 helper。helper 绑定 session 
 
 #### 7.1.3a 受管输入与生产 PTY
 
-安装 worker 的 `ContentRef`/`SecretRef` 输入沿独立 `WorkerInputGrantV1` 接缝传递。grant 必须绑定原 job/permit/plan/nonce/deadline 和 closed input path；Content 通过 AgentExecution peer 有界分块读取并核对原始 digest，Secret 通过 Host executor-local opaque slot 在最后一跳解析。Host 不向 worker 暴露 `SecretRef` identifier、key、owner 环境或原始内容目录；取消、撤销、过期和删除先阻断读取，再按数据 fence 清理副本。输入读取结果不明或清理不明保持原 job Unknown，不新建替代 job。
+安装 worker 的 `ContentRef`/`SecretRef` 输入沿 `WorkerExecutionSpec.input_grants` 的独立 `WorkerInputGrantV1` 接缝传递。grant 必须绑定原 job/permit/plan/nonce/deadline 和 closed input path；Content 通过 AgentExecution peer 有界分块读取并核对原始 digest，Secret 通过 Host executor-local opaque slot 在最后一跳解析。Host 不向 worker 暴露 `SecretRef` identifier、key、owner 环境或原始内容目录；取消、撤销、过期和删除先阻断读取，再按数据 fence 清理副本。输入读取结果不明或清理不明保持原 job Unknown，不新建替代 job。
 
 生产 PTY 使用固定 `sandbox:installed-pty-v1`，仅在真实 worker isolation、固定程序/cwd、无环境继承、Low AppContainer/Job/ConPTY 进程树 custody 和输入 grant 全部就绪时注册。stdin/environment 不接受 Literal；secret redaction、输出 budget、取消、后代收束和可信退出状态必须逐项取证。PTY 不获得网络、代理、brain/Host journal/key、桌面用户或任意 child 权限，生产 Linux/macOS 继续不发布。
 
