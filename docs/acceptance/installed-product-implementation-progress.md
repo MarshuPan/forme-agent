@@ -2,7 +2,47 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-14 设计差距复核与当前可闭合范围
+
+本次按 `docs/acceptance/approved-design-completion-ledger.md`、
+`docs/acceptance/installed-product-remaining-obligations-audit-20261109.md`、
+`docs/architecture/canonical-contract.md` §29 和 PRD24–26 重新核对实现。结论分为三层：
+
+### 已在源码/组件层闭合
+
+- 核心大脑、持续认知、记忆、项目与编排、C1–C24 以及原有 S1–S99 的源码 Final 保持完成状态。
+- 受管 worker binding、run-bound 工具快照恢复、受管 MCP 注册/发现/调用、插件 slot/runtime consumer、认证渠道接收和批准范围内的 loopback 出站代理均已有组件级实现与回归。
+- 桌面授权目录/consent/grant 接缝、helper→Host→core 的截图二进制结果保护链、认证 Web 工件目录/分块读取均已有组件级实现与回归。
+- 升级/兼容回滚的 Web→Host 响应等待已改为按原授权截止的有界预算，普通请求和过期重放仍保留原 10 秒边界；这只修复传输等待，不改变升级事实或重试语义。
+
+### 设计/协议仍明确未完成
+
+- 当前未决升级没有原升级前可信源基线。普通 `AbortBeforeSwitch` 不能套用；
+  `docs/architecture/proposals/installed-pre-dispatch-abort-review.md` 仍是待确认的窄范围协议，尚未改 canonical/PRD、尚未实现，也没有本机裁决。
+- `ContentRef`/`SecretRef` 作为受管 worker 输入、真实生产 PTY，以及截图之外的完整二进制输入/消费者仍是独立义务，不能由已有结果链或普通 stdio 测试替代。
+- Linux/macOS 的原生服务、权限与发布边界仍按已批准的有限策略保持未发布，不以 WSL、Docker、交叉编译或普通进程证据代替。
+
+### 必须用当前签名候选和真实环境取证的项目
+
+- 当前运行中的旧 release 尚未替换为本工作树候选；因此真实 SCM/service identity、AppContainer、UAC、worker binding、桌面会话/helper、插件/渠道启用和截图端到端仍未取得新的安装回执。
+- IP01–IP24 仍不能整体提升：IP02、IP09、IP16、IP24 尚未运行，其余项目只有部分证据或组件证据，不能记为 PASS。真实 provider、第三方渠道、跨设备 TLS、浏览器联合流、升级/回滚、备份恢复和卸载仍需当前候选逐项取证。
+- 当前旧 operation 仍为 `Validated / pending Quiescing`，active release 未变化；未取得新的 dispatch claim 或 updater 原生副作用证据，因而不重发 Upgrade、Recovery 或服务动作。
+
+本节是当前水位记录，不把源码/组件门或页面可达性提升为产品验收；只有对应原生回执、浏览器证据和反向断言齐全后，才可核销上述项目。
+
+本轮在完整 workspace 回归结束且没有进程占用固定 target 后，按 `tools/build_resources.py` 先预览再执行了一次有界清理：删除 Cargo dev 缓存 20,477 个文件、102.2 GiB，源码、研究目录、运行时证据、Git 状态和 `target/product-integration-evidence` 的前后摘要完全一致；清理后固定 target 为 0 bytes，系统可用空间约 202.0 GiB。报告见 `target/product-integration-evidence/build-resources-clean-20261114-final2.json` 和 `build-resources-report-20261114-post-clean.json`。
+
+## 2026-11-14 升级超时修复与当前恢复边界
+
+管理员只读检查确认 updater 恢复策略正确；撤回前一天依据 `sc.exe qfailure` 显示为空作出的错误诊断。当前三服务自 11 月 12 日持续运行，updater 停止且本次开机未启动（1077），没有本次 operation 的 dispatch claim。原升级仍为 revision 104 / Validated / pending Quiescing；源基线缺失仍是源码与回执推断，活动原 journal 尚未独占检查。
+
+已复现慢预检在旧 Web→Host 10 秒超时下返回 502，并修改升级/回滚的有界响应等待、HTTP 路由和连接上限及浏览器等待；不改原授权截止、操作号或重试规则。组件验证和原生边界见[本轮记录](installed-release-timeout-20261114.md)。当前安装仍运行旧版；没有恢复裁决、重新升级或 IP14/IP24 新 PASS。
+
+由于普通 `AbortBeforeSwitch` 的源基线要求仍未满足，当前现场不能直接裁决。针对“尚未进入 updater 原生副作用”的最窄终止边界已形成[待确认提案](../architecture/proposals/installed-pre-dispatch-abort-review.md)，尚未改协议或实施。
+
 ## 2026-11-13 当前安装与 Web 工作台只读联合检查
+
+后续已发生当前候选的暂存及升级尝试，现场不再是下段的纯只读 Ready 快照：当前 product revision 104，`maintenance:upgrade-current-20261113-fa24bee` 为 Validated / pending Quiescing，active release 仍为旧版。原测试账号已成功登录并在仓库外加密保存；普通恢复候选读取被拒绝，当天限定管理员脚本的 UAC 启动被取消，尚未停 Brain 或提交裁决。11 月 14 日确认无需修正策略，原脚本失效。源基线前置条件和原操作证据见[当前升级恢复记录](installed-upgrade-recovery-status-20261113.md)。
 
 当前本机的 `forme-host`、`forme-brain`、`forme-web` 已由真实 SCM 以 `LocalSystem`/服务 SID 运行，认证后的产品状态、维护、配置和运行时清单接口均返回 200；Ego Lite 登录后的“设置与维护”页显示“主脑已连接”。运行时仍明确显示 `notification-backend` 因缺少 managed worker binding 而阻断，MCP、插件、browser、computer、PTY 等消费者未配置或未启用。现场仍运行 `forme-windows-x86_64-20261109-36f8662-dev`，不是当前 `shu/product-integration@b1d7305` 的部署，因此本轮只记录实时只读证据，不提升 IP01–IP24、Final 或安装联合验收。详见[当前安装与 Web 工作台只读联合检查](installed-current-readonly-browser-acceptance-20261113.md)。
 
