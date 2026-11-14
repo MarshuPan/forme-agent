@@ -2,6 +2,19 @@
 
 本清单的原始审计以 `shu/closure-inventory@6899f56` 和当时真实安装状态区分实现、源码回归、安装验收。本轮完整源码 Final 已取得 exit 0，详见[核心终验记录](core-brain-closure-acceptance-report.md#7-纠正-scope-与闭合清单后的完整源码终验2026-11-09)。本审计不是安装或发布声明，不把局部成功提升成整个场景 PASS。原始范围保持为 requirements/17 P01–P16、requirements/18 IP01–IP24、PRD23 C1–C24 与历史 S1–S99，以及工程维护规则。
 
+## 2026-11-14 当前水位补充
+
+本补充把后续实现和现场状态重新绑定到本审计，历史章节仍保留原时点证据：
+
+- 受管 worker、工具快照、MCP/插件/渠道组件、桌面授权、截图结果链和认证 Web 工件读取均已有源码/组件级实现；这些组件仍不等于当前安装包的 IP 通过。
+- 升级/兼容回滚响应等待已在 `76feaeb` 固化为按原授权截止的有界等待，前端静态资源和 Rust/TypeScript 回归均通过。该修复不改变 operation、journal、dispatch 或重试事实。
+- 当前未决升级仍为 `Validated / pending Quiescing`，active release 未变；没有新的 dispatch claim 或 updater 原生副作用证据，因此未重发 Upgrade/Recovery，也没有把现场提升为 IP14/IP24。
+- 本轮完整 workspace 测试实际为 1,606 passed / 38 ignored，前端 verify 为 141 passed，格式、代码质量、严格合规均通过。随后在没有 target 占用且证据已保存时，使用 `tools/build_resources.py` 清理了 20,477 个 Cargo dev 文件、102.2 GiB；源码、证据和 Git 状态前后摘要一致。
+
+当前仍未完成的不是一个可由单元测试补齐的单点 TODO，而是：当前签名候选的真实 SCM/UAC/AppContainer/worker binding 安装回执；桌面登录会话 helper 的端到端取证；真实 provider、第三方渠道、LAN/TLS、浏览器联合流、备份恢复、升级/回滚与卸载；`ContentRef`/`SecretRef` 输入、真实生产 PTY；以及 IP01–IP24 的逐项当前候选证据。IP02、IP09、IP16、IP24 仍未运行，其余项目仍为部分证据或不可验证。
+
+针对本 operation 缺少升级前可信源基线的窄范围 `PreDispatchAbort` 仍只是待确认提案，尚未修改冻结协议或实施本机裁决；不能用“服务仍在运行”或“尚未观察到 claim”补造基线。
+
 后续实施状态：owner 已明确批准受管 MCP/插件/渠道、桌面授权与截图输出三项协议并要求实施，同范围不再等待确认。安装恢复和签名升级已推进到 `36f8662-dev`，详见[现场启动修复](installed-startup-reconciliation-20261109.md)；受管配置和桌面授权分别见[设置组件](installed-managed-settings-20261109.md)与[授权组件](installed-desktop-authority-20261109.md)。下列原始窗口与 Final 回执保留其历史源码绑定，不代表这些后续实现或整组 IP 已通过。
 
 ## 1. 已有证据及正在执行的原号
