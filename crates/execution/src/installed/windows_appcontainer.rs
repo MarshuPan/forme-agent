@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::{pipe, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -19,6 +20,7 @@ use super::windows_appcontainer_support::environment_block;
 use super::windows_appcontainer_support::WorkerEnvironment;
 use super::windows_appcontainer_support::{job_object_name, profile_name_for, recovery_timestamp};
 use super::windows_workspace_overlay::PreparedOverlay;
+use super::worker_input::{encode_input_frame, WorkerInputMaterial};
 use super::{reject_linked_ancestors, WorkerIsolation};
 
 #[path = "windows_appcontainer_recovery.rs"]
@@ -150,6 +152,7 @@ impl WindowsAppContainerWorkerIsolation {
         job: &p::WorkerJob,
         permit: &p::WorkerPermit,
         execution: Option<&p::WorkerExecutionSpec>,
+        inputs: &[WorkerInputMaterial],
         now: p::Timestamp,
     ) -> p::Result<RunningWorker> {
         let spec = self.launches.get(&job.sandbox_profile_ref)?.clone();
@@ -240,8 +243,56 @@ impl WindowsAppContainerWorkerIsolation {
                 SandboxTargetAccess::RegisteredProgramReadExecute,
                 profile,
             )?;
+            if job.sandbox_profile_ref == p::INSTALLED_PTY_PROFILE {
+                let pty_program = execution
+                    .and_then(|execution| match &execution.intent.parameters {
+                        p::ActionParameters::Pty(spec) => Some(PathBuf::from(&spec.program)),
+                        _ => None,
+                    })
+                    .ok_or_else(|| {
+                        p::Error("installed PTY profile requires PTY execution".into())
+                    })?;
+                let pty_program = fs::canonicalize(&pty_program)
+                    .map_err(|_| p::Error("installed PTY program cannot be resolved".into()))?;
+                let allowed = spec.args.windows(2).any(|args| {
+                    args[0] == "--allowed-program" && Path::new(&args[1]) == pty_program
+                });
+                if !allowed {
+                    return Err(p::Error(
+                        "installed PTY program is absent from the fixed profile allowlist".into(),
+                    ));
+                }
+                self.grant(
+                    &lease_id,
+                    &pty_program,
+                    SandboxTargetAccess::RegisteredProgramReadExecute,
+                    profile,
+                )?;
+            }
 
             resources.create_job(&job_object_name(&profile_name)?)?;
+            let input_frame = (!inputs.is_empty()
+                || job.sandbox_profile_ref == p::INSTALLED_PTY_PROFILE)
+                .then(|| encode_input_frame(inputs))
+                .transpose()?;
+            let mut input_writer = None;
+            let mut input_reader = None;
+            let mut output_reader = None;
+            let mut error_reader = None;
+            let mut stdio = None;
+            if input_frame.is_some() {
+                let (reader, writer) = pipe()
+                    .map_err(|_| p::Error("worker input pipe could not be created".into()))?;
+                let (out_reader, out_writer) = pipe()
+                    .map_err(|_| p::Error("worker stdout pipe could not be created".into()))?;
+                let (err_reader, err_writer) = pipe()
+                    .map_err(|_| p::Error("worker stderr pipe could not be created".into()))?;
+                stdio = Some(native::stdio_handles(&reader, &out_writer, &err_writer)?);
+                input_reader = Some(reader);
+                input_writer = Some(writer);
+                output_reader = Some(out_reader);
+                error_reader = Some(err_reader);
+            }
             resources.launch(native::LaunchRequest {
                 spec: &spec,
                 workspace: &workspace,
@@ -254,11 +305,26 @@ impl WindowsAppContainerWorkerIsolation {
                     workspace_scope: &job.workspace_scope.0,
                     deadline: job.deadline,
                 }),
+                stdio: stdio.as_ref(),
                 #[cfg(test)]
                 pty_mechanism_probe: false,
             })?;
+            drop(stdio);
+            drop(output_reader);
+            drop(error_reader);
             results::begin_handoff(&run_dir, job)?;
             resources.verify_resume()?;
+            if let Some(frame) = input_frame {
+                let writer = input_writer
+                    .as_mut()
+                    .ok_or_else(|| p::Error("worker input writer is unavailable".into()))?;
+                writer
+                    .write_all(&frame)
+                    .and_then(|()| writer.flush())
+                    .map_err(|_| p::Error("worker input delivery failed".into()))?;
+            }
+            drop(input_writer);
+            drop(input_reader);
             let native = resources.finish()?;
             Ok(RunningWorker {
                 native,
@@ -366,7 +432,39 @@ impl WorkerIsolation for WindowsAppContainerWorkerIsolation {
         if children.contains_key(&job.job_id) {
             return Err(p::Error("worker process is already admitted".into()));
         }
-        let worker = self.spawn_worker(job, permit, execution, now)?;
+        let worker = self.spawn_worker(job, permit, execution, &[], now)?;
+        children.insert(job.job_id.clone(), worker);
+        Ok(())
+    }
+
+    fn admit_with_input(
+        &self,
+        job: &p::WorkerJob,
+        permit: &p::WorkerPermit,
+        execution: Option<&p::WorkerExecutionSpec>,
+        inputs: &[WorkerInputMaterial],
+        now: p::Timestamp,
+    ) -> p::Result<()> {
+        let mut children = self
+            .children
+            .lock()
+            .map_err(|_| p::Error("worker process registry is unavailable".into()))?;
+        if self.recovery_required.load(Ordering::SeqCst)
+            || self.journal.pending_cleanup()?.iter().any(|lease| {
+                !children
+                    .values()
+                    .any(|worker| worker.lease_id == lease.lease_id)
+            })
+        {
+            self.recovery_required.store(true, Ordering::SeqCst);
+            return Err(p::Error(
+                "sandbox lease recovery is required; worker admission is blocked".into(),
+            ));
+        }
+        if children.contains_key(&job.job_id) {
+            return Err(p::Error("worker process is already admitted".into()));
+        }
+        let worker = self.spawn_worker(job, permit, execution, inputs, now)?;
         children.insert(job.job_id.clone(), worker);
         Ok(())
     }

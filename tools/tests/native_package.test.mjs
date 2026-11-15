@@ -37,7 +37,7 @@ async function fixture(t, target = 'windows-x86_64') {
   const project = join(scratch, 'project'), binaries = join(project, 'target/release');
   const web = join(project, 'crates/gateway/assets/product/dist');
   await mkdir(binaries, { recursive: true }); await mkdir(web, { recursive: true });
-  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord', 'forme-file-worker']) await writeFile(join(binaries, name + (target.startsWith('windows') ? '.exe' : '')), binary(target));
+  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord', 'forme-file-worker', 'forme-pty-worker']) await writeFile(join(binaries, name + (target.startsWith('windows') ? '.exe' : '')), binary(target));
   const files = [];
   for (const path of ['index.html', 'LICENSES.txt', 'dependencies.json']) {
     const bytes = Buffer.from(`original package fixture ${path}`);

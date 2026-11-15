@@ -466,6 +466,7 @@ fn experiment(tree: bool, allow_terminal: bool, io_case: Option<io_cases::Case>)
                         + 10_000,
                 },
             ),
+            stdio: None,
             pty_mechanism_probe: allow_terminal,
         })?;
         run_probe(

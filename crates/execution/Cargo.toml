@@ -88,6 +88,10 @@ path = "tests/fixtures/worker_fixture.rs"
 test = false
 bench = false
 
+[[bin]]
+name = "forme-pty-worker"
+path = "src/bin/forme-pty-worker.rs"
+
 [dev-dependencies]
 rcgen = "=0.14.8"
 

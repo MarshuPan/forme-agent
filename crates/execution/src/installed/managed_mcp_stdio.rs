@@ -166,6 +166,7 @@ impl ManagedMcpIsolation {
             spec: &spec,
             workspace: &workspace,
             input: native::LaunchInput::ManagedMcp(&pipes),
+            stdio: None,
             #[cfg(test)]
             pty_mechanism_probe: false,
         })?;

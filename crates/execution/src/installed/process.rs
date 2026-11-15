@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -59,6 +59,30 @@ impl WorkerLaunchSpec {
                 || arg.chars().any(char::is_control)
         }) {
             return Err(p::Error("worker launch argument is invalid".into()));
+        }
+        if self.sandbox_profile_ref == p::INSTALLED_PTY_PROFILE {
+            let runner_name = self.program.file_stem().and_then(|name| name.to_str());
+            if runner_name != Some("forme-pty-worker") {
+                return Err(p::Error(
+                    "installed PTY profile must use the fixed PTY runner".into(),
+                ));
+            }
+            if self.args.is_empty() || self.args.len() % 2 != 0 {
+                return Err(p::Error(
+                    "installed PTY profile allowlist arguments are invalid".into(),
+                ));
+            }
+            let mut allowlisted = BTreeSet::new();
+            for pair in self.args.chunks_exact(2) {
+                if pair[0] != "--allowed-program"
+                    || !Path::new(&pair[1]).is_absolute()
+                    || !allowlisted.insert(pair[1].clone())
+                {
+                    return Err(p::Error(
+                        "installed PTY profile allowlist is not fixed".into(),
+                    ));
+                }
+            }
         }
         validate_program(&self.program)
     }
@@ -183,14 +207,15 @@ impl ProcessWorkerIsolation {
         execution: Option<&p::WorkerExecutionSpec>,
         inputs: &[WorkerInputMaterial],
     ) -> p::Result<Child> {
-        let input_frame = (!inputs.is_empty())
-            .then(|| encode_input_frame(inputs))
-            .transpose()?;
         let spec = self.launches.get(&job.sandbox_profile_ref)?;
         spec.validate()?;
         if spec.sandbox_profile_ref != permit.sandbox_profile_ref {
             return Err(p::Error("worker launch profile is not permit-bound".into()));
         }
+        let input_frame = (!inputs.is_empty()
+            || spec.sandbox_profile_ref == p::INSTALLED_PTY_PROFILE)
+            .then(|| encode_input_frame(inputs))
+            .transpose()?;
         let workspace = self.workspace(&job.workspace_scope)?;
         reject_linked_ancestors(workspace)?;
         if !fs::symlink_metadata(workspace)
@@ -516,4 +541,53 @@ pub(crate) fn write_private_json<T: Serialize>(path: &Path, value: &T) -> p::Res
         .map_err(|_| p::Error("worker launch payload cannot be written".into()))?;
     file.sync_all()
         .map_err(|_| p::Error("worker launch payload cannot be synchronized".into()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn runner_path() -> (tempfile::TempDir, PathBuf) {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join(if cfg!(windows) {
+            "forme-pty-worker.exe"
+        } else {
+            "forme-pty-worker"
+        });
+        fs::copy(std::env::current_exe().unwrap(), &path).unwrap();
+        (root, path)
+    }
+
+    #[test]
+    fn installed_pty_profile_requires_fixed_runner_and_allowlist_pairs() {
+        let (_root, program) = runner_path();
+        let allowed = if cfg!(windows) {
+            "C:\\Windows\\System32\\notepad.exe"
+        } else {
+            "/usr/bin/python3"
+        };
+        let spec = WorkerLaunchSpec::new(
+            p::INSTALLED_PTY_PROFILE,
+            program.clone(),
+            vec!["--allowed-program".into(), allowed.into()],
+        );
+        assert!(spec.is_ok());
+        assert!(WorkerLaunchSpec::new(
+            p::INSTALLED_PTY_PROFILE,
+            program.clone(),
+            vec!["--allowed-program".into()],
+        )
+        .is_err());
+        assert!(WorkerLaunchSpec::new(
+            p::INSTALLED_PTY_PROFILE,
+            program,
+            vec![
+                "--allowed-program".into(),
+                allowed.into(),
+                "--allowed-program".into(),
+                allowed.into(),
+            ],
+        )
+        .is_err());
+    }
 }

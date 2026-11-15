@@ -4,8 +4,8 @@
 //! rejects every grant, so a service cannot accidentally turn a typed grant
 //! into an ambient credential or a file-backed secret.
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, RwLock};
 
 use forme_protocol as p;
 use zeroize::Zeroizing;
@@ -88,7 +88,7 @@ impl WorkerSecretSlot {
 pub struct ManagedWorkerInputResolver {
     contents: Arc<dyn ContentResolver>,
     secrets: Arc<dyn SecretResolver>,
-    slots: BTreeMap<String, WorkerSecretSlot>,
+    slots: RwLock<BTreeMap<String, WorkerSecretSlot>>,
 }
 
 impl ManagedWorkerInputResolver {
@@ -107,8 +107,31 @@ impl ManagedWorkerInputResolver {
         Ok(Self {
             contents,
             secrets,
-            slots: registered,
+            slots: RwLock::new(registered),
         })
+    }
+
+    /// Revoke an executor-local slot before any subsequent worker admission.
+    /// Existing material is held only by the short-lived material object and
+    /// is zeroized when that object is dropped.
+    pub fn revoke_slot(&self, slot_ref: &str) -> p::Result<()> {
+        let mut slots = self
+            .slots
+            .write()
+            .map_err(|_| p::Error("worker secret slot registry is unavailable".into()))?;
+        if slots.remove(slot_ref).is_none() {
+            return Err(p::Error("worker secret slot is not registered".into()));
+        }
+        Ok(())
+    }
+
+    /// Revoke every slot during logout, release replacement, or cleanup.
+    pub fn revoke_all(&self) -> p::Result<()> {
+        self.slots
+            .write()
+            .map_err(|_| p::Error("worker secret slot registry is unavailable".into()))?
+            .clear();
+        Ok(())
     }
 }
 
@@ -129,8 +152,11 @@ impl WorkerInputResolver for ManagedWorkerInputResolver {
                     .secret_slot_ref
                     .as_ref()
                     .ok_or_else(|| p::Error("secret input slot is missing".into()))?;
-                let slot = self
+                let slots = self
                     .slots
+                    .read()
+                    .map_err(|_| p::Error("worker secret slot registry is unavailable".into()))?;
+                let slot = slots
                     .get(slot_ref)
                     .ok_or_else(|| p::Error("worker secret slot is not registered".into()))?;
                 if slot.owner_ref != job.owner_ref
@@ -162,6 +188,7 @@ impl WorkerInputResolver for ManagedWorkerInputResolver {
         if grant.input_kind != p::WorkerInputKind::Content
             || grant.job_id != job.job_id
             || grant.owner_ref != job.owner_ref
+            || grant.action_ref != job.action_ref
             || grant.plan_digest != job.plan_digest
             || grant.permit_digest != p::canonical_digest(permit)?
             || grant.authority_epoch != job.authority_epoch
@@ -275,6 +302,133 @@ pub(crate) fn encode_input_frame(materials: &[WorkerInputMaterial]) -> p::Result
     Ok(frame)
 }
 
+/// Decode the closed stdin envelope inside an installed worker. The parser
+/// exposes only the already-authorized path label and bytes; grant/slot
+/// identifiers are intentionally discarded at this boundary.
+#[derive(Debug)]
+pub struct WorkerInputFrame {
+    pub input_path: String,
+    pub secret: bool,
+    pub bytes: Zeroizing<Vec<u8>>,
+}
+
+pub fn decode_worker_input_frame(frame: &[u8]) -> p::Result<Vec<WorkerInputFrame>> {
+    if frame.len() > (p::WORKER_INPUT_MAX_TOTAL_BYTES as usize + 64 * 1024)
+        || !frame.starts_with(INPUT_FRAME_MAGIC)
+    {
+        return Err(p::Error("worker input frame is invalid".into()));
+    }
+    let mut cursor = INPUT_FRAME_MAGIC.len();
+    let count = read_u32(frame, &mut cursor)? as usize;
+    if count > p::WORKER_INPUT_MAX_GRANTS {
+        return Err(p::Error("worker input frame has too many grants".into()));
+    }
+    let mut total = 0_u64;
+    let mut decoded = Vec::with_capacity(count);
+    let mut paths = BTreeSet::new();
+    for _ in 0..count {
+        let grant_len = read_u16(frame, &mut cursor)? as usize;
+        let path_len = read_u16(frame, &mut cursor)? as usize;
+        let secret = match *frame
+            .get(cursor)
+            .ok_or_else(|| p::Error("worker input frame is truncated".into()))?
+        {
+            0 => false,
+            1 => true,
+            _ => {
+                return Err(p::Error(
+                    "worker input frame secret marker is invalid".into(),
+                ))
+            }
+        };
+        cursor += 1;
+        let bytes = read_u64(frame, &mut cursor)? as usize;
+        if grant_len == 0 {
+            return Err(p::Error("worker input grant reference is missing".into()));
+        }
+        let _grant = read_slice(frame, &mut cursor, grant_len)?;
+        let path = std::str::from_utf8(read_slice(frame, &mut cursor, path_len)?)
+            .map_err(|_| p::Error("worker input path is not UTF-8".into()))?;
+        if !is_closed_input_path(path) {
+            return Err(p::Error("worker input path is invalid".into()));
+        }
+        let path = path.to_owned();
+        if !paths.insert(path.clone()) {
+            return Err(p::Error("worker input path is duplicated".into()));
+        }
+        total = total
+            .checked_add(bytes as u64)
+            .filter(|size| *size <= p::WORKER_INPUT_MAX_TOTAL_BYTES)
+            .ok_or_else(|| p::Error("worker input frame exceeds its byte budget".into()))?;
+        let payload = read_slice(frame, &mut cursor, bytes)?.to_vec();
+        decoded.push(WorkerInputFrame {
+            input_path: path,
+            secret,
+            bytes: Zeroizing::new(payload),
+        });
+    }
+    if cursor != frame.len() {
+        return Err(p::Error("worker input frame has trailing bytes".into()));
+    }
+    Ok(decoded)
+}
+
+fn is_closed_input_path(path: &str) -> bool {
+    if path.len() > 128 || path.chars().any(char::is_control) {
+        return false;
+    }
+    matches!(
+        path,
+        "browser.type" | "computer.type" | "pty.stdin" | "app_api.body" | "notification.body"
+    ) || path
+        .strip_prefix("pty.environment/")
+        .is_some_and(valid_environment_name)
+}
+
+fn valid_environment_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name.bytes().enumerate().all(|(index, byte)| {
+            (index == 0 && byte.is_ascii_alphabetic())
+                || (index > 0 && (byte.is_ascii_alphanumeric() || byte == b'_'))
+        })
+}
+
+fn read_slice<'a>(frame: &'a [u8], cursor: &mut usize, len: usize) -> p::Result<&'a [u8]> {
+    let end = cursor
+        .checked_add(len)
+        .ok_or_else(|| p::Error("worker input frame length overflowed".into()))?;
+    let slice = frame
+        .get(*cursor..end)
+        .ok_or_else(|| p::Error("worker input frame is truncated".into()))?;
+    *cursor = end;
+    Ok(slice)
+}
+
+fn read_u16(frame: &[u8], cursor: &mut usize) -> p::Result<u16> {
+    Ok(u16::from_le_bytes(
+        read_slice(frame, cursor, 2)?
+            .try_into()
+            .map_err(|_| p::Error("worker input frame is truncated".into()))?,
+    ))
+}
+
+fn read_u32(frame: &[u8], cursor: &mut usize) -> p::Result<u32> {
+    Ok(u32::from_le_bytes(
+        read_slice(frame, cursor, 4)?
+            .try_into()
+            .map_err(|_| p::Error("worker input frame is truncated".into()))?,
+    ))
+}
+
+fn read_u64(frame: &[u8], cursor: &mut usize) -> p::Result<u64> {
+    Ok(u64::from_le_bytes(
+        read_slice(frame, cursor, 8)?
+            .try_into()
+            .map_err(|_| p::Error("worker input frame is truncated".into()))?,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,5 +451,68 @@ mod tests {
             vec![b'x'; (p::WORKER_INPUT_MAX_TOTAL_BYTES + 1) as usize],
         );
         assert!(encode_input_frame(&[too_large]).is_err());
+    }
+
+    #[test]
+    fn secret_slots_revoke_before_future_resolution() {
+        let slot = WorkerSecretSlot {
+            slot_ref: "secret-slot:test".into(),
+            secret_ref: p::SecretRef("secret:test".into()),
+            owner_ref: p::VerifiedPrincipal("owner:test".into()),
+            workspace_scope: p::Scope("workspace:test".into()),
+            input_path: "pty.environment/TOKEN".into(),
+            expires_at: 100,
+        };
+        let resolver = ManagedWorkerInputResolver::new(
+            Arc::new(crate::InMemoryContentResolver::default()),
+            Arc::new(crate::RejectingSecretResolver),
+            [slot],
+        )
+        .unwrap();
+        resolver.revoke_slot("secret-slot:test").unwrap();
+        assert!(resolver.revoke_slot("secret-slot:test").is_err());
+        resolver.revoke_all().unwrap();
+    }
+
+    #[test]
+    fn input_frame_decoder_rejects_trailing_or_oversized_data() {
+        let material = WorkerInputMaterial::content(
+            "worker-input-grant:test".into(),
+            "pty.stdin".into(),
+            b"hello".to_vec(),
+        );
+        let frame = encode_input_frame(&[material]).unwrap();
+        assert_eq!(
+            decode_worker_input_frame(&frame).unwrap()[0]
+                .bytes
+                .as_slice(),
+            b"hello"
+        );
+        let mut trailing = frame.clone();
+        trailing.push(0);
+        assert!(decode_worker_input_frame(&trailing).is_err());
+
+        let duplicate = encode_input_frame(&[
+            WorkerInputMaterial::content(
+                "worker-input-grant:a".into(),
+                "pty.stdin".into(),
+                b"a".to_vec(),
+            ),
+            WorkerInputMaterial::content(
+                "worker-input-grant:b".into(),
+                "pty.stdin".into(),
+                b"b".to_vec(),
+            ),
+        ])
+        .unwrap();
+        assert!(decode_worker_input_frame(&duplicate).is_err());
+
+        let invalid_path = encode_input_frame(&[WorkerInputMaterial::content(
+            "worker-input-grant:c".into(),
+            "pty.environment/1TOKEN".into(),
+            b"x".to_vec(),
+        )])
+        .unwrap();
+        assert!(decode_worker_input_frame(&invalid_path).is_err());
     }
 }

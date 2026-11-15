@@ -42,7 +42,11 @@ impl LaunchBuffers {
             command.push_str(&quote_windows_arg(arg));
         }
         let stdio = request.stdio().is_some();
-        if stdio != (request.spec.sandbox_profile_ref == p::MANAGED_MCP_PROGRAM_PROFILE) {
+        let profile_allows_stdio = matches!(
+            request.spec.sandbox_profile_ref.as_str(),
+            p::MANAGED_MCP_PROGRAM_PROFILE | p::INSTALLED_PTY_PROFILE
+        );
+        if stdio != profile_allows_stdio {
             return Err(p::Error("worker stdio mode is not profile-bound".into()));
         }
         #[cfg(test)]
@@ -79,6 +83,7 @@ pub(crate) struct LaunchRequest<'a> {
     pub(crate) spec: &'a WorkerLaunchSpec,
     pub(crate) workspace: &'a Path,
     pub(crate) input: LaunchInput<'a>,
+    pub(crate) stdio: Option<&'a NativeStdio>,
     #[cfg(test)]
     pub(crate) pty_mechanism_probe: bool,
 }
@@ -90,6 +95,9 @@ pub(crate) enum LaunchInput<'a> {
 }
 impl LaunchRequest<'_> {
     pub(super) fn stdio(&self) -> Option<&NativeStdio> {
+        if self.stdio.is_some() {
+            return self.stdio;
+        }
         match self.input {
             LaunchInput::Worker(_) => None,
             LaunchInput::ManagedMcp(pipes) => Some(pipes),

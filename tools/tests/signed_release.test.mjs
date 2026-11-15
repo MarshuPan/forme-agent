@@ -18,7 +18,7 @@ async function fixture(t) {
   await mkdir(bundle);
   const files = [];
   for (const path of ['bin/forme-hostd.exe', 'bin/forme-webd.exe', 'bin/forme-gatewayd.exe',
-    'bin/forme-cli.exe', 'bin/forme-hostctl.exe', 'bin/forme-executord.exe', 'bin/forme-file-worker.exe', 'share/forme/web/index.html',
+    'bin/forme-cli.exe', 'bin/forme-hostctl.exe', 'bin/forme-executord.exe', 'bin/forme-file-worker.exe', 'bin/forme-pty-worker.exe', 'share/forme/web/index.html',
     'share/forme/web/dependencies.json', 'NOTICE', 'LICENSE']) {
     const bytes = Buffer.from(`repository-owned signed fixture ${path}`);
     await mkdir(dirname(join(bundle, path)), { recursive: true });
@@ -51,7 +51,7 @@ test('signed release binds Rust field order, every binary, UI, target and explic
   assert.equal(signature.length, 64);
   assert.equal(manifest.target, 'windows_x86_64');
   assert.equal(manifest.ui_digest, hash(manifest.files.filter((file) => file.relative_path.startsWith('web/'))));
-  assert.equal(manifest.files.filter((file) => file.relative_path.startsWith('bin/')).length, 7);
+  assert.equal(manifest.files.filter((file) => file.relative_path.startsWith('bin/')).length, 8);
   for (const file of manifest.files) {
     assert.equal(file.digest, `sha256:${sha(await readFile(join(config.output, 'content', file.relative_path)))}`);
     assert(!file.relative_path.includes('signing.pem'));
@@ -70,7 +70,7 @@ test('the actual bundle output signs with its exact derived checksum index', asy
   const web = join(project, 'crates/gateway/assets/product/dist');
   await mkdir(binaries, { recursive: true });
   await mkdir(web, { recursive: true });
-  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord', 'forme-file-worker']) {
+  for (const name of ['forme-hostd', 'forme-webd', 'forme-gatewayd', 'forme-cli', 'forme-hostctl', 'forme-executord', 'forme-file-worker', 'forme-pty-worker']) {
     await writeFile(join(binaries, `${name}.exe`), `original chained fixture ${name}`);
   }
   const webFiles = [];

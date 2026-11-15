@@ -1,6 +1,5 @@
 #![cfg(windows)]
 #![allow(unsafe_code)]
-
 use std::ffi::c_void;
 use std::mem::{size_of, size_of_val};
 use std::os::windows::io::{FromRawHandle, OwnedHandle, RawHandle};
@@ -228,10 +227,11 @@ fn launch_suspended(
     attributes.set(PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, &capabilities)?;
     let job_list = [job];
     attributes.set(PROC_THREAD_ATTRIBUTE_JOB_LIST, &job_list)?;
-    // PROCESS_CREATION_CHILD_PROCESS_RESTRICTED. A file creator can choose its
-    // own DACL, so an inheritable execute-deny ACE alone is not an execution
-    // boundary for a writable copy. Block child creation in the OS instead.
-    let child_policy: u32 = 1;
+    let child_policy = if request.spec.sandbox_profile_ref == p::INSTALLED_PTY_PROFILE {
+        0
+    } else {
+        1
+    };
     #[cfg(test)]
     let child_policy = if request.pty_mechanism_probe {
         0

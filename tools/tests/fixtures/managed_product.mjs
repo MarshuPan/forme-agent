@@ -111,7 +111,7 @@ export async function createManagedProduct({ binaries = path.join(repo, 'target/
       // New installations validate the fixed file-worker image even in
       // foreground development mode. Supply the real current binary; this
       // fixture still does not claim a registered service or sandbox dispatch.
-      for (const name of ['forme-executord', 'forme-file-worker']) {
+      for (const name of ['forme-executord', 'forme-file-worker', 'forme-pty-worker']) {
         await fs.copyFile(executable(name), path.join(path.dirname(image), name + '.exe'));
       }
     }
