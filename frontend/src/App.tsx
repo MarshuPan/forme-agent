@@ -12,7 +12,13 @@ import { createAuthInvalidationSync } from './auth-sync.ts';
 import { createSessionVisibilityGuard } from './session-visibility.ts';
 import { CoreReadinessCancelled, waitForCoreReady } from './core-readiness.ts';
 
-const tabs = [ ['conversation', '对话'], ['workspace', '工作空间'], ['inbox', '收件箱'], ['cognition', '记忆与认知'], ['settings', '设置'] ] as const;
+const tabs = [
+  ['conversation', '工作台', '⌁', '把任务交给 forme，持续推进'],
+  ['workspace', '工作空间', '▦', '项目、目标与长期任务'],
+  ['inbox', '收件箱', '○', '审批、建议与需要你决定的事项'],
+  ['cognition', '记忆与认知', '◌', '查看 forme 如何理解你和正在形成的判断'],
+  ['settings', '设置', '⚙', '模型、渠道、能力与产品维护'],
+] as const;
 type Tab = typeof tabs[number][0];
 
 export function App() {
@@ -154,18 +160,29 @@ export function App() {
   function open(run: string) { if (!conversationPending) setSelected(run); setTab('conversation'); setMenu(false); }
   const serviceLabel = runtime ? '主脑已连接' : coreConnecting ? '主脑启动中' : productStatus ? productStatusLabel(productStatus) : '已登录 · 主脑离线';
 
-  return <><a href="#main-content" className="skip-link">跳到主要内容</a><header className="topbar"><a className="brand" href="/" aria-label="forme 首页">forme<span className="brand-dot">.</span></a>
-    <span className="service-state"><i data-ready={Boolean(runtime)} />{entry === 'ready' ? serviceLabel : entry === 'checking' ? '连接本机服务' : '个人 Agent 工作台'}</span>
-    {entry === 'ready' && <><button ref={mobileMenuButton} className="mobile-menu secondary-button" aria-expanded={menu} aria-controls="main-navigation" onClick={() => setMenu((v) => !v)}>{menu ? '关闭导航' : '导航'}</button><button className="text-button" disabled={loggingOut} onClick={() => void logout()}>退出登录</button></>}
+  return <><a href="#main-content" className="skip-link">跳到主要内容</a><header className="topbar">
+    <a className="brand" href="/" aria-label="forme 首页"><span className="brand-mark">f</span><span className="brand-word">forme</span></a>
+    <div className="topbar-context"><span className="context-label">当前工作区</span><strong>{runtime?.workspace ?? '本机工作区'}</strong></div>
+    <div className="topbar-actions">
+      <span className="service-state" title={serviceLabel}><i data-ready={Boolean(runtime)} />{entry === 'ready' ? serviceLabel : entry === 'checking' ? '连接本机服务' : '持续任务工作台'}</span>
+      {entry === 'ready' && <><span className="command-hint" aria-hidden="true">⌘ K</span><button ref={mobileMenuButton} className="mobile-menu icon-button" aria-expanded={menu} aria-controls="main-navigation" aria-label={menu ? '关闭导航' : '打开导航'} onClick={() => setMenu((v) => !v)}>{menu ? '×' : '☰'}</button><button className="account-button" disabled={loggingOut} onClick={() => void logout()}><span className="avatar">{session?.login_name.slice(0, 1).toUpperCase() ?? 'F'}</span><span className="account-name">{session?.login_name}</span><span aria-hidden="true">⌄</span></button></>}
+    </div>
   </header>
     {['unclaimed', 'login'].includes(entry) && <Entry key={entry} api={api} unclaimed={entry === 'unclaimed'} authenticated={authenticated} />}
     {entry === 'checking' && <main id="main-content" className="entry-status" role="status">正在确认本机服务与登录状态…</main>}
     {entry === 'unavailable' && <main id="main-content" className="entry-status"><h1>暂时无法连接</h1><p role="alert">{issue}</p><button className="primary-button" onClick={() => location.reload()}>重新检查</button></main>}
-    {entry === 'ready' && session && <div className="app-shell"><aside className={`sidebar ${menu ? 'is-open' : ''}`} id="main-navigation"><p className="sidebar-owner">{session.login_name}<span>SuperAdmin · 你的工作台</span></p>
-      <nav aria-label="主导航">{tabs.map(([key, label], index) => <button key={key} ref={index === 0 ? firstMobileNavItem : undefined} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); if (key === 'conversation') setWorkspaceRevision((value) => value + 1); setMenu(false); }}>{label}<span aria-hidden="true">↗</span></button>)}</nav>
-      <p className="section-label">最近运行</p><div className="recent-runs">{runs.slice(-12).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small>{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">还没有运行记录</p>}</div>
-      <p className="sidebar-footnote">一个主脑，持续协同。</p>
+    {entry === 'ready' && session && <div className="app-shell"><aside className={`sidebar ${menu ? 'is-open' : ''}`} id="main-navigation">
+      <div className="sidebar-intro"><span className="sidebar-kicker">FOR ME / WORKBENCH</span><p>持续推进复杂任务</p></div>
+      <button className="new-task-button" onClick={() => { setTab('conversation'); setSelected(null); setWorkspaceRevision((value) => value + 1); setMenu(false); }}><span className="new-task-icon">＋</span><span>新任务</span><kbd>N</kbd></button>
+      <nav aria-label="主导航" className="nav-groups">
+        <div className="nav-group"><span className="nav-group-label">工作</span>{tabs.slice(0, 2).map(([key, label, icon, description], index) => <button key={key} title={description} ref={index === 0 ? firstMobileNavItem : undefined} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); if (key === 'conversation') setWorkspaceRevision((value) => value + 1); setMenu(false); }}><span className="nav-icon" aria-hidden="true">{icon}</span><span className="nav-label">{label}</span>{key === 'conversation' && runs.some((run) => !['Complete', 'Aborted', 'Failed'].includes(run.status)) && <span className="nav-badge">{runs.filter((run) => !['Complete', 'Aborted', 'Failed'].includes(run.status)).length}</span>}</button>)}</div>
+        <div className="nav-group"><span className="nav-group-label">理解</span>{tabs.slice(2, 4).map(([key, label, icon, description]) => <button key={key} title={description} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); setMenu(false); }}><span className="nav-icon" aria-hidden="true">{icon}</span><span className="nav-label">{label}</span>{key === 'inbox' && runs.some((run) => run.status === 'Waiting') && <span className="nav-badge">!</span>}</button>)}</div>
+        <div className="nav-group"><span className="nav-group-label">管理</span>{tabs.slice(4).map(([key, label, icon, description]) => <button key={key} title={description} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); setMenu(false); }}><span className="nav-icon" aria-hidden="true">{icon}</span><span className="nav-label">{label}</span></button>)}</div>
+      </nav>
+      <div className="recent-section"><div className="recent-heading"><span>最近任务</span><span className="count">{runs.length}</span></div><div className="recent-runs">{runs.slice(-8).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small><i className={`run-dot run-${run.status.toLowerCase()}`} />{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">从新任务开始</p>}</div></div>
+      <div className="sidebar-footer"><span className="service-state"><i data-ready={Boolean(runtime)} />{serviceLabel}</span><p className="sidebar-footnote">你的工作台持续在线</p></div>
     </aside><main id="main-content" className="main-content" tabIndex={-1} key={session.account_ref}>
+      <div className="main-statusbar"><div><span className="breadcrumb-root">forme</span><span className="breadcrumb-separator">/</span><span>{tabs.find(([key]) => key === tab)?.[1]}</span></div><div className="main-status-actions"><span className="secure-label"><span className="secure-dot" />已连接本机主脑</span></div></div>
       <div hidden={tab !== 'conversation'}><Conversation active={tab === 'conversation' && !loggingOut} api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} observed={observeRun} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
       <div hidden={tab !== 'workspace'}><WorkspaceView api={api} runtime={runtime} open={open} /></div>
       {tab === 'inbox' && <BrainInbox api={api} open={open} />}

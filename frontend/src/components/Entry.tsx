@@ -55,9 +55,10 @@ export function Entry({ api, unclaimed, authenticated }: Props) {
   }
 
   return <main className="entry" id="main-content">
-    <section className="entry-intro"><p className="eyebrow">你的个人 Agent</p>
-      <h1>让想法，<br />有个着落。</h1>
-      <p>一个持续了解你、协同工作、积累经验的主脑。</p>
+    <section className="entry-intro"><p className="eyebrow">FOR ME / WORKBENCH</p>
+      <h1>把复杂的事，<br /><span>持续推进下去。</span></h1>
+      <p>一个会记住上下文、理解你的工作方式，并能在后台持续执行任务的工作台。</p>
+      <div className="entry-principles"><span><b>01</b>主动思维</span><span><b>02</b>长期记忆</span><span><b>03</b>受控执行</span></div>
       <p className="entry-note">关闭这个页面，已授权的任务仍会继续。</p>
     </section>
     <section className="entry-panel" aria-labelledby="entry-title">
@@ -81,7 +82,7 @@ export function Entry({ api, unclaimed, authenticated }: Props) {
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary-button" disabled={busy || (proved && candidate?.status !== 'available')}>{busy ? '正在确认…' : unclaimed ? proved ? '完成认领' : '验证本机证明' : '登录'}</button>
       </form>
-      <p className="entry-footnote">登录即进入这台 forme 的 SuperAdmin 控制面，拥有产品设置、项目、维护与数据管理权限；Agent 的具体执行仍受既定治理约束。</p>
+      <p className="entry-footnote">登录即进入这台 forme 的完整控制面。工作台权限与 Agent 的执行治理分别受控。</p>
     </section>
   </main>;
 }

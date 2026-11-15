@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "source_digest": "209d067a5aa8871042199c7f156e4e5975083b057e5d7e04d5b271f48b0eaf68",
+  "source_digest": "f4591089ec581f7b3452c4da1ebcbddefa00c2e24e46132b4e052f25e9e73cf5",
   "sources": [
     {
       "path": "frontend/index.html",
-      "sha256": "ae14be7100606357245539722c0ed481514f7f58e72a65f49af8a965a1659d28"
+      "sha256": "c39d286e52ad15764455d9e671e22fd72579731d4612e4fe12025d743ad1756f"
     },
     {
       "path": "frontend/package-lock.json",
@@ -20,7 +20,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "2f945855fe345f819a0a0674bdcf8fd7bc70ed499cb7d6ff3079f5b0af86ac9b"
+      "sha256": "842980f3bb8310b2b817675f86ce5e882e14addd461efc2b6ca4258d7d58e703"
     },
     {
       "path": "frontend/src/api/client.ts",
@@ -92,7 +92,7 @@
     },
     {
       "path": "frontend/src/components/Entry.tsx",
-      "sha256": "d758c43d29d72ce24324356a5597325dbba3e92e9e379300749434b74859b6ab"
+      "sha256": "bd2c563d58d4b73ce39ca0881e81717322b47d79127a72deb74ff79af9e0959c"
     },
     {
       "path": "frontend/src/components/LegacyReleaseRecovery.tsx",
@@ -276,11 +276,11 @@
     },
     {
       "path": "frontend/src/styles.css",
-      "sha256": "ab68bb573cb95c6cc8098c0d2811d67fe6e0b44e9ce8066f2f497f54347e94d9"
+      "sha256": "3f489639c8fa3dabc240e3d5c71bf34f1dd6163f44e8f5c1bca613aa7d800cbf"
     },
     {
       "path": "frontend/src/styles/layout.css",
-      "sha256": "99e41ba31d06f7f8c486529913c7a1f23bbc1ae4f5ba05d35399073ff5512686"
+      "sha256": "778e771cec8a8badb033e5c7941100373b620856e45ab03903b273003570d3d8"
     },
     {
       "path": "frontend/src/tests/auth-sync.test.ts",
@@ -429,14 +429,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-By_MCe4J.css",
-      "sha256": "3eb32afdac22e48949d25f2dfaf21a35742f246ca5c1781526a1e6d13aefec5b",
-      "bytes": 15032
+      "path": "assets/index-BSP0IIwE.js",
+      "sha256": "7f8bccf5efc45d87b9ebd06d25be5f3c1a5fe51e2ab2802195458ffa12a42e52",
+      "bytes": 463053
     },
     {
-      "path": "assets/index-CP987fJZ.js",
-      "sha256": "ad2eabea74e420040fe36832d9234a5b73c1c6a3b549d9eacfcbcc7139a8874a",
-      "bytes": 459338
+      "path": "assets/index-DxqXkgwb.css",
+      "sha256": "7a59eed5a3aa8040e147014bca228b7bbfa67352ade00d9cc3c522a0a5586107",
+      "bytes": 21718
     },
     {
       "path": "dependencies.json",
@@ -450,8 +450,8 @@
     },
     {
       "path": "index.html",
-      "sha256": "3378ab1c3f5feb231d5b00450ae438e012d9e7cfda9b3d5999a83921b08a412b",
-      "bytes": 595
+      "sha256": "be38a074792a760e88f8011c7af20cbaa59f1bb51e6150041b1ce49c8d1a6110",
+      "bytes": 641
     },
     {
       "path": "LICENSES.txt",
