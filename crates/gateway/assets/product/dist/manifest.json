@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "f4591089ec581f7b3452c4da1ebcbddefa00c2e24e46132b4e052f25e9e73cf5",
+  "source_digest": "8e8a54a4cc1ae17993df87eef6c7d208cf024ba9aae4bd9331710f9ade0850ec",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,7 +20,7 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "842980f3bb8310b2b817675f86ce5e882e14addd461efc2b6ca4258d7d58e703"
+      "sha256": "3a5c35b0aeb1960d584fb41e906812023aabdd8dbc864b1ec9555d310df494b7"
     },
     {
       "path": "frontend/src/api/client.ts",
@@ -280,7 +280,7 @@
     },
     {
       "path": "frontend/src/styles/layout.css",
-      "sha256": "778e771cec8a8badb033e5c7941100373b620856e45ab03903b273003570d3d8"
+      "sha256": "cbf2079a7c8f6ce4500c66327b82cbe362284a59ed79a7112d32a80d220e3c83"
     },
     {
       "path": "frontend/src/tests/auth-sync.test.ts",
@@ -429,14 +429,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-BSP0IIwE.js",
-      "sha256": "7f8bccf5efc45d87b9ebd06d25be5f3c1a5fe51e2ab2802195458ffa12a42e52",
-      "bytes": 463053
+      "path": "assets/index-ORltAokh.css",
+      "sha256": "30991cf81b19729b10526a89d210f7c4113f9cf7ff32f8be42f474e9afd0d369",
+      "bytes": 21438
     },
     {
-      "path": "assets/index-DxqXkgwb.css",
-      "sha256": "7a59eed5a3aa8040e147014bca228b7bbfa67352ade00d9cc3c522a0a5586107",
-      "bytes": 21718
+      "path": "assets/index-xctu3rwi.js",
+      "sha256": "49b0c8cb85f81ac20f26dc378cf11e6d0c160c1d464d0c4bcbf8427a97ae0d52",
+      "bytes": 462963
     },
     {
       "path": "dependencies.json",
@@ -450,7 +450,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "be38a074792a760e88f8011c7af20cbaa59f1bb51e6150041b1ce49c8d1a6110",
+      "sha256": "a94e835d63d17f6991bd3587dbdd1ffcc680f25c316875a6c29da13037e1a296",
       "bytes": 641
     },
     {

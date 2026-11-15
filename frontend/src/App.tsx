@@ -165,7 +165,7 @@ export function App() {
     <div className="topbar-context"><span className="context-label">当前工作区</span><strong>{runtime?.workspace ?? '本机工作区'}</strong></div>
     <div className="topbar-actions">
       <span className="service-state" title={serviceLabel}><i data-ready={Boolean(runtime)} />{entry === 'ready' ? serviceLabel : entry === 'checking' ? '连接本机服务' : '持续任务工作台'}</span>
-      {entry === 'ready' && <><span className="command-hint" aria-hidden="true">⌘ K</span><button ref={mobileMenuButton} className="mobile-menu icon-button" aria-expanded={menu} aria-controls="main-navigation" aria-label={menu ? '关闭导航' : '打开导航'} onClick={() => setMenu((v) => !v)}>{menu ? '×' : '☰'}</button><button className="account-button" disabled={loggingOut} onClick={() => void logout()}><span className="avatar">{session?.login_name.slice(0, 1).toUpperCase() ?? 'F'}</span><span className="account-name">{session?.login_name}</span><span aria-hidden="true">⌄</span></button></>}
+      {entry === 'ready' && <><button ref={mobileMenuButton} className="mobile-menu icon-button" aria-expanded={menu} aria-controls="main-navigation" aria-label={menu ? '关闭导航' : '打开导航'} onClick={() => setMenu((v) => !v)}>{menu ? '×' : '☰'}</button><button className="account-button" aria-label="退出登录" title="退出登录" disabled={loggingOut} onClick={() => void logout()}><span className="avatar">{session?.login_name.slice(0, 1).toUpperCase() ?? 'F'}</span><span className="account-name">{session?.login_name}</span></button></>}
     </div>
   </header>
     {['unclaimed', 'login'].includes(entry) && <Entry key={entry} api={api} unclaimed={entry === 'unclaimed'} authenticated={authenticated} />}

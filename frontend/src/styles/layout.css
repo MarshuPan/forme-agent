@@ -22,10 +22,8 @@
 .service-state { display: inline-flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .72rem; white-space: nowrap; }
 .service-state i { display: inline-block; width: .43rem; height: .43rem; border-radius: 50%; background: var(--quiet); box-shadow: 0 0 0 3px #686e7817; }
 .service-state i[data-ready='true'] { background: var(--success); box-shadow: 0 0 0 3px #8bd3a914; }
-.command-hint { padding: .28rem .48rem; border: 1px solid var(--line); border-radius: .32rem; color: var(--quiet); font: .68rem/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .account-button { display: inline-flex; align-items: center; gap: .45rem; border: 1px solid var(--line); border-radius: .45rem; padding: .28rem .45rem .28rem .3rem; background: var(--surface-raised); color: var(--text); font-size: .75rem; }
 .account-button:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-hover); }
-.account-button > span:last-child { color: var(--muted); font-size: .85rem; }
 .account-name { max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .avatar { display: grid; place-items: center; width: 1.65rem; height: 1.65rem; border-radius: .35rem; color: #17191c; background: #dfe2e7; font-size: .72rem; font-weight: 700; }
 .mobile-menu { display: none; }
@@ -122,7 +120,7 @@
   .brand-word { display: none; }
   .topbar-actions { gap: .4rem; }
   .service-state { max-width: 7rem; overflow: hidden; text-overflow: ellipsis; }
-  .command-hint, .account-name, .account-button > span:last-child { display: none; }
+  .account-name { display: none; }
   .mobile-menu { display: inline-grid; }
   .app-shell { display: block; }
   .sidebar { display: none; position: fixed; z-index: 9; top: 4rem; left: 0; width: min(86vw, 300px); height: calc(100dvh - 4rem); box-shadow: 16px 10px 40px #00000050; }
