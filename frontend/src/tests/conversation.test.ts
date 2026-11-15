@@ -11,6 +11,25 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+test('accepted followups and attachments retain one conversation even without a refreshed session list', async () => {
+  const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
+  const confirmed: string[] = [];
+  const api = new WorkbenchClient(async (path, request) => {
+    const body = JSON.parse(String(request?.body)); calls.push({ path: String(path), body });
+    if (String(path).endsWith('/sessions')) return Response.json({ schema_version: 1, session: 'session:kept', title: body.title });
+    if (String(path).endsWith('/upload')) return Response.json({ schema_version: 1, content_ref: 'content:kept' });
+    return Response.json(`run:${calls.length}`);
+  });
+  const commands = new ConversationCommands((record) => confirmed.push(record.session));
+  const first = await commands.submit(api, null, 'first', 'profile:one');
+  const next = await commands.submit(api, first!.session, 'follow up', 'profile:one');
+  await commands.uploadFile(api, next!.session, new File(['notes'], 'notes.txt'));
+  assert.deepEqual(confirmed, ['session:kept']);
+  assert.equal(calls.filter((call) => call.path.endsWith('/sessions')).length, 1);
+  assert.deepEqual(calls.slice(1).map((call) => call.body.session), ['session:kept', 'session:kept', 'session:kept']);
+  assert.notEqual(calls[1].body.idempotency_key, calls[2].body.idempotency_key);
+});
+
 test('new-session creation takes the exclusive command before its first await', async () => {
   const created = deferred<Response>();
   const calls: Array<{ path: string; body: Record<string, unknown> }> = [];

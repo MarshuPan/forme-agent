@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiError, WorkbenchClient } from './api/client.ts';
 import type { HostStatus, RunSummary, RuntimeView, SessionResponse, SessionView, WorkbenchSessionRecord } from './types.ts';
 import { Entry } from './components/Entry.tsx';
-import { Conversation, statusLabel } from './components/Conversation.tsx';
+import { Conversation } from './components/Conversation.tsx';
+import { conversationList } from './conversation-history.ts';
 import { Settings } from './components/Views.tsx';
 import { BrainInbox, CognitionView } from './components/BrainViews.tsx';
 import { WorkspaceView } from './components/Workspace.tsx';
@@ -30,6 +31,10 @@ export function App() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
   const [sessions, setSessions] = useState<WorkbenchSessionRecord[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [draftRevision, setDraftRevision] = useState(0);
+  const navigation = useRef(0);
+  const resumeSession = useRef(new URLSearchParams(location.hash.slice(1)).get('conversation'));
   const [conversationPending, setConversationPending] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [workspaceRevision, setWorkspaceRevision] = useState(0);
@@ -47,12 +52,28 @@ export function App() {
     coreProbe.current?.abort();
     coreProbe.current = null;
     if (notifyPeers) authSync.current?.notifyInvalidated();
-    setSession(null); setRuntime(null); setProductStatus(null); setCoreConnecting(false); setRuns([]); setSessions([]); setSelected(null); setMaterialTarget(null); setConversationPending(false); setMenu(false); setEntry('login');
+    navigation.current++;
+    setSession(null); setRuntime(null); setProductStatus(null); setCoreConnecting(false); setRuns([]); setSessions([]); setSelected(null); setSelectedSession(null); setMaterialTarget(null); setConversationPending(false); setMenu(false); setEntry('login');
   }, []);
   const api = useMemo(() => new WorkbenchClient(fetch, clear), [clear]);
   const refreshRuns = useCallback(async () => { const items = await api.runs(); setRuns((current) => items.map((run) => current.find((item) => item.run === run.run && item.last_stream_seq > run.last_stream_seq) ?? run)); }, [api]);
   const observeRun = useCallback((run: RunSummary) => { setRuns((items) => mergeObservedRun(items, run)); }, []);
   const refreshSessions = useCallback(async () => { const view = await api.workbenchSessions(); setSessions(view.sessions); }, [api]);
+  const rememberSession = useCallback((record: WorkbenchSessionRecord) => {
+    setSessions((current) => [record, ...current.filter((item) => item.session !== record.session)]);
+  }, []);
+  const chooseSession = useCallback((value: string | null) => {
+    setSelectedSession(value);
+    const url = new URL(location.href);
+    url.hash = value ? new URLSearchParams({ conversation: value }).toString() : '';
+    history.replaceState(null, '', url);
+  }, []);
+  useEffect(() => {
+    const value = resumeSession.current;
+    if (value && navigation.current === 0 && sessions.some((item) => item.session === value && !item.archived)) {
+      resumeSession.current = null; chooseSession(value);
+    }
+  }, [sessions, chooseSession]);
   const refreshCore = useCallback(async () => {
     coreProbe.current?.abort();
     const controller = new AbortController();
@@ -157,7 +178,25 @@ export function App() {
     catch (problem) { setIssue(problem instanceof Error ? problem.message : '退出结果未确认。'); }
     finally { setLoggingOut(false); }
   }
-  function open(run: string) { if (!conversationPending) setSelected(run); setTab('conversation'); setMenu(false); }
+  function openSession(value: string | null) {
+    if (conversationPending) return;
+    navigation.current++; chooseSession(value); setSelected(null); setTab('conversation'); setMenu(false);
+  }
+  function newConversation() {
+    navigation.current++; chooseSession(null); setSelected(null); setTab('conversation'); setMenu(false); setDraftRevision((value) => value + 1);
+  }
+  function open(run: string) {
+    if (conversationPending) return;
+    const request = ++navigation.current;
+    const show = (item: RunSummary) => {
+      if (navigation.current !== request) return;
+      chooseSession(item.session); setSelected(item.run); setTab('conversation'); setMenu(false);
+    };
+    const known = runs.find((item) => item.run === run);
+    if (known) show(known);
+    else void api.run(run).then(show).catch((problem) => { if (navigation.current === request) setIssue(problem instanceof Error ? problem.message : '对话暂不可读。'); });
+  }
+  const conversations = conversationList(sessions, runs);
   const serviceLabel = runtime ? '主脑已连接' : coreConnecting ? '主脑启动中' : productStatus ? productStatusLabel(productStatus) : '已登录 · 主脑离线';
 
   return <><a href="#main-content" className="skip-link">跳到主要内容</a><header className="topbar">
@@ -173,17 +212,17 @@ export function App() {
     {entry === 'unavailable' && <main id="main-content" className="entry-status"><h1>暂时无法连接</h1><p role="alert">{issue}</p><button className="primary-button" onClick={() => location.reload()}>重新检查</button></main>}
     {entry === 'ready' && session && <div className="app-shell"><aside className={`sidebar ${menu ? 'is-open' : ''}`} id="main-navigation">
       <div className="sidebar-intro"><span className="sidebar-kicker">FOR ME / WORKBENCH</span><p>持续推进复杂任务</p></div>
-      <button className="new-task-button" onClick={() => { setTab('conversation'); setSelected(null); setWorkspaceRevision((value) => value + 1); setMenu(false); }}><span className="new-task-icon">＋</span><span>新任务</span><kbd>N</kbd></button>
+      <button className="new-task-button" disabled={conversationPending} onClick={newConversation}><span className="new-task-icon">＋</span><span>新对话</span></button>
       <nav aria-label="主导航" className="nav-groups">
         <div className="nav-group"><span className="nav-group-label">工作</span>{tabs.slice(0, 2).map(([key, label, icon, description], index) => <button key={key} title={description} ref={index === 0 ? firstMobileNavItem : undefined} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); if (key === 'conversation') setWorkspaceRevision((value) => value + 1); setMenu(false); }}><span className="nav-icon" aria-hidden="true">{icon}</span><span className="nav-label">{label}</span>{key === 'conversation' && runs.some((run) => !['Complete', 'Aborted', 'Failed'].includes(run.status)) && <span className="nav-badge">{runs.filter((run) => !['Complete', 'Aborted', 'Failed'].includes(run.status)).length}</span>}</button>)}</div>
         <div className="nav-group"><span className="nav-group-label">理解</span>{tabs.slice(2, 4).map(([key, label, icon, description]) => <button key={key} title={description} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); setMenu(false); }}><span className="nav-icon" aria-hidden="true">{icon}</span><span className="nav-label">{label}</span>{key === 'inbox' && runs.some((run) => run.status === 'Waiting') && <span className="nav-badge">!</span>}</button>)}</div>
         <div className="nav-group"><span className="nav-group-label">管理</span>{tabs.slice(4).map(([key, label, icon, description]) => <button key={key} title={description} className={`nav-item ${tab === key ? 'active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => { setTab(key); setMenu(false); }}><span className="nav-icon" aria-hidden="true">{icon}</span><span className="nav-label">{label}</span></button>)}</div>
       </nav>
-      <div className="recent-section"><div className="recent-heading"><span>最近任务</span><span className="count">{runs.length}</span></div><div className="recent-runs">{runs.slice(-8).reverse().map((run) => <button key={run.run} aria-pressed={selected === run.run} onClick={() => open(run.run)}><span>{run.session}</span><small><i className={`run-dot run-${run.status.toLowerCase()}`} />{statusLabel(run.status)}</small></button>)}{!runs.length && <p className="muted small">从新任务开始</p>}</div></div>
+      <div className="recent-section"><div className="recent-heading"><span>对话</span><span className="count">{conversations.length}</span></div><div className="recent-runs" aria-label="对话列表">{conversations.map((item) => <button key={item.session} title={item.title} disabled={conversationPending} aria-pressed={selectedSession === item.session} onClick={() => openSession(item.session)}><span>{item.title}</span><small>{item.activity ?? (item.turns ? `${item.turns} 轮对话` : '尚无消息')}</small></button>)}{!conversations.length && <p className="muted small">从新对话开始</p>}</div></div>
       <div className="sidebar-footer"><span className="service-state"><i data-ready={Boolean(runtime)} />{serviceLabel}</span><p className="sidebar-footnote">你的工作台持续在线</p></div>
     </aside><main id="main-content" className="main-content" tabIndex={-1} key={session.account_ref}>
-      <div className="main-statusbar"><div><span className="breadcrumb-root">forme</span><span className="breadcrumb-separator">/</span><span>{tabs.find(([key]) => key === tab)?.[1]}</span></div><div className="main-status-actions"><span className="secure-label"><span className="secure-dot" />已连接本机主脑</span></div></div>
-      <div hidden={tab !== 'conversation'}><Conversation active={tab === 'conversation' && !loggingOut} api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} refresh={refreshRuns} refreshSessions={refreshSessions} observed={observeRun} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
+      <div className="main-statusbar"><div><span className="breadcrumb-root">forme</span><span className="breadcrumb-separator">/</span><span>{tabs.find(([key]) => key === tab)?.[1]}</span></div><div className="main-status-actions"><span className="secure-label"><span className="secure-dot" />{serviceLabel}</span></div></div>
+      <div hidden={tab !== 'conversation'}><Conversation active={tab === 'conversation' && !loggingOut} api={api} runtime={runtime} runs={runs} sessions={sessions} selected={selected} select={setSelected} session={selectedSession} setSession={chooseSession} rememberSession={rememberSession} newConversation={newConversation} draftRevision={draftRevision} refresh={refreshRuns} refreshSessions={refreshSessions} observed={observeRun} workspaceRevision={workspaceRevision} onPendingChange={setConversationPending} /></div>
       <div hidden={tab !== 'workspace'}><WorkspaceView api={api} runtime={runtime} open={open} /></div>
       {tab === 'inbox' && <BrainInbox api={api} open={open} />}
       {tab === 'cognition' && <CognitionView api={api} open={open} prepareForgetting={(target) => { setMaterialTarget(target); setTab('settings'); setMenu(false); }} />}

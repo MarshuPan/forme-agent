@@ -26,7 +26,7 @@
 .account-button:hover:not(:disabled) { border-color: var(--line-strong); background: var(--surface-hover); }
 .account-name { max-width: 10rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .avatar { display: grid; place-items: center; width: 1.65rem; height: 1.65rem; border-radius: .35rem; color: #17191c; background: #dfe2e7; font-size: .72rem; font-weight: 700; }
-.mobile-menu { display: none; }
+.mobile-menu.icon-button { display: none; }
 .entry { max-width: 1180px; min-height: calc(100dvh - 4.25rem); margin: 0 auto; padding: 5rem 3rem; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(20rem, .8fr); align-items: center; gap: 7rem; }
 .entry-intro { max-width: 39rem; }
 .entry-intro h1 { font-size: clamp(3.2rem, 6vw, 5.85rem); line-height: 1.03; font-weight: 520; letter-spacing: -.08em; margin-bottom: 2rem; }
@@ -86,6 +86,10 @@
 .view-header .button-row { align-items: center; flex-wrap: nowrap; }
 .view-header .button-row select { width: min(17rem, 100%); }
 .conversation-layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 2.2rem; }
+.conversation-layout.without-details { grid-template-columns: minmax(0, 1fr); max-width: 60rem; margin-inline: auto; }
+.conversation-turn { min-width: 0; }
+.turn-details-button { display: block; margin-top: .85rem; padding: .4rem 0; border: 0; background: transparent; color: var(--muted); font-size: .75rem; text-align: left; }
+.turn-details-button:hover { color: var(--text); text-decoration: underline; }
 .conversation-main { display: flex; flex-direction: column; min-width: 0; min-height: calc(100dvh - 16.5rem); }
 .messages { flex: 1; padding-bottom: 1.5rem; }
 .answer { margin: 1.15rem 0 2.2rem; max-width: 70rem; }
@@ -121,7 +125,7 @@
   .topbar-actions { gap: .4rem; }
   .service-state { max-width: 7rem; overflow: hidden; text-overflow: ellipsis; }
   .account-name { display: none; }
-  .mobile-menu { display: inline-grid; }
+  .mobile-menu.icon-button { display: inline-grid; }
   .app-shell { display: block; }
   .sidebar { display: none; position: fixed; z-index: 9; top: 4rem; left: 0; width: min(86vw, 300px); height: calc(100dvh - 4rem); box-shadow: 16px 10px 40px #00000050; }
   .sidebar.is-open { display: flex; }

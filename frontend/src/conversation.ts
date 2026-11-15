@@ -2,13 +2,15 @@
 // It is discarded on sign-out. Nothing here is a persistent offline queue.
 import { newKey } from './api/client.ts';
 import type { WorkbenchClient } from './api/client.ts';
-import type { ArtifactUploadReceipt, RunCommand } from './types.ts';
+import type { ArtifactUploadReceipt, RunCommand, WorkbenchSessionRecord } from './types.ts';
 
 type Client = Pick<WorkbenchClient, 'createWorkbenchSession' | 'submit' | 'uploadArtifact'>;
 interface Turn { key: string; session: string | null; input: string; profile: string }
 interface Upload { key: string; session: string | null; file: File }
 
 export class ConversationCommands {
+  private readonly confirmedSession: (record: WorkbenchSessionRecord) => void;
+  constructor(confirmedSession: (record: WorkbenchSessionRecord) => void = () => {}) { this.confirmedSession = confirmedSession; }
   private disposed = false;
   private locked = false;
   private turn: Turn | null = null;
@@ -28,6 +30,7 @@ export class ConversationCommands {
     if (this.disposed) throw new Error('已退出当前会话，不再提交后续操作。');
     item.session = created.session;
     this.creation = null;
+    this.confirmedSession(created);
     return created.session;
   }
   private requireActive() { if (this.disposed) throw new Error('已退出当前会话，不再提交后续操作。'); }

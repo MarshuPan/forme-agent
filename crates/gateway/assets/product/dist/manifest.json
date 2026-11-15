@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source_digest": "8e8a54a4cc1ae17993df87eef6c7d208cf024ba9aae4bd9331710f9ade0850ec",
+  "source_digest": "4d2f554bcc258cafbc891a7aeef3d456af52363f4f9de65a4b1b54e10324a14e",
   "sources": [
     {
       "path": "frontend/index.html",
@@ -20,11 +20,11 @@
     },
     {
       "path": "frontend/src/App.tsx",
-      "sha256": "3a5c35b0aeb1960d584fb41e906812023aabdd8dbc864b1ec9555d310df494b7"
+      "sha256": "a19398a1ce155550c309a880187edd2889e4ca3faa0a94a1ab8a7ee22ad72806"
     },
     {
       "path": "frontend/src/api/client.ts",
-      "sha256": "01febff65db4c60ac88b897e85fc82d6c243b850cf2d8a5828e39bee594ea732"
+      "sha256": "6ad48469d70d68e732da38a37d1d1ce3cb28363c768eaf3cf5cf1fbe63d202c8"
     },
     {
       "path": "frontend/src/api/request-timeout.ts",
@@ -80,7 +80,7 @@
     },
     {
       "path": "frontend/src/components/Conversation.tsx",
-      "sha256": "28dadb45b756a88c4b3c7c7de81e0ece21fb3e2cda67a6bc4ddc350b572b8558"
+      "sha256": "7d5868f13d950a593c84647217908f136e96f3cde13524f363914c1536256b72"
     },
     {
       "path": "frontend/src/components/DataManagement.tsx",
@@ -187,12 +187,16 @@
       "sha256": "db6b55707eac36eba3973604f796e92b34bbf6b16111f4236fe0b9ce5a510d50"
     },
     {
+      "path": "frontend/src/conversation-history.ts",
+      "sha256": "03588e1367a4d7093fbbfc55a50225e9d83185d4020129f44be216a8319d85b4"
+    },
+    {
       "path": "frontend/src/conversation-view.ts",
       "sha256": "5cbe3069f94038e590a20963971ad387bb777853007657e94416b7241fd29277"
     },
     {
       "path": "frontend/src/conversation.ts",
-      "sha256": "c6492572a2a406f2669aea8abd1704f3b3e1849942b90550e86a19399237863c"
+      "sha256": "734af167e0d5cdb0b7fb5a1a0d9a4691cace9360b9889b5c8fee59c27c253806"
     },
     {
       "path": "frontend/src/core-readiness.ts",
@@ -280,7 +284,7 @@
     },
     {
       "path": "frontend/src/styles/layout.css",
-      "sha256": "cbf2079a7c8f6ce4500c66327b82cbe362284a59ed79a7112d32a80d220e3c83"
+      "sha256": "46f19ecf74c80c3a210700a8863328638b1d0615cafb62fc32f1b34727d870f7"
     },
     {
       "path": "frontend/src/tests/auth-sync.test.ts",
@@ -307,12 +311,16 @@
       "sha256": "ac9062f29159ae5567bb8de2e5fba8952c7fb3cba4b603fe6bb5c80302670a52"
     },
     {
+      "path": "frontend/src/tests/conversation-history.test.ts",
+      "sha256": "6c8b4cf517eb9e6cb17d1dd1f3064d5810846cf14ba7d75a818fb24b4dd47fb5"
+    },
+    {
       "path": "frontend/src/tests/conversation-view.test.ts",
       "sha256": "ba91a39800c7340f7695ef9c042b8272b1bd7053fdd4371f1abc769382916213"
     },
     {
       "path": "frontend/src/tests/conversation.test.ts",
-      "sha256": "4cff7c406720b4af690e33989b61732d2b476203b819e1b547e53602ee7089bc"
+      "sha256": "977bc11092e2e377a2c89494789a5a314019eb087a31c88626743d0d2adf1a57"
     },
     {
       "path": "frontend/src/tests/core-readiness.test.ts",
@@ -404,7 +412,11 @@
     },
     {
       "path": "frontend/src/types.ts",
-      "sha256": "288adcc4857872d7f788bc21c070b8be79c5ea4997ec86e34ac365ed60596bab"
+      "sha256": "996b5c07e9c681d0ca07230b86a382dfb61b05f375dbc43a700077ff648f0170"
+    },
+    {
+      "path": "frontend/src/use-conversation-history.ts",
+      "sha256": "dabf086a70ab2357a8871b194dc704c8a535fab1da51011684395712abfd2253"
     },
     {
       "path": "frontend/src/workbench.ts",
@@ -429,14 +441,14 @@
   ],
   "files": [
     {
-      "path": "assets/index-ORltAokh.css",
-      "sha256": "30991cf81b19729b10526a89d210f7c4113f9cf7ff32f8be42f474e9afd0d369",
-      "bytes": 21438
+      "path": "assets/index-C6Ar7zBX.js",
+      "sha256": "6a9d6490d11841e9cc99ee004be62e3d5c60a9c4172832c70f5544b4aa2565a3",
+      "bytes": 466854
     },
     {
-      "path": "assets/index-xctu3rwi.js",
-      "sha256": "49b0c8cb85f81ac20f26dc378cf11e6d0c160c1d464d0c4bcbf8427a97ae0d52",
-      "bytes": 462963
+      "path": "assets/index-CA0Leau_.css",
+      "sha256": "11c394db9f3adc3ec8bd215a67af5c70f97df9f48c9f6dcb267c4167f7484d77",
+      "bytes": 21817
     },
     {
       "path": "dependencies.json",
@@ -450,7 +462,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "a94e835d63d17f6991bd3587dbdd1ffcc680f25c316875a6c29da13037e1a296",
+      "sha256": "357d1d0fb22e14d6be7e62c6469c1ce92296bea4883594e78b12ee35115e630a",
       "bytes": 641
     },
     {

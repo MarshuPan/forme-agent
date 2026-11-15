@@ -114,16 +114,16 @@ export class WorkbenchClient {
     }
     return response;
   }
-  private async jsonValue(path: string, method = 'GET', body?: unknown, key?: string): Promise<unknown> {
+  private async jsonValue(path: string, method = 'GET', body?: unknown, key?: string, signal?: AbortSignal): Promise<unknown> {
     const generation = this.generation;
-    const response = await this.request(path, method, body, key);
+    const response = await this.request(path, method, body, key, { signal });
     if (response.status === 204) return undefined;
     const value: unknown = await response.json();
     this.current(generation);
     return value;
   }
-  private async json<T>(path: string, method = 'GET', body?: unknown, key?: string, schema: 1 | 2 = 1): Promise<T> {
-    const value = await this.jsonValue(path, method, body, key);
+  private async json<T>(path: string, method = 'GET', body?: unknown, key?: string, schema: 1 | 2 = 1, signal?: AbortSignal): Promise<T> {
+    const value = await this.jsonValue(path, method, body, key, signal);
     if (value === undefined) return undefined as T;
     if (schema === 2) {
       if (!isRecord(value) || value.schema_version !== 2) throw new Error('设置协议不兼容，请更新页面或服务。');
@@ -298,13 +298,13 @@ export class WorkbenchClient {
   runtime() { return this.json<RuntimeView>('brain/runtime/manifest'); }
   async runtimeDoctor() { return parseRuntimeDoctor(await this.json<unknown>('brain/runtime/doctor')); }
   runs() { return this.json<RunSummary[]>('brain/runs'); }
-  run(run: string) { return this.json<RunSummary>(`brain/runs/${id(run)}`); }
+  run(run: string, signal?: AbortSignal) { return this.json<RunSummary>(`brain/runs/${id(run)}`, 'GET', undefined, undefined, 1, signal); }
   runPending(run: string) { return this.json<RunPendingView>(`brain/runs/${id(run)}/pending`); }
   async controlRun(run: string, body: unknown, operation: string) {
     await this.request(`brain/runs/${id(run)}/control`, 'POST', body, operation);
   }
   submit(command: RunCommand) { return this.json<string>('brain/runs', 'POST', command, command.idempotency_key); }
-  async events(run: string, after: number) { return (await this.request(`brain/runs/${id(run)}/events?after=${after}`)).text(); }
+  async events(run: string, after: number, signal?: AbortSignal) { return (await this.request(`brain/runs/${id(run)}/events?after=${after}`, 'GET', undefined, undefined, { signal })).text(); }
   async uploadArtifact(session: string, workspace: string | null, file: File, operation = newKey('artifact')) {
     if (file.size === 0 || file.size > 4 * 1024 * 1024) throw new Error('附件必须大于 0 且不超过 4 MiB。');
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -324,7 +324,7 @@ export class WorkbenchClient {
       schema_version: 1, session, page: { schema_version: 1, offset, limit: 50, snapshot },
     }, newKey('artifact-query'));
   }
-  answer(run: string) { return this.json<{ schema_version: 1; run: string; answer: string | null }>(`brain/runs/${id(run)}/answer`); }
+  answer(run: string, signal?: AbortSignal) { return this.json<{ schema_version: 1; run: string; answer: string | null }>(`brain/runs/${id(run)}/answer`, 'GET', undefined, undefined, 1, signal); }
   approvals(session: string) { return this.json<PendingApproval[]>(`brain/sessions/${id(session)}/approvals`); }
   async desktopSessions() { return parseDesktopCatalog(await this.jsonValue('desktop/sessions')); }
   async desktopConsent(pendingRef: string) { return parseDesktopConsent(await this.jsonValue(`desktop/consents/${id(pendingRef)}`),pendingRef); }

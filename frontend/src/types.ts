@@ -149,6 +149,7 @@ export type RunControlResolutionCommand =
   | { ResolveHandoff: { command: string; resolution: { schema_version: 1; target: string; accepted: boolean; result: string | null } } };
 export interface BrainEvent {
   schema_version: 1; event_id: string; run_id: string; stream_seq: number; kind: string; payload: Json;
+  ts_unix_ms?: number;
 }
 export interface PendingApproval {
   schema_version: 1; run: string; session: string; approval_id: string;
