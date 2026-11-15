@@ -2,6 +2,16 @@
 
 本记录承接 requirements/17–18、architecture/10、prd/24–26。它只记录新的产品化施工与证据，不改写 M0–M5、C1–C24 的历史验收；宿主组件测试不等于 IP01–IP24 或安装包验收。
 
+## 2026-11-15 受管输入与固定 PTY runner 接线完成
+
+本轮完成 owner 已批准的 worker 输入与生产 PTY 窄范围方案的代码接缝：`WorkerInputResolver` 现在支持 executor-local secret slot 的逐项/全量撤销；Content/Secret grant 在解析时继续核对 job、owner、action、plan、permit、authority epoch、nonce、workspace、closed input path 和期限；Host 分块读取在 journal binding、安装归属、状态和内容摘要之外再次核对 action 绑定。worker stdin envelope 增加严格 magic/version 边界、路径白名单、重复路径拒绝、secret marker 校验、trailing bytes 拒绝和总字节上限。
+
+开发进程和 Windows AppContainer 接线均已支持一次性输入 frame；`sandbox:installed-pty-v1` 只能启动固定的 `forme-pty-worker`，allowlist 参数必须成对、绝对路径且无重复项。新 runner 使用 `portable-pty`，清空继承环境，仅注入受管环境变量，限制 workspace/cwd 和固定程序 allowlist，执行有界输出、timeout/overflow cleanup、secret redaction，并以 `.pending` 临时文件同步后原子发布结果。无输入时也发送明确 EOF frame。runner 已加入 native package、signed release、product bundle 和产品配置构建清单。
+
+本轮源码/组件证据：`cargo fmt --all -- --check`、`cargo check --workspace --all-targets`、worker input/process/protocol/worker-process 定向回归、`forme-pty-worker` 单元场景和产品打包清单检查。完整 workspace、合规、质量和构建资源门的最终计数见[本轮闭合验收报告](installed-worker-input-pty-closure-20261115.md)。
+
+当前边界没有提升：`supports_managed_pty()` 仍按设计返回 false，生产 capability 继续 fail-closed；真实 Windows SCM/LocalSystem 服务身份、Low AppContainer/ConPTY/Job 进程树、secret 撤销/清理异常矩阵、当前候选安装升级和 IP10/IP11/IP24 联合回执仍未在本机取得。普通进程、WSL、Docker、机制 PTY 或旧安装回执均不计为这些项目通过。
+
 ## 2026-11-14 受管输入接缝与生产 PTY 准入状态
 
 本轮已把 owner 批准的 `ContentRef`/opaque `SecretRef` slot 协议接到最终执行计划、worker binding、Host resolver 和 AgentExecution 分块读取路由：grant 绑定 installation、owner、job/action、plan/permit digest、authority epoch、nonce、workspace、closed input path 与期限；Content 逐次核对字节数和 SHA-256，Secret 只由 Host 的 executor-local slot 在最后一跳解析。解析失败、绑定漂移、过期、撤销或清理不明继续阻断或保留原 job Unknown。开发进程 adapter 的一次性 stdin envelope 已有回归，值不进入 journal/receipt；没有明确输入能力的隔离 adapter 仍拒绝 grants。

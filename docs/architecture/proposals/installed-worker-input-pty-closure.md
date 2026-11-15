@@ -1,6 +1,6 @@
-# 安装 worker 输入与生产 PTY 的窄范围补充（待确认）
+# 安装 worker 输入与生产 PTY 的窄范围补充
 
-状态：**2026-11-14 owner 已批准实施；协议、Host 解析和开发 worker 接缝已完成，真实生产 PTY adapter 与原生验收仍未完成**。
+状态：**2026-11-15 owner 已批准实施；协议、Host 解析、worker 接线、固定 runner 和产品打包接缝已完成，真实生产 PTY adapter 与原生验收仍未完成**。
 
 本文只处理当前设计中剩余的两个安装侧接缝：`ContentRef`/`SecretRef` 作为受管 worker 输入，以及真实生产 PTY profile。它不修改已有的受管 MCP、插件、渠道、桌面授权或截图协议，也不把组件级 PTY 机制证据提升为产品能力。
 
@@ -52,17 +52,17 @@
 - PTY 不获得桌面 helper 的完整用户权限，不访问 brain/Host journal/key 目录，不创建第二个 writer，不通过渠道代理或浏览器 listener 出网。网络能力默认为拒绝；需要任何网络 grant 必须另提 exact-scope 协议。
 - `PtyActionSpec` 的程序、cwd、cols/rows、输入 grant digest、timeout 和 output budget 共同参与原 `normalized_action_digest`；任何变更都使原审批失效并要求新 plan。
 
-## 5. 必须回填的正式文档与协议测试
+## 5. 正式文档与协议测试回填
 
-在代码前，需要把上述 exact scope 回填到：
+上述 exact scope 已回填并与实现逐项核对：
 
 - `docs/architecture/canonical-contract.md` §29 的输入解析、executor-local slot 和生产 PTY profile 条款；
 - `docs/prd/24-installer-and-service-lifecycle.md` §4.1.2–§4.1.4 的 Worker DTO、AgentExecution 读取顺序、清理和 native admission；
 - `docs/architecture/10-installed-product-and-web-workbench-architecture.md` §7.1.2/§7.1.3 的输入与 PTY 生产边界；
 - `docs/requirements/18-installed-product-verification-strategy.md` 的 IP10/IP11/IP17/IP18/IP21/IP24 输入、secret redaction、PTY 进程树和删除证据。
 
-已补齐 closed serde/绑定、grant digest/expiry、chunk/size/offset、跨 owner/workspace/path、secret 不落盘和开发 stdin 接线场景。Host 解析、固定 worker 接线仍在无 native adapter 时 fail-closed；真实 Windows native receipt、撤销/清理异常矩阵和完整生产 profile 仍未完成，组件/机制测试不关闭 IP10/IP11/IP24。
+已补齐 closed serde/绑定、grant digest/expiry、chunk/size/offset、跨 owner/workspace/path、secret 不落盘、撤销 slot、closed frame decoder、开发 stdin 接线、固定 runner、输出预算、secret redaction、timeout/overflow cleanup 和 `.pending` 原子结果发布场景。Host 解析、固定 worker 接线和产品打包已完成；真实 Windows native receipt、撤销/清理异常矩阵和完整生产 profile 仍未完成，组件/机制测试不关闭 IP10/IP11/IP24。
 
-## 6. 实施确认
+## 6. 实施状态
 
-Owner 已批准本文 §3 的受管 Content/Secret 输入授权，以及 §4 的 `sandbox:installed-pty-v1` 生产 profile。正式文档变更先于代码提交；实现顺序固定为“协议 → Host resolver → worker 接线 → native 验收”。在对应组件和原生证据完成前，生产默认仍保持 `Unavailable/Blocking`。
+Owner 已批准本文 §3 的受管 Content/Secret 输入授权，以及 §4 的 `sandbox:installed-pty-v1` 生产 profile。实现已按“协议 → Host resolver → worker 接线 → 固定 runner → package”完成；Windows native adapter、服务身份、ConPTY/Job/AppContainer 进程树和 IP10/IP11/IP24 联合回执仍需在真实受控环境取证。在这些证据完成前，生产 capability 默认继续保持 `Unavailable/Blocking`。
